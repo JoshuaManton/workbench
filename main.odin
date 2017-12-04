@@ -1,3 +1,4 @@
+using import "core:fmt.odin"
 using import "shared:sd/math.odin"
 using import "shared:sd/basic.odin"
 
@@ -27,8 +28,8 @@ main :: proc() {
 init :: proc() {
 	guy_sprite := load_sprite("guy.png");
 
-	for i in 0..1000 {
-		append(&entities, Entity{Vector2{0, 0}, Vector2{1, 1}, guy_sprite});
+	for i in 0..5000 {
+		append(&entities, Entity{Vector2{cast(f32)i*2, cast(f32)i*2}, Vector2{1, 1}, guy_sprite});
 	}
 }
 
@@ -38,6 +39,12 @@ update :: proc() {
 		x := cast(f32)sin(glfw.GetTime() + cast(f64)i) * cast(f32)i;
 		y := cast(f32)cos(glfw.GetTime() + cast(f64)i) * cast(f32)i;
 		position = Vector2{x, y} * 0.1;
+		//draw_sprite(sprite, position, scale);
+
 		submit_sprite(sprite, position, scale);
 	}
+
+	//swap_buffers();
+
+	flush_sprites();
 }

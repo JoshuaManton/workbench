@@ -8,10 +8,15 @@ using import "shared:sd/basic.odin"
 
 using import "rendering.odin"
 
-left: i32;
-right: i32;
-bottom: i32;
-top: i32;
+ortho: Mat4;
+transform: Mat4;
+transform_buffer: u32;
+instanced_shader_program: u32;
+immediate_shader_program: u32;
+
+window: glfw.Window_Handle;
+
+vao, vbo: u32;
 
 sprite_vbo := [...]f32 {
 	-1, -1, 0, 0,
@@ -50,7 +55,7 @@ start :: proc(using config: Engine_Config) {
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, config.opengl_version_major);
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, config.opengl_version_minor);
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
-	window := glfw.CreateWindow(config.window_width, config.window_height, config.window_name, nil, nil);
+	window = glfw.CreateWindow(config.window_width, config.window_height, config.window_name, nil, nil);
 	if window == nil do return;
 
 	video_mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor());
@@ -62,10 +67,14 @@ start :: proc(using config: Engine_Config) {
 	glfw.SetWindowSizeCallback(window, size_callback);
 	size_callback :: proc"c"(window: glfw.Window_Handle, w, h: i32) {
 		aspect := cast(f32)w / cast(f32)h;
-		top = camera_size;
-		bottom = -camera_size;
-		left = i32(cast(f32)-camera_size * aspect);
-		right = i32(cast(f32)camera_size * aspect);
+		top := camera_size;
+		bottom := -camera_size;
+		left := i32(cast(f32)-camera_size * aspect);
+		right := i32(cast(f32)camera_size * aspect);
+		ortho = ortho3d(cast(f32)left, cast(f32)right, cast(f32)bottom, cast(f32)top, -100, 100);
+
+		transform = mat4_identity();
+		transform = mul(transform, ortho);
 
 		gl.Viewport(0, 0, w, h);
 	}
@@ -78,16 +87,15 @@ start :: proc(using config: Engine_Config) {
 	size_callback(window, config.window_width, config.window_height);
 
 	// load shaders
-	program, shader_success := gl.load_shaders("vertex.glsl", "fragment.glsl");
-	defer gl.DeleteProgram(program);
+	shader_success: bool;
+	instanced_shader_program, shader_success = gl.load_shaders("instanced_vertex.glsl", "fragment.glsl");
+	immediate_shader_program, shader_success = gl.load_shaders("immediate_vertex.glsl", "fragment.glsl");
 
 	// setup vao
-	vao: u32;
 	gl.GenVertexArrays(1, &vao);
 	defer gl.DeleteVertexArrays(1, &vao);
 	gl.BindVertexArray(vao);
 
-	vbo: u32;
 	gl.GenBuffers(1, &vbo);
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(sprite_vbo), &sprite_vbo[0], gl.STATIC_DRAW);
@@ -102,7 +110,6 @@ start :: proc(using config: Engine_Config) {
 	gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, stride, rawptr(uintptr(2*size_of(f32))));
 	gl.EnableVertexAttribArray(1);
 
-	transform_buffer: u32;
 	gl.GenBuffers(1, &transform_buffer);
 	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
 
@@ -133,20 +140,15 @@ start :: proc(using config: Engine_Config) {
 			glfw.SetWindowShouldClose(window, true);
 		}
 
-		ortho := ortho3d(cast(f32)left, cast(f32)right, cast(f32)bottom, cast(f32)top, -100, 100);
-
 		// clear screen
 		gl.Clear(gl.COLOR_BUFFER_BIT);
-
-		// setup shader program and uniforms
-		gl.UseProgram(program);
 
 		clear(&sprites);
 		config.update_proc();
 
+/*
 		for i in 0..len(sprites) {
 			using sprite := &sprites[i];
-/*
 			matrix_from_scale :: proc(scale: Vector2) -> Mat4 {
 				scale_matrix := mat4_identity();
 				scale_matrix[0][0] = scale.x;
@@ -170,28 +172,56 @@ start :: proc(using config: Engine_Config) {
 
 			// draw stuff
 			gl.BindTexture(gl.TEXTURE_2D, cast(u32)id);
+		}
 			*/
-
-		}
-
-		get_uniform_location :: inline proc(program: u32, str: string) -> i32 {
-			return gl.GetUniformLocation(program, &str[0]);
-		}
-
-		transform := mat4_identity();
-		transform = mul(transform, ortho);
-		gl.UniformMatrix4fv(get_uniform_location(program, "transform\x00"), 1, gl.FALSE, &transform[0][0]);
-
-		gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
-		gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
-
-		gl.VertexAttribDivisor(0, 0);
-		gl.VertexAttribDivisor(1, 0);
-		gl.VertexAttribDivisor(2, 1);
-		gl.VertexAttribDivisor(3, 1);
-
-		gl.DrawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, &sprite_vbo_indices[0], cast(i32)len(sprites));
-
-		glfw.SwapBuffers(window);
 	}
+}
+
+get_uniform_location :: inline proc(program: u32, str: string) -> i32 {
+	return gl.GetUniformLocation(program, &str[0]);
+}
+
+draw_sprite :: proc(sprite: Sprite, position, scale: Vector2) {
+	matrix_from_scale :: proc(scale: Vector2) -> Mat4 {
+		scale_matrix := mat4_identity();
+		scale_matrix[0][0] = scale.x;
+		scale_matrix[1][1] = scale.y;
+
+		return scale_matrix;
+	}
+
+	position_to_translation :: proc(position: Vector2, proj: Mat4) -> Mat4 {
+		position4 := mul(proj, Vec4{position.x, position.y, 0, 0});
+		return mat4_translate(Vec3{position4[0], position4[1], position4[2]});
+	}
+
+	local_transform := position_to_translation(position, ortho);
+	local_transform = mul(local_transform, ortho);
+	local_transform = mul(local_transform, matrix_from_scale(scale));
+
+	gl.UseProgram(immediate_shader_program);
+	gl.BindTexture(gl.TEXTURE_2D, cast(u32)sprite);
+	gl.UniformMatrix4fv(get_uniform_location(immediate_shader_program, "transform\x00"), 1, gl.FALSE, &local_transform[0][0]);
+	gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, &sprite_vbo_indices[0]);
+}
+
+swap_buffers :: proc() {
+	glfw.SwapBuffers(window);
+}
+
+flush_sprites :: proc() {
+	gl.UseProgram(instanced_shader_program);;
+	gl.UniformMatrix4fv(get_uniform_location(instanced_shader_program, "transform\x00"), 1, gl.FALSE, &transform[0][0]);
+
+	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
+	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
+
+	gl.VertexAttribDivisor(0, 0);
+	gl.VertexAttribDivisor(1, 0);
+	gl.VertexAttribDivisor(2, 1);
+	gl.VertexAttribDivisor(3, 1);
+
+	gl.DrawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, &sprite_vbo_indices[0], cast(i32)len(sprites));
+
+	glfw.SwapBuffers(window);
 }
