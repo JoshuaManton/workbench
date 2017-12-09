@@ -161,7 +161,7 @@ Sprite_Data :: struct {
 }
 
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
-	append(&sprites, Sprite_Data{position, scale, cast(i32)len(sprites)});
+	append(&sprites, Sprite_Data{position, scale, cast(i32)sprite});
 }
 
 flush_sprites :: proc() {
@@ -170,6 +170,22 @@ flush_sprites :: proc() {
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
+
+	name: string;
+	location: i32;
+	name = "atlas_texture\x00";
+	location = gl.GetUniformLocation(instanced_shader_program, &name[0]);
+	gl.Uniform1i(location, 0);
+
+	name = "atlas_coords_texture\x00";
+	location = gl.GetUniformLocation(instanced_shader_program, &name[0]);
+	gl.Uniform1i(location, 1);
+
+	gl.ActiveTexture(gl.TEXTURE0);
+	gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
+
+	gl.ActiveTexture(gl.TEXTURE1);
+	gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
 
 	gl.VertexAttribDivisor(2, 1);
 	gl.VertexAttribDivisor(3, 1);
@@ -181,9 +197,27 @@ flush_sprites :: proc() {
 	glfw.SwapBuffers(window);
 }
 
-load_sprite :: proc(filepath: string) -> Sprite {
-	MAX_PATH_LENGTH :: 1024;
+atlas_coords_texture: u32;
+atlas_texture: u32;
+atlas_loaded: bool;
 
+atlas_x: i32;
+atlas_index: i32;
+
+load_sprite :: proc(filepath: string) -> Sprite {
+	if !atlas_loaded {
+		atlas_loaded = true;
+
+		gl.GenTextures(1, &atlas_coords_texture);
+		gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
+		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.R32F, 6 * 4, 0, gl.RED, gl.UNSIGNED_BYTE, nil);
+
+		gl.GenTextures(1, &atlas_texture);
+		gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
+	}
+
+	MAX_PATH_LENGTH :: 1024;
 	assert(len(filepath) <= MAX_PATH_LENGTH - 1);
 	filepath_c: [MAX_PATH_LENGTH]byte;
 	mem.copy(&filepath_c[0], &filepath[0], len(filepath));
@@ -193,18 +227,29 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	w, h, channels: i32;
 	texture_data := image.load(&filepath_c[0], &w, &h, &channels, 0);
 
-	texture_id: u32;
-	gl.GenTextures(1, &texture_id);
-	gl.BindTexture(gl.TEXTURE_2D, texture_id);
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
-	gl.GenerateMipmap(gl.TEXTURE_2D);
+	gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
+	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
+	atlas_x += w;
+	this_atlas_index := atlas_index;
+	atlas_index += 1;
 
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-	return cast(Sprite)texture_id;
+	coords := [...]f32 {
+		-1, -1,
+		-1,  1,
+		 1,  1,
+		 1,  1,
+		 1, -1,
+		-1, -1,
+	};
+	gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
+	gl.TexSubImage1D(gl.TEXTURE_1D, 0, this_atlas_index * 6, 6, gl.R32F, gl.FLOAT, &coords[0]);
+
+	return cast(Sprite)this_atlas_index;
 }
 
 get_uniform_location :: inline proc(program: u32, str: string) -> i32 {

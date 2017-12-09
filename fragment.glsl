@@ -2,10 +2,11 @@
 
 in vec2 tex_coord;
 
-uniform sampler2D texture_data;
+uniform sampler2D atlas_texture;
+uniform sampler1D atlas_coords_texture;
 
 out vec4 color;
 
 void main() {
-    color = texture(texture_data, tex_coord);
+    color = texture(atlas_texture, tex_coord);
 }
