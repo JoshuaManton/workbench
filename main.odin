@@ -39,12 +39,9 @@ update :: proc() {
 		x := cast(f32)sin(glfw.GetTime() + cast(f64)i) * cast(f32)i;
 		y := cast(f32)cos(glfw.GetTime() + cast(f64)i) * cast(f32)i;
 		position = Vector2{x, y} * 0.1;
-		//draw_sprite(sprite, position, scale);
 
 		submit_sprite(sprite, position, scale);
 	}
-
-	//swap_buffers();
 
 	flush_sprites();
 }

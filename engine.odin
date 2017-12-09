@@ -2,6 +2,8 @@ import "core:fmt.odin"
 import "core:strings.odin"
 import "shared:odin-glfw/glfw.odin"
 import "shared:odin-gl/gl.odin"
+import "shared:stb/image.odin"
+import "core:mem.odin"
 
 using import "shared:sd/math.odin"
 using import "shared:sd/basic.odin"
@@ -12,7 +14,6 @@ ortho: Mat4;
 transform: Mat4;
 transform_buffer: u32;
 instanced_shader_program: u32;
-immediate_shader_program: u32;
 
 window: glfw.Window_Handle;
 
@@ -22,12 +23,9 @@ sprite_vbo := [...]f32 {
 	-1, -1, 0, 0,
 	-1,  1, 0, 1,
 	 1,  1, 1, 1,
+	 1,  1, 1, 1,
 	 1, -1, 1, 0,
-};
-
-sprite_vbo_indices := [...]u8 {
-	0, 1, 2,
-	2, 3, 0
+	-1, -1, 0, 0,
 };
 
 Engine_Config :: struct {
@@ -42,6 +40,8 @@ Engine_Config :: struct {
 
 	camera_size := 10,
 }
+
+camera_size : i32 = 10;
 
 start :: proc(using config: Engine_Config) {
 	// setup glfw
@@ -89,7 +89,6 @@ start :: proc(using config: Engine_Config) {
 	// load shaders
 	shader_success: bool;
 	instanced_shader_program, shader_success = gl.load_shaders("instanced_vertex.glsl", "fragment.glsl");
-	immediate_shader_program, shader_success = gl.load_shaders("immediate_vertex.glsl", "fragment.glsl");
 
 	// setup vao
 	gl.GenVertexArrays(1, &vao);
@@ -121,6 +120,10 @@ start :: proc(using config: Engine_Config) {
 	gl.VertexAttribPointer(3, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, scale))));
 	gl.EnableVertexAttribArray(3);
 
+	// Texture index
+	gl.VertexAttribPointer(4, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, scale))));
+	gl.EnableVertexAttribArray(4);
+
 	sprites = make([dynamic]Sprite_Data, 0, 4);
 
 	gl.ClearColor(0.5, 0.1, 0.2, 1.0);
@@ -145,68 +148,19 @@ start :: proc(using config: Engine_Config) {
 
 		clear(&sprites);
 		config.update_proc();
-
-/*
-		for i in 0..len(sprites) {
-			using sprite := &sprites[i];
-			matrix_from_scale :: proc(scale: Vector2) -> Mat4 {
-				scale_matrix := mat4_identity();
-				scale_matrix[0][0] = scale.x;
-				scale_matrix[1][1] = scale.y;
-
-				return scale_matrix;
-			}
-
-			position_to_translation :: proc(position: Vector2, proj: Mat4) -> Mat4 {
-				position4 := mul(proj, Vec4{position.x, position.y, 0, 0});
-				return mat4_translate(Vec3{position4[0], position4[1], position4[2]});
-			}
-
-
-
-			transform := position_to_translation(position, ortho);
-			transform = mul(transform, ortho);
-			// transform = mul(transform, matrix_from_scale(scale));
-
-			gl.UniformMatrix4fv(get_uniform_location(program, "transform\x00"), 1, gl.FALSE, &transform[0][0]);
-
-			// draw stuff
-			gl.BindTexture(gl.TEXTURE_2D, cast(u32)id);
-		}
-			*/
 	}
 }
 
-get_uniform_location :: inline proc(program: u32, str: string) -> i32 {
-	return gl.GetUniformLocation(program, &str[0]);
+Sprite :: u32;
+sprites: [dynamic]Sprite_Data;
+
+Sprite_Data :: struct {
+	position: math.Vector2,
+	scale: math.Vector2,
 }
 
-draw_sprite :: proc(sprite: Sprite, position, scale: Vector2) {
-	matrix_from_scale :: proc(scale: Vector2) -> Mat4 {
-		scale_matrix := mat4_identity();
-		scale_matrix[0][0] = scale.x;
-		scale_matrix[1][1] = scale.y;
-
-		return scale_matrix;
-	}
-
-	position_to_translation :: proc(position: Vector2, proj: Mat4) -> Mat4 {
-		position4 := mul(proj, Vec4{position.x, position.y, 0, 0});
-		return mat4_translate(Vec3{position4[0], position4[1], position4[2]});
-	}
-
-	local_transform := position_to_translation(position, ortho);
-	local_transform = mul(local_transform, ortho);
-	local_transform = mul(local_transform, matrix_from_scale(scale));
-
-	gl.UseProgram(immediate_shader_program);
-	gl.BindTexture(gl.TEXTURE_2D, cast(u32)sprite);
-	gl.UniformMatrix4fv(get_uniform_location(immediate_shader_program, "transform\x00"), 1, gl.FALSE, &local_transform[0][0]);
-	gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, &sprite_vbo_indices[0]);
-}
-
-swap_buffers :: proc() {
-	glfw.SwapBuffers(window);
+submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
+	append(&sprites, Sprite_Data{position, scale});
 }
 
 flush_sprites :: proc() {
@@ -216,12 +170,41 @@ flush_sprites :: proc() {
 	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
 
-	gl.VertexAttribDivisor(0, 0);
-	gl.VertexAttribDivisor(1, 0);
 	gl.VertexAttribDivisor(2, 1);
 	gl.VertexAttribDivisor(3, 1);
 
-	gl.DrawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_BYTE, &sprite_vbo_indices[0], cast(i32)len(sprites));
+	num_sprites := cast(i32)len(sprites);
+	gl.DrawArraysInstanced(gl.TRIANGLES, 0, 6, num_sprites);
 
 	glfw.SwapBuffers(window);
+}
+
+load_sprite :: proc(filepath: string) -> Sprite {
+	MAX_PATH_LENGTH :: 1024;
+
+	assert(len(filepath) <= MAX_PATH_LENGTH - 1);
+	filepath_c: [MAX_PATH_LENGTH]byte;
+	mem.copy(&filepath_c[0], &filepath[0], len(filepath));
+	filepath_c[len(filepath)] = 0;
+
+	image.set_flip_vertically_on_load(1);
+	w, h, channels: i32;
+	texture_data := image.load(&filepath_c[0], &w, &h, &channels, 0);
+
+	texture_id: u32;
+	gl.GenTextures(1, &texture_id);
+	gl.BindTexture(gl.TEXTURE_2D, texture_id);
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
+	gl.GenerateMipmap(gl.TEXTURE_2D);
+
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+	return cast(Sprite)texture_id;
+}
+
+get_uniform_location :: inline proc(program: u32, str: string) -> i32 {
+	return gl.GetUniformLocation(program, &str[0]);
 }

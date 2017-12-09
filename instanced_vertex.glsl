@@ -5,6 +5,8 @@ layout(location = 1) in vec2 in_tex_coord;
 layout(location = 2) in vec2 in_center_position;
 layout(location = 3) in vec2 in_scale;
 
+layout(location = 4) in int texture_index;
+
 out vec2 tex_coord;
 
 uniform float time;
