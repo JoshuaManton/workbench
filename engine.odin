@@ -121,7 +121,7 @@ start :: proc(using config: Engine_Config) {
 	gl.EnableVertexAttribArray(3);
 
 	// Texture index
-	gl.VertexAttribPointer(4, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, scale))));
+	gl.VertexAttribPointer(4, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, texture_index))));
 	gl.EnableVertexAttribArray(4);
 
 	sprites = make([dynamic]Sprite_Data, 0, 4);
@@ -151,16 +151,17 @@ start :: proc(using config: Engine_Config) {
 	}
 }
 
-Sprite :: u32;
+Sprite :: i32;
 sprites: [dynamic]Sprite_Data;
 
 Sprite_Data :: struct {
 	position: math.Vector2,
 	scale: math.Vector2,
+	texture_index: i32,
 }
 
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
-	append(&sprites, Sprite_Data{position, scale});
+	append(&sprites, Sprite_Data{position, scale, cast(i32)len(sprites)});
 }
 
 flush_sprites :: proc() {
@@ -172,6 +173,7 @@ flush_sprites :: proc() {
 
 	gl.VertexAttribDivisor(2, 1);
 	gl.VertexAttribDivisor(3, 1);
+	gl.VertexAttribDivisor(4, 1);
 
 	num_sprites := cast(i32)len(sprites);
 	gl.DrawArraysInstanced(gl.TRIANGLES, 0, 6, num_sprites);

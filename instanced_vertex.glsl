@@ -13,6 +13,6 @@ uniform float time;
 uniform mat4 transform;
 
 void main() {
-    gl_Position = transform * vec4(in_center_position + (in_vertex_position * in_scale), 0, 1);
+    gl_Position = transform * vec4(in_center_position + (in_vertex_position + vec2(texture_index, texture_index) * in_scale), 0, 1);
     tex_coord = in_tex_coord;
 }
