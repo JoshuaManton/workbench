@@ -197,7 +197,7 @@ atlas_texture: u32;
 atlas_loaded: bool;
 
 atlas_x: i32;
-atlas_index: i32;
+sprite_index: i32;
 
 load_sprite :: proc(filepath: string) -> Sprite {
 	if !atlas_loaded {
@@ -239,23 +239,27 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 	fmt.println(x01, y01, w01, h01);
 
-	coords := [...]f32 {
-		x01,       y01,
-		x01,       y01 + h01,
-		x01 + w01, y01 + h01,
-		x01 + w01, y01 + h01,
-		x01 + w01, y01,
-		x01,       y01,
+	Metadata_Texture_Entry :: struct {
+		uv: math.Vector2,
+	}
+
+	coords := [...]Metadata_Texture_Entry {
+		{{x01,       y01}},
+		{{x01,       y01 + h01}},
+		{{x01 + w01, y01 + h01}},
+		{{x01 + w01, y01 + h01}},
+		{{x01 + w01, y01}},
+		{{x01,       y01}},
 	};
 
 	gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
-	gl.TexSubImage1D(gl.TEXTURE_1D, 0, atlas_index * 6, 6, gl.RG, gl.FLOAT, &coords[0]);
+	gl.TexSubImage1D(gl.TEXTURE_1D, 0, sprite_index * len(coords), len(coords), gl.RG, gl.FLOAT, &coords[0]);
 	print_errors();
 
 	atlas_x += w;
-	atlas_index += 1;
+	sprite_index += 1;
 
-	return cast(Sprite)atlas_index-1;
+	return cast(Sprite)sprite_index-1;
 }
 
 print_errors :: proc(location := #caller_location) {
