@@ -42,7 +42,7 @@ Engine_Config :: struct {
 	opengl_version_minor := cast(i32)3,
 }
 
-camera_size : f32 = 10;
+camera_size : f32 = 1024;
 
 start :: proc(using config: Engine_Config) {
 	// setup glfw
@@ -114,9 +114,17 @@ start :: proc(using config: Engine_Config) {
 	gl.VertexAttribPointer(3, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, scale))));
 	gl.EnableVertexAttribArray(3);
 
-	// Texture index
-	gl.VertexAttribIPointer(4, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, texture_index))));
+	// Sprite index
+	gl.VertexAttribIPointer(4, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, index))));
 	gl.EnableVertexAttribArray(4);
+
+	// Sprite width
+	gl.VertexAttribIPointer(5, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, width))));
+	gl.EnableVertexAttribArray(5);
+
+	// Sprite height
+	gl.VertexAttribIPointer(6, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, height))));
+	gl.EnableVertexAttribArray(6);
 
 	sprites = make([dynamic]Sprite_Data, 0, 4);
 
@@ -145,17 +153,23 @@ start :: proc(using config: Engine_Config) {
 	}
 }
 
-Sprite :: i32;
+Sprite :: struct {
+	index: i32,
+	width: i32,
+	height: i32,
+}
+
 sprites: [dynamic]Sprite_Data;
 
 Sprite_Data :: struct {
+	using sprite: Sprite,
 	position: math.Vector2,
 	scale: math.Vector2,
-	texture_index: i32,
 }
 
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
-	append(&sprites, Sprite_Data{position, scale, cast(i32)sprite});
+	data := Sprite_Data{sprite, position, scale};
+	append(&sprites, data);
 }
 
 flush_sprites :: proc() {
@@ -185,6 +199,8 @@ flush_sprites :: proc() {
 	gl.VertexAttribDivisor(2, 1);
 	gl.VertexAttribDivisor(3, 1);
 	gl.VertexAttribDivisor(4, 1);
+	gl.VertexAttribDivisor(5, 1);
+	gl.VertexAttribDivisor(6, 1);
 
 	num_sprites := cast(i32)len(sprites);
 	gl.DrawArraysInstanced(gl.TRIANGLES, 0, 6, num_sprites);
@@ -237,8 +253,6 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	w01 := cast(f32)w / 2048;
 	h01 := cast(f32)h / 2048;
 
-	fmt.println(x01, y01, w01, h01);
-
 	Metadata_Texture_Entry :: struct {
 		uv: math.Vector2,
 	}
@@ -256,10 +270,15 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	gl.TexSubImage1D(gl.TEXTURE_1D, 0, sprite_index * len(coords), len(coords), gl.RG, gl.FLOAT, &coords[0]);
 	print_errors();
 
+	sprite: Sprite;
+	sprite.index = sprite_index;
+	sprite.width = w;
+	sprite.height = h;
+
 	atlas_x += w;
 	sprite_index += 1;
 
-	return cast(Sprite)sprite_index-1;
+	return sprite;
 }
 
 print_errors :: proc(location := #caller_location) {
