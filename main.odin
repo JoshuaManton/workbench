@@ -27,7 +27,7 @@ main :: proc() {
 
 init :: proc() {
 	guy_sprite := load_sprite("guy.png");
-	plane_sprite := load_sprite("guy.png");
+	plane_sprite := load_sprite("tall_guy.png");
 
 	append(&entities, Entity{Vector2{0, 0}, Vector2{1, 1}, guy_sprite});
 	append(&entities, Entity{Vector2{5, 5}, Vector2{1, 1}, plane_sprite});

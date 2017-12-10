@@ -172,7 +172,7 @@ flush_sprites :: proc() {
 	location = gl.GetUniformLocation(instanced_shader_program, &name[0]);
 	gl.Uniform1i(location, 0);
 
-	name = "atlas_coords_texture\x00";
+	name = "metadata_texture\x00";
 	location = gl.GetUniformLocation(instanced_shader_program, &name[0]);
 	gl.Uniform1i(location, 1);
 
@@ -180,7 +180,7 @@ flush_sprites :: proc() {
 	gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
 
 	gl.ActiveTexture(gl.TEXTURE1);
-	gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
+	gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
 
 	gl.VertexAttribDivisor(2, 1);
 	gl.VertexAttribDivisor(3, 1);
@@ -192,7 +192,7 @@ flush_sprites :: proc() {
 	glfw.SwapBuffers(window);
 }
 
-atlas_coords_texture: u32;
+metadata_texture: u32;
 atlas_texture: u32;
 atlas_loaded: bool;
 
@@ -203,8 +203,8 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	if !atlas_loaded {
 		atlas_loaded = true;
 
-		gl.GenTextures(1, &atlas_coords_texture);
-		gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
+		gl.GenTextures(1, &metadata_texture);
+		gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
 		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.RG32F, 2048, 0, gl.RG, gl.FLOAT, nil);
 		gl.TexParameteri(gl.TEXTURE_1D, gl.TEXTURE_MAX_LEVEL, 0);
 
@@ -248,7 +248,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 		x01,       y01,
 	};
 
-	gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
+	gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
 	gl.TexSubImage1D(gl.TEXTURE_1D, 0, atlas_index * 6, 6, gl.RG, gl.FLOAT, &coords[0]);
 	print_errors();
 

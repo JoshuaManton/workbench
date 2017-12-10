@@ -10,14 +10,14 @@ layout(location = 4) in int sprite_index;
 
 out vec2 tex_coord;
 
-uniform sampler1D atlas_coords_texture;
+uniform sampler1D metadata_texture;
 uniform float time;
 uniform mat4 transform;
 
 void main() {
     gl_Position = transform * vec4(in_center_position + (in_vertex_position * in_scale), 0, 1);
 
-    float x = texelFetch(atlas_coords_texture, sprite_index * 6 + gl_VertexID, 0).r;
-    float y = texelFetch(atlas_coords_texture, sprite_index * 6 + gl_VertexID, 0).g;
+    float x = texelFetch(metadata_texture, sprite_index * 6 + gl_VertexID, 0).r;
+    float y = texelFetch(metadata_texture, sprite_index * 6 + gl_VertexID, 0).g;
     tex_coord = vec2(x, y);
 }
