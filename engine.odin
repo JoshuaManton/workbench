@@ -100,7 +100,7 @@ start :: proc(using config: Engine_Config) {
 
 	// load shaders
 	shader_success: bool;
-	instanced_shader_program, shader_success = gl.load_shaders("instanced_vertex.glsl", "fragment.glsl");
+	instanced_shader_program, shader_success = gl.load_shaders("vertex.glsl", "fragment.glsl");
 
 	// setup vao
 	gl.GenVertexArrays(1, &vao);
