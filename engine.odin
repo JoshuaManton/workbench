@@ -18,17 +18,13 @@ window: glfw.Window_Handle;
 
 vao, vbo: u32;
 
-Vertex :: struct {
-	position: math.Vector2,
-}
-
-sprite_vbo := [...]Vertex {
-	Vertex{math.Vector2{-1, -1}},
-	Vertex{math.Vector2{-1,  1}},
-	Vertex{math.Vector2{ 1,  1}},
-	Vertex{math.Vector2{ 1,  1}},
-	Vertex{math.Vector2{ 1, -1}},
-	Vertex{math.Vector2{-1, -1}},
+sprite_vbo := [...]math.Vector2 {
+	{-1, -1},
+	{-1,  1},
+	{ 1,  1},
+	{ 1,  1},
+	{ 1, -1},
+	{-1, -1},
 };
 
 Engine_Config :: struct {
@@ -101,6 +97,7 @@ start :: proc(using config: Engine_Config) {
 	// load shaders
 	shader_success: bool;
 	instanced_shader_program, shader_success = gl.load_shaders("vertex.glsl", "fragment.glsl");
+	assert(shader_success);
 
 	// setup vao
 	gl.GenVertexArrays(1, &vao);
@@ -112,7 +109,7 @@ start :: proc(using config: Engine_Config) {
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(sprite_vbo), &sprite_vbo[0], gl.STATIC_DRAW);
 
 	// Position
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
+	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(math.Vector2), nil);
 	gl.EnableVertexAttribArray(0);
 
 	gl.GenBuffers(1, &transform_buffer);
