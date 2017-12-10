@@ -42,7 +42,7 @@ Engine_Config :: struct {
 	opengl_version_minor := cast(i32)3,
 }
 
-camera_size : f32 = 1024;
+camera_size : f32 = 100;
 
 start :: proc(using config: Engine_Config) {
 	// setup glfw
@@ -153,13 +153,13 @@ start :: proc(using config: Engine_Config) {
 	}
 }
 
+sprites: [dynamic]Sprite_Data;
+
 Sprite :: struct {
 	index: i32,
 	width: i32,
 	height: i32,
 }
-
-sprites: [dynamic]Sprite_Data;
 
 Sprite_Data :: struct {
 	using sprite: Sprite,
@@ -169,6 +169,7 @@ Sprite_Data :: struct {
 
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
 	data := Sprite_Data{sprite, position, scale};
+	fmt.println(data);
 	append(&sprites, data);
 }
 

@@ -17,7 +17,7 @@ uniform float time;
 uniform mat4 transform;
 
 void main() {
-    gl_Position = transform * vec4(in_center_position + (in_vertex_position * vec2(sprite_width, sprite_height) * in_scale), 0, 1);
+    gl_Position = transform * vec4(in_center_position + (in_vertex_position * vec2(sprite_width, sprite_height) / 2 * in_scale), 0, 1);
 
     float x = texelFetch(metadata_texture, sprite_index * 6 + gl_VertexID, 0).r;
     float y = texelFetch(metadata_texture, sprite_index * 6 + gl_VertexID, 0).g;
