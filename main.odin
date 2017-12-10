@@ -27,19 +27,15 @@ main :: proc() {
 
 init :: proc() {
 	guy_sprite := load_sprite("guy.png");
+	plane_sprite := load_sprite("guy.png");
 
-	for i in 0..5000 {
-		append(&entities, Entity{Vector2{cast(f32)i*2, cast(f32)i*2}, Vector2{1, 1}, guy_sprite});
-	}
+	append(&entities, Entity{Vector2{0, 0}, Vector2{1, 1}, guy_sprite});
+	append(&entities, Entity{Vector2{5, 5}, Vector2{1, 1}, plane_sprite});
 }
 
 update :: proc() {
 	for i in 0..len(entities) {
 		using entity := entities[i];
-		x := cast(f32)sin(glfw.GetTime() + cast(f64)i) * cast(f32)i;
-		y := cast(f32)cos(glfw.GetTime() + cast(f64)i) * cast(f32)i;
-		position = Vector2{x, y} * 0.1;
-
 		submit_sprite(sprite, position, scale);
 	}
 

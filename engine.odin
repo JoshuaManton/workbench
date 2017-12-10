@@ -10,7 +10,6 @@ using import "shared:sd/basic.odin"
 
 using import "rendering.odin"
 
-ortho: Mat4;
 transform: Mat4;
 transform_buffer: u32;
 instanced_shader_program: u32;
@@ -19,13 +18,18 @@ window: glfw.Window_Handle;
 
 vao, vbo: u32;
 
-sprite_vbo := [...]f32 {
-	-1, -1, 0, 0,
-	-1,  1, 0, 1,
-	 1,  1, 1, 1,
-	 1,  1, 1, 1,
-	 1, -1, 1, 0,
-	-1, -1, 0, 0,
+Vertex :: struct {
+	position: math.Vector2,
+	tex_coord_index: i32,
+}
+
+sprite_vbo := [...]Vertex {
+	Vertex{math.Vector2{-1, -1}, 0},
+	Vertex{math.Vector2{-1,  1}, 1},
+	Vertex{math.Vector2{ 1,  1}, 2},
+	Vertex{math.Vector2{ 1,  1}, 3},
+	Vertex{math.Vector2{ 1, -1}, 4},
+	Vertex{math.Vector2{-1, -1}, 5},
 };
 
 Engine_Config :: struct {
@@ -37,11 +41,9 @@ Engine_Config :: struct {
 
 	opengl_version_major := cast(i32)3,
 	opengl_version_minor := cast(i32)3,
-
-	camera_size := 10,
 }
 
-camera_size : i32 = 10;
+camera_size : f32 = 10;
 
 start :: proc(using config: Engine_Config) {
 	// setup glfw
@@ -69,12 +71,11 @@ start :: proc(using config: Engine_Config) {
 		aspect := cast(f32)w / cast(f32)h;
 		top := camera_size;
 		bottom := -camera_size;
-		left := i32(cast(f32)-camera_size * aspect);
-		right := i32(cast(f32)camera_size * aspect);
-		ortho = ortho3d(cast(f32)left, cast(f32)right, cast(f32)bottom, cast(f32)top, -100, 100);
+		left := -camera_size * aspect;
+		right := camera_size * aspect;
+		ortho := ortho3d(left, right, bottom, top, -1, 1);
 
-		transform = mat4_identity();
-		transform = mul(transform, ortho);
+		transform = mul(mat4_identity(), ortho);
 
 		gl.Viewport(0, 0, w, h);
 	}
@@ -99,14 +100,12 @@ start :: proc(using config: Engine_Config) {
 	gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(sprite_vbo), &sprite_vbo[0], gl.STATIC_DRAW);
 
-	stride : i32 = size_of(f32)*4;
-
 	// Position
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, stride, nil);
+	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
 	gl.EnableVertexAttribArray(0);
 
-	// Texcoord
-	gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, stride, rawptr(uintptr(2*size_of(f32))));
+	// Texcoord index
+	gl.VertexAttribIPointer(1, 1, gl.INT, size_of(Vertex), rawptr(uintptr(offset_of(Vertex, tex_coord_index))));
 	gl.EnableVertexAttribArray(1);
 
 	gl.GenBuffers(1, &transform_buffer);
@@ -121,7 +120,7 @@ start :: proc(using config: Engine_Config) {
 	gl.EnableVertexAttribArray(3);
 
 	// Texture index
-	gl.VertexAttribPointer(4, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, texture_index))));
+	gl.VertexAttribIPointer(4, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, texture_index))));
 	gl.EnableVertexAttribArray(4);
 
 	sprites = make([dynamic]Sprite_Data, 0, 4);
@@ -165,7 +164,8 @@ submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
 }
 
 flush_sprites :: proc() {
-	gl.UseProgram(instanced_shader_program);;
+	print_errors();
+	gl.UseProgram(instanced_shader_program);
 	gl.UniformMatrix4fv(get_uniform_location(instanced_shader_program, "transform\x00"), 1, gl.FALSE, &transform[0][0]);
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
@@ -210,7 +210,8 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 		gl.GenTextures(1, &atlas_coords_texture);
 		gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
-		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.R32F, 6 * 4, 0, gl.RED, gl.UNSIGNED_BYTE, nil);
+		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.RG32F, 2048, 0, gl.RG, gl.FLOAT, nil);
+		gl.TexParameteri(gl.TEXTURE_1D, gl.TEXTURE_MAX_LEVEL, 0);
 
 		gl.GenTextures(1, &atlas_texture);
 		gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
@@ -229,27 +230,48 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 	gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
 	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
-	atlas_x += w;
-	this_atlas_index := atlas_index;
-	atlas_index += 1;
 
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-	coords := [...]f32 {
-		-1, -1,
-		-1,  1,
-		 1,  1,
-		 1,  1,
-		 1, -1,
-		-1, -1,
-	};
-	gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
-	gl.TexSubImage1D(gl.TEXTURE_1D, 0, this_atlas_index * 6, 6, gl.R32F, gl.FLOAT, &coords[0]);
+	x01 := cast(f32)atlas_x / 2048;
+	y01 := cast(f32)0 / 2048;
 
-	return cast(Sprite)this_atlas_index;
+	w01 := cast(f32)w / 2048;
+	h01 := cast(f32)h / 2048;
+
+	fmt.println(x01, y01, w01, h01);
+
+	coords := [...]f32 {
+		x01,       y01,
+		x01,       y01 + h01,
+		x01 + w01, y01 + h01,
+		x01 + w01, y01 + h01,
+		x01 + w01, y01,
+		x01,       y01,
+	};
+
+	gl.BindTexture(gl.TEXTURE_1D, atlas_coords_texture);
+	gl.TexSubImage1D(gl.TEXTURE_1D, 0, atlas_index * 6, 6, gl.RG, gl.FLOAT, &coords[0]);
+	print_errors();
+
+	atlas_x += w;
+	atlas_index += 1;
+
+	return cast(Sprite)atlas_index-1;
+}
+
+print_errors :: proc(location := #caller_location) {
+	for {
+		err := gl.GetError();
+		if err == 0 {
+			break;
+		}
+
+		fmt.println(err);
+	}
 }
 
 get_uniform_location :: inline proc(program: u32, str: string) -> i32 {
