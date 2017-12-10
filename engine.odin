@@ -43,6 +43,8 @@ Engine_Config :: struct {
 }
 
 camera_size : f32 = 100;
+current_window_width: i32;
+current_window_height: i32;
 
 start :: proc(using config: Engine_Config) {
 	// setup glfw
@@ -67,6 +69,9 @@ start :: proc(using config: Engine_Config) {
 
 	glfw.SetWindowSizeCallback(window, size_callback);
 	size_callback :: proc"c"(window: glfw.Window_Handle, w, h: i32) {
+		current_window_width = w;
+		current_window_height = h;
+
 		aspect := cast(f32)w / cast(f32)h;
 		top := camera_size;
 		bottom := -camera_size;
@@ -84,7 +89,14 @@ start :: proc(using config: Engine_Config) {
 		(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(&name[0]));
 	}
 	gl.load_up_to(3, 3, set_proc_address);
+
+	// glfw callbacks
 	size_callback(window, config.window_width, config.window_height);
+	glfw.SetScrollCallback(window,
+		proc"c"(window: glfw.Window_Handle, x, y: f64) {
+			camera_size -= cast(f32)y * camera_size * 0.1;
+			size_callback(window, current_window_width, current_window_height);
+		});
 
 	// load shaders
 	shader_success: bool;
@@ -169,7 +181,6 @@ Sprite_Data :: struct {
 
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
 	data := Sprite_Data{sprite, position, scale};
-	fmt.println(data);
 	append(&sprites, data);
 }
 
