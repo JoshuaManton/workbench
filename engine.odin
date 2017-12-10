@@ -20,16 +20,15 @@ vao, vbo: u32;
 
 Vertex :: struct {
 	position: math.Vector2,
-	tex_coord_index: i32,
 }
 
 sprite_vbo := [...]Vertex {
-	Vertex{math.Vector2{-1, -1}, 0},
-	Vertex{math.Vector2{-1,  1}, 1},
-	Vertex{math.Vector2{ 1,  1}, 2},
-	Vertex{math.Vector2{ 1,  1}, 3},
-	Vertex{math.Vector2{ 1, -1}, 4},
-	Vertex{math.Vector2{-1, -1}, 5},
+	Vertex{math.Vector2{-1, -1}},
+	Vertex{math.Vector2{-1,  1}},
+	Vertex{math.Vector2{ 1,  1}},
+	Vertex{math.Vector2{ 1,  1}},
+	Vertex{math.Vector2{ 1, -1}},
+	Vertex{math.Vector2{-1, -1}},
 };
 
 Engine_Config :: struct {
@@ -103,10 +102,6 @@ start :: proc(using config: Engine_Config) {
 	// Position
 	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
 	gl.EnableVertexAttribArray(0);
-
-	// Texcoord index
-	gl.VertexAttribIPointer(1, 1, gl.INT, size_of(Vertex), rawptr(uintptr(offset_of(Vertex, tex_coord_index))));
-	gl.EnableVertexAttribArray(1);
 
 	gl.GenBuffers(1, &transform_buffer);
 	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
