@@ -36,14 +36,16 @@ Engine_Config :: struct {
 
 	opengl_version_major := cast(i32)3,
 	opengl_version_minor := cast(i32)3,
+
+	camera_size : f32 = 10,
 }
 
-camera_size : f32 = 1000000;
+camera_size: f32;
 camera_position: math.Vector2;
 current_window_width: i32;
 current_window_height: i32;
 
-start :: proc(using config: Engine_Config) {
+start :: proc(config: Engine_Config) {
 	// setup glfw
 	glfw.SetErrorCallback(error_callback);
 	error_callback :: proc"c"(error: i32, desc: ^u8) {
@@ -82,13 +84,16 @@ start :: proc(using config: Engine_Config) {
 	}
 
 	// setup opengl
-	set_proc_address :: proc(p: rawptr, name: string) {
-		(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(&name[0]));
-	}
-	gl.load_up_to(3, 3, set_proc_address);
+	gl.load_up_to(3, 3,
+		proc(p: rawptr, name: string) {
+			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(&name[0]));
+		});
 
-	// glfw callbacks
+	// Set initial size of window
+	camera_size = config.camera_size;
 	size_callback(window, config.window_width, config.window_height);
+
+	// Setup glfw callbacks
 	glfw.SetScrollCallback(window,
 		proc"c"(window: glfw.Window_Handle, x, y: f64) {
 			camera_size -= cast(f32)y * camera_size * 0.1;
@@ -97,18 +102,19 @@ start :: proc(using config: Engine_Config) {
 
 	glfw.SetKeyCallback(window,
 		proc"c"(window: glfw.Window_Handle, key, scancode, action, mods: i32) {
+			if action == glfw.REPEAT || action == glfw.PRESS
 			{
 				if key == glfw.KEY_LEFT {
-					camera_position.x -= 10000;
+					camera_position.x -= 12.8;
 				}
 				if key == glfw.KEY_RIGHT {
-					camera_position.x += 10000;
+					camera_position.x += 12.8;
 				}
 				if key == glfw.KEY_UP {
-					camera_position.y += 10000;
+					camera_position.y += 12.8;
 				}
 				if key == glfw.KEY_DOWN {
-					camera_position.y -= 10000;
+					camera_position.y -= 12.8;
 				}
 			}
 		});
@@ -316,7 +322,7 @@ print_errors :: proc(location := #caller_location) {
 			break;
 		}
 
-		fmt.println(err);
+		fmt.println(location, err);
 	}
 }
 
