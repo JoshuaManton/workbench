@@ -4,7 +4,7 @@
 
 * [Odin](https://github.com/odin-lang/Odin) - Programming language
 
-* [odin-gl](https://github.com/vassvik/odin-gl) - OpenGL bindings
+* [odin-gl](https://github.com/vassvik/odin-gl) - OpenGL bindings and loader
 
 * [odin-glfw](https://github.com/vassvik/odin-glfw) - Windowing and input
 
