@@ -38,7 +38,8 @@ Engine_Config :: struct {
 	opengl_version_minor := cast(i32)3,
 }
 
-camera_size : f32 = 100;
+camera_size : f32 = 1000000;
+camera_position: math.Vector2;
 current_window_width: i32;
 current_window_height: i32;
 
@@ -92,6 +93,24 @@ start :: proc(using config: Engine_Config) {
 		proc"c"(window: glfw.Window_Handle, x, y: f64) {
 			camera_size -= cast(f32)y * camera_size * 0.1;
 			size_callback(window, current_window_width, current_window_height);
+		});
+
+	glfw.SetKeyCallback(window,
+		proc"c"(window: glfw.Window_Handle, key, scancode, action, mods: i32) {
+			{
+				if key == glfw.KEY_LEFT {
+					camera_position.x -= 10000;
+				}
+				if key == glfw.KEY_RIGHT {
+					camera_position.x += 10000;
+				}
+				if key == glfw.KEY_UP {
+					camera_position.y += 10000;
+				}
+				if key == glfw.KEY_DOWN {
+					camera_position.y -= 10000;
+				}
+			}
 		});
 
 	// load shaders
@@ -182,9 +201,9 @@ submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
 }
 
 flush_sprites :: proc() {
-	print_errors();
 	gl.UseProgram(instanced_shader_program);
 	gl.UniformMatrix4fv(get_uniform_location(instanced_shader_program, "transform\x00"), 1, gl.FALSE, &transform[0][0]);
+	gl.Uniform2f(get_uniform_location(instanced_shader_program, "camera_position\x00"), camera_position.x, camera_position.y);
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);

@@ -29,12 +29,6 @@ all_sprites := make([dynamic]Sprite, 0, 10);
 
 init :: proc() {
 	append(&all_sprites, load_sprite("guy.png"));
-	append(&all_sprites, load_sprite("plane.png"));
-	append(&all_sprites, load_sprite("j.png"));
-	append(&all_sprites, load_sprite("plane_red.png"));
-	append(&all_sprites, load_sprite("block.png"));
-	append(&all_sprites, load_sprite("crate.png"));
-	append(&all_sprites, load_sprite("thing.png"));
 
 	sprite_idx := 0;
 
