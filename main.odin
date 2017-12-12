@@ -21,7 +21,7 @@ main :: proc() {
 	config.update_proc = update;
 	config.window_width = 1600;
 	config.window_height = 900;
-	config.camera_size = 128;
+	config.camera_size = 1000;
 
 	engine.start(config);
 }
