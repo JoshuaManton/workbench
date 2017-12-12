@@ -7,8 +7,8 @@ using import "engine.odin"
 using import "rendering.odin"
 
 Entity :: struct {
-	position: Vector2,
-	scale: Vector2,
+	position: Vec2,
+	scale: Vec2,
 	sprite: Sprite,
 }
 
@@ -34,7 +34,7 @@ init :: proc() {
 	sprite_idx := 0;
 
 	for i in 0..100 {
-		append(&entities, Entity{Vector2{0, 0}, Vector2{1, 1}, all_sprites[sprite_idx]});
+		append(&entities, Entity{{0, 0}, {1, 1}, all_sprites[sprite_idx]});
 		sprite_idx = (sprite_idx + 1) % len(all_sprites);
 	}
 }
@@ -44,7 +44,7 @@ update :: proc() {
 		using entity := entities[i];
 		x := cast(f32)sin(glfw.GetTime() + cast(f64)i) * cast(f32)i;
 		y := cast(f32)cos(glfw.GetTime() + cast(f64)i) * cast(f32)i;
-		position = Vector2{x, y} * 10;
+		position = Vec2{x, y} * 10;
 		submit_sprite(sprite, position, scale);
 	}
 

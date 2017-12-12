@@ -18,7 +18,7 @@ window: glfw.Window_Handle;
 
 vao, vbo: u32;
 
-sprite_vbo := [...]math.Vector2 {
+sprite_vbo := [...]math.Vec2 {
 	{-1, -1},
 	{-1,  1},
 	{ 1,  1},
@@ -41,7 +41,7 @@ Engine_Config :: struct {
 }
 
 camera_size: f32;
-camera_position: math.Vector2;
+camera_position: math.Vec2;
 current_window_width: i32;
 current_window_height: i32;
 
@@ -78,7 +78,7 @@ start :: proc(config: Engine_Config) {
 		right := camera_size * aspect;
 		ortho := ortho3d(left, right, bottom, top, -1, 1);
 
-		transform = mul(mat4_identity(), ortho);
+		transform = mul(identity(Mat4), ortho);
 
 		gl.Viewport(0, 0, w, h);
 	}
@@ -134,7 +134,7 @@ start :: proc(config: Engine_Config) {
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(sprite_vbo), &sprite_vbo[0], gl.STATIC_DRAW);
 
 	// Position
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(math.Vector2), nil);
+	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(math.Vec2), nil);
 	gl.EnableVertexAttribArray(0);
 
 	gl.GenBuffers(1, &transform_buffer);
@@ -197,11 +197,11 @@ Sprite :: struct {
 
 Sprite_Data :: struct {
 	using sprite: Sprite,
-	position: math.Vector2,
-	scale: math.Vector2,
+	position: math.Vec2,
+	scale: math.Vec2,
 }
 
-submit_sprite :: proc(sprite: Sprite, position, scale: math.Vector2) {
+submit_sprite :: proc(sprite: Sprite, position, scale: math.Vec2) {
 	data := Sprite_Data{sprite, position, scale};
 	append(&sprites, data);
 }
@@ -288,7 +288,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	h01 := cast(f32)h / 2048;
 
 	Metadata_Texture_Entry :: struct {
-		uv: math.Vector2,
+		uv: math.Vec2,
 	}
 
 	coords := [...]Metadata_Texture_Entry {
