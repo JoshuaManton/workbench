@@ -1,8 +1,8 @@
 import "core:fmt.odin"
 import "core:strings.odin"
 import "shared:odin-glfw/glfw.odin"
-import "shared:odin-gl/gl.odin"
 import "shared:stb/image.odin"
+import "shared:sd/gl.odin"
 import "core:mem.odin"
 
 using import "shared:sd/math.odin"
@@ -11,12 +11,13 @@ using import "shared:sd/basic.odin"
 using import "rendering.odin"
 
 transform: Mat4;
-transform_buffer: u32;
-instanced_shader_program: u32;
+transform_buffer: gl.VBO;
+the_shader_program: gl.Shader_Program;
 
 window: glfw.Window_Handle;
 
-vao, vbo: u32;
+vao: gl.VAO;
+vbo: gl.VBO;
 
 sprite_vbo := [...]math.Vec2 {
 	{-1, -1},
@@ -121,24 +122,24 @@ start :: proc(config: Engine_Config) {
 
 	// load shaders
 	shader_success: bool;
-	instanced_shader_program, shader_success = gl.load_shaders("vertex.glsl", "fragment.glsl");
+	the_shader_program, shader_success = gl.load_shader_files("vertex.glsl", "fragment.glsl");
 	assert(shader_success);
 
 	// setup vao
-	gl.GenVertexArrays(1, &vao);
-	defer gl.DeleteVertexArrays(1, &vao);
-	gl.BindVertexArray(vao);
+	vao = gl.gen_vao();
+	defer gl.delete_vao(vao);
+	gl.bind_vao(vao);
 
-	gl.GenBuffers(1, &vbo);
-	gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
+	vbo = gl.gen_buffer();
+	gl.bind_buffer(vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(sprite_vbo), &sprite_vbo[0], gl.STATIC_DRAW);
 
 	// Position
 	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(math.Vec2), nil);
 	gl.EnableVertexAttribArray(0);
 
-	gl.GenBuffers(1, &transform_buffer);
-	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
+	transform_buffer = gl.gen_buffer();
+	gl.bind_buffer(transform_buffer);
 
 	// Center position
 	gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, position))));
@@ -207,28 +208,21 @@ submit_sprite :: proc(sprite: Sprite, position, scale: math.Vec2) {
 }
 
 flush_sprites :: proc() {
-	gl.UseProgram(instanced_shader_program);
-	gl.UniformMatrix4fv(get_uniform_location(instanced_shader_program, "transform\x00"), 1, gl.FALSE, &transform[0][0]);
-	gl.Uniform2f(get_uniform_location(instanced_shader_program, "camera_position\x00"), camera_position.x, camera_position.y);
+	gl.use_program(the_shader_program);
+	gl.uniform_matrix4fv(the_shader_program, "transform", 1, false, &transform[0][0]);
+	gl.uniform(the_shader_program, "camera_position", camera_position.x, camera_position.y);
 
-	gl.BindBuffer(gl.ARRAY_BUFFER, transform_buffer);
+	gl.bind_buffer(transform_buffer);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
 
-	name: string;
-	location: i32;
-	name = "atlas_texture\x00";
-	location = gl.GetUniformLocation(instanced_shader_program, &name[0]);
-	gl.Uniform1i(location, 0);
+	gl.uniform(the_shader_program, "atlas_texture", 0);
+	gl.uniform(the_shader_program, "metadata_texture", 1);
 
-	name = "metadata_texture\x00";
-	location = gl.GetUniformLocation(instanced_shader_program, &name[0]);
-	gl.Uniform1i(location, 1);
+	gl.active_texture0();
+	gl.bind_texture2d(atlas_texture);
 
-	gl.ActiveTexture(gl.TEXTURE0);
-	gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
-
-	gl.ActiveTexture(gl.TEXTURE1);
-	gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
+	gl.active_texture1();
+	gl.bind_texture1d(metadata_texture);
 
 	gl.VertexAttribDivisor(2, 1);
 	gl.VertexAttribDivisor(3, 1);
@@ -242,8 +236,8 @@ flush_sprites :: proc() {
 	glfw.SwapBuffers(window);
 }
 
-metadata_texture: u32;
-atlas_texture: u32;
+metadata_texture: gl.Texture;
+atlas_texture: gl.Texture;
 atlas_loaded: bool;
 
 atlas_x: i32;
@@ -253,13 +247,13 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	if !atlas_loaded {
 		atlas_loaded = true;
 
-		gl.GenTextures(1, &metadata_texture);
-		gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
+		metadata_texture = gl.gen_texture();
+		gl.bind_texture1d(metadata_texture);
 		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.RG32F, 2048, 0, gl.RG, gl.FLOAT, nil);
 		gl.TexParameteri(gl.TEXTURE_1D, gl.TEXTURE_MAX_LEVEL, 0);
 
-		gl.GenTextures(1, &atlas_texture);
-		gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
+		atlas_texture = gl.gen_texture();
+		gl.bind_texture2d(atlas_texture);
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
 	}
 
@@ -273,7 +267,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	w, h, channels: i32;
 	texture_data := image.load(&filepath_c[0], &w, &h, &channels, 0);
 
-	gl.BindTexture(gl.TEXTURE_2D, atlas_texture);
+	gl.bind_texture2d(atlas_texture);
 	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
 
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
@@ -300,7 +294,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 		{{x01,       y01}},
 	};
 
-	gl.BindTexture(gl.TEXTURE_1D, metadata_texture);
+	gl.bind_texture1d(metadata_texture);
 	gl.TexSubImage1D(gl.TEXTURE_1D, 0, sprite_index * len(coords), len(coords), gl.RG, gl.FLOAT, &coords[0]);
 	print_errors();
 
@@ -324,8 +318,4 @@ print_errors :: proc(location := #caller_location) {
 
 		fmt.println(location, err);
 	}
-}
-
-get_uniform_location :: inline proc(program: u32, str: string) -> i32 {
-	return gl.GetUniformLocation(program, &str[0]);
 }
