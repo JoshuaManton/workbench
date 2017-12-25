@@ -1,16 +1,15 @@
 import "core:fmt.odin"
 import "core:strings.odin"
+import "core:mem.odin"
+import "core:math.odin"
+
 import "shared:odin-glfw/glfw.odin"
 import "shared:stb/image.odin"
-import "shared:sd/gl.odin"
-import "core:mem.odin"
 
-using import "shared:sd/math.odin"
-using import "shared:sd/basic.odin"
+import "gl.odin"
+import "basic.odin"
 
-using import "rendering.odin"
-
-transform: Mat4;
+transform: math.Mat4;
 transform_buffer: gl.VBO;
 the_shader_program: gl.Shader_Program;
 
@@ -35,10 +34,10 @@ Engine_Config :: struct {
 	window_name := "WindowName",
 	window_width, window_height: i32,
 
-	opengl_version_major := cast(i32)3,
-	opengl_version_minor := cast(i32)3,
+	opengl_version_major: i32,
+	opengl_version_minor: i32,
 
-	camera_size : f32 = 10,
+	camera_size: f32,
 }
 
 camera_size: f32;
@@ -54,7 +53,6 @@ start :: proc(config: Engine_Config) {
 	}
 
 	if glfw.Init() == 0 do return;
-
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, config.opengl_version_major);
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, config.opengl_version_minor);
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
@@ -77,9 +75,9 @@ start :: proc(config: Engine_Config) {
 		bottom := -camera_size;
 		left := -camera_size * aspect;
 		right := camera_size * aspect;
-		ortho := ortho3d(left, right, bottom, top, -1, 1);
+		ortho := math.ortho3d(left, right, bottom, top, -1, 1);
 
-		transform = mul(identity(Mat4), ortho);
+		transform = math.mul(math.identity(math.Mat4), ortho);
 
 		gl.Viewport(0, 0, w, h);
 	}
