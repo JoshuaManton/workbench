@@ -209,6 +209,7 @@ flush_sprites :: proc() {
 	gl.use_program(the_shader_program);
 	gl.uniform_matrix4fv(the_shader_program, "transform", 1, false, &transform[0][0]);
 	gl.uniform(the_shader_program, "camera_position", camera_position.x, camera_position.y);
+	gl.uniform(the_shader_program, "atlas_dim", cast(f32)ATLAS_DIM);
 
 	gl.bind_buffer(transform_buffer);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
@@ -239,7 +240,11 @@ atlas_texture: gl.Texture;
 atlas_loaded: bool;
 
 atlas_x: i32;
+atlas_y: i32;
+biggest_height: i32;
 sprite_index: i32;
+
+ATLAS_DIM :: 2048;
 
 load_sprite :: proc(filepath: string) -> Sprite {
 	if !atlas_loaded {
@@ -247,12 +252,12 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 		metadata_texture = gl.gen_texture();
 		gl.bind_texture1d(metadata_texture);
-		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.RG32F, 2048, 0, gl.RG, gl.FLOAT, nil);
+		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.RG32F, 4096, 0, gl.RG, gl.FLOAT, nil);
 		gl.TexParameteri(gl.TEXTURE_1D, gl.TEXTURE_MAX_LEVEL, 0);
 
 		atlas_texture = gl.gen_texture();
 		gl.bind_texture2d(atlas_texture);
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2048, 2048, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
 	}
 
 	MAX_PATH_LENGTH :: 1024;
@@ -262,11 +267,20 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	filepath_c[len(filepath)] = 0;
 
 	image.set_flip_vertically_on_load(1);
-	w, h, channels: i32;
-	texture_data := image.load(&filepath_c[0], &w, &h, &channels, 0);
+	sprite_width, sprite_height, channels: i32;
+	texture_data := image.load(&filepath_c[0], &sprite_width, &sprite_height, &channels, 0);
 
 	gl.bind_texture2d(atlas_texture);
-	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
+
+	if atlas_x + sprite_width > ATLAS_DIM {
+		atlas_y += biggest_height;
+		biggest_height = 0;
+		atlas_x = 0;
+	}
+
+	if sprite_height > biggest_height do biggest_height = sprite_height;
+
+	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, atlas_y, sprite_width, sprite_height, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
 
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
@@ -274,10 +288,10 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
 	x01 := cast(f32)atlas_x / 2048;
-	y01 := cast(f32)0 / 2048;
+	y01 := cast(f32)atlas_y / 2048;
 
-	w01 := cast(f32)w / 2048;
-	h01 := cast(f32)h / 2048;
+	w01 := cast(f32)sprite_width / 2048;
+	h01 := cast(f32)sprite_height / 2048;
 
 	Metadata_Texture_Entry :: struct {
 		uv: math.Vec2,
@@ -298,10 +312,10 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 	sprite: Sprite;
 	sprite.index = sprite_index;
-	sprite.width = w;
-	sprite.height = h;
+	sprite.width = sprite_width;
+	sprite.height = sprite_height;
 
-	atlas_x += w;
+	atlas_x += sprite_height;
 	sprite_index += 1;
 
 	return sprite;

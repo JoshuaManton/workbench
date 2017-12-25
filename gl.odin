@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 24-12-2017 16:36:53 UTC-8
+ *  @Last Time: 25-12-2017 08:57:54 UTC-8
  *
  *  @Description:
  *
@@ -101,6 +101,8 @@ get_uniform_location :: inline proc(program: Shader_Program, str: string) -> i32
 	return GetUniformLocation(cast(u32)program, c_str);
 }
 
+
+
 uniform :: proc[uniform1f,
 				uniform2f,
 				uniform3f,
@@ -110,86 +112,96 @@ uniform :: proc[uniform1f,
 				uniform3i,
 				uniform4i,
 				];
-
 uniform1f :: inline proc(program: Shader_Program, name: string, v0: f32) {
 	location := get_uniform_location(program, name);
 	Uniform1f(location, v0);
 }
-
 uniform2f :: inline proc(program: Shader_Program, name: string, v0: f32, v1: f32) {
 	location := get_uniform_location(program, name);
 	Uniform2f(location, v0, v1);
 }
-
 uniform3f :: inline proc(program: Shader_Program, name: string, v0: f32, v1: f32, v2: f32) {
 	location := get_uniform_location(program, name);
 	Uniform3f(location, v0, v1, v2);
 }
-
 uniform4f :: inline proc(program: Shader_Program, name: string, v0: f32, v1: f32, v2: f32, v3: f32) {
 	location := get_uniform_location(program, name);
 	Uniform4f(location, v0, v1, v2, v3);
 }
-
 uniform1i :: inline proc(program: Shader_Program, name: string, v0: i32) {
 	location := get_uniform_location(program, name);
 	Uniform1i(location, v0);
 }
-
 uniform2i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32) {
 	location := get_uniform_location(program, name);
 	Uniform2i(location, v0, v1);
 }
-
 uniform3i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32, v2: i32) {
 	location := get_uniform_location(program, name);
 	Uniform3i(location, v0, v1, v2);
 }
-
 uniform4i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32, v2: i32, v3: i32) {
 	location := get_uniform_location(program, name);
 	Uniform4i(location, v0, v1, v2, v3);
 }
 
+
+
+uniform1 :: proc[uniform1fv,
+				 uniform1iv,
+				 ];
 uniform1fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
 	location := get_uniform_location(program, name);
 	Uniform1fv(location, count, value);
 }
-
-uniform2fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
-	location := get_uniform_location(program, name);
-	Uniform2fv(location, count, value);
-}
-
-uniform3fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
-	location := get_uniform_location(program, name);
-	Uniform3fv(location, count, value);
-}
-
-uniform4fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
-	location := get_uniform_location(program, name);
-	Uniform4fv(location, count, value);
-}
-
 uniform1iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
 	Uniform1iv(location, count, value);
 }
 
+
+
+uniform2 :: proc[uniform2fv,
+				 uniform2iv,
+				 ];
+uniform2fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
+	location := get_uniform_location(program, name);
+	Uniform2fv(location, count, value);
+}
 uniform2iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
 	Uniform2iv(location, count, value);
 }
 
+
+
+uniform3 :: proc[uniform3fv,
+				 uniform3iv,
+				 ];
+uniform3fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
+	location := get_uniform_location(program, name);
+	Uniform3fv(location, count, value);
+}
 uniform3iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
 	Uniform3iv(location, count, value);
 }
 
+
+
+uniform4 :: proc[uniform4fv,
+				 uniform4iv,
+				 ];
+uniform4fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
+	location := get_uniform_location(program, name);
+	Uniform4fv(location, count, value);
+}
 uniform4iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
 	Uniform4iv(location, count, value);
 }
+
+
 
 uniform_matrix2fv :: inline proc(program: Shader_Program, name: string, count: i32, transpose: bool, value: ^f32) {
 	location := get_uniform_location(program, name);
