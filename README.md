@@ -9,3 +9,5 @@
 * [odin-glfw](https://github.com/vassvik/odin-glfw) - GLFW bindings for windowing and input
 
 * [odin-stb](https://github.com/vassvik/odin-stb) - stb bindings for image loading
+
+* [sd](https://github.com/shuaDev/sd) - My general use library of code
