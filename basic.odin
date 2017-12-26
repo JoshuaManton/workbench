@@ -1,4 +1,5 @@
 import "core:fmt.odin"
+import "core:mem.odin"
 
 inst :: proc[inst_no_value, inst_value];
 inst_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
@@ -54,4 +55,14 @@ _logln :: proc(location: Source_Code_Location, args: ...any) {
 	fmt.println(...args);
 	fmt.printf("%s:%d:%s()", file, location.line, location.procedure);
 	fmt.printf("\n\n");
+}
+
+
+MAX_C_STR_LENGTH :: 1024;
+to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {
+	assert(len(str) < MAX_C_STR_LENGTH);
+	result: [MAX_C_STR_LENGTH]byte;
+	mem.copy(&result[0], &str[0], len(str));
+	result[len(str)] = 0;
+	return result;
 }

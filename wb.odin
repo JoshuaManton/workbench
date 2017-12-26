@@ -13,7 +13,7 @@ transform: math.Mat4;
 transform_buffer: gl.VBO;
 the_shader_program: gl.Shader_Program;
 
-window: glfw.Window_Handle;
+main_window: glfw.Window_Handle;
 
 vao: gl.VAO;
 vbo: gl.VBO;
@@ -56,17 +56,17 @@ start :: proc(config: Engine_Config) {
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, config.opengl_version_major);
 	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, config.opengl_version_minor);
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
-	window = glfw.CreateWindow(config.window_width, config.window_height, config.window_name, nil, nil);
-	if window == nil do return;
+	main_window = glfw.CreateWindow(config.window_width, config.window_height, config.window_name, nil, nil);
+	if main_window == nil do return;
 
 	video_mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor());
-	glfw.SetWindowPos(window, video_mode.width / 2 - config.window_width / 2, video_mode.height / 2 - config.window_height / 2);
+	glfw.SetWindowPos(main_window, video_mode.width / 2 - config.window_width / 2, video_mode.height / 2 - config.window_height / 2);
 
-	glfw.MakeContextCurrent(window);
+	glfw.MakeContextCurrent(main_window);
 	glfw.SwapInterval(1);
 
-	glfw.SetWindowSizeCallback(window, size_callback);
-	size_callback :: proc"c"(window: glfw.Window_Handle, w, h: i32) {
+	glfw.SetWindowSizeCallback(main_window, size_callback);
+	size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
 		current_window_width = w;
 		current_window_height = h;
 
@@ -90,32 +90,13 @@ start :: proc(config: Engine_Config) {
 
 	// Set initial size of window
 	camera_size = config.camera_size;
-	size_callback(window, config.window_width, config.window_height);
+	size_callback(main_window, config.window_width, config.window_height);
 
 	// Setup glfw callbacks
-	glfw.SetScrollCallback(window,
-		proc"c"(window: glfw.Window_Handle, x, y: f64) {
+	glfw.SetScrollCallback(main_window,
+		proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
 			camera_size -= cast(f32)y * camera_size * 0.1;
-			size_callback(window, current_window_width, current_window_height);
-		});
-
-	glfw.SetKeyCallback(window,
-		proc"c"(window: glfw.Window_Handle, key, scancode, action, mods: i32) {
-			if action == glfw.REPEAT || action == glfw.PRESS
-			{
-				if key == glfw.KEY_LEFT {
-					camera_position.x -= 12.8;
-				}
-				if key == glfw.KEY_RIGHT {
-					camera_position.x += 12.8;
-				}
-				if key == glfw.KEY_UP {
-					camera_position.y += 12.8;
-				}
-				if key == glfw.KEY_DOWN {
-					camera_position.y -= 12.8;
-				}
-			}
+			size_callback(main_window, current_window_width, current_window_height);
 		});
 
 	// load shaders
@@ -167,15 +148,15 @@ start :: proc(config: Engine_Config) {
 
 	config.init_proc();
 
-	for glfw.WindowShouldClose(window) == glfw.FALSE {
+	for glfw.WindowShouldClose(main_window) == glfw.FALSE {
 		// show fps in window title
-		glfw.calculate_frame_timings(window);
+		glfw.calculate_frame_timings(main_window);
 
 		// listen to input
 		glfw.PollEvents();
 
-		if glfw.GetKey(window, glfw.KEY_ESCAPE) {
-			glfw.SetWindowShouldClose(window, true);
+		if get_key(glfw.Key.Escape) {
+			glfw.SetWindowShouldClose(main_window, true);
 		}
 
 		// clear screen
@@ -209,7 +190,7 @@ flush_sprites :: proc() {
 	gl.use_program(the_shader_program);
 	gl.uniform_matrix4fv(the_shader_program, "transform", 1, false, &transform[0][0]);
 	gl.uniform(the_shader_program, "camera_position", camera_position.x, camera_position.y);
-	gl.uniform(the_shader_program, "atlas_dim", cast(f32)ATLAS_DIM);
+	gl.uniform(the_shader_program, "atlas_dim_modifier", ATLAS_SIZE_MODIFIER);
 
 	gl.bind_buffer(transform_buffer);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
@@ -232,7 +213,7 @@ flush_sprites :: proc() {
 	num_sprites := cast(i32)len(sprites);
 	gl.DrawArraysInstanced(gl.TRIANGLES, 0, 6, num_sprites);
 
-	glfw.SwapBuffers(window);
+	glfw.SwapBuffers(main_window);
 }
 
 metadata_texture: gl.Texture;
@@ -245,6 +226,7 @@ biggest_height: i32;
 sprite_index: i32;
 
 ATLAS_DIM :: 2048;
+ATLAS_SIZE_MODIFIER : f32 : ATLAS_DIM / 2048.0;
 
 load_sprite :: proc(filepath: string) -> Sprite {
 	if !atlas_loaded {
@@ -260,11 +242,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
 	}
 
-	MAX_PATH_LENGTH :: 1024;
-	assert(len(filepath) <= MAX_PATH_LENGTH - 1);
-	filepath_c: [MAX_PATH_LENGTH]byte;
-	mem.copy(&filepath_c[0], &filepath[0], len(filepath));
-	filepath_c[len(filepath)] = 0;
+	filepath_c := basic.to_c_string(filepath);
 
 	image.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
@@ -330,4 +308,10 @@ print_errors :: proc(location := #caller_location) {
 
 		fmt.println(location, err);
 	}
+}
+
+Key :: glfw.Key;
+
+get_key :: inline proc(key: glfw.Key) -> bool {
+	return glfw.GetKey(main_window, key);
 }
