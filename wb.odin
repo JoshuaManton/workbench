@@ -115,8 +115,7 @@ start :: proc(config: Engine_Config) {
 	config.init_proc();
 
 	for glfw.WindowShouldClose(main_window) == glfw.FALSE {
-		// show fps in window title
-		glfw.calculate_frame_timings(main_window);
+		_update_time();
 
 		// listen to input
 		_update_input();
@@ -336,4 +335,19 @@ get_key_up :: proc(key: glfw.Key) -> bool {
 		}
 	}
 	return false;
+}
+
+//
+// Time
+//
+
+delta_time: f32;
+last_frame_time: f32;
+
+_update_time :: proc() {
+	// show fps in window title
+	glfw.calculate_frame_timings(main_window);
+	time := cast(f32)glfw.GetTime();
+	delta_time = time - last_frame_time;
+	last_frame_time = time;
 }
