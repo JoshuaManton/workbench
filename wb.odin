@@ -10,22 +10,9 @@ import "gl.odin"
 import "basic.odin"
 
 transform: math.Mat4;
-transform_buffer: gl.VBO;
 the_shader_program: gl.Shader_Program;
 
 main_window: glfw.Window_Handle;
-
-vao: gl.VAO;
-vbo: gl.VBO;
-
-sprite_vbo := [...]math.Vec2 {
-	{-1, -1},
-	{-1,  1},
-	{ 1,  1},
-	{ 1,  1},
-	{ 1, -1},
-	{-1, -1},
-};
 
 Engine_Config :: struct {
 	init_proc: proc(),
@@ -111,36 +98,14 @@ start :: proc(config: Engine_Config) {
 
 	vbo = gl.gen_buffer();
 	gl.bind_buffer(vbo);
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(sprite_vbo), &sprite_vbo[0], gl.STATIC_DRAW);
 
 	// Position
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(math.Vec2), nil);
+	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
 	gl.EnableVertexAttribArray(0);
 
-	transform_buffer = gl.gen_buffer();
-	gl.bind_buffer(transform_buffer);
-
-	// Center position
-	gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, position))));
-	gl.EnableVertexAttribArray(2);
-
-	// Scale
-	gl.VertexAttribPointer(3, 2, gl.FLOAT, gl.FALSE, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, scale))));
-	gl.EnableVertexAttribArray(3);
-
-	// Sprite index
-	gl.VertexAttribIPointer(4, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, index))));
-	gl.EnableVertexAttribArray(4);
-
-	// Sprite width
-	gl.VertexAttribIPointer(5, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, width))));
-	gl.EnableVertexAttribArray(5);
-
-	// Sprite height
-	gl.VertexAttribIPointer(6, 1, gl.INT, size_of(Sprite_Data), rawptr(uintptr(offset_of(Sprite_Data, height))));
-	gl.EnableVertexAttribArray(6);
-
-	sprites = make([dynamic]Sprite_Data, 0, 4);
+	// tex_coord
+	gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), rawptr(uintptr(offset_of(Vertex, tex_coord))));
+	gl.EnableVertexAttribArray(1);
 
 	gl.ClearColor(0.5, 0.1, 0.2, 1.0);
 	gl.Enable(gl.BLEND);
@@ -162,80 +127,81 @@ start :: proc(config: Engine_Config) {
 		// clear screen
 		gl.Clear(gl.COLOR_BUFFER_BIT);
 
-		clear(&sprites);
 		config.update_proc();
+		log_gl_errors();
 	}
 }
 
-sprites: [dynamic]Sprite_Data;
+vao: gl.VAO;
+vbo: gl.VBO;
+
+Vertex :: struct {
+	vertex_position: math.Vec2,
+	tex_coord: math.Vec2,
+}
+
+Quad :: struct {
+	vertices: [6]Vertex,
+}
+
+all_quads: [dynamic]Quad;
 
 Sprite :: struct {
-	index: i32,
+	uvs: [4]math.Vec2,
 	width: i32,
 	height: i32,
 }
 
-Sprite_Data :: struct {
-	using sprite: Sprite,
-	position: math.Vec2,
-	scale: math.Vec2,
-}
-
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vec2) {
-	data := Sprite_Data{sprite, position, scale};
-	append(&sprites, data);
+	make_vertex :: proc(corner, position, scale: math.Vec2, sprite: Sprite, index: int) -> Vertex {
+		vpos := corner;
+		vpos *= scale * math.Vec2{cast(f32)sprite.width, cast(f32)sprite.height};
+		vpos -= camera_position;
+		vpos += position;
+
+		vertex := Vertex{vpos, sprite.uvs[index]};
+
+		return vertex;
+	}
+
+	v0 := make_vertex(math.Vec2{-1, -1}, position, scale, sprite, 0);
+	v1 := make_vertex(math.Vec2{-1,  1}, position, scale, sprite, 1);
+	v2 := make_vertex(math.Vec2{ 1,  1}, position, scale, sprite, 2);
+	v3 := make_vertex(math.Vec2{ 1, -1}, position, scale, sprite, 3);
+	quad := Quad{{v0, v1, v2, v2, v3, v0}};
+
+	append(&all_quads, quad);
 }
 
 flush_sprites :: proc() {
 	gl.use_program(the_shader_program);
 	gl.uniform_matrix4fv(the_shader_program, "transform", 1, false, &transform[0][0]);
-	gl.uniform(the_shader_program, "camera_position", camera_position.x, camera_position.y);
-	gl.uniform(the_shader_program, "atlas_dim_modifier", ATLAS_SIZE_MODIFIER);
 
-	gl.bind_buffer(transform_buffer);
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(Sprite_Data) * len(sprites), &sprites[0], gl.STATIC_DRAW);
+	gl.bind_buffer(vbo);
+	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
 
 	gl.uniform(the_shader_program, "atlas_texture", 0);
-	gl.uniform(the_shader_program, "metadata_texture", 1);
-
-	gl.active_texture0();
 	gl.bind_texture2d(atlas_texture);
 
-	gl.active_texture1();
-	gl.bind_texture1d(metadata_texture);
+	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);
 
-	gl.VertexAttribDivisor(2, 1);
-	gl.VertexAttribDivisor(3, 1);
-	gl.VertexAttribDivisor(4, 1);
-	gl.VertexAttribDivisor(5, 1);
-	gl.VertexAttribDivisor(6, 1);
-
-	num_sprites := cast(i32)len(sprites);
-	gl.DrawArraysInstanced(gl.TRIANGLES, 0, 6, num_sprites);
-
+	clear(&all_quads);
 	glfw.SwapBuffers(main_window);
 }
 
-metadata_texture: gl.Texture;
 atlas_texture: gl.Texture;
 atlas_loaded: bool;
 
 atlas_x: i32;
 atlas_y: i32;
 biggest_height: i32;
-sprite_index: i32;
 
 ATLAS_DIM :: 2048;
-ATLAS_SIZE_MODIFIER : f32 : ATLAS_DIM / 2048.0;
 
 load_sprite :: proc(filepath: string) -> Sprite {
+	// TODO(josh): Handle multiple texture atlases?
 	if !atlas_loaded {
 		atlas_loaded = true;
-
-		metadata_texture = gl.gen_texture();
-		gl.bind_texture1d(metadata_texture);
-		gl.TexImage1D(gl.TEXTURE_1D, 0, gl.RG32F, 4096, 0, gl.RG, gl.FLOAT, nil);
-		gl.TexParameteri(gl.TEXTURE_1D, gl.TEXTURE_MAX_LEVEL, 0);
 
 		atlas_texture = gl.gen_texture();
 		gl.bind_texture2d(atlas_texture);
@@ -257,56 +223,43 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	}
 
 	if sprite_height > biggest_height do biggest_height = sprite_height;
-
 	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, atlas_y, sprite_width, sprite_height, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
-
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	bottom_left_x := cast(f32)atlas_x / 2048;
+	bottom_left_y := cast(f32)atlas_y / 2048;
 
-	x01 := cast(f32)atlas_x / 2048;
-	y01 := cast(f32)atlas_y / 2048;
+	width_fraction  := cast(f32)sprite_width / 2048;
+	height_fraction := cast(f32)sprite_height / 2048;
 
-	w01 := cast(f32)sprite_width / 2048;
-	h01 := cast(f32)sprite_height / 2048;
-
-	Metadata_Texture_Entry :: struct {
-		uv: math.Vec2,
-	}
-
-	coords := [...]Metadata_Texture_Entry {
-		{{x01,       y01}},
-		{{x01,       y01 + h01}},
-		{{x01 + w01, y01 + h01}},
-		{{x01 + w01, y01 + h01}},
-		{{x01 + w01, y01}},
-		{{x01,       y01}},
+	coords := [4]math.Vec2 {
+		{bottom_left_x,                  bottom_left_y},
+		{bottom_left_x,                  bottom_left_y + height_fraction},
+		{bottom_left_x + width_fraction, bottom_left_y + height_fraction},
+		{bottom_left_x + width_fraction, bottom_left_y},
 	};
 
-	gl.bind_texture1d(metadata_texture);
-	gl.TexSubImage1D(gl.TEXTURE_1D, 0, sprite_index * len(coords), len(coords), gl.RG, gl.FLOAT, &coords[0]);
-	print_errors();
 
 	sprite: Sprite;
-	sprite.index = sprite_index;
+	sprite.uvs = coords;
 	sprite.width = sprite_width;
 	sprite.height = sprite_height;
 
 	atlas_x += sprite_height;
-	sprite_index += 1;
 
 	return sprite;
 }
 
-print_errors :: proc(location := #caller_location) {
+log_gl_errors :: proc(location := #caller_location) {
 	for {
 		err := gl.GetError();
 		if err == 0 {
 			break;
 		}
 
-		fmt.println(location, err);
+		fmt.println("OPENGL ERROR", location.file_path, location.line, err);
 	}
 }
 
