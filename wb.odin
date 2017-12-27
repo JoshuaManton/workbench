@@ -258,6 +258,10 @@ log_gl_errors :: proc(location := #caller_location) {
 	}
 }
 
+//
+// Input stuff
+//
+
 _held := make([dynamic]glfw.Key, 0, 5);
 _down := make([dynamic]glfw.Key, 0, 5);
 _up   := make([dynamic]glfw.Key, 0, 5);

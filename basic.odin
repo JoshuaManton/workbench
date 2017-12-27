@@ -1,5 +1,6 @@
 import "core:fmt.odin"
 import "core:mem.odin"
+import "core:math.odin"
 
 //
 // Array stuff
@@ -24,6 +25,10 @@ remove :: proc(array: ^[dynamic]$T, to_remove: T) {
 		}
 	}
 }
+remove_by_index :: proc(array: ^[dynamic]$T, to_remove: int) {
+	array[to_remove] = array[len(array)-1];
+	pop(array);
+}
 remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 	for item, index in array {
 		if item == to_remove {
@@ -31,6 +36,37 @@ remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 			pop(array);
 		}
 	}
+}
+
+//
+// Math
+//
+
+magnitude :: proc(x: math.Vec2) -> f32 do return math.sqrt(math.dot(x, x));
+
+move_toward :: proc(x, y: math.Vec2, step: f32) -> math.Vec2 {
+	a := y - x;
+	mag := magnitude(a);
+
+	if mag <= step || mag == 0 {
+		return y;
+	}
+
+	return x + a / mag * step;
+}
+
+distance :: inline proc(x, y: $T) -> f32 {
+	diff := x - y;
+	return math.sqrt(sqr(diff.x) + sqr(diff.y));
+}
+
+sqr :: inline proc(x: $T) -> T {
+	return x * x;
+}
+
+sqr_distance :: inline proc(x, y: $T) -> f32 {
+	diff := x - y;
+	return sqr(diff.x) + sqr(diff.y);
 }
 
 //
