@@ -154,7 +154,7 @@ Sprite :: struct {
 submit_sprite :: proc(sprite: Sprite, position, scale: math.Vec2) {
 	make_vertex :: proc(corner, position, scale: math.Vec2, sprite: Sprite, index: int) -> Vertex {
 		vpos := corner;
-		vpos *= scale * math.Vec2{cast(f32)sprite.width, cast(f32)sprite.height};
+		vpos *= scale * math.Vec2{cast(f32)sprite.width, cast(f32)sprite.height} / 2;
 		vpos -= camera_position;
 		vpos += position;
 
@@ -208,7 +208,6 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	}
 
 	filepath_c := basic.to_c_string(filepath);
-
 	image.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
 	texture_data := image.load(&filepath_c[0], &sprite_width, &sprite_height, &channels, 0);
@@ -227,11 +226,11 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-	bottom_left_x := cast(f32)atlas_x / 2048;
-	bottom_left_y := cast(f32)atlas_y / 2048;
+	bottom_left_x := cast(f32)atlas_x / ATLAS_DIM;
+	bottom_left_y := cast(f32)atlas_y / ATLAS_DIM;
 
-	width_fraction  := cast(f32)sprite_width / 2048;
-	height_fraction := cast(f32)sprite_height / 2048;
+	width_fraction  := cast(f32)sprite_width / ATLAS_DIM;
+	height_fraction := cast(f32)sprite_height / ATLAS_DIM;
 
 	coords := [4]math.Vec2 {
 		{bottom_left_x,                  bottom_left_y},
@@ -240,14 +239,9 @@ load_sprite :: proc(filepath: string) -> Sprite {
 		{bottom_left_x + width_fraction, bottom_left_y},
 	};
 
-
-	sprite: Sprite;
-	sprite.uvs = coords;
-	sprite.width = sprite_width;
-	sprite.height = sprite_height;
-
 	atlas_x += sprite_height;
 
+	sprite := Sprite{coords, sprite_width, sprite_height};
 	return sprite;
 }
 
