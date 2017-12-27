@@ -1,6 +1,10 @@
 import "core:fmt.odin"
 import "core:mem.odin"
 
+//
+// Array stuff
+//
+
 inst :: proc[inst_no_value, inst_value];
 inst_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
 	length := append(array, T{});
@@ -11,7 +15,27 @@ inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 	return &array[length-1];
 }
 
+remove :: proc(array: ^[dynamic]$T, to_remove: T) {
+	for item, index in array {
+		if item == to_remove {
+			array[index] = array[len(array)-1];
+			pop(array);
+			return;
+		}
+	}
+}
+remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
+	for item, index in array {
+		if item == to_remove {
+			array[index] = array[len(array)-1];
+			pop(array);
+		}
+	}
+}
 
+//
+// Logging
+//
 
 logln :: proc[logln1, logln2, logln3, logln4, logln5, logln6, logln7];
 logln1 :: proc(arg1: any, location := #caller_location) {
@@ -57,6 +81,9 @@ _logln :: proc(location: Source_Code_Location, args: ...any) {
 	fmt.printf("\n\n");
 }
 
+//
+// Strings
+//
 
 MAX_C_STR_LENGTH :: 1024;
 to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {

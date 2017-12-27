@@ -69,6 +69,8 @@ start :: proc(config: Engine_Config) {
 		gl.Viewport(0, 0, w, h);
 	}
 
+	glfw.SetKeyCallback(main_window, _glfw_key_callback);
+
 	// setup opengl
 	gl.load_up_to(3, 3,
 		proc(p: rawptr, name: string) {
@@ -117,7 +119,7 @@ start :: proc(config: Engine_Config) {
 		glfw.calculate_frame_timings(main_window);
 
 		// listen to input
-		glfw.PollEvents();
+		_update_input();
 
 		if get_key(glfw.Key.Escape) {
 			glfw.SetWindowShouldClose(main_window, true);
@@ -256,8 +258,78 @@ log_gl_errors :: proc(location := #caller_location) {
 	}
 }
 
-Key :: glfw.Key;
+_held := make([dynamic]glfw.Key, 0, 5);
+_down := make([dynamic]glfw.Key, 0, 5);
+_up   := make([dynamic]glfw.Key, 0, 5);
 
-get_key :: inline proc(key: glfw.Key) -> bool {
-	return glfw.GetKey(main_window, key);
+_held_mid_frame := make([dynamic]glfw.Key, 0, 5);
+_down_mid_frame := make([dynamic]glfw.Key, 0, 5);
+_up_mid_frame   := make([dynamic]glfw.Key, 0, 5);
+
+_update_input :: proc() {
+	glfw.PollEvents();
+	clear(&_held);
+	clear(&_down);
+	clear(&_up);
+
+	for held in _held_mid_frame {
+		append(&_held, held);
+	}
+	for down in _down_mid_frame {
+		append(&_down, down);
+	}
+	for up in _up_mid_frame {
+		append(&_up, up);
+	}
+
+	clear(&_down_mid_frame);
+	clear(&_up_mid_frame);
+}
+
+// this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
+// so we need to save presses in a separate buffer and copy them over to have consistent behaviour
+_glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
+	when false {
+		fmt.println("cap of held", cap(_held), cap(_held_mid_frame));
+		fmt.println("cap of up", cap(_up), cap(_up_mid_frame));
+		fmt.println("cap of down", cap(_down), cap(_down_mid_frame));
+	}
+
+	switch action {
+		case glfw.Action.Press: {
+			append(&_held_mid_frame, key);
+			append(&_down_mid_frame, key);
+		}
+		case glfw.Action.Release: {
+			basic.remove_all(&_held_mid_frame, key);
+			append(&_up_mid_frame, key);
+		}
+	}
+}
+
+get_key :: proc(key: glfw.Key) -> bool {
+	for held in _held {
+		if held == key {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_key_down :: proc(key: glfw.Key) -> bool {
+	for down in _down {
+		if down == key {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_key_up :: proc(key: glfw.Key) -> bool {
+	for up in _up {
+		if up == key {
+			return true;
+		}
+	}
+	return false;
 }
