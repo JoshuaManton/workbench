@@ -93,7 +93,6 @@ start :: proc(config: Engine_Config) {
 
 	// setup vao
 	vao = gl.gen_vao();
-	defer gl.delete_vao(vao);
 	gl.bind_vao(vao);
 
 	vbo = gl.gen_buffer();
