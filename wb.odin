@@ -25,6 +25,10 @@ Engine_Config :: struct {
 	opengl_version_minor: i32,
 
 	camera_size: f32,
+
+	// @todo(josh): make an api of some kind for shaders
+	vertex_shader_path: string,
+	fragment_shader_path: string,
 }
 
 camera_size: f32;
@@ -90,7 +94,7 @@ start :: proc(config: Engine_Config) {
 
 	// load shaders
 	shader_success: bool;
-	the_shader_program, shader_success = gl.load_shader_files("vertex.glsl", "fragment.glsl");
+	the_shader_program, shader_success = gl.load_shader_files(config.vertex_shader_path, config.fragment_shader_path);
 	assert(shader_success);
 
 	// setup vao
@@ -212,6 +216,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	image.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
 	texture_data := image.load(&filepath_c[0], &sprite_width, &sprite_height, &channels, 0);
+	assert(texture_data != nil);
 
 	gl.bind_texture2d(atlas_texture);
 
