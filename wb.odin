@@ -36,6 +36,27 @@ camera_position: math.Vec2;
 current_window_width: i32;
 current_window_height: i32;
 
+set_camera_size :: proc(size: f32) {
+	camera_size = size;
+	_size_callback(main_window, current_window_width, current_window_height);
+}
+
+_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
+	current_window_width = w;
+	current_window_height = h;
+
+	aspect := cast(f32)w / cast(f32)h;
+	top := camera_size;
+	bottom := -camera_size;
+	left := -camera_size * aspect;
+	right := camera_size * aspect;
+	ortho := math.ortho3d(left, right, bottom, top, -1, 1);
+
+	transform = math.mul(math.identity(math.Mat4), ortho);
+
+	gl.Viewport(0, 0, w, h);
+}
+
 start :: proc(config: Engine_Config) {
 	// setup glfw
 	glfw.SetErrorCallback(error_callback);
@@ -56,22 +77,7 @@ start :: proc(config: Engine_Config) {
 	glfw.MakeContextCurrent(main_window);
 	glfw.SwapInterval(1);
 
-	glfw.SetWindowSizeCallback(main_window, size_callback);
-	size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
-		current_window_width = w;
-		current_window_height = h;
-
-		aspect := cast(f32)w / cast(f32)h;
-		top := camera_size;
-		bottom := -camera_size;
-		left := -camera_size * aspect;
-		right := camera_size * aspect;
-		ortho := math.ortho3d(left, right, bottom, top, -1, 1);
-
-		transform = math.mul(math.identity(math.Mat4), ortho);
-
-		gl.Viewport(0, 0, w, h);
-	}
+	glfw.SetWindowSizeCallback(main_window, _size_callback);
 
 	glfw.SetKeyCallback(main_window, _glfw_key_callback);
 
@@ -82,14 +88,14 @@ start :: proc(config: Engine_Config) {
 		});
 
 	// Set initial size of window
-	camera_size = config.camera_size;
-	size_callback(main_window, config.window_width, config.window_height);
+	current_window_width = config.window_width;
+	current_window_height = config.window_height;
+	set_camera_size(config.camera_size);
 
 	// Setup glfw callbacks
 	glfw.SetScrollCallback(main_window,
 		proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-			camera_size -= cast(f32)y * camera_size * 0.1;
-			size_callback(main_window, current_window_width, current_window_height);
+			set_camera_size(camera_size - cast(f32)y * camera_size * 0.1);
 		});
 
 	// load shaders
