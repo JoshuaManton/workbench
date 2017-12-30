@@ -362,3 +362,166 @@ _update_time :: proc() {
 	delta_time = time - last_frame_time;
 	last_frame_time = time;
 }
+
+//
+// Collision
+//
+
+min :: inline proc(args: ...$T) -> T {
+	current := args[0];
+	for arg in args {
+		if arg < current {
+			current = arg;
+		}
+	}
+
+	return current;
+}
+
+max :: inline proc(a, b: $T) -> T {
+	if a > b do return a;
+	return b;
+}
+
+closest_point_on_line :: proc(origin: math.Vec2, p1, p2: math.Vec2) -> math.Vec2 {
+	direction := p2 - p1;
+	square_length := basic.sqr_magnitude(direction);
+	if (square_length == 0.0) {
+		// p1 == p2
+		dir_from_point := p1 - origin;
+		return p1;
+	}
+
+	dot := math.dot(origin - p1, p2 - p1) / square_length;
+	t := max(min(dot, 1), 0);
+	projection := p1 + t * (p2 - p1);
+	return projection;
+}
+
+Hit_Info :: struct {
+	fraction_min: f32,
+	fraction_max: f32,
+
+	point_min: math.Vec2,
+	point_max: math.Vec2,
+
+	// todo(josh): add normals
+}
+
+line_circle :: proc(line1, line2: math.Vec2, circle_center: math.Vec2, radius: f32) -> (bool, Hit_Info) {
+	line_direction := line2 - line1;
+	direction := line1 - circle_center;
+	a := math.dot(line_direction, line_direction);
+	b := math.dot(direction, line_direction);
+	c := math.dot(direction, direction) - radius * radius;
+
+	disc := b * b - a * c;
+	if (disc < 0) {
+		return false, Hit_Info{};
+	}
+
+	sqrt_disc := math.sqrt(disc);
+	invA: f32 = 1.0 / a;
+
+	t1 := (-b - sqrt_disc) * invA;
+	t2 := (-b + sqrt_disc) * invA;
+
+	inv_radius: f32 = 1.0 / radius;
+
+	p1 := line1 + t1 * line_direction;
+	// normal[i] = (point[i] - circle_center) * invRadius;
+
+	p2 := line1 + t2 * line_direction;
+	// normal[i] = (point[i] - circle_center) * invRadius;
+
+	info := Hit_Info{t1, t2, p1, p2};
+
+	return true, info;
+}
+
+line_aabb :: proc(origin, direction: math.Vec2, box_min, box_max: math.Vec2) -> (bool, Hit_Info) {
+	inverse := math.Vec2{1.0/direction.x, 1.0/direction.y};
+
+    tx1 := (box_min.x - origin.x)*inverse.x;
+    tx2 := (box_max.x - origin.x)*inverse.x;
+
+    tmin := min(tx1, tx2);
+    tmax := max(tx1, tx2);
+
+    ty1 := (box_min.y - origin.y)*inverse.y;
+    ty2 := (box_max.y - origin.y)*inverse.y;
+
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+
+    tmax = min(tmax, 1);
+
+    hit := Hit_Info{tmin, tmax, origin + (direction * tmin), origin + (direction * tmax)};
+
+    return tmax >= tmin, hit;
+}
+
+slow_line_aabb :: proc(box_min, box_max: math.Vec2, origin, direction: math.Vec2) -> (bool, math.Vec2) {
+	RIGHT  :: 0;
+	LEFT   :: 1;
+	MIDDLE :: 2;
+
+	inside := true;
+	quadrant: [2]byte;
+	candidate_plane: math.Vec2;
+
+	for i in 0..2 {
+		if origin[i] < box_min[i] {
+			quadrant[i] = LEFT;
+			candidate_plane[i] = box_min[i];
+			inside = false;
+		}
+		else if (origin[i] > box_max[i]) {
+			quadrant[i] = RIGHT;
+			candidate_plane[i] = box_max[i];
+			inside = false;
+		}
+		else {
+			quadrant[i] = MIDDLE;
+		}
+	}
+
+	if inside {
+		return true, origin;
+	}
+
+	maxT: math.Vec2;
+
+	for i in 0..2 {
+		if quadrant[i] != MIDDLE && direction[i] != 0 {
+			maxT[i] = (candidate_plane[i]-origin[i]) / direction[i];
+		}
+		else {
+			maxT[i] = -1;
+		}
+	}
+
+	which_plane: int;
+	for i in 1..2 {
+		if maxT[which_plane] < maxT[i] {
+			which_plane = i;
+		}
+	}
+
+	if maxT[which_plane] < 0 do return false, math.Vec2{};
+
+	coord: math.Vec2;
+	for i in 0..2 {
+		if which_plane != i {
+			coord[i] = origin[i] + maxT[which_plane] * direction[i];
+			if coord[i] < box_min[i] || coord[i] > box_max[i] {
+				return false, math.Vec2{};
+			}
+		}
+		else {
+			coord[i] = candidate_plane[i];
+		}
+	}
+
+	return true, coord;				/* ray hits box */
+}
