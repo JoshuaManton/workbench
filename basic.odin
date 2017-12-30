@@ -45,15 +45,15 @@ remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 sqr_magnitude :: inline proc(a: math.Vec2) -> f32 do return math.dot(a, a);
 magnitude :: inline proc(a: math.Vec2) -> f32 do return math.sqrt(math.dot(a, a));
 
-move_toward :: proc(x, y: math.Vec2, step: f32) -> math.Vec2 {
-	a := y - x;
-	mag := magnitude(a);
+move_toward :: proc(a, b: math.Vec2, step: f32) -> math.Vec2 {
+	direction := b - a;
+	mag := magnitude(direction);
 
 	if mag <= step || mag == 0 {
-		return y;
+		return b;
 	}
 
-	return x + a / mag * step;
+	return a + direction / mag * step;
 }
 
 distance :: inline proc(x, y: $T) -> f32 {
