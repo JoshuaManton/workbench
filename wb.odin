@@ -367,22 +367,6 @@ _update_time :: proc() {
 // Collision
 //
 
-min :: inline proc(args: ...$T) -> T {
-	current := args[0];
-	for arg in args {
-		if arg < current {
-			current = arg;
-		}
-	}
-
-	return current;
-}
-
-max :: inline proc(a, b: $T) -> T {
-	if a > b do return a;
-	return b;
-}
-
 closest_point_on_line :: proc(origin: math.Vec2, p1, p2: math.Vec2) -> math.Vec2 {
 	direction := p2 - p1;
 	square_length := basic.sqr_magnitude(direction);
@@ -399,21 +383,24 @@ closest_point_on_line :: proc(origin: math.Vec2, p1, p2: math.Vec2) -> math.Vec2
 }
 
 Hit_Info :: struct {
-	fraction_min: f32,
-	fraction_max: f32,
+	// Fraction (0..1) of the distance that the ray started intersecting
+	fraction0: f32,
+	// Fraction (0..1) of the distance that the ray stopped intersecting
+	fraction1: f32,
 
-	point_min: math.Vec2,
-	point_max: math.Vec2,
+	// Point that the ray started intersecting
+	point0: math.Vec2,
+	// Point that the ray stopped intersecting
+	point1: math.Vec2,
 
 	// todo(josh): add normals
 }
 
-line_circle :: proc(line1, line2: math.Vec2, circle_center: math.Vec2, radius: f32) -> (bool, Hit_Info) {
-	line_direction := line2 - line1;
-	direction := line1 - circle_center;
+line_circle :: proc(line_origin, line_direction: math.Vec2, circle_center: math.Vec2, circle_radius: f32) -> (bool, Hit_Info) {
+	direction := line_origin - circle_center;
 	a := math.dot(line_direction, line_direction);
 	b := math.dot(direction, line_direction);
-	c := math.dot(direction, direction) - radius * radius;
+	c := math.dot(direction, direction) - circle_radius * circle_radius;
 
 	disc := b * b - a * c;
 	if (disc < 0) {
@@ -426,12 +413,12 @@ line_circle :: proc(line1, line2: math.Vec2, circle_center: math.Vec2, radius: f
 	t1 := (-b - sqrt_disc) * invA;
 	t2 := (-b + sqrt_disc) * invA;
 
-	inv_radius: f32 = 1.0 / radius;
+	inv_radius: f32 = 1.0 / circle_radius;
 
-	p1 := line1 + t1 * line_direction;
+	p1 := line_origin + t1 * line_direction;
 	// normal[i] = (point[i] - circle_center) * invRadius;
 
-	p2 := line1 + t2 * line_direction;
+	p2 := line_origin + t2 * line_direction;
 	// normal[i] = (point[i] - circle_center) * invRadius;
 
 	info := Hit_Info{t1, t2, p1, p2};
@@ -439,26 +426,26 @@ line_circle :: proc(line1, line2: math.Vec2, circle_center: math.Vec2, radius: f
 	return true, info;
 }
 
-line_aabb :: proc(origin, direction: math.Vec2, box_min, box_max: math.Vec2) -> (bool, Hit_Info) {
-	inverse := math.Vec2{1.0/direction.x, 1.0/direction.y};
+line_aabb :: proc(line_origin, line_direction: math.Vec2, box_min, box_max: math.Vec2) -> (bool, Hit_Info) {
+	inverse := math.Vec2{1.0/line_direction.x, 1.0/line_direction.y};
 
-    tx1 := (box_min.x - origin.x)*inverse.x;
-    tx2 := (box_max.x - origin.x)*inverse.x;
+	tx1 := (box_min.x - line_origin.x)*inverse.x;
+	tx2 := (box_max.x - line_origin.x)*inverse.x;
 
-    tmin := min(tx1, tx2);
-    tmax := max(tx1, tx2);
+	tmin := min(tx1, tx2);
+	tmax := max(tx1, tx2);
 
-    ty1 := (box_min.y - origin.y)*inverse.y;
-    ty2 := (box_max.y - origin.y)*inverse.y;
+	ty1 := (box_min.y - line_origin.y)*inverse.y;
+	ty2 := (box_max.y - line_origin.y)*inverse.y;
 
-    tmin = max(tmin, min(ty1, ty2));
-    tmax = min(tmax, max(ty1, ty2));
+	tmin = max(tmin, min(ty1, ty2));
+	tmax = min(tmax, max(ty1, ty2));
 
-    tmax = min(tmax, 1);
+	tmax = min(tmax, 1);
 
-    hit := Hit_Info{tmin, tmax, origin + (direction * tmin), origin + (direction * tmax)};
+	info := Hit_Info{tmin, tmax, line_origin + (line_direction * tmin), line_origin + (line_direction * tmax)};
 
-    return tmax >= tmin, hit;
+	return tmax >= tmin, info;
 }
 
 slow_line_aabb :: proc(box_min, box_max: math.Vec2, origin, direction: math.Vec2) -> (bool, math.Vec2) {
