@@ -39,6 +39,20 @@ remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 }
 
 //
+// Enums
+//
+
+enum_length :: inline proc(enum_type: type) -> int {
+	info := type_info_base(type_info_of(enum_type));
+	return len(info.variant.(Type_Info_Enum).names);
+}
+
+enum_names :: inline proc(enum_type: type) -> []string {
+	info := type_info_base(type_info_of(enum_type));
+	return info.variant.(Type_Info_Enum).names;
+}
+
+//
 // Math
 //
 
