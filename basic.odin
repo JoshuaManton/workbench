@@ -1,6 +1,7 @@
 import "core:fmt.odin"
 import "core:mem.odin"
-import "core:math.odin"
+
+using import "core:math.odin"
 
 //
 // Arrays
@@ -56,10 +57,10 @@ enum_names :: inline proc(enum_type: type) -> []string {
 // Math
 //
 
-sqr_magnitude :: inline proc(a: math.Vec2) -> f32 do return math.dot(a, a);
-magnitude :: inline proc(a: math.Vec2) -> f32 do return math.sqrt(math.dot(a, a));
+sqr_magnitude :: inline proc(a: Vec2) -> f32 do return dot(a, a);
+magnitude :: inline proc(a: Vec2) -> f32 do return sqrt(dot(a, a));
 
-move_toward :: proc(a, b: math.Vec2, step: f32) -> math.Vec2 {
+move_toward :: proc(a, b: Vec2, step: f32) -> Vec2 {
 	direction := b - a;
 	mag := magnitude(direction);
 
@@ -76,7 +77,7 @@ sqr :: inline proc(x: $T) -> T {
 
 distance :: inline proc(x, y: $T) -> f32 {
 	diff := x - y;
-	return math.sqrt(sqr(diff.x) + sqr(diff.y));
+	return sqrt(sqr(diff.x) + sqr(diff.y));
 }
 
 sqr_distance :: inline proc(x, y: $T) -> f32 {
@@ -104,6 +105,21 @@ maxv :: inline proc(args: ...$T) -> T {
 			current = arg;
 		}
 	}
+}
+
+to_vec3 :: proc[to_vec3_from_vec2, to_vec3_from_vec4];
+to_vec3_from_vec2 :: inline proc(a: Vec2) -> Vec3 do return Vec3{a.x, a.y, 0};
+to_vec3_from_vec4 :: inline proc(a: Vec4) -> Vec3 do return Vec3{a.x, a.y, a.z};
+
+to_vec4 :: proc[to_vec4_from_vec2, to_vec4_from_vec3];
+to_vec4_from_vec2 :: inline proc(a: Vec2) -> Vec4 do return Vec4{a.x, a.y, 0, 0};
+to_vec4_from_vec3 :: inline proc(a: Vec3) -> Vec4 do return Vec4{a.x, a.y, a.z, 0};
+
+translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
+	m[3][0] += v[0];
+	m[3][1] += v[1];
+	m[3][2] += v[2];
+	return m;
 }
 
 //

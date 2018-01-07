@@ -7,7 +7,7 @@ import "shared:odin-glfw/glfw.odin"
 import "shared:stb/image.odin"
 
 import "gl.odin"
-import "basic.odin"
+using import "basic.odin"
 
 transform: Mat4;
 
@@ -42,11 +42,12 @@ _size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
 	current_window_height = h;
 
 	aspect := cast(f32)w / cast(f32)h;
-	top := camera_size;
-	bottom := -camera_size;
-	left := -camera_size * aspect;
-	right := camera_size * aspect;
-	ortho := ortho3d(left, right, bottom, top, -1, 1);
+	top    : f32 =  1;
+	bottom : f32 = -1;
+	left   : f32 = -1 * aspect;
+	right  : f32 =  1 * aspect;
+
+	ortho  := ortho3d(left, right, bottom, top, -1, 1);
 
 	transform = mul(identity(Mat4), ortho);
 
@@ -101,13 +102,16 @@ start :: proc(config: Engine_Config) {
 	vbo = gl.gen_buffer();
 	gl.bind_buffer(vbo);
 
-	// Position
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
-	gl.EnableVertexAttribArray(0);
+	// todo(josh): make that Vertex definition proc that uses Type_Info to do all this
+	{
+		// Position
+		gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
+		gl.EnableVertexAttribArray(0);
 
-	// tex_coord
-	gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), rawptr(uintptr(offset_of(Vertex, tex_coord))));
-	gl.EnableVertexAttribArray(1);
+		// tex_coord
+		gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), rawptr(uintptr(offset_of(Vertex, tex_coord))));
+		gl.EnableVertexAttribArray(1);
+	}
 
 	gl.ClearColor(0.5, 0.1, 0.2, 1.0);
 	gl.Enable(gl.BLEND);
@@ -153,10 +157,10 @@ Sprite :: struct {
 }
 
 draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
-	v0 := Vertex{p0 - camera_position, sprite.uvs[0]};
-	v1 := Vertex{p1 - camera_position, sprite.uvs[1]};
-	v2 := Vertex{p2 - camera_position, sprite.uvs[2]};
-	v3 := Vertex{p3 - camera_position, sprite.uvs[3]};
+	v0 := Vertex{p0, sprite.uvs[0]};
+	v1 := Vertex{p1, sprite.uvs[1]};
+	v2 := Vertex{p2, sprite.uvs[2]};
+	v3 := Vertex{p3, sprite.uvs[3]};
 
 	quad := Quad{v0, v1, v2, v2, v3, v0};
 	append(&all_quads, quad);
@@ -166,7 +170,6 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 	make_vertex :: proc(corner, position, scale: Vec2, sprite: Sprite, index: int) -> Vertex {
 		vpos := corner;
 		vpos *= scale * Vec2{cast(f32)sprite.width, cast(f32)sprite.height} / 2;
-		vpos -= camera_position;
 		vpos += position;
 
 		vertex := Vertex{vpos, sprite.uvs[index]};
@@ -184,8 +187,14 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 }
 
 draw_flush :: proc() {
+	tf := transform;
+	tf = scale(tf, 1 / camera_size);
+
+	cam_offset := to_vec3(mul(tf, to_vec4(camera_position)));
+	tf = translate(tf, -cam_offset);
+
 	program := gl.get_current_shader();
-	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
+	gl.uniform_matrix4fv(program, "transform", 1, false, &tf[0][0]);
 
 	gl.bind_buffer(vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
@@ -218,7 +227,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
 	}
 
-	filepath_c := basic.to_c_string(filepath);
+	filepath_c := to_c_string(filepath);
 	image.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
 	texture_data := image.load(&filepath_c[0], &sprite_width, &sprite_height, &channels, 0);
@@ -265,7 +274,7 @@ log_gl_errors :: proc(caller_context: string, location := #caller_location) {
 		}
 
 		file := location.file_path;
-		idx, ok := basic.find_from_right(location.file_path, '\\');
+		idx, ok := find_from_right(location.file_path, '\\');
 		if ok {
 			file = location.file_path[idx+1..len(location.file_path)];
 		}
@@ -321,7 +330,7 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancod
 			append(&_down_mid_frame, key);
 		}
 		case glfw.Action.Release: {
-			basic.remove_all(&_held_mid_frame, key);
+			remove_all(&_held_mid_frame, key);
 			append(&_up_mid_frame, key);
 		}
 	}
@@ -367,180 +376,4 @@ _update_time :: proc() {
 	time := cast(f32)glfw.GetTime();
 	delta_time = time - last_frame_time;
 	last_frame_time = time;
-}
-
-//
-// Collision
-//
-
-closest_point_on_line :: proc(origin: Vec2, p1, p2: Vec2) -> Vec2 {
-	direction := p2 - p1;
-	square_length := basic.sqr_magnitude(direction);
-	if (square_length == 0.0) {
-		// p1 == p2
-		dir_from_point := p1 - origin;
-		return p1;
-	}
-
-	dot := dot(origin - p1, p2 - p1) / square_length;
-	t := max(min(dot, 1), 0);
-	projection := p1 + t * (p2 - p1);
-	return projection;
-}
-
-// todo(josh): there is currently an assertion failure in the compiler related
-// to the builtin min() and max() procs. remove these when that is fixed
-min :: inline proc(a, b: $T) -> T {
-	if a < b do return a;
-	return b;
-}
-
-max :: inline proc(a, b: $T) -> T {
-	if a > b do return a;
-	return b;
-}
-
-Hit_Info :: struct {
-	// Fraction (0..1) of the distance that the ray started intersecting
-	fraction0: f32,
-	// Fraction (0..1) of the distance that the ray stopped intersecting
-	fraction1: f32,
-
-	// Point that the ray started intersecting
-	point0: Vec2,
-	// Point that the ray stopped intersecting
-	point1: Vec2,
-
-	// todo(josh): add normals
-}
-
-cast_box_circle :: proc(box_min, box_max: Vec2, box_direction: Vec2, circle_position: Vec2, circle_radius: f32) -> (bool, Hit_Info) {
-	// todo(josh): this sounds like a nightmare
-	assert(false);
-	return false, Hit_Info{};
-}
-
-cast_circle_box :: proc(circle_origin, circle_direction: Vec2, circle_radius: f32, box_min, box_max: Vec2) -> (bool, Hit_Info) {
-	compare_hits :: proc(source: ^Hit_Info, other: Hit_Info) {
-		if other.fraction0 < source.fraction0 {
-			source.fraction0 = other.fraction0;
-			source.point0    = other.point0;
-		}
-
-		if other.fraction1 > source.fraction1 {
-			source.fraction1 = other.fraction1;
-			source.point1    = other.point1;
-		}
-	}
-
-	tl := Vec2{box_min.x, box_max.y};
-	tr := Vec2{box_max.x, box_max.y};
-	br := Vec2{box_max.x, box_min.y};
-	bl := Vec2{box_min.x, box_min.y};
-
-	// Init with fraction fields at extremes for comparisons
-	final_hit_info: Hit_Info;
-	final_hit_info.fraction0 = 1;
-	final_hit_info.fraction1 = 0;
-
-	did_hit := false;
-
-	// Corner circle checks
-	{
-		circle_positions := [4]Vec2{tl, tr, br, bl};
-		for pos in circle_positions {
-			hit, info := cast_line_circle(circle_origin, circle_direction, pos, circle_radius);
-			if hit {
-				did_hit = true;
-				compare_hits(&final_hit_info, info);
-			}
-		}
-	}
-
-	// Center box checks
-	{
-		// box0 is tall box, box1 is wide box
-		box0_min := box_min - Vec2{0, circle_radius};
-		box0_max := box_max + Vec2{0, circle_radius};
-
-		box1_min := box_min - Vec2{circle_radius, 0};
-		box1_max := box_max + Vec2{circle_radius, 0};
-
-		hit0, info0 := cast_line_box(circle_origin, circle_direction, box0_min, box0_max);
-		if hit0 {
-			did_hit = true;
-			compare_hits(&final_hit_info, info0);
-		}
-
-		hit1, info1 := cast_line_box(circle_origin, circle_direction, box1_min, box1_max);
-		if hit1 {
-			did_hit = true;
-			compare_hits(&final_hit_info, info1);
-		}
-	}
-
-	return did_hit, final_hit_info;
-}
-
-cast_line_circle :: proc(line_origin, line_direction: Vec2, circle_center: Vec2, circle_radius: f32) -> (bool, Hit_Info) {
-	direction := line_origin - circle_center;
-	a := dot(line_direction, line_direction);
-	b := dot(direction, line_direction);
-	c := dot(direction, direction) - circle_radius * circle_radius;
-
-	disc := b * b - a * c;
-	if (disc < 0) {
-		return false, Hit_Info{};
-	}
-
-	sqrt_disc := sqrt(disc);
-	invA: f32 = 1.0 / a;
-
-	tmin := (-b - sqrt_disc) * invA;
-	tmax := (-b + sqrt_disc) * invA;
-	tmax = min(tmax, 1);
-
-	inv_radius: f32 = 1.0 / circle_radius;
-
-	pmin := line_origin + tmin * line_direction;
-	// normal[i] = (point[i] - circle_center) * invRadius;
-
-	pmax := line_origin + tmax * line_direction;
-	// normal[i] = (point[i] - circle_center) * invRadius;
-
-	info := Hit_Info{tmin, tmax, pmin, pmax};
-
-	return true, info;
-}
-
-cast_line_box :: proc(line_origin, line_direction: Vec2, box_min, box_max: Vec2) -> (bool, Hit_Info) {
-	inverse := Vec2{1.0/line_direction.x, 1.0/line_direction.y};
-
-	tx1 := (box_min.x - line_origin.x)*inverse.x;
-	tx2 := (box_max.x - line_origin.x)*inverse.x;
-
-	tmin := min(tx1, tx2);
-	tmax := max(tx1, tx2);
-
-	ty1 := (box_min.y - line_origin.y)*inverse.y;
-	ty2 := (box_max.y - line_origin.y)*inverse.y;
-
-	tmin = max(tmin, min(ty1, ty2));
-	tmax = min(tmax, max(ty1, ty2));
-	tmax = min(tmax, 1);
-
-	info := Hit_Info{tmin, tmax, line_origin + (line_direction * tmin), line_origin + (line_direction * tmax)};
-
-	return tmax >= tmin, info;
-}
-
-overlap_point_box :: inline proc(origin: Vec2, box_min, box_max: Vec2) -> bool {
-	return origin.x < box_max.x
-		&& origin.x > box_min.x
-		&& origin.y < box_max.y
-		&& origin.y > box_min.y;
-}
-
-overlap_point_circle :: inline proc(origin: Vec2, circle_position: Vec2, circle_radius: f32) -> bool {
-	return basic.sqr_magnitude(origin - circle_position) < basic.sqr(circle_radius);
 }
