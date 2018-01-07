@@ -3,7 +3,7 @@ import "core:mem.odin"
 import "core:math.odin"
 
 //
-// Array stuff
+// Arrays
 //
 
 inst :: proc[inst_no_value, inst_value];
