@@ -311,7 +311,7 @@ _update_input :: proc() {
 _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
 	when false {
 		fmt.println("cap of held", cap(_held), cap(_held_mid_frame));
-		fmt.println("cap of up", cap(_up), cap(_up_mid_frame));
+		fmt.println("cap of up",   cap(_up),   cap(_up_mid_frame));
 		fmt.println("cap of down", cap(_down), cap(_down_mid_frame));
 	}
 
@@ -415,7 +415,8 @@ Hit_Info :: struct {
 }
 
 cast_box_circle :: proc(box_min, box_max: Vec2, box_direction: Vec2, circle_position: Vec2, circle_radius: f32) -> (bool, Hit_Info) {
-	// todo(josh)
+	// todo(josh): this sounds like a nightmare
+	assert(false);
 	return false, Hit_Info{};
 }
 
