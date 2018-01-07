@@ -130,7 +130,7 @@ start :: proc(config: Engine_Config) {
 
 		config.update_proc();
 		config.render_proc();
-		log_gl_errors();
+		log_gl_errors("after render_proc()");
 	}
 }
 
@@ -257,14 +257,20 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	return sprite;
 }
 
-log_gl_errors :: proc(location := #caller_location) {
+log_gl_errors :: proc(caller_context: string, location := #caller_location) {
 	for {
 		err := gl.GetError();
 		if err == 0 {
 			break;
 		}
 
-		fmt.println("OPENGL ERROR", location.file_path, location.line, err);
+		file := location.file_path;
+		idx, ok := basic.find_from_right(location.file_path, '\\');
+		if ok {
+			file = location.file_path[idx+1..len(location.file_path)];
+		}
+
+		fmt.printf("[%s] OpenGL Error at <%s:%d>: %d\n", caller_context, file, location.line, err);
 	}
 }
 

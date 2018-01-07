@@ -144,3 +144,25 @@ to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {
 	result[len(str)] = 0;
 	return result;
 }
+
+find_from_right :: proc(str: string, c: rune) -> (int, bool) {
+	u := cast(u8)c;
+	for i := len(str)-1; i >= 0; i -= 1 {
+		if str[i] == u {
+			return i, true;
+		}
+	}
+
+	return 0, false;
+}
+
+find_from_left :: proc(str: string, c: rune) -> (int, bool) {
+	u := cast(u8)c;
+	for i := len(str)-1; i >= 0; i -= 1 {
+		if str[i] == u {
+			return i, true;
+		}
+	}
+
+	return 0, false;
+}
