@@ -10,7 +10,6 @@ import "gl.odin"
 import "basic.odin"
 
 transform: Mat4;
-the_shader_program: gl.Shader_Program;
 
 main_window: glfw.Window_Handle;
 
@@ -26,10 +25,6 @@ Engine_Config :: struct {
 	opengl_version_minor: i32,
 
 	camera_size: f32,
-
-	// @todo(josh): make an api of some kind for shaders
-	vertex_shader_path:   string,
-	fragment_shader_path: string,
 }
 
 camera_size: f32;
@@ -98,11 +93,6 @@ start :: proc(config: Engine_Config) {
 		proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
 			set_camera_size(camera_size - cast(f32)y * camera_size * 0.1);
 		});
-
-	// load shaders
-	shader_success: bool;
-	the_shader_program, shader_success = gl.load_shader_files(config.vertex_shader_path, config.fragment_shader_path);
-	assert(shader_success);
 
 	// setup vao
 	vao = gl.gen_vao();
@@ -194,13 +184,13 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 }
 
 draw_flush :: proc() {
-	gl.use_program(the_shader_program);
-	gl.uniform_matrix4fv(the_shader_program, "transform", 1, false, &transform[0][0]);
+	program := gl.get_current_shader();
+	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
 
 	gl.bind_buffer(vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
 
-	gl.uniform(the_shader_program, "atlas_texture", 0);
+	gl.uniform(program, "atlas_texture", 0);
 	gl.bind_texture2d(atlas_texture);
 
 	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);

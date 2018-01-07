@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 25-12-2017 08:57:54 UTC-8
+ *  @Last Time: 06-01-2018 17:02:57 UTC-8
  *
  *  @Description:
  *
@@ -50,7 +50,7 @@ load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	return cast(Shader_Program)program, ok;
 }
 
-use_program :: inline proc(program: Shader_Program) {
+set_shader :: inline proc(program: Shader_Program) {
 	UseProgram(cast(u32)program);
 }
 
@@ -99,6 +99,19 @@ c_string :: proc(fmt_: string, args: ...any) -> ^byte {
 get_uniform_location :: inline proc(program: Shader_Program, str: string) -> i32 {
 	c_str := c_string(str);
 	return GetUniformLocation(cast(u32)program, c_str);
+}
+
+
+
+get_int :: inline proc(pname: u32) -> i32 {
+	i: i32;
+	GetIntegerv(pname, &i);
+	return i;
+}
+
+get_current_shader :: inline proc() -> Shader_Program {
+	id := get_int(CURRENT_PROGRAM);
+	return cast(Shader_Program)id;
 }
 
 
