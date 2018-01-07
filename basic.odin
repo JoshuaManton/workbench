@@ -127,21 +127,11 @@ translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
 //
 
 logln :: proc(args: ...any, location := #caller_location) {
-	last_slash_idx: int;
-
-	// Find the last slash in the file path
-	last_slash_idx = len(location.file_path) - 1;
-	for last_slash_idx >= 0 {
-		if location.file_path[last_slash_idx] == '\\' {
-			break;
-		}
-
-		last_slash_idx -= 1;
+	file := location.file_path;
+	last_slash_idx, ok := find_from_right(file, '\\');
+	if ok {
+		file = file[last_slash_idx+1..len(location.file_path)];
 	}
-
-	if last_slash_idx < 0 do last_slash_idx = 0;
-
-	file := location.file_path[last_slash_idx+1..len(location.file_path)];
 
 	fmt.println(...args);
 	fmt.printf("%s:%d:%s()", file, location.line, location.procedure);

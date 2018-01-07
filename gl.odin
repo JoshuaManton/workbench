@@ -6,13 +6,14 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 06-01-2018 17:02:57 UTC-8
+ *  @Last Time: 06-01-2018 20:28:59 UTC-8
  *
  *  @Description:
  *
  */
 
 import "core:fmt.odin"
+using import "core:math.odin"
 
 export "shared:odin-gl/gl.odin"
 
@@ -99,6 +100,75 @@ c_string :: proc(fmt_: string, args: ...any) -> ^byte {
 get_uniform_location :: inline proc(program: Shader_Program, str: string) -> i32 {
 	c_str := c_string(str);
 	return GetUniformLocation(cast(u32)program, c_str);
+}
+
+
+
+set_vertex_format :: proc(vertex_type: type) {
+	ti := type_info_base(type_info_of(vertex_type)).variant.(Type_Info_Struct);
+
+	for name, _i in ti.names {
+		i := cast(u32)_i;
+		kind := ti.types[i];
+		offset := ti.offsets[i];
+		offset_in_struct := rawptr(uintptr(offset));
+		num_elements: i32;
+		type_of_elements: u32;
+
+		switch kind {
+			case type_info_of(Vec2): {
+				num_elements = 2;
+				type_of_elements = FLOAT;
+			}
+			case type_info_of(Vec3): {
+				num_elements = 3;
+				type_of_elements = FLOAT;
+			}
+			case type_info_of(Vec4): {
+				num_elements = 4;
+				type_of_elements = FLOAT;
+			}
+			case type_info_of(f64): {
+				num_elements = 1;
+				type_of_elements = DOUBLE;
+			}
+			case type_info_of(f32): {
+				num_elements = 1;
+				type_of_elements = FLOAT;
+			}
+			case type_info_of(i32): {
+				num_elements = 1;
+				type_of_elements = INT;
+			}
+			case type_info_of(u32): {
+				num_elements = 1;
+				type_of_elements = UNSIGNED_INT;
+			}
+			case type_info_of(i16): {
+				num_elements = 1;
+				type_of_elements = SHORT;
+			}
+			case type_info_of(u16): {
+				num_elements = 1;
+				type_of_elements = UNSIGNED_SHORT;
+			}
+			case type_info_of(i8): {
+				num_elements = 1;
+				type_of_elements = BYTE;
+			}
+			case type_info_of(byte): fallthrough;
+			case type_info_of(u8): {
+				num_elements = 1;
+				type_of_elements = UNSIGNED_BYTE;
+			}
+			case: {
+				fmt.printf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, kind);
+			}
+		}
+
+		VertexAttribPointer(i, num_elements, type_of_elements, FALSE, size_of(vertex_type), offset_in_struct);
+		EnableVertexAttribArray(i);
+	}
 }
 
 

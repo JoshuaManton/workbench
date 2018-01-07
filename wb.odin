@@ -102,16 +102,7 @@ start :: proc(config: Engine_Config) {
 	vbo = gl.gen_buffer();
 	gl.bind_buffer(vbo);
 
-	// todo(josh): make that Vertex definition proc that uses Type_Info to do all this
-	{
-		// Position
-		gl.VertexAttribPointer(0, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), nil);
-		gl.EnableVertexAttribArray(0);
-
-		// tex_coord
-		gl.VertexAttribPointer(1, 2, gl.FLOAT, gl.FALSE, size_of(Vertex), rawptr(uintptr(offset_of(Vertex, tex_coord))));
-		gl.EnableVertexAttribArray(1);
-	}
+	gl.set_vertex_format(Vertex);
 
 	gl.ClearColor(0.5, 0.1, 0.2, 1.0);
 	gl.Enable(gl.BLEND);
@@ -218,7 +209,9 @@ biggest_height: i32;
 ATLAS_DIM :: 2048;
 
 load_sprite :: proc(filepath: string) -> Sprite {
-	// TODO(josh): Handle multiple texture atlases?
+	logln(111);
+
+	// todo(josh): Handle multiple texture atlases?
 	if !atlas_loaded {
 		atlas_loaded = true;
 
