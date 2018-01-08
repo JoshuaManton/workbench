@@ -209,8 +209,6 @@ biggest_height: i32;
 ATLAS_DIM :: 2048;
 
 load_sprite :: proc(filepath: string) -> Sprite {
-	logln(111);
-
 	// todo(josh): Handle multiple texture atlases?
 	if !atlas_loaded {
 		atlas_loaded = true;
