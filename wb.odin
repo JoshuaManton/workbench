@@ -9,6 +9,7 @@ import "shared:stb/image.odin"
 import "gl.odin"
 using import "basic.odin"
 
+ortho:     Mat4;
 transform: Mat4;
 
 main_window: glfw.Window_Handle;
@@ -32,9 +33,12 @@ camera_position: Vec2;
 current_window_width: i32;
 current_window_height: i32;
 
-set_camera_size :: proc(size: f32) {
-	camera_size = size;
-	_size_callback(main_window, current_window_width, current_window_height);
+rendering_world_space :: proc() {
+	transform = mul(identity(Mat4), ortho);
+	transform = scale(transform, 1 / camera_size);
+
+	cam_offset := to_vec3(mul(transform, to_vec4(camera_position)));
+	transform = translate(transform, -cam_offset);
 }
 
 _size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
@@ -47,7 +51,7 @@ _size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
 	left   : f32 = -1 * aspect;
 	right  : f32 =  1 * aspect;
 
-	ortho  := ortho3d(left, right, bottom, top, -1, 1);
+	ortho  = ortho3d(left, right, bottom, top, -1, 1);
 
 	transform = mul(identity(Mat4), ortho);
 
@@ -87,12 +91,13 @@ start :: proc(config: Engine_Config) {
 	// Set initial size of window
 	current_window_width = config.window_width;
 	current_window_height = config.window_height;
-	set_camera_size(config.camera_size);
+	_size_callback(main_window, current_window_width, current_window_height);
+	camera_size = config.camera_size;
 
 	// Setup glfw callbacks
 	glfw.SetScrollCallback(main_window,
 		proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-			set_camera_size(camera_size - cast(f32)y * camera_size * 0.1);
+			camera_size -= cast(f32)y * camera_size * 0.1;
 		});
 
 	// setup vao
@@ -178,14 +183,8 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 }
 
 draw_flush :: proc() {
-	tf := transform;
-	tf = scale(tf, 1 / camera_size);
-
-	cam_offset := to_vec3(mul(tf, to_vec4(camera_position)));
-	tf = translate(tf, -cam_offset);
-
 	program := gl.get_current_shader();
-	gl.uniform_matrix4fv(program, "transform", 1, false, &tf[0][0]);
+	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
 
 	gl.bind_buffer(vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
