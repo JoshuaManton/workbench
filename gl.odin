@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 06-01-2018 20:28:59 UTC-8
+ *  @Last Time: 09-01-2018 07:57:52 UTC-8
  *
  *  @Description:
  *
@@ -49,10 +49,6 @@ bind_buffer :: inline proc(vbo: VBO) {
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	program, ok := load_shaders(vs, fs);
 	return cast(Shader_Program)program, ok;
-}
-
-set_shader :: inline proc(program: Shader_Program) {
-	UseProgram(cast(u32)program);
 }
 
 gen_texture :: inline proc() -> Texture {

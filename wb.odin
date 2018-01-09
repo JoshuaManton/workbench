@@ -34,11 +34,26 @@ current_window_width: i32;
 current_window_height: i32;
 
 rendering_world_space :: proc() {
+	draw_flush();
+
 	transform = mul(identity(Mat4), ortho);
 	transform = scale(transform, 1 / camera_size);
 
 	cam_offset := to_vec3(mul(transform, to_vec4(camera_position)));
 	transform = translate(transform, -cam_offset);
+}
+
+rendering_camera_space_unit_scale :: proc() {
+	draw_flush();
+
+	transform = identity(Mat4);
+	transform = translate(transform, Vec3{-1, -1, 0});
+	transform = scale(transform, 2);
+}
+
+set_shader :: inline proc(program: gl.Shader_Program) {
+	draw_flush();
+	gl.UseProgram(cast(u32)program);
 }
 
 _size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
@@ -130,6 +145,9 @@ start :: proc(config: Engine_Config) {
 
 		config.update_proc();
 		config.render_proc();
+		draw_flush();
+
+		glfw.SwapBuffers(main_window);
 		log_gl_errors("after render_proc()");
 	}
 }
@@ -183,6 +201,8 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 }
 
 draw_flush :: proc() {
+	if len(all_quads) == 0 do return;
+
 	program := gl.get_current_shader();
 	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
 
@@ -195,7 +215,6 @@ draw_flush :: proc() {
 	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);
 
 	clear(&all_quads);
-	glfw.SwapBuffers(main_window);
 }
 
 atlas_texture: gl.Texture;
