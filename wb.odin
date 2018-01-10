@@ -53,7 +53,7 @@ rendering_camera_space_unit_scale :: proc() {
 
 set_shader :: inline proc(program: gl.Shader_Program) {
 	draw_flush();
-	gl.UseProgram(cast(u32)program);
+	gl.use_program(program);
 }
 
 _size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {

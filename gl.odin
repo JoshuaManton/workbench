@@ -6,13 +6,14 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 10-01-2018 07:18:57 UTC-8
+ *  @Last Time: 10-01-2018 07:54:48 UTC-8
  *
  *  @Description:
  *
  */
 
 import "core:fmt.odin"
+import "core:os.odin"
 using import "core:math.odin"
 
 export "shared:odin-gl/gl.odin"
@@ -46,10 +47,97 @@ bind_buffer :: inline proc(vbo: VBO) {
 	BindBuffer(ARRAY_BUFFER, cast(u32)vbo);
 }
 
+
+
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
-	program, ok := load_shaders(vs, fs);
+	vs_code, ok1 := os.read_entire_file(vs);
+	assert(ok1);
+	defer free(vs_code);
+	fs_code, ok2 := os.read_entire_file(fs);
+	assert(ok2);
+	defer free(fs_code);
+
+	program, ok := load_shader_text(cast(string)vs_code, cast(string)fs_code);
 	return cast(Shader_Program)program, ok;
 }
+
+load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, success: bool) {
+    // Shader checking and linking checking are identical
+    // except for calling differently named GL functions
+    // it's a bit ugly looking, but meh
+    check_error :: proc(id: u32, type_: Shader_Type, status: u32,
+                        iv_func: proc "c" (u32, u32, ^i32),
+                        log_func: proc "c" (u32, i32, ^i32, ^u8)) -> bool {
+        result, info_log_length: i32;
+        iv_func(id, status, &result);
+        iv_func(id, INFO_LOG_LENGTH, &info_log_length);
+
+        if result == 0 {
+            error_message := make([]u8, info_log_length);
+            defer free(error_message);
+
+            log_func(id, i32(info_log_length), nil, &error_message[0]);
+            fmt.printf_err("Error in %v:\n%s", type_, string(error_message[0..len(error_message)-1]));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Compiling shaders are identical for any shader (vertex, geometry, fragment, tesselation, (maybe compute too))
+    compile_shader_from_text :: proc(shader_code: string, shader_type: Shader_Type) -> (u32, bool) {
+        shader_id := CreateShader(cast(u32)shader_type);
+        length := i32(len(shader_code));
+        ShaderSource(shader_id, 1, (^^u8)(&shader_code), &length);
+        CompileShader(shader_id);
+
+        if check_error(shader_id, shader_type, COMPILE_STATUS, GetShaderiv, GetShaderInfoLog) {
+            return 0, false;
+        }
+
+        return shader_id, true;
+    }
+
+    // only used once, but I'd just make a subprocedure(?) for consistency
+    create_and_link_program :: proc(shader_ids: []u32) -> (u32, bool) {
+        program_id := CreateProgram();
+        for id in shader_ids {
+            AttachShader(program_id, id);
+        }
+        LinkProgram(program_id);
+
+        if check_error(program_id, Shader_Type.SHADER_LINK, LINK_STATUS, GetProgramiv, GetProgramInfoLog) {
+            return 0, false;
+        }
+
+        return program_id, true;
+    }
+
+    // actual function from here
+    vertex_shader_id, ok1 := compile_shader_from_text(vs_code, Shader_Type.VERTEX_SHADER);
+    defer DeleteShader(vertex_shader_id);
+
+    fragment_shader_id, ok2 := compile_shader_from_text(fs_code, Shader_Type.FRAGMENT_SHADER);
+    defer DeleteShader(fragment_shader_id);
+
+    if !ok1 || !ok2 {
+        return 0, false;
+    }
+
+    program_id, ok := create_and_link_program([]u32{vertex_shader_id, fragment_shader_id});
+    if !ok {
+        return 0, false;
+    }
+
+    return cast(Shader_Program)program_id, true;
+}
+
+use_program :: inline proc(program: Shader_Program) {
+	UseProgram(cast(u32)program);
+}
+
+
 
 gen_texture :: inline proc() -> Texture {
 	texture: u32;
