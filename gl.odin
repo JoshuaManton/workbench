@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 09-01-2018 07:57:52 UTC-8
+ *  @Last Time: 10-01-2018 07:18:57 UTC-8
  *
  *  @Description:
  *
@@ -105,55 +105,55 @@ set_vertex_format :: proc(vertex_type: type) {
 
 	for name, _i in ti.names {
 		i := cast(u32)_i;
-		kind := ti.types[i];
 		offset := ti.offsets[i];
 		offset_in_struct := rawptr(uintptr(offset));
 		num_elements: i32;
 		type_of_elements: u32;
 
-		switch kind {
-			case type_info_of(Vec2): {
+		a: any;
+		a.type_info = ti.types[i];
+		switch kind in a {
+			case Vec2: {
 				num_elements = 2;
 				type_of_elements = FLOAT;
 			}
-			case type_info_of(Vec3): {
+			case Vec3: {
 				num_elements = 3;
 				type_of_elements = FLOAT;
 			}
-			case type_info_of(Vec4): {
+			case Vec4: {
 				num_elements = 4;
 				type_of_elements = FLOAT;
 			}
-			case type_info_of(f64): {
+			case f64: {
 				num_elements = 1;
 				type_of_elements = DOUBLE;
 			}
-			case type_info_of(f32): {
+			case f32: {
 				num_elements = 1;
 				type_of_elements = FLOAT;
 			}
-			case type_info_of(i32): {
+			case i32: {
 				num_elements = 1;
 				type_of_elements = INT;
 			}
-			case type_info_of(u32): {
+			case u32: {
 				num_elements = 1;
 				type_of_elements = UNSIGNED_INT;
 			}
-			case type_info_of(i16): {
+			case i16: {
 				num_elements = 1;
 				type_of_elements = SHORT;
 			}
-			case type_info_of(u16): {
+			case u16: {
 				num_elements = 1;
 				type_of_elements = UNSIGNED_SHORT;
 			}
-			case type_info_of(i8): {
+			case i8: {
 				num_elements = 1;
 				type_of_elements = BYTE;
 			}
-			case type_info_of(byte): fallthrough;
-			case type_info_of(u8): {
+			case u8: {
 				num_elements = 1;
 				type_of_elements = UNSIGNED_BYTE;
 			}
