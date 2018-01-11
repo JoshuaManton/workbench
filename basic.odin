@@ -172,3 +172,39 @@ find_from_left :: proc(str: string, c: rune) -> (int, bool) {
 
 	return 0, false;
 }
+
+string_starts_with :: proc(str: string, start: string) -> bool {
+	if len(str) > len(start) do return false;
+	for _, i in start {
+		if str[i] != start[i] do return false;
+	}
+
+	return true;
+}
+
+split_by_lines :: proc(str: string, _array : ^[dynamic]string = nil) -> [dynamic]string {
+	array_ptr := _array;
+	array: [dynamic]string;
+
+	if array_ptr == nil {
+		array = make([dynamic]string, 0, 100);
+		array_ptr = &array;
+	}
+
+	start := -1;
+	for i in 0..len(str) {
+		if str[i] == '\n' || str[i] == '\r' {
+			if start != -1 {
+				append(array_ptr, cast(string)str[start..i]);
+			}
+			start = -1;
+		}
+		else {
+			if start == -1 {
+				start = i;
+			}
+		}
+	}
+
+	return array_ptr^;
+}

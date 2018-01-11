@@ -14,22 +14,10 @@ transform: Mat4;
 
 main_window: glfw.Window_Handle;
 
-Engine_Config :: struct {
-	init_proc:   proc(),
-	update_proc: proc(),
-	render_proc: proc(),
-
-	window_name := "WindowName",
-	window_width, window_height: i32,
-
-	opengl_version_major: i32,
-	opengl_version_minor: i32,
-
-	camera_size: f32,
-}
-
 camera_size: f32;
 camera_position: Vec2;
+
+// These are unused but might be useful in the future?
 current_window_width: i32;
 current_window_height: i32;
 
@@ -56,66 +44,79 @@ set_shader :: inline proc(program: gl.Shader_Program) {
 	gl.use_program(program);
 }
 
-_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
-	current_window_width = w;
-	current_window_height = h;
-
-	aspect := cast(f32)w / cast(f32)h;
-	top    : f32 =  1;
-	bottom : f32 = -1;
-	left   : f32 = -1 * aspect;
-	right  : f32 =  1 * aspect;
-
-	ortho  = ortho3d(left, right, bottom, top, -1, 1);
-
-	transform = mul(identity(Mat4), ortho);
-
-	gl.Viewport(0, 0, w, h);
+// glfw wrapper
+window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {
+	return glfw.WindowShouldClose(window) == glfw.TRUE;
 }
 
-start :: proc(config: Engine_Config) {
-	// setup glfw
-	glfw.SetErrorCallback(error_callback);
-	error_callback :: proc"c"(error: i32, desc: ^u8) {
+init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_version_major, opengl_version_minor: i32) {
+	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
+		current_window_width = w;
+		current_window_height = h;
+
+		aspect := cast(f32)w / cast(f32)h;
+		top    : f32 =  1;
+		bottom : f32 = -1;
+		left   : f32 = -1 * aspect;
+		right  : f32 =  1 * aspect;
+
+		ortho  = ortho3d(left, right, bottom, top, -1, 1);
+
+		gl.Viewport(0, 0, w, h);
+	}
+
+	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
+		camera_size -= cast(f32)y * camera_size * 0.1;
+	}
+
+	glfw_error_callback :: proc"c"(error: i32, desc: ^u8) {
 		fmt.printf("Error code %d:\n    %s\n", error, strings.to_odin_string(desc));
 	}
 
+	// setup glfw
+	glfw.SetErrorCallback(glfw_error_callback);
+
 	if glfw.Init() == 0 do return;
-	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, config.opengl_version_major);
-	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, config.opengl_version_minor);
+	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, opengl_version_major);
+	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, opengl_version_minor);
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
-	main_window = glfw.CreateWindow(config.window_width, config.window_height, config.window_name, nil, nil);
+	main_window = glfw.CreateWindow(window_width, window_height, window_name, nil, nil);
 	if main_window == nil do return;
 
 	video_mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor());
-	glfw.SetWindowPos(main_window, video_mode.width / 2 - config.window_width / 2, video_mode.height / 2 - config.window_height / 2);
+	glfw.SetWindowPos(main_window, video_mode.width / 2 - window_width / 2, video_mode.height / 2 - window_height / 2);
 
 	glfw.MakeContextCurrent(main_window);
 	glfw.SwapInterval(1);
 
-	glfw.SetWindowSizeCallback(main_window, _size_callback);
+	glfw.SetWindowSizeCallback(main_window, glfw_size_callback);
 
 	glfw.SetKeyCallback(main_window, _glfw_key_callback);
 
 	// setup opengl
-	gl.load_up_to(3, 3,
+	gl.load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
 		proc(p: rawptr, name: string) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(&name[0]));
 		});
 
 	// Set initial size of window
-	current_window_width = config.window_width;
-	current_window_height = config.window_height;
-	_size_callback(main_window, current_window_width, current_window_height);
-	camera_size = config.camera_size;
+	current_window_width = window_width;
+	current_window_height = window_height;
+	glfw_size_callback(main_window, current_window_width, current_window_height);
 
 	// Setup glfw callbacks
-	glfw.SetScrollCallback(main_window,
-		proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-			camera_size -= cast(f32)y * camera_size * 0.1;
-		});
+	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
+}
 
-	// setup vao
+vao: gl.VAO;
+vbo: gl.VBO;
+
+Vertex :: struct {
+	vertex_position: Vec2,
+	tex_coord: Vec2,
+}
+
+init_opengl :: proc() {
 	vao = gl.gen_vao();
 	gl.bind_vao(vao);
 
@@ -127,37 +128,6 @@ start :: proc(config: Engine_Config) {
 	gl.ClearColor(0.5, 0.1, 0.2, 1.0);
 	gl.Enable(gl.BLEND);
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
-	config.init_proc();
-
-	for glfw.WindowShouldClose(main_window) == glfw.FALSE {
-		_update_time();
-
-		// listen to input
-		_update_input();
-
-		if get_key(glfw.Key.Escape) {
-			glfw.SetWindowShouldClose(main_window, true);
-		}
-
-		// clear screen
-		gl.Clear(gl.COLOR_BUFFER_BIT);
-
-		config.update_proc();
-		config.render_proc();
-		draw_flush();
-
-		glfw.SwapBuffers(main_window);
-		log_gl_errors("after render_proc()");
-	}
-}
-
-vao: gl.VAO;
-vbo: gl.VBO;
-
-Vertex :: struct {
-	vertex_position: Vec2,
-	tex_coord: Vec2,
 }
 
 Quad :: [6]Vertex;
@@ -304,7 +274,7 @@ _held_mid_frame := make([dynamic]glfw.Key, 0, 5);
 _down_mid_frame := make([dynamic]glfw.Key, 0, 5);
 _up_mid_frame   := make([dynamic]glfw.Key, 0, 5);
 
-_update_input :: proc() {
+update_input :: proc() {
 	glfw.PollEvents();
 	clear(&_held);
 	clear(&_down);
@@ -379,7 +349,7 @@ get_key_up :: proc(key: glfw.Key) -> bool {
 delta_time: f32;
 last_frame_time: f32;
 
-_update_time :: proc() {
+update_time :: proc() {
 	// show fps in window title
 	glfw.calculate_frame_timings(main_window);
 	time := cast(f32)glfw.GetTime();
