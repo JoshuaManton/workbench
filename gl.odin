@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 10-01-2018 07:54:48 UTC-8
+ *  @Last Time: 20-01-2018 22:41:50 UTC-8
  *
  *  @Description:
  *
@@ -17,6 +17,8 @@ import "core:os.odin"
 using import "core:math.odin"
 
 export "shared:odin-gl/gl.odin"
+
+import "basic.odin"
 
 Shader_Program :: u32;
 VAO :: u32;
@@ -181,9 +183,12 @@ c_string :: proc(fmt_: string, args: ...any) -> ^byte {
     return cast(^byte)&c_string_buffer[0];
 }
 
+
+
 get_uniform_location :: inline proc(program: Shader_Program, str: string) -> i32 {
-	c_str := c_string(str);
-	return GetUniformLocation(cast(u32)program, c_str);
+	loc := GetUniformLocation(cast(u32)program, &str[0]);
+	log_gl_errors(#procedure);
+	return loc;
 }
 
 
@@ -259,7 +264,7 @@ set_vertex_format :: proc(vertex_type: type) {
 
 get_int :: inline proc(pname: u32) -> i32 {
 	i: i32;
-	GetIntegerv(pname, &i);
+	GetIntegerv(pname, &i); log_gl_errors(#procedure);
 	return i;
 }
 
@@ -281,35 +286,35 @@ uniform :: proc[uniform1f,
 				];
 uniform1f :: inline proc(program: Shader_Program, name: string, v0: f32) {
 	location := get_uniform_location(program, name);
-	Uniform1f(location, v0);
+	Uniform1f(location, v0); log_gl_errors(#procedure);
 }
 uniform2f :: inline proc(program: Shader_Program, name: string, v0: f32, v1: f32) {
 	location := get_uniform_location(program, name);
-	Uniform2f(location, v0, v1);
+	Uniform2f(location, v0, v1); log_gl_errors(#procedure);
 }
 uniform3f :: inline proc(program: Shader_Program, name: string, v0: f32, v1: f32, v2: f32) {
 	location := get_uniform_location(program, name);
-	Uniform3f(location, v0, v1, v2);
+	Uniform3f(location, v0, v1, v2); log_gl_errors(#procedure);
 }
 uniform4f :: inline proc(program: Shader_Program, name: string, v0: f32, v1: f32, v2: f32, v3: f32) {
 	location := get_uniform_location(program, name);
-	Uniform4f(location, v0, v1, v2, v3);
+	Uniform4f(location, v0, v1, v2, v3); log_gl_errors(#procedure);
 }
 uniform1i :: inline proc(program: Shader_Program, name: string, v0: i32) {
 	location := get_uniform_location(program, name);
-	Uniform1i(location, v0);
+	Uniform1i(location, v0); log_gl_errors(#procedure);
 }
 uniform2i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32) {
 	location := get_uniform_location(program, name);
-	Uniform2i(location, v0, v1);
+	Uniform2i(location, v0, v1); log_gl_errors(#procedure);
 }
 uniform3i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32, v2: i32) {
 	location := get_uniform_location(program, name);
-	Uniform3i(location, v0, v1, v2);
+	Uniform3i(location, v0, v1, v2); log_gl_errors(#procedure);
 }
 uniform4i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32, v2: i32, v3: i32) {
 	location := get_uniform_location(program, name);
-	Uniform4i(location, v0, v1, v2, v3);
+	Uniform4i(location, v0, v1, v2, v3); log_gl_errors(#procedure);
 }
 
 
@@ -319,11 +324,11 @@ uniform1 :: proc[uniform1fv,
 				 ];
 uniform1fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
 	location := get_uniform_location(program, name);
-	Uniform1fv(location, count, value);
+	Uniform1fv(location, count, value); log_gl_errors(#procedure);
 }
 uniform1iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
-	Uniform1iv(location, count, value);
+	Uniform1iv(location, count, value); log_gl_errors(#procedure);
 }
 
 
@@ -333,11 +338,11 @@ uniform2 :: proc[uniform2fv,
 				 ];
 uniform2fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
 	location := get_uniform_location(program, name);
-	Uniform2fv(location, count, value);
+	Uniform2fv(location, count, value); log_gl_errors(#procedure);
 }
 uniform2iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
-	Uniform2iv(location, count, value);
+	Uniform2iv(location, count, value); log_gl_errors(#procedure);
 }
 
 
@@ -347,11 +352,11 @@ uniform3 :: proc[uniform3fv,
 				 ];
 uniform3fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
 	location := get_uniform_location(program, name);
-	Uniform3fv(location, count, value);
+	Uniform3fv(location, count, value); log_gl_errors(#procedure);
 }
 uniform3iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
-	Uniform3iv(location, count, value);
+	Uniform3iv(location, count, value); log_gl_errors(#procedure);
 }
 
 
@@ -361,27 +366,45 @@ uniform4 :: proc[uniform4fv,
 				 ];
 uniform4fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32) {
 	location := get_uniform_location(program, name);
-	Uniform4fv(location, count, value);
+	Uniform4fv(location, count, value); log_gl_errors(#procedure);
 }
 uniform4iv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^i32) {
 	location := get_uniform_location(program, name);
-	Uniform4iv(location, count, value);
+	Uniform4iv(location, count, value); log_gl_errors(#procedure);
 }
 
 
 
 uniform_matrix2fv :: inline proc(program: Shader_Program, name: string, count: i32, transpose: bool, value: ^f32) {
 	location := get_uniform_location(program, name);
-	UniformMatrix2fv(location, count, transpose ? 1 : 0, value);
+	UniformMatrix2fv(location, count, transpose ? 1 : 0, value); log_gl_errors(#procedure);
 }
 
 uniform_matrix3fv :: inline proc(program: Shader_Program, name: string, count: i32, transpose: bool, value: ^f32) {
 	location := get_uniform_location(program, name);
-	UniformMatrix3fv(location, count, transpose ? 1 : 0, value);
+	UniformMatrix3fv(location, count, transpose ? 1 : 0, value); log_gl_errors(#procedure);
 }
 
 uniform_matrix4fv :: inline proc(program: Shader_Program, name: string, count: i32, transpose: bool, value: ^f32) {
 	location := get_uniform_location(program, name);
-	UniformMatrix4fv(location, count, transpose ? 1 : 0, value);
+	UniformMatrix4fv(location, count, transpose ? 1 : 0, value); log_gl_errors(#procedure);
 }
 
+
+
+log_gl_errors :: proc(caller_context: string, location := #caller_location) {
+	for {
+		err := GetError();
+		if err == 0 {
+			break;
+		}
+
+		file := location.file_path;
+		idx, ok := basic.find_from_right(location.file_path, '\\');
+		if ok {
+			file = location.file_path[idx+1..len(location.file_path)];
+		}
+
+		fmt.printf("[%s] OpenGL Error at <%s:%d>: %d\n", caller_context, file, location.line, err);
+	}
+}

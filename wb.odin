@@ -1,10 +1,13 @@
 import "core:fmt.odin"
 import "core:strings.odin"
 import "core:mem.odin"
+import "core:os.odin"
 using import "core:math.odin"
 
 import "shared:odin-glfw/glfw.odin"
-import "shared:stb/image.odin"
+import stbi  "shared:odin-stb/stb_image.odin"
+import stbiw "shared:odin-stb/stb_image_write.odin"
+import stbtt "shared:odin-stb/stb_truetype.odin"
 
 import "gl.odin"
 using import "basic.odin"
@@ -22,8 +25,6 @@ current_window_width: i32;
 current_window_height: i32;
 
 rendering_world_space :: proc() {
-	draw_flush();
-
 	transform = mul(identity(Mat4), ortho);
 	transform = scale(transform, 1 / camera_size);
 
@@ -32,21 +33,18 @@ rendering_world_space :: proc() {
 }
 
 rendering_camera_space_unit_scale :: proc() {
-	draw_flush();
-
 	transform = identity(Mat4);
 	transform = translate(transform, Vec3{-1, -1, 0});
 	transform = scale(transform, 2);
 }
 
 set_shader :: inline proc(program: gl.Shader_Program) {
-	draw_flush();
 	gl.use_program(program);
 }
 
 // glfw wrapper
 window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {
-	return glfw.WindowShouldClose(window) == glfw.TRUE;
+	return glfw.WindowShouldClose(window);
 }
 
 init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_version_major, opengl_version_minor: i32) {
@@ -114,6 +112,7 @@ vbo: gl.VBO;
 Vertex :: struct {
 	vertex_position: Vec2,
 	tex_coord: Vec2,
+	color: Vec4,
 }
 
 init_opengl :: proc() {
@@ -140,23 +139,30 @@ Sprite :: struct {
 	height: i32,
 }
 
-draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
-	v0 := Vertex{p0, sprite.uvs[0]};
-	v1 := Vertex{p1, sprite.uvs[1]};
-	v2 := Vertex{p2, sprite.uvs[2]};
-	v3 := Vertex{p3, sprite.uvs[3]};
+WHITE := Vec4{1, 1, 1, 1};
+BLACK := Vec4{0, 0, 0, 1};
+RED   := Vec4{1, 0, 0, 1};
+GREEN := Vec4{0, 1, 0, 1};
+BLUE  := Vec4{0, 0, 1, 1};
+
+draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Vec4) {
+	v0 := Vertex{p0, sprite.uvs[0], color};
+	v1 := Vertex{p1, sprite.uvs[1], color};
+	v2 := Vertex{p2, sprite.uvs[2], color};
+	v3 := Vertex{p3, sprite.uvs[3], color};
 
 	quad := Quad{v0, v1, v2, v2, v3, v0};
 	append(&all_quads, quad);
 }
 
+/*
 draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 	make_vertex :: proc(corner, position, scale: Vec2, sprite: Sprite, index: int) -> Vertex {
 		vpos := corner;
 		vpos *= scale * Vec2{cast(f32)sprite.width, cast(f32)sprite.height} / 2;
 		vpos += position;
 
-		vertex := Vertex{vpos, sprite.uvs[index]};
+		vertex := Vertex{vpos, sprite.uvs[index], WHITE};
 
 		return vertex;
 	}
@@ -169,11 +175,13 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 
 	append(&all_quads, quad);
 }
+*/
 
 draw_flush :: proc() {
 	if len(all_quads) == 0 do return;
 
 	program := gl.get_current_shader();
+
 	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
 
 	gl.bind_buffer(vbo);
@@ -187,6 +195,65 @@ draw_flush :: proc() {
 	clear(&all_quads);
 }
 
+// todo(josh): gonna implement this as one draw call per call
+draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4) {
+	cur_x : f32 = position.x;
+	for c in str {
+		pixel_width, _, quad := stbtt.get_baked_quad(font, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, cast(int)c, true);
+		total_width := pixel_width / cast(f32)current_window_width;
+
+		start  := quad.x0 / cast(f32)current_window_width;
+		height := abs((quad.y1 - quad.y0) / cast(f32)current_window_height);
+
+		char_width := total_width - start * 2;
+
+		p0 := Vec2{quad.s0, quad.t1};
+		p1 := Vec2{quad.s0, quad.t0};
+		p2 := Vec2{quad.s1, quad.t0};
+		p3 := Vec2{quad.s1, quad.t1};
+		sprite := Sprite{{p0, p1, p2, p3}, 0, 0};
+		draw_quad(Vec2{cur_x+start, position.y}, Vec2{cur_x+start, position.y+height}, Vec2{cur_x+start+char_width, position.y+height}, Vec2{cur_x+start+char_width, position.y}, sprite, color);
+		cur_x += total_width;
+	}
+
+	program := gl.get_current_shader();
+	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
+
+	gl.bind_buffer(vbo);
+	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
+
+	gl.uniform(program, "atlas_texture", 0);
+	gl.bind_texture2d(font_texture);
+
+	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);
+
+	clear(&all_quads);
+}
+
+FONT_PIXEL_WIDTH  :: 1024;
+FONT_PIXEL_HEIGHT :: 1024;
+font_texture: gl.Texture;
+
+load_font :: proc(path: string, size: f32) -> []stbtt.Baked_Char {
+	data, ok := os.read_entire_file(path);
+	assert(ok);
+	defer free(data);
+
+	pixels := make([]u8, FONT_PIXEL_WIDTH * FONT_PIXEL_HEIGHT);
+	chars, ret := stbtt.bake_font_bitmap(data, 0, size, pixels, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, 0, 128);
+	// todo(josh): error checking to make sure all the characters fit in the buffer
+
+	stbiw.write_png("font.png", FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, 1, pixels, 0);
+
+	font_texture = gl.gen_texture();
+	gl.bind_texture2d(font_texture);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, 0, gl.RED, gl.UNSIGNED_BYTE, &pixels[0]);
+
+	return chars;
+}
+
 atlas_texture: gl.Texture;
 atlas_loaded: bool;
 
@@ -197,7 +264,7 @@ biggest_height: i32;
 ATLAS_DIM :: 2048;
 
 load_sprite :: proc(filepath: string) -> Sprite {
-	// todo(josh): Handle multiple texture atlases?
+	// todo(josh): Handle multiple texture atlases
 	if !atlas_loaded {
 		atlas_loaded = true;
 
@@ -206,10 +273,9 @@ load_sprite :: proc(filepath: string) -> Sprite {
 		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
 	}
 
-	filepath_c := to_c_string(filepath);
-	image.set_flip_vertically_on_load(1);
+	stbi.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
-	texture_data := image.load(&filepath_c[0], &sprite_width, &sprite_height, &channels, 0);
+	texture_data := stbi.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
 	assert(texture_data != nil);
 
 	gl.bind_texture2d(atlas_texture);
@@ -243,23 +309,6 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 	sprite := Sprite{coords, sprite_width, sprite_height};
 	return sprite;
-}
-
-log_gl_errors :: proc(caller_context: string, location := #caller_location) {
-	for {
-		err := gl.GetError();
-		if err == 0 {
-			break;
-		}
-
-		file := location.file_path;
-		idx, ok := find_from_right(location.file_path, '\\');
-		if ok {
-			file = location.file_path[idx+1..len(location.file_path)];
-		}
-
-		fmt.printf("[%s] OpenGL Error at <%s:%d>: %d\n", caller_context, file, location.line, err);
-	}
 }
 
 //
