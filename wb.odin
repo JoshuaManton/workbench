@@ -195,6 +195,17 @@ draw_flush :: proc() {
 	clear(&all_quads);
 }
 
+get_string_width :: proc(str: string, font: []stbtt.Baked_Char) -> f32 {
+	total_pixel_width: f32;
+	for c in str {
+		pixel_width, _, _ := stbtt.get_baked_quad(font, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, cast(int)c, true);
+		total_pixel_width += pixel_width;
+	}
+
+	total_width := total_pixel_width / cast(f32)current_window_width;
+	return total_width;
+}
+
 // todo(josh): gonna implement this as one draw call per call
 draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4) {
 	cur_x : f32 = position.x;
