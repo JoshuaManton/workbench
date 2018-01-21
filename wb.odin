@@ -203,16 +203,24 @@ draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color
 		total_width := pixel_width / cast(f32)current_window_width;
 
 		start  := quad.x0 / cast(f32)current_window_width;
+		yoff   := quad.y1 / cast(f32)current_window_height;
 		height := abs((quad.y1 - quad.y0) / cast(f32)current_window_height);
 
-		char_width := total_width - start * 2;
+		xpad_before := pixel_width - (pixel_width - quad.x0);
+		xpad_after := pixel_width - quad.x1;
+		char_width := (pixel_width - xpad_after - xpad_before) / cast(f32)current_window_width;
 
-		p0 := Vec2{quad.s0, quad.t1};
-		p1 := Vec2{quad.s0, quad.t0};
-		p2 := Vec2{quad.s1, quad.t0};
-		p3 := Vec2{quad.s1, quad.t1};
-		sprite := Sprite{{p0, p1, p2, p3}, 0, 0};
-		draw_quad(Vec2{cur_x+start, position.y}, Vec2{cur_x+start, position.y+height}, Vec2{cur_x+start+char_width, position.y+height}, Vec2{cur_x+start+char_width, position.y}, sprite, color);
+		uv0 := Vec2{quad.s0, quad.t1};
+		uv1 := Vec2{quad.s0, quad.t0};
+		uv2 := Vec2{quad.s1, quad.t0};
+		uv3 := Vec2{quad.s1, quad.t1};
+		sprite := Sprite{{uv0, uv1, uv2, uv3}, 0, 0};
+
+		x0 := cur_x + start;
+		y0 := position.y - yoff;
+		x1 := cur_x + start + char_width;
+		y1 := position.y - yoff + height;
+		draw_quad(Vec2{x0, y0}, Vec2{x0, y1}, Vec2{x1, y1}, Vec2{x1, y0}, sprite, color);
 		cur_x += total_width;
 	}
 
