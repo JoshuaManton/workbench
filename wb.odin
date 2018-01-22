@@ -207,6 +207,7 @@ get_string_width :: proc(str: string, font: []stbtt.Baked_Char) -> f32 {
 }
 
 // todo(josh): make this not be a draw call per call to draw_string()
+// todo(josh): this `world_space := false` thing is a janky way to do world space text. figure out a way to maybe use the transform matrix instead?
 draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4, world_space := false) {
 	cur_x := position.x;
 	for c in str {
