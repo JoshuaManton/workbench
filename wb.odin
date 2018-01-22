@@ -206,20 +206,20 @@ get_string_width :: proc(str: string, font: []stbtt.Baked_Char) -> f32 {
 	return total_width;
 }
 
-// todo(josh): gonna implement this as one draw call per call
-draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4) {
-	cur_x : f32 = position.x;
+// todo(josh): make this not be a draw call per call to draw_string()
+draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4, world_space := false) {
+	cur_x := position.x;
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, cast(int)c, true);
-		total_width := pixel_width / cast(f32)current_window_width;
+		total_width := pixel_width / (world_space ? 1.0 : cast(f32)current_window_width);
 
-		start  := quad.x0 / cast(f32)current_window_width;
-		yoff   := quad.y1 / cast(f32)current_window_height;
-		height := abs((quad.y1 - quad.y0) / cast(f32)current_window_height);
+		start  := quad.x0 / (world_space ? 1.0 : cast(f32)current_window_width);
+		yoff   := quad.y1 / (world_space ? 1.0 : cast(f32)current_window_height);
+		height := abs((quad.y1 - quad.y0) / (world_space ? 1.0 : cast(f32)current_window_height));
 
 		xpad_before := pixel_width - (pixel_width - quad.x0);
 		xpad_after := pixel_width - quad.x1;
-		char_width := (pixel_width - xpad_after - xpad_before) / cast(f32)current_window_width;
+		char_width := (pixel_width - xpad_after - xpad_before) / (world_space ? 1.0 : cast(f32)current_window_width);
 
 		uv0 := Vec2{quad.s0, quad.t1};
 		uv1 := Vec2{quad.s0, quad.t0};
