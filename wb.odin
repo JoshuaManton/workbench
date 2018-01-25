@@ -12,30 +12,36 @@ import stbtt "shared:odin-stb/stb_truetype.odin"
 import "gl.odin"
 using import "basic.odin"
 
-ortho:     Mat4;
-transform: Mat4;
+ortho_matrix:     Mat4;
+transform_matrix: Mat4;
+pixel_matrix:     Mat4;
 
 main_window: glfw.Window_Handle;
 
 camera_size: f32;
 camera_position: Vec2;
 
-// These are unused but might be useful in the future?
-current_window_width: i32;
+current_window_width:  i32;
 current_window_height: i32;
+current_aspect_ratio:  f32;
 
 rendering_world_space :: proc() {
-	transform = mul(identity(Mat4), ortho);
-	transform = scale(transform, 1 / camera_size);
+	transform_matrix = mul(identity(Mat4), ortho_matrix);
+	transform_matrix = scale(transform_matrix, 1 / camera_size);
 
-	cam_offset := to_vec3(mul(transform, to_vec4(camera_position)));
-	transform = translate(transform, -cam_offset);
+	cam_offset := to_vec3(mul(transform_matrix, to_vec4(camera_position)));
+	transform_matrix = translate(transform_matrix, -cam_offset);
+
+	pixel_matrix = identity(Mat4);
 }
 
 rendering_camera_space_unit_scale :: proc() {
-	transform = identity(Mat4);
-	transform = translate(transform, Vec3{-1, -1, 0});
-	transform = scale(transform, 2);
+	transform_matrix = identity(Mat4);
+	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
+	transform_matrix = scale(transform_matrix, 2);
+
+	pixel_matrix = identity(Mat4);
+	pixel_matrix = scale(pixel_matrix, Vec3{1 / cast(f32)current_window_width, 1 / cast(f32)current_window_height, 0});
 }
 
 set_shader :: inline proc(program: gl.Shader_Program) {
@@ -51,14 +57,14 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
 		current_window_width = w;
 		current_window_height = h;
+		current_aspect_ratio = cast(f32)w / cast(f32)h;
 
-		aspect := cast(f32)w / cast(f32)h;
 		top    : f32 =  1;
 		bottom : f32 = -1;
-		left   : f32 = -1 * aspect;
-		right  : f32 =  1 * aspect;
+		left   : f32 = -1 * current_aspect_ratio;
+		right  : f32 =  1 * current_aspect_ratio;
 
-		ortho  = ortho3d(left, right, bottom, top, -1, 1);
+		ortho_matrix  = ortho3d(left, right, bottom, top, -1, 1);
 
 		gl.Viewport(0, 0, w, h);
 	}
@@ -98,9 +104,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 		});
 
 	// Set initial size of window
-	current_window_width = window_width;
-	current_window_height = window_height;
-	glfw_size_callback(main_window, current_window_width, current_window_height);
+	glfw_size_callback(main_window, window_width, window_height);
 
 	// Setup glfw callbacks
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
@@ -182,7 +186,7 @@ draw_flush :: proc() {
 
 	program := gl.get_current_shader();
 
-	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
+	gl.uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
 	gl.bind_buffer(vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
@@ -207,20 +211,20 @@ get_string_width :: proc(str: string, font: []stbtt.Baked_Char) -> f32 {
 }
 
 // todo(josh): make this not be a draw call per call to draw_string()
-// todo(josh): this `world_space := false` thing is a janky way to do world space text. figure out a way to maybe use the transform matrix instead?
-draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4, world_space := false) {
+// todo(josh): this `world_space := false` thing is a janky way to do world space text. figure out a way to maybe use transform_matrix instead?
+draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4) {
 	cur_x := position.x;
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, cast(int)c, true);
-		total_width := pixel_width / (world_space ? 1.0 : cast(f32)current_window_width);
+		total_width := mul(pixel_matrix, Vec4{pixel_width, 0, 0, 0}).x;
 
-		start  := quad.x0 / (world_space ? 1.0 : cast(f32)current_window_width);
-		yoff   := quad.y1 / (world_space ? 1.0 : cast(f32)current_window_height);
-		height := abs((quad.y1 - quad.y0) / (world_space ? 1.0 : cast(f32)current_window_height));
+		start  := mul(pixel_matrix, Vec4{quad.x0, 0, 0, 0}).x;
+		yoff   := mul(pixel_matrix, Vec4{0, quad.y1, 0, 0}).y;
+		height := abs(mul(pixel_matrix, Vec4{0, (quad.y1 - quad.y0), 0, 0}).y);
 
 		xpad_before := pixel_width - (pixel_width - quad.x0);
 		xpad_after := pixel_width - quad.x1;
-		char_width := (pixel_width - xpad_after - xpad_before) / (world_space ? 1.0 : cast(f32)current_window_width);
+		char_width := mul(pixel_matrix, Vec4{(pixel_width - xpad_after - xpad_before), 0, 0, 0}).x;
 
 		uv0 := Vec2{quad.s0, quad.t1};
 		uv1 := Vec2{quad.s0, quad.t0};
@@ -237,7 +241,7 @@ draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color
 	}
 
 	program := gl.get_current_shader();
-	gl.uniform_matrix4fv(program, "transform", 1, false, &transform[0][0]);
+	gl.uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
 	gl.bind_buffer(vbo);
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
