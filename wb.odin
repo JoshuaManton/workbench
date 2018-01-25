@@ -27,12 +27,13 @@ current_aspect_ratio:  f32;
 
 rendering_world_space :: proc() {
 	transform_matrix = mul(identity(Mat4), ortho_matrix);
-	transform_matrix = scale(transform_matrix, 1 / camera_size);
+	transform_matrix = scale(transform_matrix, 1.0 / camera_size);
 
 	cam_offset := to_vec3(mul(transform_matrix, to_vec4(camera_position)));
 	transform_matrix = translate(transform_matrix, -cam_offset);
 
 	pixel_matrix = identity(Mat4);
+	pixel_matrix = scale(pixel_matrix, 1.0 / PPU);
 }
 
 rendering_camera_space_unit_scale :: proc() {
@@ -199,10 +200,10 @@ draw_flush :: proc() {
 	clear(&all_quads);
 }
 
-get_string_width :: proc(str: string, font: []stbtt.Baked_Char) -> f32 {
+get_string_width :: proc(str: string, font: Font) -> f32 {
 	total_pixel_width: f32;
 	for c in str {
-		pixel_width, _, _ := stbtt.get_baked_quad(font, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, cast(int)c, true);
+		pixel_width, _, _ := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
 		total_pixel_width += pixel_width;
 	}
 
@@ -211,10 +212,10 @@ get_string_width :: proc(str: string, font: []stbtt.Baked_Char) -> f32 {
 }
 
 // todo(josh): make this not be a draw call per call to draw_string()
-draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color: Vec4) {
+draw_string :: proc(str: string, font: Font, position: Vec2, color: Vec4) {
 	cur_x := position.x;
 	for c in str {
-		pixel_width, _, quad := stbtt.get_baked_quad(font, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, cast(int)c, true);
+		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
 		total_width := mul(pixel_matrix, Vec4{pixel_width, 0, 0, 0}).x;
 
 		start  := mul(pixel_matrix, Vec4{quad.x0, 0, 0, 0}).x;
@@ -246,35 +247,53 @@ draw_string :: proc(str: string, font: []stbtt.Baked_Char, position: Vec2, color
 	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
 
 	gl.uniform(program, "atlas_texture", 0);
-	gl.bind_texture2d(font_texture);
+	gl.bind_texture2d(font.texture);
 
 	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);
 
 	clear(&all_quads);
 }
 
-FONT_PIXEL_WIDTH  :: 1024;
-FONT_PIXEL_HEIGHT :: 1024;
-font_texture: gl.Texture;
+STARTING_FONT_PIXEL_DIM :: 128;
 
-load_font :: proc(path: string, size: f32) -> []stbtt.Baked_Char {
+Font :: struct {
+	dim: int,
+	chars: []stbtt.Baked_Char,
+	texture: gl.Texture,
+}
+
+load_font :: proc(path: string, size: f32) -> Font {
 	data, ok := os.read_entire_file(path);
 	assert(ok);
 	defer free(data);
 
-	pixels := make([]u8, FONT_PIXEL_WIDTH * FONT_PIXEL_HEIGHT);
-	chars, ret := stbtt.bake_font_bitmap(data, 0, size, pixels, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, 0, 128);
-	// todo(josh): error checking to make sure all the characters fit in the buffer
+	pixels: []u8;
+	chars:  []stbtt.Baked_Char;
+	dim := STARTING_FONT_PIXEL_DIM;
+	for {
+		pixels = make([]u8, dim * dim);
+		ret: int;
+		chars, ret = stbtt.bake_font_bitmap(data, 0, size, pixels, dim, dim, 0, 128);
+		if ret < 0 {
+			free(pixels);
+			dim *= 2;
+		}
+		else {
+			break;
+		}
+	}
 
-	stbiw.write_png("font.png", FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, 1, pixels, 0);
+	stbiw.write_png("font.png", dim, dim, 1, pixels, 0);
 
-	font_texture = gl.gen_texture();
-	gl.bind_texture2d(font_texture);
+	texture := gl.gen_texture();
+	gl.bind_texture2d(texture);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, FONT_PIXEL_WIDTH, FONT_PIXEL_HEIGHT, 0, gl.RED, gl.UNSIGNED_BYTE, &pixels[0]);
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cast(i32)dim, cast(i32)dim, 0, gl.RED, gl.UNSIGNED_BYTE, &pixels[0]);
 
-	return chars;
+	fmt.println("dim for", path, "was", dim);
+
+	return Font{dim, chars, texture};
 }
 
 atlas_texture: gl.Texture;
@@ -285,6 +304,8 @@ atlas_y: i32;
 biggest_height: i32;
 
 ATLAS_DIM :: 2048;
+
+PPU :: 64;
 
 load_sprite :: proc(filepath: string) -> Sprite {
 	// todo(josh): Handle multiple texture atlases
@@ -330,7 +351,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 
 	atlas_x += sprite_height;
 
-	sprite := Sprite{coords, sprite_width, sprite_height};
+	sprite := Sprite{coords, sprite_width / PPU, sprite_height / PPU};
 	return sprite;
 }
 
