@@ -12,6 +12,8 @@ import stbtt "shared:odin-stb/stb_truetype.odin"
 import "gl.odin"
 using import "basic.odin"
 
+pixel_to_world_matrix: Mat4;
+
 ortho_matrix:     Mat4;
 transform_matrix: Mat4;
 pixel_matrix:     Mat4;
@@ -24,6 +26,8 @@ camera_position: Vec2;
 current_window_width:  i32;
 current_window_height: i32;
 current_aspect_ratio:  f32;
+
+cursor_screen_position: Vec2;
 
 rendering_world_space :: proc() {
 	transform_matrix = mul(identity(Mat4), ortho_matrix);
@@ -42,7 +46,7 @@ rendering_camera_space_unit_scale :: proc() {
 	transform_matrix = scale(transform_matrix, 2);
 
 	pixel_matrix = identity(Mat4);
-	pixel_matrix = scale(pixel_matrix, Vec3{1 / cast(f32)current_window_width, 1 / cast(f32)current_window_height, 0});
+	pixel_matrix = scale(pixel_matrix, Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
 }
 
 set_shader :: inline proc(program: gl.Shader_Program) {
@@ -52,6 +56,30 @@ set_shader :: inline proc(program: gl.Shader_Program) {
 // glfw wrapper
 window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {
 	return glfw.WindowShouldClose(window);
+}
+
+screen_to_world :: proc(screen: Vec2) -> Vec2 {
+	// convert to unit size first
+	pos := Vec2{screen.x / cast(f32)current_window_width, screen.y / cast(f32)current_window_height};
+
+	pos.y = 1.0 - pos.y;
+
+	camera_size_x := camera_size * current_aspect_ratio;
+	camera_size_y := camera_size;
+
+	pos.x *= camera_size_x * 2.0;
+	pos.y *= camera_size_y * 2.0;
+
+	pos.x -= camera_size_x;
+	pos.y -= camera_size_y;
+
+	pos += camera_position;
+
+	return pos;
+}
+
+cursor_world_position :: inline proc() -> Vec2 {
+	return screen_to_world(cursor_screen_position);
 }
 
 init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_version_major, opengl_version_minor: i32) {
@@ -68,6 +96,10 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 		ortho_matrix  = ortho3d(left, right, bottom, top, -1, 1);
 
 		gl.Viewport(0, 0, w, h);
+	}
+
+	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
+		cursor_screen_position = Vec2{cast(f32)x, cast(f32)y};
 	}
 
 	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
@@ -94,6 +126,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	glfw.MakeContextCurrent(main_window);
 	glfw.SwapInterval(1);
 
+	glfw.SetCursorPosCallback(main_window, glfw_cursor_callback);
 	glfw.SetWindowSizeCallback(main_window, glfw_size_callback);
 
 	glfw.SetKeyCallback(main_window, _glfw_key_callback);

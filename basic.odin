@@ -107,6 +107,10 @@ maxv :: inline proc(args: ...$T) -> T {
 	}
 }
 
+to_vec2 :: proc[to_vec2_from_vec3, to_vec2_from_vec4];
+to_vec2_from_vec3 :: inline proc(a: Vec3) -> Vec2 do return Vec2{a.x, a.y};
+to_vec2_from_vec4 :: inline proc(a: Vec4) -> Vec2 do return Vec2{a.x, a.y};
+
 to_vec3 :: proc[to_vec3_from_vec2, to_vec3_from_vec4];
 to_vec3_from_vec2 :: inline proc(a: Vec2) -> Vec3 do return Vec3{a.x, a.y, 0};
 to_vec3_from_vec4 :: inline proc(a: Vec4) -> Vec3 do return Vec3{a.x, a.y, a.z};
