@@ -1,3 +1,8 @@
+import "core:fmt.odin"
+using import "core:math.odin"
+
+using import "shared:workbench/basic.odin"
+
 closest_point_on_line :: proc(origin: Vec2, p1, p2: Vec2) -> Vec2 {
 	direction := p2 - p1;
 	square_length := basic.sqr_magnitude(direction);
@@ -15,12 +20,12 @@ closest_point_on_line :: proc(origin: Vec2, p1, p2: Vec2) -> Vec2 {
 
 // todo(josh): there is currently an assertion failure in the compiler related
 // to the builtin min() and max() procs. remove these when that is fixed
-min :: inline proc(a, b: $T) -> T {
+_min :: inline proc(a, b: $T) -> T {
 	if a < b do return a;
 	return b;
 }
 
-max :: inline proc(a, b: $T) -> T {
+_max :: inline proc(a, b: $T) -> T {
 	if a > b do return a;
 	return b;
 }
@@ -36,16 +41,25 @@ Hit_Info :: struct {
 	// Point that the ray stopped intersecting
 	point1: Vec2,
 
-	// todo(josh): add normals
+	// todo(josh)
+	// normal0: Vec2,
+	// normal1: Vec2,
 }
 
-cast_box_circle :: proc(box_min, box_max: Vec2, box_direction: Vec2, circle_position: Vec2, circle_radius: f32) -> (bool, Hit_Info) {
+cast_box_box :: proc(b1min, b1max: Vec2, box_direction: Vec2, b2min, b2max: Vec2) -> (Hit_Info, bool) {
+	half_size := (b1max - b1min) / 2.0;
+	b2min -= half_size;
+	b2max += half_size;
+	return cast_line_box(b1min + half_size, box_direction, b2min, b2max);
+}
+
+cast_box_circle :: proc(box_min, box_max: Vec2, box_direction: Vec2, circle_position: Vec2, circle_radius: f32) -> (Hit_Info, bool) {
 	// todo(josh): this sounds like a nightmare
 	assert(false);
-	return false, Hit_Info{};
+	return Hit_Info{}, false;
 }
 
-cast_circle_box :: proc(circle_origin, circle_direction: Vec2, circle_radius: f32, box_min, box_max: Vec2) -> (bool, Hit_Info) {
+cast_circle_box :: proc(circle_origin, circle_direction: Vec2, circle_radius: f32, box_min, box_max: Vec2) -> (Hit_Info, bool) {
 	compare_hits :: proc(source: ^Hit_Info, other: Hit_Info) {
 		if other.fraction0 < source.fraction0 {
 			source.fraction0 = other.fraction0;
@@ -74,7 +88,7 @@ cast_circle_box :: proc(circle_origin, circle_direction: Vec2, circle_radius: f3
 	{
 		circle_positions := [4]Vec2{tl, tr, br, bl};
 		for pos in circle_positions {
-			hit, info := cast_line_circle(circle_origin, circle_direction, pos, circle_radius);
+			info, hit := cast_line_circle(circle_origin, circle_direction, pos, circle_radius);
 			if hit {
 				did_hit = true;
 				compare_hits(&final_hit_info, info);
@@ -91,23 +105,23 @@ cast_circle_box :: proc(circle_origin, circle_direction: Vec2, circle_radius: f3
 		box1_min := box_min - Vec2{circle_radius, 0};
 		box1_max := box_max + Vec2{circle_radius, 0};
 
-		hit0, info0 := cast_line_box(circle_origin, circle_direction, box0_min, box0_max);
+		info0, hit0 := cast_line_box(circle_origin, circle_direction, box0_min, box0_max);
 		if hit0 {
 			did_hit = true;
 			compare_hits(&final_hit_info, info0);
 		}
 
-		hit1, info1 := cast_line_box(circle_origin, circle_direction, box1_min, box1_max);
+		info1, hit1 := cast_line_box(circle_origin, circle_direction, box1_min, box1_max);
 		if hit1 {
 			did_hit = true;
 			compare_hits(&final_hit_info, info1);
 		}
 	}
 
-	return did_hit, final_hit_info;
+	return final_hit_info, did_hit;
 }
 
-cast_line_circle :: proc(line_origin, line_direction: Vec2, circle_center: Vec2, circle_radius: f32) -> (bool, Hit_Info) {
+cast_line_circle :: proc(line_origin, line_direction: Vec2, circle_center: Vec2, circle_radius: f32) -> (Hit_Info, bool) {
 	direction := line_origin - circle_center;
 	a := dot(line_direction, line_direction);
 	b := dot(direction, line_direction);
@@ -115,7 +129,7 @@ cast_line_circle :: proc(line_origin, line_direction: Vec2, circle_center: Vec2,
 
 	disc := b * b - a * c;
 	if (disc < 0) {
-		return false, Hit_Info{};
+		return Hit_Info{}, false;
 	}
 
 	sqrt_disc := sqrt(disc);
@@ -128,17 +142,17 @@ cast_line_circle :: proc(line_origin, line_direction: Vec2, circle_center: Vec2,
 	inv_radius: f32 = 1.0 / circle_radius;
 
 	pmin := line_origin + tmin * line_direction;
-	// normal[i] = (point[i] - circle_center) * invRadius;
+	// normal := (pmin - circle_center) * inv_radius;
 
 	pmax := line_origin + tmax * line_direction;
 	// normal[i] = (point[i] - circle_center) * invRadius;
 
 	info := Hit_Info{tmin, tmax, pmin, pmax};
 
-	return true, info;
+	return info, true;
 }
 
-cast_line_box :: proc(line_origin, line_direction: Vec2, box_min, box_max: Vec2) -> (bool, Hit_Info) {
+cast_line_box :: proc(line_origin, line_direction: Vec2, box_min, box_max: Vec2) -> (Hit_Info, bool) {
 	inverse := Vec2{1.0/line_direction.x, 1.0/line_direction.y};
 
 	tx1 := (box_min.x - line_origin.x)*inverse.x;
@@ -154,9 +168,10 @@ cast_line_box :: proc(line_origin, line_direction: Vec2, box_min, box_max: Vec2)
 	tmax = _min(tmax, _max(ty1, ty2));
 	tmax = _min(tmax, 1);
 
+	p0 := line_origin + (line_direction * tmin);
 	info := Hit_Info{tmin, tmax, line_origin + (line_direction * tmin), line_origin + (line_direction * tmax)};
 
-	return tmax >= tmin, info;
+	return info, tmax >= tmin && tmax <= 1.0 && tmax >= 0.0 && tmin <= 1.0 && tmin >= 0.0;
 }
 
 overlap_point_box :: inline proc(origin: Vec2, box_min, box_max: Vec2) -> bool {

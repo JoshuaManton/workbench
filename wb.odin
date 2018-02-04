@@ -183,6 +183,14 @@ RED   := Vec4{1, 0, 0, 1};
 GREEN := Vec4{0, 1, 0, 1};
 BLUE  := Vec4{0, 0, 1, 1};
 
+draw_colored_rect :: proc(p0, p1, p2, p3: Vec2, color: Vec4) {
+	draw_quad(p0, p1, p2, p3, Sprite{}, color);
+}
+
+draw_sprite :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
+	draw_quad(p0, p1, p2, p3, sprite, WHITE);
+}
+
 draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Vec4) {
 	v0 := Vertex{p0, sprite.uvs[0], color};
 	v1 := Vertex{p1, sprite.uvs[1], color};
@@ -473,12 +481,12 @@ get_key_up :: proc(key: glfw.Key) -> bool {
 //
 
 delta_time: f32;
-last_frame_time: f32;
+game_time: f32;
 
 update_time :: proc() {
 	// show fps in window title
 	glfw.calculate_frame_timings(main_window);
 	time := cast(f32)glfw.GetTime();
-	delta_time = time - last_frame_time;
-	last_frame_time = time;
+	delta_time = time - game_time;
+	game_time = time;
 }
