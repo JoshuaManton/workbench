@@ -17,10 +17,11 @@ inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 	return &array[length-1];
 }
 
-remove :: proc(array: ^[dynamic]$T, to_remove: T) {
-	for item, index in array {
+remove :: proc(array: ^[dynamic]$T, to_remove: ^T) {
+	for i in 0..len(array) {
+		item := &array[i];
 		if item == to_remove {
-			array[index] = array[len(array)-1];
+			array[i] = array[len(array)-1];
 			pop(array);
 			return;
 		}
@@ -145,6 +146,8 @@ logln :: proc(args: ...any, location := #caller_location) {
 //
 // Strings
 //
+
+is_digit :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
 
 MAX_C_STR_LENGTH :: 1024;
 to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {

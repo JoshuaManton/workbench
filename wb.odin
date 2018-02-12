@@ -49,6 +49,15 @@ rendering_camera_space_unit_scale :: proc() {
 	pixel_matrix = scale(pixel_matrix, Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
 }
 
+rendering_pixel_space :: proc() {
+	transform_matrix = identity(Mat4);
+	transform_matrix = scale(transform_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
+	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
+	transform_matrix = scale(transform_matrix, 2);
+
+	pixel_matrix = identity(Mat4);
+}
+
 set_shader :: inline proc(program: gl.Shader_Program) {
 	gl.use_program(program);
 }
@@ -162,7 +171,7 @@ init_opengl :: proc() {
 
 	gl.set_vertex_format(Vertex);
 
-	gl.ClearColor(0.5, 0.1, 0.2, 1.0);
+	gl.ClearColor(0, 0, 0, 1.0);
 	gl.Enable(gl.BLEND);
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 }
@@ -183,7 +192,13 @@ RED   := Vec4{1, 0, 0, 1};
 GREEN := Vec4{0, 1, 0, 1};
 BLUE  := Vec4{0, 0, 1, 1};
 
-draw_colored_rect :: proc(p0, p1, p2, p3: Vec2, color: Vec4) {
+draw_colored_quad :: proc[draw_colored_quad_min_max, draw_colored_quad_points];
+
+draw_colored_quad_min_max :: proc(min, max: Vec2, color: Vec4) {
+	draw_colored_quad_points(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, color);
+}
+
+draw_colored_quad_points :: proc(p0, p1, p2, p3: Vec2, color: Vec4) {
 	draw_quad(p0, p1, p2, p3, Sprite{}, color);
 }
 
@@ -199,6 +214,15 @@ draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Vec4) {
 
 	quad := Quad{v0, v1, v2, v2, v3, v0};
 	append(&all_quads, quad);
+}
+
+make_vert_points :: proc(position, size: Vec2) -> (Vec2, Vec2, Vec2, Vec2) {
+	half_size := size / 2.0;
+	p0 := position + Vec2{-half_size.x, -half_size.y};
+	p1 := position + Vec2{-half_size.x,  half_size.y};
+	p2 := position + Vec2{ half_size.x,  half_size.y};
+	p3 := position + Vec2{ half_size.x, -half_size.y};
+	return p0, p1, p2, p3;
 }
 
 /*
