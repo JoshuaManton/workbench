@@ -147,7 +147,7 @@ logln :: proc(args: ...any, location := #caller_location) {
 // Strings
 //
 
-is_digit :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
+is_digit  :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
 
 MAX_C_STR_LENGTH :: 1024;
 to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {
