@@ -424,13 +424,18 @@ load_sprite :: proc(filepath: string) -> Sprite {
 // Input stuff
 //
 
-_held := make([dynamic]glfw.Key, 0, 5);
-_down := make([dynamic]glfw.Key, 0, 5);
-_up   := make([dynamic]glfw.Key, 0, 5);
+Key_Press :: struct {
+	key:  glfw.Key,
+	time: f64,
+}
 
-_held_mid_frame := make([dynamic]glfw.Key, 0, 5);
-_down_mid_frame := make([dynamic]glfw.Key, 0, 5);
-_up_mid_frame   := make([dynamic]glfw.Key, 0, 5);
+_held := make([dynamic]Key_Press, 0, 5);
+_down := make([dynamic]Key_Press, 0, 5);
+_up   := make([dynamic]Key_Press, 0, 5);
+
+_held_mid_frame := make([dynamic]Key_Press, 0, 5);
+_down_mid_frame := make([dynamic]Key_Press, 0, 5);
+_up_mid_frame   := make([dynamic]Key_Press, 0, 5);
 
 update_input :: proc() {
 	glfw.PollEvents();
@@ -452,6 +457,7 @@ update_input :: proc() {
 	clear(&_up_mid_frame);
 }
 
+
 // this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
 // so we need to save presses in a separate buffer and copy them over to have consistent behaviour
 _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
@@ -463,19 +469,27 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancod
 
 	switch action {
 		case glfw.Action.Press: {
-			append(&_held_mid_frame, key);
-			append(&_down_mid_frame, key);
+			append(&_held_mid_frame, Key_Press{key, glfw.GetTime()});
+			append(&_down_mid_frame, Key_Press{key, glfw.GetTime()});
 		}
 		case glfw.Action.Release: {
-			remove_all(&_held_mid_frame, key);
-			append(&_up_mid_frame, key);
+			idx := -1;
+			for held, i in _held_mid_frame {
+				if held.key == key {
+					idx = i;
+					break;
+				}
+			}
+			assert(idx != -1);
+			remove_by_index(&_held_mid_frame, idx);
+			append(&_up_mid_frame, Key_Press{key, glfw.GetTime()});
 		}
 	}
 }
 
 get_key :: proc(key: glfw.Key) -> bool {
 	for held in _held {
-		if held == key {
+		if held.key == key {
 			return true;
 		}
 	}
@@ -484,7 +498,7 @@ get_key :: proc(key: glfw.Key) -> bool {
 
 get_key_down :: proc(key: glfw.Key) -> bool {
 	for down in _down {
-		if down == key {
+		if down.key == key {
 			return true;
 		}
 	}
@@ -493,10 +507,24 @@ get_key_down :: proc(key: glfw.Key) -> bool {
 
 get_key_up :: proc(key: glfw.Key) -> bool {
 	for up in _up {
-		if up == key {
+		if up.key == key {
 			return true;
 		}
 	}
+	return false;
+}
+
+REPEAT_TIME :: 0.25;
+
+get_key_repeat :: proc(key: glfw.Key) -> bool {
+	if get_key_down(key) do return true;
+
+	for held in _held {
+		if held.key == key && game_time > held.time + REPEAT_TIME {
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -505,12 +533,12 @@ get_key_up :: proc(key: glfw.Key) -> bool {
 //
 
 delta_time: f32;
-game_time: f32;
+game_time: f64;
 
 update_time :: proc() {
 	// show fps in window title
 	glfw.calculate_frame_timings(main_window);
-	time := cast(f32)glfw.GetTime();
-	delta_time = time - game_time;
+	time := glfw.GetTime();
+	delta_time = cast(f32)(time - game_time);
 	game_time = time;
 }
