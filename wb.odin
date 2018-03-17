@@ -139,6 +139,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	glfw.SetWindowSizeCallback(main_window, glfw_size_callback);
 
 	glfw.SetKeyCallback(main_window, _glfw_key_callback);
+	glfw.SetMouseButtonCallback(main_window, _glfw_mouse_button_callback);
 
 	// setup opengl
 	gl.load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
@@ -425,7 +426,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 //
 
 Key_Press :: struct {
-	key:  glfw.Key,
+	input: union { glfw.Key, glfw.Mouse },
 	time: f64,
 }
 
@@ -436,6 +437,14 @@ _up   := make([dynamic]Key_Press, 0, 5);
 _held_mid_frame := make([dynamic]Key_Press, 0, 5);
 _down_mid_frame := make([dynamic]Key_Press, 0, 5);
 _up_mid_frame   := make([dynamic]Key_Press, 0, 5);
+
+_mouse_held := make([dynamic]Key_Press, 0, 5);
+_mouse_down := make([dynamic]Key_Press, 0, 5);
+_mouse_up   := make([dynamic]Key_Press, 0, 5);
+
+_mouse_held_mid_frame := make([dynamic]Key_Press, 0, 5);
+_mouse_down_mid_frame := make([dynamic]Key_Press, 0, 5);
+_mouse_up_mid_frame   := make([dynamic]Key_Press, 0, 5);
 
 update_input :: proc() {
 	glfw.PollEvents();
@@ -455,13 +464,37 @@ update_input :: proc() {
 
 	clear(&_down_mid_frame);
 	clear(&_up_mid_frame);
+
+
+	clear(&_mouse_held);
+	clear(&_mouse_down);
+	clear(&_mouse_up);
+
+	for held in _mouse_held_mid_frame {
+		append(&_mouse_held, held);
+	}
+	for down in _mouse_down_mid_frame {
+		append(&_mouse_down, down);
+	}
+	for up in _mouse_up_mid_frame {
+		append(&_mouse_up, up);
+	}
+
+	clear(&_mouse_down_mid_frame);
+	clear(&_mouse_up_mid_frame);
 }
 
 
 // this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
 // so we need to save presses in a separate buffer and copy them over to have consistent behaviour
 _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
-	when false {
+	when false
+	{
+		fmt.println("------------------------------");
+		fmt.println("len of held", len(_held), len(_held_mid_frame));
+		fmt.println("len of up",   len(_up),   len(_up_mid_frame));
+		fmt.println("len of down", len(_down), len(_down_mid_frame));
+
 		fmt.println("cap of held", cap(_held), cap(_held_mid_frame));
 		fmt.println("cap of up",   cap(_up),   cap(_up_mid_frame));
 		fmt.println("cap of down", cap(_down), cap(_down_mid_frame));
@@ -475,7 +508,7 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancod
 		case glfw.Action.Release: {
 			idx := -1;
 			for held, i in _held_mid_frame {
-				if held.key == key {
+				if held.input.(glfw.Key) == key {
 					idx = i;
 					break;
 				}
@@ -487,9 +520,57 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancod
 	}
 }
 
+_glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.Mouse, action: glfw.Action, mods: i32) {
+	switch action {
+		case glfw.Action.Press: {
+			append(&_mouse_held_mid_frame, Key_Press{button, glfw.GetTime()});
+			append(&_mouse_down_mid_frame, Key_Press{button, glfw.GetTime()});
+		}
+		case glfw.Action.Release: {
+			idx := -1;
+			for held, i in _mouse_held_mid_frame {
+				if held.input.(glfw.Mouse) == button {
+					idx = i;
+					break;
+				}
+			}
+			assert(idx != -1);
+			remove_by_index(&_mouse_held_mid_frame, idx);
+			append(&_mouse_up_mid_frame, Key_Press{button, glfw.GetTime()});
+		}
+	}
+}
+
+get_mouse :: proc(mouse: glfw.Mouse) -> bool {
+	for mouse_held in _mouse_held {
+		if mouse_held.input.(glfw.Mouse) == mouse {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_mouse_down :: proc(mouse: glfw.Mouse) -> bool {
+	for mouse_down in _mouse_down {
+		if mouse_down.input.(glfw.Mouse) == mouse {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_mouse_up :: proc(mouse: glfw.Mouse) -> bool {
+	for mouse_up in _mouse_up {
+		if mouse_up.input.(glfw.Mouse) == mouse {
+			return true;
+		}
+	}
+	return false;
+}
+
 get_key :: proc(key: glfw.Key) -> bool {
 	for held in _held {
-		if held.key == key {
+		if held.input.(glfw.Key) == key {
 			return true;
 		}
 	}
@@ -498,7 +579,7 @@ get_key :: proc(key: glfw.Key) -> bool {
 
 get_key_down :: proc(key: glfw.Key) -> bool {
 	for down in _down {
-		if down.key == key {
+		if down.input.(glfw.Key) == key {
 			return true;
 		}
 	}
@@ -507,7 +588,7 @@ get_key_down :: proc(key: glfw.Key) -> bool {
 
 get_key_up :: proc(key: glfw.Key) -> bool {
 	for up in _up {
-		if up.key == key {
+		if up.input.(glfw.Key) == key {
 			return true;
 		}
 	}
@@ -520,7 +601,7 @@ get_key_repeat :: proc(key: glfw.Key) -> bool {
 	if get_key_down(key) do return true;
 
 	for held in _held {
-		if held.key == key && game_time > held.time + REPEAT_TIME {
+		if held.input.(glfw.Key) == key && game_time > held.time + REPEAT_TIME {
 			return true;
 		}
 	}
