@@ -1,16 +1,16 @@
-import "core:fmt.odin"
-import "core:strings.odin"
-import "core:mem.odin"
-import "core:os.odin"
-using import "core:math.odin"
+      import       "core:fmt.odin"
+      import       "core:strings.odin"
+      import       "core:mem.odin"
+      import       "core:os.odin"
+using import       "core:math.odin"
 
-import "shared:odin-glfw/glfw.odin"
-import stbi  "shared:odin-stb/stb_image.odin"
-import stbiw "shared:odin-stb/stb_image_write.odin"
-import stbtt "shared:odin-stb/stb_truetype.odin"
+      import stbi  "shared:odin-stb/stb_image.odin"
+      import stbiw "shared:odin-stb/stb_image_write.odin"
+      import stbtt "shared:odin-stb/stb_truetype.odin"
 
-import "gl.odin"
-using import "basic.odin"
+      import       "glfw.odin"
+      import       "gl.odin"
+using import       "basic.odin"
 
 pixel_to_world_matrix: Mat4;
 
@@ -116,7 +116,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	}
 
 	glfw_error_callback :: proc"c"(error: i32, desc: ^u8) {
-		fmt.printf("Error code %d:\n    %s\n", error, strings.to_odin_string(desc));
+		fmt.printf("Error code %d:\n    %s\n", error, cast(string)cast(cstring)desc);
 	}
 
 	// setup glfw
@@ -172,7 +172,7 @@ init_opengl :: proc() {
 
 	gl.set_vertex_format(Vertex);
 
-	gl.ClearColor(0, 0, 0, 1.0);
+	gl.ClearColor(0.8, 0.8, 0.8, 1.0);
 	gl.Enable(gl.BLEND);
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 }

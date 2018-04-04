@@ -1,6 +1,5 @@
-import "core:fmt.odin"
-import "core:mem.odin"
-
+      import "core:fmt.odin"
+      import "core:mem.odin"
 using import "core:math.odin"
 
 //

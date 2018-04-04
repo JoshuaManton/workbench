@@ -6,24 +6,24 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 20-01-2018 22:41:50 UTC-8
+ *  @Last Time: 18-03-2018 18:10:41 UTC-8
  *
  *  @Description:
  *
  */
 
-import "core:fmt.odin"
-import "core:os.odin"
+      import "core:fmt.odin"
+      import "core:os.odin"
 using import "core:math.odin"
 
-export "shared:odin-gl/gl.odin"
+      export "shared:odin-gl/gl.odin"
 
-import "basic.odin"
+      import "basic.odin"
 
-Shader_Program :: u32;
-VAO :: u32;
-VBO :: u32;
-Texture :: u32;
+Shader_Program :: distinct u32;
+VAO :: distinct u32;
+VBO :: distinct u32;
+Texture :: distinct u32;
 
 gen_vao :: inline proc() -> VAO {
 	vao: u32;
