@@ -16,9 +16,20 @@ inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 	return &array[length-1];
 }
 
-remove :: proc(array: ^[dynamic]$T, to_remove: ^T) {
+remove :: proc[remove_value, remove_ptr];
+remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
 	for i in 0..len(array) {
 		item := &array[i];
+		if item == to_remove {
+			array[i] = array[len(array)-1];
+			pop(array);
+			return;
+		}
+	}
+}
+remove_ptr :: proc(array: ^[dynamic]^$T, to_remove: ^T) {
+	for i in 0..len(array) {
+		item := array[i];
 		if item == to_remove {
 			array[i] = array[len(array)-1];
 			pop(array);
@@ -127,26 +138,12 @@ translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
 }
 
 //
-// Logging
-//
-
-logln :: proc(args: ...any, location := #caller_location) {
-	file := location.file_path;
-	last_slash_idx, ok := find_from_right(file, '\\');
-	if ok {
-		file = file[last_slash_idx+1..len(location.file_path)];
-	}
-
-	fmt.println(...args);
-	fmt.printf("%s:%d:%s()", file, location.line, location.procedure);
-	fmt.printf("\n\n");
-}
-
-//
 // Strings
 //
 
-is_digit  :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
+is_digit :: proc[is_digit_u8, is_digit_rune];
+is_digit_u8 :: inline proc(r: u8) -> bool { return '0' <= r && r <= '9' }
+is_digit_rune :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
 
 MAX_C_STR_LENGTH :: 1024;
 to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {
