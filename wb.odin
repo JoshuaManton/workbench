@@ -2,14 +2,15 @@
       import       "core:strings.odin"
       import       "core:mem.odin"
       import       "core:os.odin"
-using import       "core:math.odin"
 
       import stbi  "shared:odin-stb/stb_image.odin"
       import stbiw "shared:odin-stb/stb_image_write.odin"
       import stbtt "shared:odin-stb/stb_truetype.odin"
 
+      export       "types.odin"
       import       "glfw.odin"
       import       "gl.odin"
+using import       "math.odin"
 using import       "basic.odin"
 
 pixel_to_world_matrix: Mat4;
@@ -160,7 +161,7 @@ vbo: gl.VBO;
 Vertex :: struct {
 	vertex_position: Vec2,
 	tex_coord: Vec2,
-	color: Vec4,
+	color: Color,
 }
 
 init_opengl :: proc() {
@@ -172,7 +173,7 @@ init_opengl :: proc() {
 
 	gl.set_vertex_format(Vertex);
 
-	gl.ClearColor(0.8, 0.8, 0.8, 1.0);
+	gl.ClearColor(0.2, 0.5, 0.8, 1.0);
 	gl.Enable(gl.BLEND);
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 }
@@ -187,19 +188,19 @@ Sprite :: struct {
 	height: i32,
 }
 
-WHITE := Vec4{1, 1, 1, 1};
-BLACK := Vec4{0, 0, 0, 1};
-RED   := Vec4{1, 0, 0, 1};
-GREEN := Vec4{0, 1, 0, 1};
-BLUE  := Vec4{0, 0, 1, 1};
+WHITE := Color{1, 1, 1, 1};
+BLACK := Color{0, 0, 0, 1};
+RED   := Color{1, 0, 0, 1};
+GREEN := Color{0, 1, 0, 1};
+BLUE  := Color{0, 0, 1, 1};
 
 draw_colored_quad :: proc[draw_colored_quad_min_max, draw_colored_quad_points];
 
-draw_colored_quad_min_max :: proc(min, max: Vec2, color: Vec4) {
+draw_colored_quad_min_max :: proc(min, max: Vec2, color: Color) {
 	draw_colored_quad_points(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, color);
 }
 
-draw_colored_quad_points :: proc(p0, p1, p2, p3: Vec2, color: Vec4) {
+draw_colored_quad_points :: proc(p0, p1, p2, p3: Vec2, color: Color) {
 	draw_quad(p0, p1, p2, p3, Sprite{}, color);
 }
 
@@ -207,7 +208,7 @@ draw_sprite :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
 	draw_quad(p0, p1, p2, p3, sprite, WHITE);
 }
 
-draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Vec4) {
+draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Color) {
 	v0 := Vertex{p0, sprite.uvs[0], color};
 	v1 := Vertex{p1, sprite.uvs[1], color};
 	v2 := Vertex{p2, sprite.uvs[2], color};
@@ -278,7 +279,7 @@ get_string_width :: proc(str: string, font: Font) -> f32 {
 }
 
 // todo(josh): make this not be a draw call per call to draw_string()
-draw_string :: proc(str: string, font: Font, position: Vec2, color: Vec4) {
+draw_string :: proc(str: string, font: Font, position: Vec2, color: Color) {
 	cur_x := position.x;
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
@@ -595,31 +596,6 @@ get_key_up :: proc(key: glfw.Key) -> bool {
 	return false;
 }
 
-REPEAT_TIME :: 0.25;
+main :: proc() {
 
-get_key_repeat :: proc(key: glfw.Key) -> bool {
-	if get_key_down(key) do return true;
-
-	for held in _held {
-		if held.input.(glfw.Key) == key && game_time > held.time + REPEAT_TIME {
-			return true;
-		}
-	}
-
-	return false;
-}
-
-//
-// Time
-//
-
-delta_time: f32;
-game_time: f64;
-
-update_time :: proc() {
-	// show fps in window title
-	glfw.calculate_frame_timings(main_window);
-	time := glfw.GetTime();
-	delta_time = cast(f32)(time - game_time);
-	game_time = time;
 }

@@ -1,11 +1,11 @@
       import "core:fmt.odin"
-using import "core:math.odin"
 
 using import "basic.odin"
+using import "math.odin"
 
 closest_point_on_line :: proc(origin: Vec2, p1, p2: Vec2) -> Vec2 {
 	direction := p2 - p1;
-	square_length := basic.sqr_magnitude(direction);
+	square_length := sqr_magnitude(direction);
 	if (square_length == 0.0) {
 		// p1 == p2
 		dir_from_point := p1 - origin;
@@ -182,5 +182,5 @@ overlap_point_box :: inline proc(origin: Vec2, box_min, box_max: Vec2) -> bool {
 }
 
 overlap_point_circle :: inline proc(origin: Vec2, circle_position: Vec2, circle_radius: f32) -> bool {
-	return basic.sqr_magnitude(origin - circle_position) < basic.sqr(circle_radius);
+	return sqr_magnitude(origin - circle_position) < sqr(circle_radius);
 }

@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 18-03-2018 18:10:41 UTC-8
+ *  @Last Time: 05-05-2018 00:30:25 UTC-8
  *
  *  @Description:
  *
@@ -19,6 +19,7 @@ using import "core:math.odin"
       export "shared:odin-gl/gl.odin"
 
       import "basic.odin"
+      import "types.odin"
 
 Shader_Program :: distinct u32;
 VAO :: distinct u32;
@@ -214,7 +215,7 @@ set_vertex_format :: proc(vertex_type: type) {
 				num_elements = 3;
 				type_of_elements = FLOAT;
 			}
-			case Vec4: {
+			case Vec4, types.Color: {
 				num_elements = 4;
 				type_of_elements = FLOAT;
 			}
