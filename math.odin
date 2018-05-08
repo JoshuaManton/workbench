@@ -1,8 +1,8 @@
 export "core:math.odin"
 
-Vec2i :: distinct [2]i32;
-Vec3i :: distinct [3]i32;
-Vec4i :: distinct [4]i32;
+Vec2i :: distinct [2]int;
+Vec3i :: distinct [3]int;
+Vec4i :: distinct [4]int;
 
 sqr_magnitude :: inline proc(a: Vec2) -> f32 do return dot(a, a);
 magnitude :: inline proc(a: Vec2) -> f32 do return sqrt(dot(a, a));

@@ -1,6 +1,8 @@
       import "core:fmt.odin"
       import "core:mem.odin"
-using import "core:math.odin"
+
+      import "types.odin"
+using import "math.odin"
 
 //
 // Arrays
@@ -48,6 +50,20 @@ remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 			pop(array);
 		}
 	}
+}
+
+//
+// Equals
+//
+
+equals :: proc[equals_vec2i, equals_colori];
+
+equals_vec2i :: inline proc(a, b: Vec2i) -> bool {
+	return a.x == b.x && a.y == b.y;
+}
+
+equals_colori :: inline proc(a, b: types.Colori) -> bool {
+	return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 }
 
 //
@@ -137,4 +153,22 @@ split_by_lines :: proc(str: string, _array : ^[dynamic]string = nil) -> [dynamic
 	}
 
 	return array_ptr^;
+}
+
+file_from_path :: proc(path: string) -> string {
+	file := path;
+	start := 0;
+	end := len(file);
+
+	if last_slash_idx, ok := find_from_right(file, '\\'); ok {
+		start = last_slash_idx;
+	}
+
+	if dot, ok := find_from_right(file, '.'); ok {
+		end = dot;
+	}
+
+	file = file[start+1..end];
+
+	return file;
 }

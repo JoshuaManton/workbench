@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 05-05-2018 00:30:25 UTC-8
+ *  @Last Time: 06-05-2018 14:46:54 UTC-8
  *
  *  @Description:
  *
@@ -215,9 +215,13 @@ set_vertex_format :: proc(vertex_type: type) {
 				num_elements = 3;
 				type_of_elements = FLOAT;
 			}
-			case Vec4, types.Color: {
+			case Vec4, types.Colorf: {
 				num_elements = 4;
 				type_of_elements = FLOAT;
+			}
+			case types.Colori: {
+				num_elements = 4;
+				type_of_elements = UNSIGNED_BYTE;
 			}
 			case f64: {
 				num_elements = 1;

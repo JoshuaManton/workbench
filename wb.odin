@@ -7,11 +7,16 @@
       import stbiw "shared:odin-stb/stb_image_write.odin"
       import stbtt "shared:odin-stb/stb_truetype.odin"
 
-      export       "types.odin"
       import       "glfw.odin"
-      import       "gl.odin"
-using import       "math.odin"
-using import       "basic.odin"
+
+      export       "types.odin"
+      export       "collision.odin"
+      export       "gl.odin"
+      export       "math.odin"
+      export       "basic.odin"
+      export       "logging.odin"
+
+DEVELOPER :: true;
 
 pixel_to_world_matrix: Mat4;
 
@@ -30,7 +35,17 @@ current_aspect_ratio:  f32;
 
 cursor_screen_position: Vec2;
 
-rendering_world_space :: proc() {
+when DEVELOPER {
+	unflushed_draws_warning :: proc(procedure: string, location: Source_Code_Location) {
+		log("WARNING: Call to ", procedure, "() at ", file_from_path(location.file_path), ":", location.line, " but there are unflushed draws.");
+	}
+}
+
+rendering_world_space :: proc(location := #caller_location) {
+	when DEVELOPER {
+		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
+	}
+
 	transform_matrix = mul(identity(Mat4), ortho_matrix);
 	transform_matrix = scale(transform_matrix, 1.0 / camera_size);
 
@@ -41,7 +56,11 @@ rendering_world_space :: proc() {
 	pixel_matrix = scale(pixel_matrix, 1.0 / PPU);
 }
 
-rendering_camera_space_unit_scale :: proc() {
+rendering_camera_space_unit_scale :: proc(location := #caller_location) {
+	when DEVELOPER {
+		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
+	}
+
 	transform_matrix = identity(Mat4);
 	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
 	transform_matrix = scale(transform_matrix, 2);
@@ -50,7 +69,11 @@ rendering_camera_space_unit_scale :: proc() {
 	pixel_matrix = scale(pixel_matrix, Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
 }
 
-rendering_pixel_space :: proc() {
+rendering_pixel_space :: proc(location := #caller_location) {
+	when DEVELOPER {
+		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
+	}
+
 	transform_matrix = identity(Mat4);
 	transform_matrix = scale(transform_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
 	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
@@ -59,8 +82,12 @@ rendering_pixel_space :: proc() {
 	pixel_matrix = identity(Mat4);
 }
 
-set_shader :: inline proc(program: gl.Shader_Program) {
-	gl.use_program(program);
+set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
+	when DEVELOPER {
+		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
+	}
+
+	use_program(program);
 }
 
 // glfw wrapper
@@ -105,7 +132,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 
 		ortho_matrix  = ortho3d(left, right, bottom, top, -1, 1);
 
-		gl.Viewport(0, 0, w, h);
+		Viewport(0, 0, w, h);
 	}
 
 	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
@@ -143,7 +170,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	glfw.SetMouseButtonCallback(main_window, _glfw_mouse_button_callback);
 
 	// setup opengl
-	gl.load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
+	load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
 		proc(p: rawptr, name: string) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(&name[0]));
 		});
@@ -155,32 +182,32 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
 }
 
-vao: gl.VAO;
-vbo: gl.VBO;
+vao: VAO;
+vbo: VBO;
 
 Vertex :: struct {
 	vertex_position: Vec2,
 	tex_coord: Vec2,
-	color: Color,
+	color: Colorf,
 }
 
 init_opengl :: proc() {
-	vao = gl.gen_vao();
-	gl.bind_vao(vao);
+	vao = gen_vao();
+	bind_vao(vao);
 
-	vbo = gl.gen_buffer();
-	gl.bind_buffer(vbo);
+	vbo = gen_buffer();
+	bind_buffer(vbo);
 
-	gl.set_vertex_format(Vertex);
+	set_vertex_format(Vertex);
 
-	gl.ClearColor(0.2, 0.5, 0.8, 1.0);
-	gl.Enable(gl.BLEND);
-	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+	ClearColor(0.2, 0.5, 0.8, 1.0);
+	Enable(BLEND);
+	BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
 }
 
 Quad :: [6]Vertex;
 
-all_quads: [dynamic]Quad;
+queued_for_drawing: [dynamic]Quad;
 
 Sprite :: struct {
 	uvs: [4]Vec2,
@@ -188,34 +215,36 @@ Sprite :: struct {
 	height: i32,
 }
 
-WHITE := Color{1, 1, 1, 1};
-BLACK := Color{0, 0, 0, 1};
-RED   := Color{1, 0, 0, 1};
-GREEN := Color{0, 1, 0, 1};
-BLUE  := Color{0, 0, 1, 1};
+COLOR_WHITE := Colorf{1, 1, 1, 1};
+COLOR_BLACK := Colorf{0, 0, 0, 1};
+COLOR_RED   := Colorf{1, 0, 0, 1};
+COLOR_GREEN := Colorf{0, 1, 0, 1};
+COLOR_BLUE  := Colorf{0, 0, 1, 1};
 
 draw_colored_quad :: proc[draw_colored_quad_min_max, draw_colored_quad_points];
-
-draw_colored_quad_min_max :: proc(min, max: Vec2, color: Color) {
+draw_colored_quad_min_max :: inline proc(min, max: Vec2, color: Colorf) {
 	draw_colored_quad_points(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, color);
 }
-
-draw_colored_quad_points :: proc(p0, p1, p2, p3: Vec2, color: Color) {
+draw_colored_quad_points :: inline proc(p0, p1, p2, p3: Vec2, color: Colorf) {
 	draw_quad(p0, p1, p2, p3, Sprite{}, color);
 }
 
-draw_sprite :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
-	draw_quad(p0, p1, p2, p3, sprite, WHITE);
+draw_sprite :: proc[draw_sprite_no_color, draw_sprite_color];
+draw_sprite_no_color :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
+	draw_quad(p0, p1, p2, p3, sprite, COLOR_WHITE);
+}
+draw_sprite_color :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
+	draw_quad(p0, p1, p2, p3, sprite, color);
 }
 
-draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Color) {
+draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
 	v0 := Vertex{p0, sprite.uvs[0], color};
 	v1 := Vertex{p1, sprite.uvs[1], color};
 	v2 := Vertex{p2, sprite.uvs[2], color};
 	v3 := Vertex{p3, sprite.uvs[3], color};
 
 	quad := Quad{v0, v1, v2, v2, v3, v0};
-	append(&all_quads, quad);
+	append(&queued_for_drawing, quad);
 }
 
 make_vert_points :: proc(position, size: Vec2) -> (Vec2, Vec2, Vec2, Vec2) {
@@ -245,26 +274,26 @@ draw_sprite :: proc(sprite: Sprite, position, scale: Vec2) {
 	v3 := make_vertex(Vec2{ 1, -1}, position, scale, sprite, 3);
 	quad := Quad{v0, v1, v2, v2, v3, v0};
 
-	append(&all_quads, quad);
+	append(&queued_for_drawing, quad);
 }
 */
 
 draw_flush :: proc() {
-	if len(all_quads) == 0 do return;
+	if len(queued_for_drawing) == 0 do return;
 
-	program := gl.get_current_shader();
+	program := get_current_shader();
 
-	gl.uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
+	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
-	gl.bind_buffer(vbo);
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
+	bind_buffer(vbo);
+	BufferData(ARRAY_BUFFER, size_of(Vertex) * len(queued_for_drawing) * 6, &queued_for_drawing[0], STATIC_DRAW);
 
-	gl.uniform(program, "atlas_texture", 0);
-	gl.bind_texture2d(atlas_texture);
+	uniform(program, "atlas_texture", 0);
+	bind_texture2d(atlas_texture);
 
-	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);
+	DrawArrays(TRIANGLES, 0, cast(i32)len(queued_for_drawing) * 6);
 
-	clear(&all_quads);
+	clear(&queued_for_drawing);
 }
 
 get_string_width :: proc(str: string, font: Font) -> f32 {
@@ -279,19 +308,24 @@ get_string_width :: proc(str: string, font: Font) -> f32 {
 }
 
 // todo(josh): make this not be a draw call per call to draw_string()
-draw_string :: proc(str: string, font: Font, position: Vec2, color: Color) {
+draw_string :: proc(str: string, font: Font, position: Vec2, color: Colorf, size: f32) {
 	cur_x := position.x;
+	size_ratio := size / font.size;
+
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
-		total_width := mul(pixel_matrix, Vec4{pixel_width, 0, 0, 0}).x;
+		pixel_width *= size_ratio;
 
-		start  := mul(pixel_matrix, Vec4{quad.x0, 0, 0, 0}).x;
-		yoff   := mul(pixel_matrix, Vec4{0, quad.y1, 0, 0}).y;
-		height := abs(mul(pixel_matrix, Vec4{0, (quad.y1 - quad.y0), 0, 0}).y);
+		offset := mul(pixel_matrix, Vec4{quad.x0, quad.y1, 0, 0}) * size_ratio;
+		start  := offset.x;
+		yoff   := offset.y;
 
-		xpad_before := pixel_width - (pixel_width - quad.x0);
-		xpad_after := pixel_width - quad.x1;
-		char_width := mul(pixel_matrix, Vec4{(pixel_width - xpad_after - xpad_before), 0, 0, 0}).x;
+		left_padding := pixel_width - (pixel_width - quad.x0);
+		right_padding := pixel_width - quad.x1;
+
+		size   := mul(pixel_matrix, Vec4{(pixel_width - right_padding - left_padding), (quad.y1 - quad.y0), 0, 0}) * size_ratio;
+		width  := size.x;
+		height := abs(size.y);
 
 		uv0 := Vec2{quad.s0, quad.t1};
 		uv1 := Vec2{quad.s0, quad.t0};
@@ -301,32 +335,33 @@ draw_string :: proc(str: string, font: Font, position: Vec2, color: Color) {
 
 		x0 := cur_x + start;
 		y0 := position.y - yoff;
-		x1 := cur_x + start + char_width;
+		x1 := cur_x + start + width;
 		y1 := position.y - yoff + height;
 		draw_quad(Vec2{x0, y0}, Vec2{x0, y1}, Vec2{x1, y1}, Vec2{x1, y0}, sprite, color);
-		cur_x += total_width;
+		cur_x += (pixel_width * pixel_matrix[0][0]);
 	}
 
-	program := gl.get_current_shader();
-	gl.uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
+	program := get_current_shader();
+	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
-	gl.bind_buffer(vbo);
-	gl.BufferData(gl.ARRAY_BUFFER, size_of(Vertex) * len(all_quads) * 6, &all_quads[0], gl.STATIC_DRAW);
+	bind_buffer(vbo);
+	BufferData(ARRAY_BUFFER, size_of(Vertex) * len(queued_for_drawing) * 6, &queued_for_drawing[0], STATIC_DRAW);
 
-	gl.uniform(program, "atlas_texture", 0);
-	gl.bind_texture2d(font.texture);
+	uniform(program, "atlas_texture", 0);
+	bind_texture2d(font.texture);
 
-	gl.DrawArrays(gl.TRIANGLES, 0, cast(i32)len(all_quads) * 6);
+	DrawArrays(TRIANGLES, 0, cast(i32)len(queued_for_drawing) * 6);
 
-	clear(&all_quads);
+	clear(&queued_for_drawing);
 }
 
-STARTING_FONT_PIXEL_DIM :: 128;
+STARTING_FONT_PIXEL_DIM :: 256;
 
 Font :: struct {
 	dim: int,
+	size: f32,
 	chars: []stbtt.Baked_Char,
-	texture: gl.Texture,
+	texture: Texture,
 }
 
 load_font :: proc(path: string, size: f32) -> Font {
@@ -352,18 +387,16 @@ load_font :: proc(path: string, size: f32) -> Font {
 
 	stbiw.write_png("font.png", dim, dim, 1, pixels, 0);
 
-	texture := gl.gen_texture();
-	gl.bind_texture2d(texture);
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cast(i32)dim, cast(i32)dim, 0, gl.RED, gl.UNSIGNED_BYTE, &pixels[0]);
+	texture := gen_texture();
+	bind_texture2d(texture);
+    TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR);
+    TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR);
+	TexImage2D(TEXTURE_2D, 0, RGBA, cast(i32)dim, cast(i32)dim, 0, RED, UNSIGNED_BYTE, &pixels[0]);
 
-	fmt.println("dim for", path, "was", dim);
-
-	return Font{dim, chars, texture};
+	return Font{dim, size, chars, texture};
 }
 
-atlas_texture: gl.Texture;
+atlas_texture: Texture;
 atlas_loaded: bool;
 
 atlas_x: i32;
@@ -379,9 +412,9 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	if !atlas_loaded {
 		atlas_loaded = true;
 
-		atlas_texture = gl.gen_texture();
-		gl.bind_texture2d(atlas_texture);
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil);
+		atlas_texture = gen_texture();
+		bind_texture2d(atlas_texture);
+		TexImage2D(TEXTURE_2D, 0, RGBA, ATLAS_DIM, ATLAS_DIM, 0, RGBA, UNSIGNED_BYTE, nil);
 	}
 
 	stbi.set_flip_vertically_on_load(1);
@@ -389,7 +422,7 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	texture_data := stbi.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
 	assert(texture_data != nil);
 
-	gl.bind_texture2d(atlas_texture);
+	bind_texture2d(atlas_texture);
 
 	if atlas_x + sprite_width > ATLAS_DIM {
 		atlas_y += biggest_height;
@@ -398,11 +431,11 @@ load_sprite :: proc(filepath: string) -> Sprite {
 	}
 
 	if sprite_height > biggest_height do biggest_height = sprite_height;
-	gl.TexSubImage2D(gl.TEXTURE_2D, 0, atlas_x, atlas_y, sprite_width, sprite_height, gl.RGBA, gl.UNSIGNED_BYTE, texture_data);
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.MIRRORED_REPEAT);
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.MIRRORED_REPEAT);
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	TexSubImage2D(TEXTURE_2D, 0, atlas_x, atlas_y, sprite_width, sprite_height, RGBA, UNSIGNED_BYTE, texture_data);
+	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_S, MIRRORED_REPEAT);
+	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_T, MIRRORED_REPEAT);
+	TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, NEAREST);
+	TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST);
 	bottom_left_x := cast(f32)atlas_x / ATLAS_DIM;
 	bottom_left_y := cast(f32)atlas_y / ATLAS_DIM;
 
