@@ -293,47 +293,43 @@ get_string_width :: proc(str: string, font: Font, size: f32) -> f32 {
 }
 
 // todo(josh): make this not be a draw call per call to draw_string()
-draw_string :: proc(str: string, font: Font, position: Vec2, color: Colorf, size: f32, silent := false) -> f32 {
+draw_string :: proc(str: string, font: Font, position: Vec2, color: Colorf, size: f32) -> f32 {
 	size_ratio := get_size_ratio_for_font(font, size);
 	cur_x := position.x;
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
 		pixel_width *= size_ratio;
 
-		if !silent {
-			offset := mul(pixel_matrix, Vec4{quad.x0, quad.y1, 0, 0}) * size_ratio;
-			start  := offset.x;
-			yoff   := offset.y;
+		offset := mul(pixel_matrix, Vec4{quad.x0, quad.y1, 0, 0}) * size_ratio;
+		start  := offset.x;
+		yoff   := offset.y;
 
-			left_padding := pixel_width - (pixel_width - quad.x0);
-			right_padding := pixel_width - quad.x1;
+		left_padding := pixel_width - (pixel_width - quad.x0);
+		right_padding := pixel_width - quad.x1;
 
-			size   := mul(pixel_matrix, Vec4{(pixel_width - right_padding - left_padding), (quad.y1 - quad.y0), 0, 0}) * size_ratio;
-			width  := size.x;
-			height := abs(size.y);
+		size   := mul(pixel_matrix, Vec4{(pixel_width - right_padding - left_padding), (quad.y1 - quad.y0), 0, 0}) * size_ratio;
+		width  := size.x;
+		height := abs(size.y);
 
-			uv0 := Vec2{quad.s0, quad.t1};
-			uv1 := Vec2{quad.s0, quad.t0};
-			uv2 := Vec2{quad.s1, quad.t0};
-			uv3 := Vec2{quad.s1, quad.t1};
-			sprite := Sprite{{uv0, uv1, uv2, uv3}, 0, 0};
+		uv0 := Vec2{quad.s0, quad.t1};
+		uv1 := Vec2{quad.s0, quad.t0};
+		uv2 := Vec2{quad.s1, quad.t0};
+		uv3 := Vec2{quad.s1, quad.t1};
+		sprite := Sprite{{uv0, uv1, uv2, uv3}, 0, 0};
 
-			x0 := cur_x + start;
-			y0 := position.y - yoff;
-			x1 := cur_x + start + width;
-			y1 := position.y - yoff + height;
-			bl := Vec2{x0, y0};
-			tr := Vec2{x1, y1};
+		x0 := cur_x + start;
+		y0 := position.y - yoff;
+		x1 := cur_x + start + width;
+		y1 := position.y - yoff + height;
+		bl := Vec2{x0, y0};
+		tr := Vec2{x1, y1};
 
-			draw_quad(bl, tr, sprite, color);
-		}
+		draw_quad(bl, tr, sprite, color);
 
 		cur_x += (pixel_width * pixel_matrix[0][0]);
 	}
 
-	if !silent {
-		_draw_flush_with_texture(font.texture);
-	}
+	_draw_flush_with_texture(font.texture);
 
 	width := cur_x - position.x;
 	return width;
