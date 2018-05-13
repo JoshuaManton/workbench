@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 06-05-2018 14:46:54 UTC-8
+ *  @Last Time: 13-05-2018 01:29:54 UTC-8
  *
  *  @Description:
  *
@@ -18,6 +18,7 @@ using import "core:math.odin"
 
       export "shared:odin-gl/gl.odin"
 
+using import "logging.odin"
       import "basic.odin"
       import "types.odin"
 
@@ -54,10 +55,17 @@ bind_buffer :: inline proc(vbo: VBO) {
 
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	vs_code, ok1 := os.read_entire_file(vs);
-	assert(ok1);
+	if !ok1 {
+		log("Couldn't open shader file: ", vs);
+		return Shader_Program{}, false;
+	}
 	defer free(vs_code);
+
 	fs_code, ok2 := os.read_entire_file(fs);
-	assert(ok2);
+	if !ok2 {
+		log("Couldn't open shader file: ", fs);
+		return Shader_Program{}, false;
+	}
 	defer free(fs_code);
 
 	program, ok := load_shader_text(cast(string)vs_code, cast(string)fs_code);
