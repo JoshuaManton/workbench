@@ -272,7 +272,7 @@ swap_buffers :: inline proc() {
 	glfw.SwapBuffers(main_window);
 }
 
-get_size_ratio_for_font :: inline proc(font: Font, _size: f32) -> f32 {
+_get_size_ratio_for_font :: inline proc(font: Font, _size: f32) -> f32 {
 	size := _size / 2; // not sure why this is necessary but the text was being drawn twice as big as it should be
 	pixel_size := mul(transform_matrix, Vec4{0, size, 0, 0}).y;
 	pixel_size *= cast(f32)current_window_height;
@@ -281,7 +281,7 @@ get_size_ratio_for_font :: inline proc(font: Font, _size: f32) -> f32 {
 }
 
 get_string_width :: proc(str: string, font: Font, size: f32) -> f32 {
-	size_ratio := get_size_ratio_for_font(font, size);
+	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_width : f32 = 0;
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
@@ -294,7 +294,7 @@ get_string_width :: proc(str: string, font: Font, size: f32) -> f32 {
 
 // todo(josh): make this not be a draw call per call to draw_string()
 draw_string :: proc(str: string, font: Font, position: Vec2, color: Colorf, size: f32) -> f32 {
-	size_ratio := get_size_ratio_for_font(font, size);
+	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_x := position.x;
 	for c in str {
 		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
