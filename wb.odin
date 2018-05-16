@@ -53,7 +53,7 @@ rendering_world_space :: proc(location := #caller_location) {
 	transform_matrix = translate(transform_matrix, -cam_offset);
 
 	pixel_matrix = identity(Mat4);
-	pixel_matrix = scale(pixel_matrix, 1.0 / PPU);
+	pixel_matrix = scale(pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
 }
 
 rendering_unit_space :: proc(location := #caller_location) {
@@ -221,30 +221,30 @@ COLOR_RED   := Colorf{1, 0, 0, 1};
 COLOR_GREEN := Colorf{0, 1, 0, 1};
 COLOR_BLUE  := Colorf{0, 0, 1, 1};
 
-draw_quad :: proc[draw_quad_min_max_color, draw_quad_min_max_sprite, draw_quad_min_max_sprite_color,
-                  draw_quad_points_color,  draw_quad_points_sprite,  draw_quad_points_sprite_color];
+push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
+                  push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color];
 
-draw_quad_min_max_color :: inline proc(min, max: Vec2, color: Colorf) {
-	_draw_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color);
+push_quad_min_max_color :: inline proc(min, max: Vec2, color: Colorf) {
+	_push_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color);
 }
-draw_quad_min_max_sprite :: inline proc(min, max: Vec2, sprite: Sprite) {
-	_draw_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE);
+push_quad_min_max_sprite :: inline proc(min, max: Vec2, sprite: Sprite) {
+	_push_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE);
 }
-draw_quad_min_max_sprite_color :: inline proc(min, max: Vec2, sprite: Sprite, color: Colorf) {
-	_draw_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color);
-}
-
-draw_quad_points_color :: inline proc(p0, p1, p2, p3: Vec2, color: Colorf) {
-	_draw_quad(p0, p1, p2, p3, Sprite{}, color);
-}
-draw_quad_points_sprite :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
-	_draw_quad(p0, p1, p2, p3, sprite, COLOR_WHITE);
-}
-draw_quad_points_sprite_color :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
-	_draw_quad(p0, p1, p2, p3, sprite, color);
+push_quad_min_max_sprite_color :: inline proc(min, max: Vec2, sprite: Sprite, color: Colorf) {
+	_push_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color);
 }
 
-_draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
+push_quad_points_color :: inline proc(p0, p1, p2, p3: Vec2, color: Colorf) {
+	_push_quad(p0, p1, p2, p3, Sprite{}, color);
+}
+push_quad_points_sprite :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
+	_push_quad(p0, p1, p2, p3, sprite, COLOR_WHITE);
+}
+push_quad_points_sprite_color :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
+	_push_quad(p0, p1, p2, p3, sprite, color);
+}
+
+_push_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
 	v0 := Vertex{p0, sprite.uvs[0], color};
 	v1 := Vertex{p1, sprite.uvs[1], color};
 	v2 := Vertex{p2, sprite.uvs[2], color};
@@ -257,22 +257,16 @@ _draw_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
 	append(&queued_for_drawing, v0);
 }
 
-draw_vertex :: proc(position: Vec2, color: Colorf) {
+push_vertex :: proc(position: Vec2, color: Colorf) {
 	vertex := Vertex{position, Vec2{}, color};
 	append(&queued_for_drawing, vertex);
-}
-
-draw_flush :: proc() {
-	if len(queued_for_drawing) == 0 do return;
-
-	_draw_flush_with_texture(atlas_texture);
 }
 
 swap_buffers :: inline proc() {
 	glfw.SwapBuffers(main_window);
 }
 
-_get_size_ratio_for_font :: inline proc(font: Font, _size: f32) -> f32 {
+_get_size_ratio_for_font :: inline proc(font: ^Font, _size: f32) -> f32 {
 	size := _size / 2; // not sure why this is necessary but the text was being drawn twice as big as it should be
 	pixel_size := mul(transform_matrix, Vec4{0, size, 0, 0}).y;
 	pixel_size *= cast(f32)current_window_height;
@@ -280,7 +274,7 @@ _get_size_ratio_for_font :: inline proc(font: Font, _size: f32) -> f32 {
 	return size_ratio;
 }
 
-get_string_width :: proc(str: string, font: Font, size: f32) -> f32 {
+get_string_width :: proc(str: string, font: ^Font, size: f32) -> f32 {
 	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_width : f32 = 0;
 	for c in str {
@@ -292,8 +286,15 @@ get_string_width :: proc(str: string, font: Font, size: f32) -> f32 {
 	return cur_width;
 }
 
-// todo(josh): make this not be a draw call per call to draw_string()
-draw_string :: proc(str: string, font: Font, position: Vec2, color: Colorf, size: f32) -> f32 {
+draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f32 {
+	when DEVELOPER {
+		if bound_font == nil {
+			log("Called draw_string() without first binding a font. Make sure you call bind_font() first.");
+			return -1;
+		}
+	}
+
+	font := bound_font;
 	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_x := position.x;
 	for c in str {
@@ -324,26 +325,30 @@ draw_string :: proc(str: string, font: Font, position: Vec2, color: Colorf, size
 		bl := Vec2{x0, y0};
 		tr := Vec2{x1, y1};
 
-		draw_quad(bl, tr, sprite, color);
+		push_quad(bl, tr, sprite, color);
 
 		cur_x += (pixel_width * pixel_matrix[0][0]);
 	}
-
-	_draw_flush_with_texture(font.texture);
 
 	width := cur_x - position.x;
 	return width;
 }
 
-_draw_flush_with_texture :: proc(texture: Texture) {
+draw_flush :: proc(loc := #caller_location) {
+	when DEVELOPER {
+		if len(queued_for_drawing) == 0 {
+			log("Called draw_flush() with nothing queued for drawing. Caller: ", loc);
+			return;
+		}
+	}
+
 	program := get_current_shader();
 	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
-	bind_buffer(vbo);
+	// bind_buffer(vbo);
 	BufferData(ARRAY_BUFFER, size_of(Vertex) * len(queued_for_drawing), &queued_for_drawing[0], STATIC_DRAW);
 
 	uniform(program, "atlas_texture", 0);
-	bind_texture2d(texture);
 
 	DrawArrays(TRIANGLES, 0, cast(i32)len(queued_for_drawing));
 
@@ -352,6 +357,8 @@ _draw_flush_with_texture :: proc(texture: Texture) {
 
 STARTING_FONT_PIXEL_DIM :: 256;
 
+bound_font: ^Font;
+
 Font :: struct {
 	dim: int,
 	size: f32,
@@ -359,17 +366,19 @@ Font :: struct {
 	texture: Texture,
 }
 
-load_font :: proc(path: string, size: f32) -> (Font, bool) {
+load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	data, ok := os.read_entire_file(path);
 	if !ok {
 		log("Couldn't open font: ", path);
-		return Font{}, false;
+		return nil, false;
 	}
 	defer free(data);
 
 	pixels: []u8;
 	chars:  []stbtt.Baked_Char;
 	dim := STARTING_FONT_PIXEL_DIM;
+
+	// @InfiniteLoop
 	for {
 		pixels = make([]u8, dim * dim);
 		ret: int;
@@ -389,54 +398,78 @@ load_font :: proc(path: string, size: f32) -> (Font, bool) {
     TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR);
 	TexImage2D(TEXTURE_2D, 0, RGBA, cast(i32)dim, cast(i32)dim, 0, RED, UNSIGNED_BYTE, &pixels[0]);
 
-	return Font{dim, size, chars, texture}, true;
+	font := new_clone(Font{dim, size, chars, texture});
+	return font, true;
 }
 
-atlas_texture: Texture;
-atlas_loaded: bool;
+bind_font :: inline proc(font: ^Font) {
+	bound_font = font;
+	bind_texture2d(font.texture);
+}
 
-atlas_x: i32;
-atlas_y: i32;
-biggest_height: i32;
+destroy_font :: inline proc(font: ^Font) {
+	free(font.chars);
+	delete_texture(font.texture);
+	free(font);
+}
 
 ATLAS_DIM :: 2048;
 
-PPU :: 64;
+PIXELS_PER_WORLD_UNIT :: 64;
 
-load_sprite :: proc(filepath: string) -> (Sprite, bool) {
-	// todo(josh): Handle multiple texture atlases
-	if !atlas_loaded {
-		atlas_loaded = true;
+Texture_Atlas :: struct {
+	id: Texture,
+	atlas_x: i32,
+	atlas_y: i32,
+	biggest_height: i32,
+}
 
-		atlas_texture = gen_texture();
-		bind_texture2d(atlas_texture);
-		TexImage2D(TEXTURE_2D, 0, RGBA, ATLAS_DIM, ATLAS_DIM, 0, RGBA, UNSIGNED_BYTE, nil);
-	}
+create_atlas :: proc() -> ^Texture_Atlas {
+	texture := gen_texture();
+	bind_texture2d(texture);
+	TexImage2D(TEXTURE_2D, 0, RGBA, ATLAS_DIM, ATLAS_DIM, 0, RGBA, UNSIGNED_BYTE, nil);
 
+	data := new_clone(Texture_Atlas{texture, 0, 0, 0});
+
+	return data;
+}
+
+bind_atlas :: inline proc(atlas: ^Texture_Atlas) {
+	bind_texture2d(atlas.id);
+}
+
+destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
+	delete_texture(atlas.id);
+	free(atlas);
+}
+
+load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool) {
 	stbi.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
-	texture_data := stbi.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
-	if texture_data == nil {
+	pixel_data := stbi.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
+	if pixel_data == nil {
 		log("Couldn't load sprite: ", filepath);
 		return Sprite{}, false;
 	}
 
-	bind_texture2d(atlas_texture);
+	defer stbi.image_free(pixel_data);
 
-	if atlas_x + sprite_width > ATLAS_DIM {
-		atlas_y += biggest_height;
-		biggest_height = 0;
-		atlas_x = 0;
+	bind_texture2d(texture.id);
+
+	if texture.atlas_x + sprite_width > ATLAS_DIM {
+		texture.atlas_y += texture.biggest_height;
+		texture.biggest_height = 0;
+		texture.atlas_x = 0;
 	}
 
-	if sprite_height > biggest_height do biggest_height = sprite_height;
-	TexSubImage2D(TEXTURE_2D, 0, atlas_x, atlas_y, sprite_width, sprite_height, RGBA, UNSIGNED_BYTE, texture_data);
+	if sprite_height > texture.biggest_height do texture.biggest_height = sprite_height;
+	TexSubImage2D(TEXTURE_2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, RGBA, UNSIGNED_BYTE, pixel_data);
 	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_S, MIRRORED_REPEAT);
 	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_T, MIRRORED_REPEAT);
 	TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, NEAREST);
 	TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST);
-	bottom_left_x := cast(f32)atlas_x / ATLAS_DIM;
-	bottom_left_y := cast(f32)atlas_y / ATLAS_DIM;
+	bottom_left_x := cast(f32)texture.atlas_x / ATLAS_DIM;
+	bottom_left_y := cast(f32)texture.atlas_y / ATLAS_DIM;
 
 	width_fraction  := cast(f32)sprite_width / ATLAS_DIM;
 	height_fraction := cast(f32)sprite_height / ATLAS_DIM;
@@ -448,9 +481,9 @@ load_sprite :: proc(filepath: string) -> (Sprite, bool) {
 		{bottom_left_x + width_fraction, bottom_left_y},
 	};
 
-	atlas_x += sprite_height;
+	texture.atlas_x += sprite_height;
 
-	sprite := Sprite{coords, sprite_width / PPU, sprite_height / PPU};
+	sprite := Sprite{coords, sprite_width / PIXELS_PER_WORLD_UNIT, sprite_height / PIXELS_PER_WORLD_UNIT};
 	return sprite, true;
 }
 

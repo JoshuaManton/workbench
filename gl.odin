@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 13-05-2018 01:29:54 UTC-8
+ *  @Last Time: 15-05-2018 18:36:57 UTC-8
  *
  *  @Description:
  *
@@ -49,6 +49,10 @@ gen_buffer :: inline proc() -> VBO {
 
 bind_buffer :: inline proc(vbo: VBO) {
 	BindBuffer(ARRAY_BUFFER, cast(u32)vbo);
+}
+
+delete_buffer :: inline proc(vbo: VBO) {
+	DeleteBuffers(1, cast(^u32)&vbo);
 }
 
 
@@ -162,6 +166,10 @@ bind_texture1d :: inline proc(texture: Texture) {
 
 bind_texture2d :: inline proc(texture: Texture) {
 	BindTexture(TEXTURE_2D, cast(u32)texture);
+}
+
+delete_texture :: inline proc(texture: Texture) {
+	DeleteTextures(1, cast(^u32)&texture);
 }
 
 // ActiveTexture() is guaranteed to go from 0-47 on all implementations of OpenGL, but can go higher on some
