@@ -3,9 +3,9 @@
       import       "core:mem.odin"
       import       "core:os.odin"
 
-      import stbi  "shared:odin-stb/stb_image.odin"
-      import stbiw "shared:odin-stb/stb_image_write.odin"
-      import stbtt "shared:odin-stb/stb_truetype.odin"
+      import stbi  "stb_image.odin"
+      import stbiw "stb_image_write.odin"
+      import stbtt "stb_truetype.odin"
 
       import       "glfw.odin"
 
@@ -257,7 +257,7 @@ _push_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
 	append(&queued_for_drawing, v0);
 }
 
-push_vertex :: proc(position: Vec2, color: Colorf) {
+push_vertex :: inline proc(position: Vec2, color: Colorf) {
 	vertex := Vertex{position, Vec2{}, color};
 	append(&queued_for_drawing, vertex);
 }
@@ -424,7 +424,7 @@ Texture_Atlas :: struct {
 	biggest_height: i32,
 }
 
-create_atlas :: proc() -> ^Texture_Atlas {
+create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gen_texture();
 	bind_texture2d(texture);
 	TexImage2D(TEXTURE_2D, 0, RGBA, ATLAS_DIM, ATLAS_DIM, 0, RGBA, UNSIGNED_BYTE, nil);
@@ -607,7 +607,7 @@ _glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.
 	}
 }
 
-get_mouse :: proc(mouse: glfw.Mouse) -> bool {
+get_mouse :: inline proc(mouse: glfw.Mouse) -> bool {
 	for mouse_held in _mouse_held {
 		if mouse_held.input.(glfw.Mouse) == mouse {
 			return true;
@@ -616,7 +616,7 @@ get_mouse :: proc(mouse: glfw.Mouse) -> bool {
 	return false;
 }
 
-get_mouse_down :: proc(mouse: glfw.Mouse) -> bool {
+get_mouse_down :: inline proc(mouse: glfw.Mouse) -> bool {
 	for mouse_down in _mouse_down {
 		if mouse_down.input.(glfw.Mouse) == mouse {
 			return true;
@@ -625,7 +625,7 @@ get_mouse_down :: proc(mouse: glfw.Mouse) -> bool {
 	return false;
 }
 
-get_mouse_up :: proc(mouse: glfw.Mouse) -> bool {
+get_mouse_up :: inline proc(mouse: glfw.Mouse) -> bool {
 	for mouse_up in _mouse_up {
 		if mouse_up.input.(glfw.Mouse) == mouse {
 			return true;
@@ -634,7 +634,7 @@ get_mouse_up :: proc(mouse: glfw.Mouse) -> bool {
 	return false;
 }
 
-get_key :: proc(key: glfw.Key) -> bool {
+get_key :: inline proc(key: glfw.Key) -> bool {
 	for held in _held {
 		if held.input.(glfw.Key) == key {
 			return true;
@@ -643,7 +643,7 @@ get_key :: proc(key: glfw.Key) -> bool {
 	return false;
 }
 
-get_key_down :: proc(key: glfw.Key) -> bool {
+get_key_down :: inline proc(key: glfw.Key) -> bool {
 	for down in _down {
 		if down.input.(glfw.Key) == key {
 			return true;
@@ -652,7 +652,7 @@ get_key_down :: proc(key: glfw.Key) -> bool {
 	return false;
 }
 
-get_key_up :: proc(key: glfw.Key) -> bool {
+get_key_up :: inline proc(key: glfw.Key) -> bool {
 	for up in _up {
 		if up.input.(glfw.Key) == key {
 			return true;

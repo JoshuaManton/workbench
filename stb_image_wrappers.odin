@@ -1,10 +1,10 @@
-import      "core:raw.odin"
-import      "core:mem.odin"
-import      "core:fmt.odin"
+import "core:raw.odin"
+import "core:mem.odin"
+import "core:fmt.odin"
 
-import stbi "shared:odin-stb/stb_image.odin"
+export "shared:odin-stb/stb_image.odin"
 
-import      "types.odin"
+import "types.odin"
 
 load :: proc[load_wrapper, stbi.load];
 
