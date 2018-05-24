@@ -1,7 +1,8 @@
-      import       "core:fmt.odin"
+using import       "core:fmt.odin"
       import       "core:strings.odin"
       import       "core:mem.odin"
       import       "core:os.odin"
+      import win32 "core:sys/windows.odin"
 
       import stbi  "stb_image.odin"
       import stbiw "stb_image_write.odin"
@@ -9,9 +10,9 @@
 
       import       "glfw.odin"
 
+      export       "gl.odin"
       export       "types.odin"
       export       "collision.odin"
-      export       "gl.odin"
       export       "math.odin"
       export       "basic.odin"
       export       "logging.odin"
@@ -37,7 +38,7 @@ cursor_screen_position: Vec2;
 
 when DEVELOPER {
 	unflushed_draws_warning :: proc(procedure: string, location: Source_Code_Location) {
-		log("WARNING: Call to ", procedure, "() at ", file_from_path(location.file_path), ":", location.line, " but there are unflushed draws.");
+		logln("WARNING: Call to ", procedure, "() at ", file_from_path(location.file_path), ":", location.line, " but there are unflushed draws.");
 	}
 }
 
@@ -185,12 +186,6 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 vao: VAO;
 vbo: VBO;
 
-Vertex :: struct {
-	vertex_position: Vec2,
-	tex_coord: Vec2,
-	color: Colorf,
-}
-
 init_opengl :: proc() {
 	vao = gen_vao();
 	bind_vao(vao);
@@ -198,16 +193,22 @@ init_opengl :: proc() {
 	vbo = gen_buffer();
 	bind_buffer(vbo);
 
-	set_vertex_format(Vertex);
+	set_vertex_format(Vertex_Type);
 
 	ClearColor(0.2, 0.5, 0.8, 1.0);
 	Enable(BLEND);
 	BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
 }
 
-Quad :: [6]Vertex;
+Vertex_Type :: struct {
+	vertex_position: Vec2,
+	tex_coord: Vec2,
+	color: Colorf,
+}
 
-queued_for_drawing: [dynamic]Vertex;
+Quad :: [6]Vertex_Type;
+
+queued_for_drawing: [dynamic]Vertex_Type;
 
 Sprite :: struct {
 	uvs: [4]Vec2,
@@ -245,10 +246,10 @@ push_quad_points_sprite_color :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprit
 }
 
 _push_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
-	v0 := Vertex{p0, sprite.uvs[0], color};
-	v1 := Vertex{p1, sprite.uvs[1], color};
-	v2 := Vertex{p2, sprite.uvs[2], color};
-	v3 := Vertex{p3, sprite.uvs[3], color};
+	v0 := Vertex_Type{p0, sprite.uvs[0], color};
+	v1 := Vertex_Type{p1, sprite.uvs[1], color};
+	v2 := Vertex_Type{p2, sprite.uvs[2], color};
+	v3 := Vertex_Type{p3, sprite.uvs[3], color};
 	append(&queued_for_drawing, v0);
 	append(&queued_for_drawing, v1);
 	append(&queued_for_drawing, v2);
@@ -258,7 +259,7 @@ _push_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
 }
 
 push_vertex :: inline proc(position: Vec2, color: Colorf) {
-	vertex := Vertex{position, Vec2{}, color};
+	vertex := Vertex_Type{position, Vec2{}, color};
 	append(&queued_for_drawing, vertex);
 }
 
@@ -289,7 +290,7 @@ get_string_width :: proc(str: string, font: ^Font, size: f32) -> f32 {
 draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f32 {
 	when DEVELOPER {
 		if bound_font == nil {
-			log("Called draw_string() without first binding a font. Make sure you call bind_font() first.");
+			logln("Called draw_string() without first binding a font. Make sure you call bind_font() first.");
 			return -1;
 		}
 	}
@@ -337,7 +338,7 @@ draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f3
 draw_flush :: proc(loc := #caller_location) {
 	when DEVELOPER {
 		if len(queued_for_drawing) == 0 {
-			log("Called draw_flush() with nothing queued for drawing. Caller: ", loc);
+			logln("Called draw_flush() with nothing queued for drawing. Caller: ", loc);
 			return;
 		}
 	}
@@ -346,7 +347,7 @@ draw_flush :: proc(loc := #caller_location) {
 	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
 	// bind_buffer(vbo);
-	BufferData(ARRAY_BUFFER, size_of(Vertex) * len(queued_for_drawing), &queued_for_drawing[0], STATIC_DRAW);
+	BufferData(ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], STATIC_DRAW);
 
 	uniform(program, "atlas_texture", 0);
 
@@ -369,7 +370,7 @@ Font :: struct {
 load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	data, ok := os.read_entire_file(path);
 	if !ok {
-		log("Couldn't open font: ", path);
+		logln("Couldn't open font: ", path);
 		return nil, false;
 	}
 	defer free(data);
@@ -448,7 +449,7 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 	sprite_width, sprite_height, channels: i32;
 	pixel_data := stbi.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
 	if pixel_data == nil {
-		log("Couldn't load sprite: ", filepath);
+		logln("Couldn't load sprite: ", filepath);
 		return Sprite{}, false;
 	}
 
@@ -485,6 +486,43 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 
 	sprite := Sprite{coords, sprite_width / PIXELS_PER_WORLD_UNIT, sprite_height / PIXELS_PER_WORLD_UNIT};
 	return sprite, true;
+}
+
+//
+// Game loop stuff
+//
+
+DT : f32 = 1.0 / 60;
+
+frame_count: u64;
+time: f32;
+last_delta_time: f32;
+fps_to_draw: f32;
+
+start_game_loop :: proc(update: proc(f32), render: proc()) {
+	acc: f32;
+	for !window_should_close(main_window) {
+		frame_start := win32.time_get_time();
+
+		last_time := time;
+		time = cast(f32)glfw.GetTime();
+		last_delta_time = time - last_time;
+
+		acc += last_delta_time;
+		for acc >= DT {
+			frame_count += 1;
+			acc -= DT;
+			update_input();
+			update(DT);
+		}
+
+		Clear(COLOR_BUFFER_BIT);
+		render();
+		frame_end := win32.time_get_time();
+
+		glfw.SwapBuffers(main_window);
+		log_gl_errors("after SwapBuffers()");
+	}
 }
 
 //

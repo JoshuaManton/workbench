@@ -6,7 +6,7 @@
  *  @Creation: 21-12-2017 07:19:30 UTC-8
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 15-05-2018 18:36:57 UTC-8
+ *  @Last Time: 24-05-2018 08:30:16 UTC-8
  *
  *  @Description:
  *
@@ -20,7 +20,7 @@ using import "core:math.odin"
 
 using import "logging.odin"
       import "basic.odin"
-      import "types.odin"
+using import "types.odin"
 
 Shader_Program :: distinct u32;
 VAO :: distinct u32;
@@ -60,14 +60,14 @@ delete_buffer :: inline proc(vbo: VBO) {
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	vs_code, ok1 := os.read_entire_file(vs);
 	if !ok1 {
-		log("Couldn't open shader file: ", vs);
+		logln("Couldn't open shader file: ", vs);
 		return Shader_Program{}, false;
 	}
 	defer free(vs_code);
 
 	fs_code, ok2 := os.read_entire_file(fs);
 	if !ok2 {
-		log("Couldn't open shader file: ", fs);
+		logln("Couldn't open shader file: ", fs);
 		return Shader_Program{}, false;
 	}
 	defer free(fs_code);
@@ -208,8 +208,6 @@ get_uniform_location :: inline proc(program: Shader_Program, str: string) -> i32
 	return loc;
 }
 
-
-
 set_vertex_format :: proc(vertex_type: type) {
 	ti := type_info_base(type_info_of(vertex_type)).variant.(Type_Info_Struct);
 
@@ -221,7 +219,7 @@ set_vertex_format :: proc(vertex_type: type) {
 		type_of_elements: u32;
 
 		a: any;
-		a.type_info = ti.types[i];
+		a.typeid = typeid_of(ti.types[i]);
 		switch kind in a {
 			case Vec2: {
 				num_elements = 2;
@@ -231,11 +229,11 @@ set_vertex_format :: proc(vertex_type: type) {
 				num_elements = 3;
 				type_of_elements = FLOAT;
 			}
-			case Vec4, types.Colorf: {
+			case Vec4, Colorf: {
 				num_elements = 4;
 				type_of_elements = FLOAT;
 			}
-			case types.Colori: {
+			case Colori: {
 				num_elements = 4;
 				type_of_elements = UNSIGNED_BYTE;
 			}
