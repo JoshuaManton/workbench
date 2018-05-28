@@ -11,6 +11,7 @@ using import       "core:fmt.odin"
       import       "glfw.odin"
 
       export       "gl.odin"
+      export       "input.odin"
       export       "types.odin"
       export       "collision.odin"
       export       "math.odin"
@@ -36,16 +37,8 @@ current_aspect_ratio:  f32;
 
 cursor_screen_position: Vec2;
 
-when DEVELOPER {
-	unflushed_draws_warning :: proc(procedure: string, location: Source_Code_Location) {
-		logln("WARNING: Call to ", procedure, "() at ", file_from_path(location.file_path), ":", location.line, " but there are unflushed draws.");
-	}
-}
-
 rendering_world_space :: proc(location := #caller_location) {
-	when DEVELOPER {
-		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
-	}
+	draw_flush();
 
 	transform_matrix = mul(identity(Mat4), ortho_matrix);
 	transform_matrix = scale(transform_matrix, 1.0 / camera_size);
@@ -58,9 +51,7 @@ rendering_world_space :: proc(location := #caller_location) {
 }
 
 rendering_unit_space :: proc(location := #caller_location) {
-	when DEVELOPER {
-		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
-	}
+	draw_flush();
 
 	transform_matrix = identity(Mat4);
 	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
@@ -71,9 +62,7 @@ rendering_unit_space :: proc(location := #caller_location) {
 }
 
 rendering_pixel_space :: proc(location := #caller_location) {
-	when DEVELOPER {
-		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
-	}
+	draw_flush();
 
 	transform_matrix = identity(Mat4);
 	transform_matrix = scale(transform_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
@@ -84,11 +73,17 @@ rendering_pixel_space :: proc(location := #caller_location) {
 }
 
 set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
-	when DEVELOPER {
-		if len(queued_for_drawing) > 0 do unflushed_draws_warning(#procedure, location);
-	}
+	draw_flush();
 
+	current_shader = program;
 	use_program(program);
+}
+
+set_texture :: inline proc(texture: Texture, location := #caller_location) {
+	draw_flush();
+
+	current_texture = texture;
+	bind_texture2d(texture);
 }
 
 // glfw wrapper
@@ -137,7 +132,7 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	}
 
 	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-		cursor_screen_position = Vec2{cast(f32)x, cast(f32)y};
+		cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
 	}
 
 	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
@@ -170,6 +165,10 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	glfw.SetKeyCallback(main_window, _glfw_key_callback);
 	glfw.SetMouseButtonCallback(main_window, _glfw_mouse_button_callback);
 
+	// :GlfwJoystickPollEventsCrash
+	// this is crashing when I call PollEvents when I unplug a controller for some reason
+	// glfw.SetJoystickCallback(main_window, _glfw_joystick_callback);
+
 	// setup opengl
 	load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
 		proc(p: rawptr, name: string) {
@@ -200,66 +199,89 @@ init_opengl :: proc() {
 	BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
 }
 
+queued_for_drawing: [dynamic]Vertex_Type;
+debug_lines:        [dynamic]Line_Segment;
+
 Vertex_Type :: struct {
 	vertex_position: Vec2,
 	tex_coord: Vec2,
 	color: Colorf,
 }
 
-Quad :: [6]Vertex_Type;
+Line_Segment :: struct {
+	a, b: Vec2,
+	color: Colorf,
+}
 
-queued_for_drawing: [dynamic]Vertex_Type;
+draw_line :: inline proc(a, b: Vec2, color: Colorf) {
+	append(&debug_lines, Line_Segment{a, b, color});
+}
 
 Sprite :: struct {
 	uvs: [4]Vec2,
-	width: i32,
-	height: i32,
+	width: f32,
+	height: f32,
+	id: Texture,
 }
 
 COLOR_WHITE := Colorf{1, 1, 1, 1};
-COLOR_BLACK := Colorf{0, 0, 0, 1};
 COLOR_RED   := Colorf{1, 0, 0, 1};
 COLOR_GREEN := Colorf{0, 1, 0, 1};
 COLOR_BLUE  := Colorf{0, 0, 1, 1};
+COLOR_BLACK := Colorf{0, 0, 0, 1};
 
 push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
                   push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color];
 
-push_quad_min_max_color :: inline proc(min, max: Vec2, color: Colorf) {
-	_push_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color);
+push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color);
 }
-push_quad_min_max_sprite :: inline proc(min, max: Vec2, sprite: Sprite) {
-	_push_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE);
+push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE);
 }
-push_quad_min_max_sprite_color :: inline proc(min, max: Vec2, sprite: Sprite, color: Colorf) {
-	_push_quad(min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color);
-}
-
-push_quad_points_color :: inline proc(p0, p1, p2, p3: Vec2, color: Colorf) {
-	_push_quad(p0, p1, p2, p3, Sprite{}, color);
-}
-push_quad_points_sprite :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite) {
-	_push_quad(p0, p1, p2, p3, sprite, COLOR_WHITE);
-}
-push_quad_points_sprite_color :: inline proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
-	_push_quad(p0, p1, p2, p3, sprite, color);
+push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color);
 }
 
-_push_quad :: proc(p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
-	v0 := Vertex_Type{p0, sprite.uvs[0], color};
-	v1 := Vertex_Type{p1, sprite.uvs[1], color};
-	v2 := Vertex_Type{p2, sprite.uvs[2], color};
-	v3 := Vertex_Type{p3, sprite.uvs[3], color};
-	append(&queued_for_drawing, v0);
-	append(&queued_for_drawing, v1);
-	append(&queued_for_drawing, v2);
-	append(&queued_for_drawing, v2);
-	append(&queued_for_drawing, v3);
-	append(&queued_for_drawing, v0);
+push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf) {
+	_push_quad(shader, p0, p1, p2, p3, Sprite{}, color);
+}
+push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite) {
+	_push_quad(shader, p0, p1, p2, p3, sprite, COLOR_WHITE);
+}
+push_quad_points_sprite_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
+	_push_quad(shader, p0, p1, p2, p3, sprite, color);
 }
 
-push_vertex :: inline proc(position: Vec2, color: Colorf) {
-	vertex := Vertex_Type{position, Vec2{}, color};
+_push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
+	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color);
+	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color);
+	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color);
+	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color);
+	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color);
+	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color);
+}
+
+shader_rgba:    Shader_Program;
+shader_text:    Shader_Program;
+shader_texture: Shader_Program;
+
+current_shader: Shader_Program;
+current_texture: Texture;
+
+push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf) {
+	assert(shader != 0);
+
+	shader_mismatch  := shader != current_shader;
+	texture_mismatch := texture != current_texture;
+	if shader_mismatch || texture_mismatch {
+		draw_flush();
+	}
+
+	if shader_mismatch  do set_shader(shader);
+	if texture_mismatch do set_texture(texture);
+
+	vertex := Vertex_Type{position, tex_coord, color};
 	append(&queued_for_drawing, vertex);
 }
 
@@ -287,15 +309,7 @@ get_string_width :: proc(str: string, font: ^Font, size: f32) -> f32 {
 	return cur_width;
 }
 
-draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f32 {
-	when DEVELOPER {
-		if bound_font == nil {
-			logln("Called draw_string() without first binding a font. Make sure you call bind_font() first.");
-			return -1;
-		}
-	}
-
-	font := bound_font;
+draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32) -> f32 {
 	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_x := position.x;
 	for c in str {
@@ -317,7 +331,7 @@ draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f3
 		uv1 := Vec2{quad.s0, quad.t0};
 		uv2 := Vec2{quad.s1, quad.t0};
 		uv3 := Vec2{quad.s1, quad.t1};
-		sprite := Sprite{{uv0, uv1, uv2, uv3}, 0, 0};
+		sprite := Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
 
 		x0 := cur_x + start;
 		y0 := position.y - yoff;
@@ -326,7 +340,7 @@ draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f3
 		bl := Vec2{x0, y0};
 		tr := Vec2{x1, y1};
 
-		push_quad(bl, tr, sprite, color);
+		push_quad(shader_text, bl, tr, sprite, color);
 
 		cur_x += (pixel_width * pixel_matrix[0][0]);
 	}
@@ -335,36 +349,86 @@ draw_string :: proc(str: string, position: Vec2, color: Colorf, size: f32) -> f3
 	return width;
 }
 
-draw_flush :: proc(loc := #caller_location) {
-	when DEVELOPER {
-		if len(queued_for_drawing) == 0 {
-			logln("Called draw_flush() with nothing queued for drawing. Caller: ", loc);
-			return;
-		}
+flush_debug_lines :: inline proc() {
+	for line in debug_lines {
+		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color);
+		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color);
+	}
+
+	draw_flush(LINES);
+	clear(&debug_lines);
+}
+
+draw_flush :: proc(mode : u32 = TRIANGLES, loc := #caller_location) {
+	if len(queued_for_drawing) == 0 {
+		return;
 	}
 
 	program := get_current_shader();
 	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
+	// don't need this?
 	// bind_buffer(vbo);
+
+	// TODO: investigate STATIC_DRAW vs others
 	BufferData(ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], STATIC_DRAW);
 
 	uniform(program, "atlas_texture", 0);
 
-	DrawArrays(TRIANGLES, 0, cast(i32)len(queued_for_drawing));
+	DrawArrays(mode, 0, cast(i32)len(queued_for_drawing));
 
 	clear(&queued_for_drawing);
 }
 
-STARTING_FONT_PIXEL_DIM :: 256;
+//
+// Game loop stuff
+//
 
-bound_font: ^Font;
+DT : f32 = 1.0 / 60;
+
+frame_count: u64;
+time: f32;
+last_delta_time: f32;
+fps_to_draw: f32;
+
+start_game_loop :: proc(update: proc(f32) -> bool, render: proc()) {
+	acc: f32;
+
+	game_loop:
+	for !window_should_close(main_window) {
+		frame_start := win32.time_get_time();
+
+		last_time := time;
+		time = cast(f32)glfw.GetTime();
+		last_delta_time = time - last_time;
+
+		acc += last_delta_time;
+		for acc >= DT {
+			frame_count += 1;
+			acc -= DT;
+			update_input();
+			if !update(DT) do break game_loop;
+		}
+
+		Clear(COLOR_BUFFER_BIT);
+		render();
+		draw_flush();
+
+		flush_debug_lines();
+
+		frame_end := win32.time_get_time();
+		glfw.SwapBuffers(main_window);
+		log_gl_errors("after SwapBuffers()");
+	}
+}
+
+STARTING_FONT_PIXEL_DIM :: 256;
 
 Font :: struct {
 	dim: int,
 	size: f32,
 	chars: []stbtt.Baked_Char,
-	texture: Texture,
+	id: Texture,
 }
 
 load_font :: proc(path: string, size: f32) -> (^Font, bool) {
@@ -394,7 +458,7 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	}
 
 	texture := gen_texture();
-	bind_texture2d(texture);
+	set_texture(texture);
     TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR);
     TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR);
 	TexImage2D(TEXTURE_2D, 0, RGBA, cast(i32)dim, cast(i32)dim, 0, RED, UNSIGNED_BYTE, &pixels[0]);
@@ -403,14 +467,9 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	return font, true;
 }
 
-bind_font :: inline proc(font: ^Font) {
-	bound_font = font;
-	bind_texture2d(font.texture);
-}
-
 destroy_font :: inline proc(font: ^Font) {
 	free(font.chars);
-	delete_texture(font.texture);
+	delete_texture(font.id);
 	free(font);
 }
 
@@ -427,16 +486,12 @@ Texture_Atlas :: struct {
 
 create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gen_texture();
-	bind_texture2d(texture);
+	set_texture(texture);
 	TexImage2D(TEXTURE_2D, 0, RGBA, ATLAS_DIM, ATLAS_DIM, 0, RGBA, UNSIGNED_BYTE, nil);
 
 	data := new_clone(Texture_Atlas{texture, 0, 0, 0});
 
 	return data;
-}
-
-bind_atlas :: inline proc(atlas: ^Texture_Atlas) {
-	bind_texture2d(atlas.id);
 }
 
 destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
@@ -455,7 +510,7 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 
 	defer stbi.image_free(pixel_data);
 
-	bind_texture2d(texture.id);
+	set_texture(texture.id);
 
 	if texture.atlas_x + sprite_width > ATLAS_DIM {
 		texture.atlas_y += texture.biggest_height;
@@ -484,219 +539,8 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 
 	texture.atlas_x += sprite_height;
 
-	sprite := Sprite{coords, sprite_width / PIXELS_PER_WORLD_UNIT, sprite_height / PIXELS_PER_WORLD_UNIT};
+	sprite := Sprite{coords, cast(f32)sprite_width / PIXELS_PER_WORLD_UNIT, cast(f32)sprite_height / PIXELS_PER_WORLD_UNIT, texture.id};
 	return sprite, true;
-}
-
-//
-// Game loop stuff
-//
-
-DT : f32 = 1.0 / 60;
-
-frame_count: u64;
-time: f32;
-last_delta_time: f32;
-fps_to_draw: f32;
-
-start_game_loop :: proc(update: proc(f32), render: proc()) {
-	acc: f32;
-	for !window_should_close(main_window) {
-		frame_start := win32.time_get_time();
-
-		last_time := time;
-		time = cast(f32)glfw.GetTime();
-		last_delta_time = time - last_time;
-
-		acc += last_delta_time;
-		for acc >= DT {
-			frame_count += 1;
-			acc -= DT;
-			update_input();
-			update(DT);
-		}
-
-		Clear(COLOR_BUFFER_BIT);
-		render();
-		frame_end := win32.time_get_time();
-
-		glfw.SwapBuffers(main_window);
-		log_gl_errors("after SwapBuffers()");
-	}
-}
-
-//
-// Input stuff
-//
-
-Key_Press :: struct {
-	input: union { glfw.Key, glfw.Mouse },
-	time: f64,
-}
-
-_held := make([dynamic]Key_Press, 0, 5);
-_down := make([dynamic]Key_Press, 0, 5);
-_up   := make([dynamic]Key_Press, 0, 5);
-
-_held_mid_frame := make([dynamic]Key_Press, 0, 5);
-_down_mid_frame := make([dynamic]Key_Press, 0, 5);
-_up_mid_frame   := make([dynamic]Key_Press, 0, 5);
-
-_mouse_held := make([dynamic]Key_Press, 0, 5);
-_mouse_down := make([dynamic]Key_Press, 0, 5);
-_mouse_up   := make([dynamic]Key_Press, 0, 5);
-
-_mouse_held_mid_frame := make([dynamic]Key_Press, 0, 5);
-_mouse_down_mid_frame := make([dynamic]Key_Press, 0, 5);
-_mouse_up_mid_frame   := make([dynamic]Key_Press, 0, 5);
-
-update_input :: proc() {
-	glfw.PollEvents();
-	clear(&_held);
-	clear(&_down);
-	clear(&_up);
-
-	for held in _held_mid_frame {
-		append(&_held, held);
-	}
-	for down in _down_mid_frame {
-		append(&_down, down);
-	}
-	for up in _up_mid_frame {
-		append(&_up, up);
-	}
-
-	clear(&_down_mid_frame);
-	clear(&_up_mid_frame);
-
-
-	clear(&_mouse_held);
-	clear(&_mouse_down);
-	clear(&_mouse_up);
-
-	for held in _mouse_held_mid_frame {
-		append(&_mouse_held, held);
-	}
-	for down in _mouse_down_mid_frame {
-		append(&_mouse_down, down);
-	}
-	for up in _mouse_up_mid_frame {
-		append(&_mouse_up, up);
-	}
-
-	clear(&_mouse_down_mid_frame);
-	clear(&_mouse_up_mid_frame);
-}
-
-
-// this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
-// so we need to save presses in a separate buffer and copy them over to have consistent behaviour
-_glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
-	when false
-	{
-		fmt.println("------------------------------");
-		fmt.println("len of held", len(_held), len(_held_mid_frame));
-		fmt.println("len of up",   len(_up),   len(_up_mid_frame));
-		fmt.println("len of down", len(_down), len(_down_mid_frame));
-
-		fmt.println("cap of held", cap(_held), cap(_held_mid_frame));
-		fmt.println("cap of up",   cap(_up),   cap(_up_mid_frame));
-		fmt.println("cap of down", cap(_down), cap(_down_mid_frame));
-	}
-
-	switch action {
-		case glfw.Action.Press: {
-			append(&_held_mid_frame, Key_Press{key, glfw.GetTime()});
-			append(&_down_mid_frame, Key_Press{key, glfw.GetTime()});
-		}
-		case glfw.Action.Release: {
-			idx := -1;
-			for held, i in _held_mid_frame {
-				if held.input.(glfw.Key) == key {
-					idx = i;
-					break;
-				}
-			}
-			assert(idx != -1);
-			remove_by_index(&_held_mid_frame, idx);
-			append(&_up_mid_frame, Key_Press{key, glfw.GetTime()});
-		}
-	}
-}
-
-_glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.Mouse, action: glfw.Action, mods: i32) {
-	switch action {
-		case glfw.Action.Press: {
-			append(&_mouse_held_mid_frame, Key_Press{button, glfw.GetTime()});
-			append(&_mouse_down_mid_frame, Key_Press{button, glfw.GetTime()});
-		}
-		case glfw.Action.Release: {
-			idx := -1;
-			for held, i in _mouse_held_mid_frame {
-				if held.input.(glfw.Mouse) == button {
-					idx = i;
-					break;
-				}
-			}
-			assert(idx != -1);
-			remove_by_index(&_mouse_held_mid_frame, idx);
-			append(&_mouse_up_mid_frame, Key_Press{button, glfw.GetTime()});
-		}
-	}
-}
-
-get_mouse :: inline proc(mouse: glfw.Mouse) -> bool {
-	for mouse_held in _mouse_held {
-		if mouse_held.input.(glfw.Mouse) == mouse {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_mouse_down :: inline proc(mouse: glfw.Mouse) -> bool {
-	for mouse_down in _mouse_down {
-		if mouse_down.input.(glfw.Mouse) == mouse {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_mouse_up :: inline proc(mouse: glfw.Mouse) -> bool {
-	for mouse_up in _mouse_up {
-		if mouse_up.input.(glfw.Mouse) == mouse {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_key :: inline proc(key: glfw.Key) -> bool {
-	for held in _held {
-		if held.input.(glfw.Key) == key {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_key_down :: inline proc(key: glfw.Key) -> bool {
-	for down in _down {
-		if down.input.(glfw.Key) == key {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_key_up :: inline proc(key: glfw.Key) -> bool {
-	for up in _up {
-		if up.input.(glfw.Key) == key {
-			return true;
-		}
-	}
-	return false;
 }
 
 main :: proc() {

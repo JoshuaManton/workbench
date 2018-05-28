@@ -7,7 +7,9 @@ Vec4i :: distinct [4]int;
 sqr_magnitude :: inline proc(a: Vec2) -> f32 do return dot(a, a);
 magnitude :: inline proc(a: Vec2) -> f32 do return sqrt(dot(a, a));
 
-move_toward :: proc(a, b: Vec2, step: f32) -> Vec2 {
+move_towards :: proc[move_towards_vec2, move_towards_f32];
+
+move_towards_vec2 :: proc(a, b: Vec2, step: f32) -> Vec2 {
 	direction := b - a;
 	mag := magnitude(direction);
 
@@ -17,6 +19,38 @@ move_toward :: proc(a, b: Vec2, step: f32) -> Vec2 {
 
 	return a + direction / mag * step;
 }
+
+move_towards_f32 :: proc(a, b: f32, step: f32) -> f32 {
+	result := a;
+	if a > b {
+		result -= step;
+		if result < b {
+			result = b;
+		}
+	}
+	else if a < b {
+		result += step;
+		if result > b {
+			result = b;
+		}
+	}
+
+	return result;
+}
+
+
+
+
+clamp :: inline proc(_a, min, max: f32) -> f32 {
+	a := _a;
+	if a < min do a = min;
+	if a > max do a = max;
+	return a;
+}
+
+
+
+
 
 sqr :: inline proc(x: $T) -> T {
 	return x * x;
@@ -52,6 +86,12 @@ maxv :: inline proc(args: ...$T) -> T {
 			current = arg;
 		}
 	}
+}
+
+degrees_to_vector :: inline proc(degrees: f32) -> Vec2 {
+	radians := to_radians(degrees);
+	vec := Vec2{cos(radians), sin(radians)};
+	return vec;
 }
 
 to_vec2 :: proc[to_vec2_from_vec3, to_vec2_from_vec4];
