@@ -35,7 +35,20 @@ move_towards_f32 :: proc(a, b: f32, step: f32) -> f32 {
 		}
 	}
 
+	project(Vec2{}, Vec2{});
+
 	return result;
+}
+
+
+
+project :: inline proc(vec, normal: $T/[$N]$E) -> T {
+    num := dot(normal, normal);
+    if (num < F32_EPSILON) {
+        return T{};
+    }
+
+    return normal * dot(vec, normal) / num;
 }
 
 

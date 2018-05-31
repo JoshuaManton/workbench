@@ -171,8 +171,8 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 
 	// setup opengl
 	load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
-		proc(p: rawptr, name: string) {
-			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(&name[0]));
+		proc(p: rawptr, name: cstring) {
+			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(cast(^u8)name));
 		});
 
 	// Set initial size of window
