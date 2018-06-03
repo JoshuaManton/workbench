@@ -1,6 +1,6 @@
-      import "glfw.odin"
-using import "basic.odin"
-using import "logging.odin"
+package workbench
+
+import "shared:workbench/glfw"
 
 Key    :: glfw.Key;
 Mouse  :: glfw.Mouse;

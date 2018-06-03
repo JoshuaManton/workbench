@@ -1,8 +1,11 @@
+package stb
+
 /*
 	Taken from https://gist.github.com/gingerBill/17ed98d3312a56d3e515f35e093a1b8f, with some minor modifications
 */
-when ODIN_OS == "windows" do foreign import stbi "lib/stb_image.lib"
-when ODIN_OS == "linux" do foreign import stbi "lib/stb_image.a"
+foreign import stbi "lib/stb_image.lib"
+// when ODIN_OS == "windows" do foreign import stbi "lib/stb_image.lib"
+// when ODIN_OS == "linux" do foreign import stbi "lib/stb_image.a"
 
 //
 // load image by filename, open file, or memory buffer
@@ -83,5 +86,5 @@ foreign stbi {
 
 
 main :: proc() {
-	
+
 }

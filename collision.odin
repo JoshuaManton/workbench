@@ -1,7 +1,7 @@
-      import "core:fmt.odin"
+package workbench
 
-using import "basic.odin"
-using import "math.odin"
+using import "core:math"
+      import "core:fmt"
 
 closest_point_on_line :: proc(origin: Vec2, p1, p2: Vec2) -> Vec2 {
 	direction := p2 - p1;

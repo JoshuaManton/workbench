@@ -1,4 +1,6 @@
-import w32 "core:sys/windows.odin"
+package workbench
+
+import w32 "core:sys/win32"
 
 Stopwatch :: struct {
 	started: bool,

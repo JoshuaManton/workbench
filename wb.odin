@@ -1,22 +1,17 @@
-using import       "core:fmt.odin"
-      import       "core:strings.odin"
-      import       "core:mem.odin"
-      import       "core:os.odin"
-      import win32 "core:sys/windows.odin"
+package workbench
 
-      import stbi  "stb_image.odin"
-      import stbiw "stb_image_write.odin"
-      import stbtt "stb_truetype.odin"
+using import        "core:math"
+using import        "core:fmt"
+      import        "core:strings"
+      import        "core:mem"
+      import        "core:os"
+      import        "core:sys/win32"
+      import coregl "core:opengl"
 
-      import       "glfw.odin"
+      import odingl "shared:odin-gl"
 
-      export       "gl.odin"
-      export       "input.odin"
-      export       "types.odin"
-      export       "collision.odin"
-      export       "math.odin"
-      export       "basic.odin"
-      export       "logging.odin"
+      import stb    "shared:workbench/stb"
+      import        "shared:workbench/glfw"
 
 DEVELOPER :: true;
 
@@ -30,15 +25,33 @@ main_window: glfw.Window_Handle;
 
 camera_size: f32 = 1;
 camera_position: Vec2;
+camera_rotation: f32;
+
+
 
 current_window_width:  i32;
+_new_window_width:  i32;
+
 current_window_height: i32;
+_new_window_height: i32;
+
 current_aspect_ratio:  f32;
+_new_aspect_ratio:  f32;
 
-cursor_screen_position: Vec2;
 
-rendering_world_space :: proc(location := #caller_location) {
-	draw_flush();
+
+cursor_scroll: f32;
+_new_cursor_scroll: f32;
+
+cursor_world_position:       Vec2;
+cursor_screen_position:      Vec2;
+cursor_unit_position:        Vec2;
+_new_cursor_screen_position: Vec2;
+
+Render_Mode_Proc :: #type proc();
+
+rendering_world_space :: inline proc() {
+	current_render_mode = rendering_world_space;
 
 	transform_matrix = mul(identity(Mat4), ortho_matrix);
 	transform_matrix = scale(transform_matrix, 1.0 / camera_size);
@@ -50,8 +63,8 @@ rendering_world_space :: proc(location := #caller_location) {
 	pixel_matrix = scale(pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
 }
 
-rendering_unit_space :: proc(location := #caller_location) {
-	draw_flush();
+rendering_unit_space :: inline proc() {
+	current_render_mode = rendering_unit_space;
 
 	transform_matrix = identity(Mat4);
 	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
@@ -61,8 +74,8 @@ rendering_unit_space :: proc(location := #caller_location) {
 	pixel_matrix = scale(pixel_matrix, Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
 }
 
-rendering_pixel_space :: proc(location := #caller_location) {
-	draw_flush();
+rendering_pixel_space :: inline proc() {
+	current_render_mode = rendering_pixel_space;
 
 	transform_matrix = identity(Mat4);
 	transform_matrix = scale(transform_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
@@ -111,35 +124,29 @@ screen_to_world :: proc(screen: Vec2) -> Vec2 {
 	return pos;
 }
 
-cursor_world_position :: inline proc() -> Vec2 {
-	return screen_to_world(cursor_screen_position);
-}
-
 init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_version_major, opengl_version_minor: i32) {
 	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
-		current_window_width = w;
-		current_window_height = h;
-		current_aspect_ratio = cast(f32)w / cast(f32)h;
+		_new_window_width  = w;
+		_new_window_height = h;
+		_new_aspect_ratio = cast(f32)w / cast(f32)h;
 
 		top    : f32 =  1;
 		bottom : f32 = -1;
-		left   : f32 = -1 * current_aspect_ratio;
-		right  : f32 =  1 * current_aspect_ratio;
+		left   : f32 = -1 * _new_aspect_ratio;
+		right  : f32 =  1 * _new_aspect_ratio;
 
-		ortho_matrix  = ortho3d(left, right, bottom, top, -1, 1);
-
-		Viewport(0, 0, w, h);
+		ortho_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	}
 
 	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-		cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
+		_new_cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
 	}
 
 	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-		camera_size -= cast(f32)y * camera_size * 0.1;
+		_new_cursor_scroll = cast(f32)y;
 	}
 
-	glfw_error_callback :: proc"c"(error: i32, desc: ^u8) {
+	glfw_error_callback :: proc"c"(error: i32, desc: cstring) {
 		fmt.printf("Error code %d:\n    %s\n", error, cast(string)cast(cstring)desc);
 	}
 
@@ -170,9 +177,9 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 	// glfw.SetJoystickCallback(main_window, _glfw_joystick_callback);
 
 	// setup opengl
-	load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
+	odingl.load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
 		proc(p: rawptr, name: cstring) {
-			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(cast(^u8)name));
+			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
 	// Set initial size of window
@@ -194,13 +201,23 @@ init_opengl :: proc() {
 
 	set_vertex_format(Vertex_Type);
 
-	ClearColor(0.2, 0.5, 0.8, 1.0);
-	Enable(BLEND);
-	BlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
+	odingl.ClearColor(0.2, 0.5, 0.8, 1.0);
+	odingl.Enable(coregl.BLEND);
+	odingl.BlendFunc(coregl.SRC_ALPHA, coregl.ONE_MINUS_SRC_ALPHA);
 }
 
-queued_for_drawing: [dynamic]Vertex_Type;
-debug_lines:        [dynamic]Line_Segment;
+Buffered_Vertex :: struct {
+	render_mode_proc: Render_Mode_Proc,
+	shader: Shader_Program,
+	texture: Texture,
+	position: Vec2,
+	tex_coord: Vec2,
+	color: Colorf,
+}
+
+buffered_vertices:   [dynamic]Buffered_Vertex;
+queued_for_drawing:  [dynamic]Vertex_Type;
+debug_lines:         [dynamic]Line_Segment;
 
 Vertex_Type :: struct {
 	vertex_position: Vec2,
@@ -230,63 +247,71 @@ COLOR_GREEN := Colorf{0, 1, 0, 1};
 COLOR_BLUE  := Colorf{0, 0, 1, 1};
 COLOR_BLACK := Colorf{0, 0, 0, 1};
 
-push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
-                  push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color];
-
-push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color);
-}
-push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE);
-}
-push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color);
-}
-
-push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf) {
-	_push_quad(shader, p0, p1, p2, p3, Sprite{}, color);
-}
-push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite) {
-	_push_quad(shader, p0, p1, p2, p3, sprite, COLOR_WHITE);
-}
-push_quad_points_sprite_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
-	_push_quad(shader, p0, p1, p2, p3, sprite, color);
-}
-
-_push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf) {
-	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color);
-	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color);
-	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color);
-	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color);
-	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color);
-	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color);
-}
-
 shader_rgba:    Shader_Program;
 shader_text:    Shader_Program;
 shader_texture: Shader_Program;
 
-current_shader: Shader_Program;
-current_texture: Texture;
+current_render_mode: Render_Mode_Proc;
+current_shader:      Shader_Program;
+current_texture:     Texture;
 
-push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf) {
+push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
+                  push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color];
+
+push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf, layer: int) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color, layer);
+}
+push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, layer: int) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE, layer);
+}
+push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf, layer: int) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color, layer);
+}
+
+push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf, layer: int) {
+	_push_quad(shader, p0, p1, p2, p3, Sprite{}, color, layer);
+}
+push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, layer: int) {
+	_push_quad(shader, p0, p1, p2, p3, sprite, COLOR_WHITE, layer);
+}
+push_quad_points_sprite_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, layer: int) {
+	_push_quad(shader, p0, p1, p2, p3, sprite, color, layer);
+}
+
+_push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, layer: int) {
+	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, layer);
+	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color, layer);
+	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, layer);
+	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, layer);
+	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, layer);
+	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, layer);
+}
+
+push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, layer: int) {
 	assert(shader != 0);
+	assert(current_render_mode != nil);
+	vertex_info := Buffered_Vertex{current_render_mode, shader, texture, position, tex_coord, color};
+	append(&buffered_vertices, vertex_info);
+}
 
-	shader_mismatch  := shader != current_shader;
-	texture_mismatch := texture != current_texture;
-	if shader_mismatch || texture_mismatch {
+draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex) {
+	render_mode_mismatch := vertex_info.render_mode_proc != current_render_mode;
+	shader_mismatch      := vertex_info.shader != current_shader;
+	texture_mismatch     := vertex_info.texture != current_texture;
+	if render_mode_mismatch || shader_mismatch || texture_mismatch {
 		draw_flush();
 	}
 
-	if shader_mismatch  do set_shader(shader);
-	if texture_mismatch do set_texture(texture);
+	if shader_mismatch  do set_shader(vertex_info.shader);
+	if texture_mismatch do set_texture(vertex_info.texture);
 
-	vertex := Vertex_Type{position, tex_coord, color};
+	if render_mode_mismatch {
+		current_render_mode = vertex_info.render_mode_proc;
+		vertex_info.render_mode_proc();
+	}
+
+	vertex := Vertex_Type{vertex_info.position, vertex_info.tex_coord, vertex_info.color};
 	append(&queued_for_drawing, vertex);
-}
-
-swap_buffers :: inline proc() {
-	glfw.SwapBuffers(main_window);
 }
 
 _get_size_ratio_for_font :: inline proc(font: ^Font, _size: f32) -> f32 {
@@ -297,11 +322,11 @@ _get_size_ratio_for_font :: inline proc(font: ^Font, _size: f32) -> f32 {
 	return size_ratio;
 }
 
-get_string_width :: proc(str: string, font: ^Font, size: f32) -> f32 {
+get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
 	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_width : f32 = 0;
 	for c in str {
-		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
+		pixel_width, _, quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
 		pixel_width *= size_ratio;
 		cur_width += (pixel_width * pixel_matrix[0][0]);
 	}
@@ -309,11 +334,22 @@ get_string_width :: proc(str: string, font: ^Font, size: f32) -> f32 {
 	return cur_width;
 }
 
-draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32) -> f32 {
+get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
+	size_ratio := _get_size_ratio_for_font(font, size);
+	return size * size_ratio;
+}
+
+get_centered_baseline :: inline proc(font: ^Font, text: string, size: f32, min, max: Vec2) -> Vec2 {
+	height := get_font_height(font, size);
+	width  := get_string_width(font, text, size);
+	return min + Vec2{(max.x - min.x)/2 - width/2, (max.y - min.y)/2 - height/2};
+}
+
+draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
 	size_ratio := _get_size_ratio_for_font(font, size);
 	cur_x := position.x;
 	for c in str {
-		pixel_width, _, quad := stbtt.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
+		pixel_width, _, quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
 		pixel_width *= size_ratio;
 
 		offset := mul(pixel_matrix, Vec4{quad.x0, quad.y1, 0, 0}) * size_ratio;
@@ -340,7 +376,7 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 		bl := Vec2{x0, y0};
 		tr := Vec2{x1, y1};
 
-		push_quad(shader_text, bl, tr, sprite, color);
+		push_quad(shader_text, bl, tr, sprite, color, layer);
 
 		cur_x += (pixel_width * pixel_matrix[0][0]);
 	}
@@ -350,16 +386,17 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 }
 
 flush_debug_lines :: inline proc() {
+	rendering_world_space();
 	for line in debug_lines {
-		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color);
-		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color);
+		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color, 0);
+		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color, 0);
 	}
 
-	draw_flush(LINES);
+	draw_flush(coregl.LINES);
 	clear(&debug_lines);
 }
 
-draw_flush :: proc(mode : u32 = TRIANGLES, loc := #caller_location) {
+draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
 	if len(queued_for_drawing) == 0 {
 		return;
 	}
@@ -371,11 +408,11 @@ draw_flush :: proc(mode : u32 = TRIANGLES, loc := #caller_location) {
 	// bind_buffer(vbo);
 
 	// TODO: investigate STATIC_DRAW vs others
-	BufferData(ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], STATIC_DRAW);
+	odingl.BufferData(coregl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], coregl.STATIC_DRAW);
 
 	uniform(program, "atlas_texture", 0);
 
-	DrawArrays(mode, 0, cast(i32)len(queued_for_drawing));
+	odingl.DrawArrays(mode, 0, cast(i32)len(queued_for_drawing));
 
 	clear(&queued_for_drawing);
 }
@@ -384,15 +421,14 @@ draw_flush :: proc(mode : u32 = TRIANGLES, loc := #caller_location) {
 // Game loop stuff
 //
 
-DT : f32 = 1.0 / 60;
-
 frame_count: u64;
 time: f32;
 last_delta_time: f32;
 fps_to_draw: f32;
 
-start_game_loop :: proc(update: proc(f32) -> bool, render: proc()) {
+start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
 	acc: f32;
+	target_delta_time := 1 / target_framerate;
 
 	game_loop:
 	for !window_should_close(main_window) {
@@ -403,16 +439,38 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc()) {
 		last_delta_time = time - last_time;
 
 		acc += last_delta_time;
-		for acc >= DT {
+		for acc >= target_delta_time {
 			frame_count += 1;
-			acc -= DT;
+			acc -= target_delta_time;
+
+			// Update vars from callbacks
+			current_window_width   = _new_window_width;
+			current_window_height  = _new_window_height;
+			current_aspect_ratio   = _new_aspect_ratio;
+			cursor_screen_position = _new_cursor_screen_position;
+			cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
+			cursor_world_position  = screen_to_world(cursor_screen_position);
+
+			cursor_scroll          = _new_cursor_scroll;
+			_new_cursor_scroll     = 0;
+
+			clear(&buffered_vertices);
 			update_input();
-			if !update(DT) do break game_loop;
+			if !update(target_delta_time) do break game_loop;
 		}
 
-		Clear(COLOR_BUFFER_BIT);
-		render();
+		odingl.Viewport(0, 0, current_window_width, current_window_height);
+		odingl.Clear(coregl.COLOR_BUFFER_BIT);
+
+		render(target_delta_time);
+
+		current_render_mode = nil;
+		for command in buffered_vertices {
+			draw_buffered_vertex(command);
+		}
+
 		draw_flush();
+		clear(&buffered_vertices);
 
 		flush_debug_lines();
 
@@ -422,12 +480,10 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc()) {
 	}
 }
 
-STARTING_FONT_PIXEL_DIM :: 256;
-
 Font :: struct {
 	dim: int,
 	size: f32,
-	chars: []stbtt.Baked_Char,
+	chars: []stb.Baked_Char,
 	id: Texture,
 }
 
@@ -440,14 +496,14 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	defer free(data);
 
 	pixels: []u8;
-	chars:  []stbtt.Baked_Char;
-	dim := STARTING_FONT_PIXEL_DIM;
+	chars:  []stb.Baked_Char;
+	dim := 128;
 
 	// @InfiniteLoop
 	for {
 		pixels = make([]u8, dim * dim);
 		ret: int;
-		chars, ret = stbtt.bake_font_bitmap(data, 0, size, pixels, dim, dim, 0, 128);
+		chars, ret = stb.bake_font_bitmap(data, 0, size, pixels, dim, dim, 0, 128);
 		if ret < 0 {
 			free(pixels);
 			dim *= 2;
@@ -459,9 +515,9 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 
 	texture := gen_texture();
 	set_texture(texture);
-    TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR);
-    TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR);
-	TexImage2D(TEXTURE_2D, 0, RGBA, cast(i32)dim, cast(i32)dim, 0, RED, UNSIGNED_BYTE, &pixels[0]);
+	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MIN_FILTER, coregl.LINEAR);
+	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MAG_FILTER, coregl.LINEAR);
+	odingl.TexImage2D(coregl.TEXTURE_2D, 0, coregl.RGBA, cast(i32)dim, cast(i32)dim, 0, coregl.RED, coregl.UNSIGNED_BYTE, &pixels[0]);
 
 	font := new_clone(Font{dim, size, chars, texture});
 	return font, true;
@@ -487,7 +543,7 @@ Texture_Atlas :: struct {
 create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gen_texture();
 	set_texture(texture);
-	TexImage2D(TEXTURE_2D, 0, RGBA, ATLAS_DIM, ATLAS_DIM, 0, RGBA, UNSIGNED_BYTE, nil);
+	odingl.TexImage2D(coregl.TEXTURE_2D, 0, coregl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, coregl.RGBA, coregl.UNSIGNED_BYTE, nil);
 
 	data := new_clone(Texture_Atlas{texture, 0, 0, 0});
 
@@ -500,15 +556,15 @@ destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
 }
 
 load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool) {
-	stbi.set_flip_vertically_on_load(1);
+	stb.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
-	pixel_data := stbi.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
+	pixel_data := stb.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
 	if pixel_data == nil {
 		logln("Couldn't load sprite: ", filepath);
 		return Sprite{}, false;
 	}
 
-	defer stbi.image_free(pixel_data);
+	defer stb.image_free(pixel_data);
 
 	set_texture(texture.id);
 
@@ -519,11 +575,11 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 	}
 
 	if sprite_height > texture.biggest_height do texture.biggest_height = sprite_height;
-	TexSubImage2D(TEXTURE_2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, RGBA, UNSIGNED_BYTE, pixel_data);
-	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_S, MIRRORED_REPEAT);
-	TexParameteri(TEXTURE_2D, TEXTURE_WRAP_T, MIRRORED_REPEAT);
-	TexParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, NEAREST);
-	TexParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST);
+	odingl.TexSubImage2D(coregl.TEXTURE_2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, coregl.RGBA, coregl.UNSIGNED_BYTE, pixel_data);
+	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_WRAP_S, coregl.MIRRORED_REPEAT);
+	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_WRAP_T, coregl.MIRRORED_REPEAT);
+	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MIN_FILTER, coregl.NEAREST);
+	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MAG_FILTER, coregl.NEAREST);
 	bottom_left_x := cast(f32)texture.atlas_x / ATLAS_DIM;
 	bottom_left_y := cast(f32)texture.atlas_y / ATLAS_DIM;
 

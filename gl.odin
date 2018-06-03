@@ -1,31 +1,16 @@
-/*
- *  @Name:     gl
- *
- *  @Author:   Joshua Manton
- *  @Email:    joshuamarkk@gmail.com
- *  @Creation: 21-12-2017 07:19:30 UTC-8
- *
- *  @Last By:   Joshua Manton
- *  @Last Time: 27-05-2018 13:02:46 UTC-8
- *
- *  @Description:
- *
- */
+package workbench
 
-      import "core:fmt.odin"
-      import "core:os.odin"
-using import "core:math.odin"
+      import coregl "core:opengl"
+      import "core:fmt"
+      import "core:os"
+using import "core:math"
 
-      export "shared:odin-gl/gl.odin"
-
-using import "logging.odin"
-      import "basic.odin"
-using import "types.odin"
+using import "shared:odin-gl"
 
 Shader_Program :: distinct u32;
-VAO :: distinct u32;
-VBO :: distinct u32;
-Texture :: distinct u32;
+VAO            :: distinct u32;
+VBO            :: distinct u32;
+Texture        :: distinct u32;
 
 gen_vao :: inline proc() -> VAO {
 	vao: u32;
@@ -48,7 +33,7 @@ gen_buffer :: inline proc() -> VBO {
 }
 
 bind_buffer :: inline proc(vbo: VBO) {
-	BindBuffer(ARRAY_BUFFER, cast(u32)vbo);
+	BindBuffer(coregl.ARRAY_BUFFER, cast(u32)vbo);
 }
 
 delete_buffer :: inline proc(vbo: VBO) {
@@ -85,7 +70,7 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
                         log_func: proc "c" (u32, i32, ^i32, ^u8)) -> bool {
         result, info_log_length: i32;
         iv_func(id, status, &result);
-        iv_func(id, INFO_LOG_LENGTH, &info_log_length);
+        iv_func(id, coregl.INFO_LOG_LENGTH, &info_log_length);
 
         if result == 0 {
             error_message := make([]u8, info_log_length);
@@ -107,7 +92,7 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
         ShaderSource(shader_id, 1, (^^u8)(&shader_code), &length);
         CompileShader(shader_id);
 
-        if check_error(shader_id, shader_type, COMPILE_STATUS, GetShaderiv, GetShaderInfoLog) {
+        if check_error(shader_id, shader_type, coregl.COMPILE_STATUS, GetShaderiv, GetShaderInfoLog) {
             return 0, false;
         }
 
@@ -122,7 +107,7 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
         }
         LinkProgram(program_id);
 
-        if check_error(program_id, Shader_Type.SHADER_LINK, LINK_STATUS, GetProgramiv, GetProgramInfoLog) {
+        if check_error(program_id, Shader_Type.SHADER_LINK, coregl.LINK_STATUS, GetProgramiv, GetProgramInfoLog) {
             return 0, false;
         }
 
@@ -161,11 +146,11 @@ gen_texture :: inline proc() -> Texture {
 }
 
 bind_texture1d :: inline proc(texture: Texture) {
-	BindTexture(TEXTURE_1D, cast(u32)texture);
+	BindTexture(coregl.TEXTURE_1D, cast(u32)texture);
 }
 
 bind_texture2d :: inline proc(texture: Texture) {
-	BindTexture(TEXTURE_2D, cast(u32)texture);
+	BindTexture(coregl.TEXTURE_2D, cast(u32)texture);
 }
 
 delete_texture :: inline proc(texture: Texture) {
@@ -174,23 +159,23 @@ delete_texture :: inline proc(texture: Texture) {
 
 // ActiveTexture() is guaranteed to go from 0-47 on all implementations of OpenGL, but can go higher on some
 active_texture0 :: inline proc() {
-	ActiveTexture(TEXTURE0);
+	ActiveTexture(coregl.TEXTURE0);
 }
 
 active_texture1 :: inline proc() {
-	ActiveTexture(TEXTURE1);
+	ActiveTexture(coregl.TEXTURE1);
 }
 
 active_texture2 :: inline proc() {
-	ActiveTexture(TEXTURE2);
+	ActiveTexture(coregl.TEXTURE2);
 }
 
 active_texture3 :: inline proc() {
-	ActiveTexture(TEXTURE3);
+	ActiveTexture(coregl.TEXTURE3);
 }
 
 active_texture4 :: inline proc() {
-	ActiveTexture(TEXTURE4);
+	ActiveTexture(coregl.TEXTURE4);
 }
 
 c_string_buffer: [4096]byte;
@@ -223,58 +208,58 @@ set_vertex_format :: proc(vertex_type: type) {
 		switch kind in a {
 			case Vec2: {
 				num_elements = 2;
-				type_of_elements = FLOAT;
+				type_of_elements = coregl.FLOAT;
 			}
 			case Vec3: {
 				num_elements = 3;
-				type_of_elements = FLOAT;
+				type_of_elements = coregl.FLOAT;
 			}
 			case Vec4, Colorf: {
 				num_elements = 4;
-				type_of_elements = FLOAT;
+				type_of_elements = coregl.FLOAT;
 			}
 			case Colori: {
 				num_elements = 4;
-				type_of_elements = UNSIGNED_BYTE;
+				type_of_elements = coregl.UNSIGNED_BYTE;
 			}
 			case f64: {
 				num_elements = 1;
-				type_of_elements = DOUBLE;
+				type_of_elements = coregl.DOUBLE;
 			}
 			case f32: {
 				num_elements = 1;
-				type_of_elements = FLOAT;
+				type_of_elements = coregl.FLOAT;
 			}
 			case i32: {
 				num_elements = 1;
-				type_of_elements = INT;
+				type_of_elements = coregl.INT;
 			}
 			case u32: {
 				num_elements = 1;
-				type_of_elements = UNSIGNED_INT;
+				type_of_elements = coregl.UNSIGNED_INT;
 			}
 			case i16: {
 				num_elements = 1;
-				type_of_elements = SHORT;
+				type_of_elements = coregl.SHORT;
 			}
 			case u16: {
 				num_elements = 1;
-				type_of_elements = UNSIGNED_SHORT;
+				type_of_elements = coregl.UNSIGNED_SHORT;
 			}
 			case i8: {
 				num_elements = 1;
-				type_of_elements = BYTE;
+				type_of_elements = coregl.BYTE;
 			}
 			case u8: {
 				num_elements = 1;
-				type_of_elements = UNSIGNED_BYTE;
+				type_of_elements = coregl.UNSIGNED_BYTE;
 			}
 			case: {
 				fmt.printf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, kind);
 			}
 		}
 
-		VertexAttribPointer(i, num_elements, type_of_elements, FALSE, size_of(vertex_type), offset_in_struct);
+		VertexAttribPointer(i, num_elements, type_of_elements, coregl.FALSE, size_of(vertex_type), offset_in_struct);
 		EnableVertexAttribArray(i);
 	}
 }
@@ -288,7 +273,7 @@ get_int :: inline proc(pname: u32, loc := #caller_location) -> i32 {
 }
 
 get_current_shader :: inline proc() -> Shader_Program {
-	id := get_int(CURRENT_PROGRAM);
+	id := get_int(coregl.CURRENT_PROGRAM);
 	return cast(Shader_Program)id;
 }
 
@@ -419,7 +404,7 @@ log_gl_errors :: proc(caller_context: string, location := #caller_location) {
 		}
 
 		file := location.file_path;
-		idx, ok := basic.find_from_right(location.file_path, '\\');
+		idx, ok := find_from_right(location.file_path, '\\');
 		if ok {
 			file = location.file_path[idx+1..len(location.file_path)];
 		}

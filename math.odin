@@ -1,4 +1,6 @@
-export "core:math.odin"
+package workbench
+
+using import "core:math"
 
 Vec2i :: distinct [2]int;
 Vec3i :: distinct [3]int;

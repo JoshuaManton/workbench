@@ -1,8 +1,7 @@
-      import "core:fmt.odin"
-      import "core:mem.odin"
+package workbench
 
-      import "types.odin"
-using import "math.odin"
+      import "core:fmt"
+      import "core:mem"
 
 //
 // Arrays
@@ -62,7 +61,7 @@ equals_vec2i :: inline proc(a, b: Vec2i) -> bool {
 	return a.x == b.x && a.y == b.y;
 }
 
-equals_colori :: inline proc(a, b: types.Colori) -> bool {
+equals_colori :: inline proc(a, b: Colori) -> bool {
 	return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
 }
 

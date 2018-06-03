@@ -1,5 +1,8 @@
-when ODIN_OS == "windows" do foreign import stbi "lib/stb_image_write.lib"
-when ODIN_OS == "linux" do foreign import stbi "lib/stb_image_write.a"
+package stb
+
+foreign import stbi "lib/stb_image_write.lib"
+// when ODIN_OS == "windows" do foreign import stbi "lib/stb_image_write.lib"
+// when ODIN_OS == "linux" do foreign import stbi "lib/stb_image_write.a"
 
 // bind
 @(default_calling_convention="c")

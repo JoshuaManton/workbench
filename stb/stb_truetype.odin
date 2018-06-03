@@ -1,7 +1,10 @@
-when ODIN_OS == "windows" do foreign import stbtt "lib/stb_truetype.lib"
-when ODIN_OS == "linux" do foreign import stbtt "lib/stb_truetype.a"
+package stb
 
-import "core:mem.odin";
+foreign import stbtt "lib/stb_truetype.lib"
+// when ODIN_OS == "windows" do foreign import stbtt "lib/stb_truetype.lib"
+// when ODIN_OS == "linux" do foreign import stbtt "lib/stb_truetype.a"
+
+import "core:mem";
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -78,7 +81,7 @@ stbtt_pack_range :: struct {
    num_chars: i32,
    chardata_for_range: ^stbtt_packedchar,
    _, _: u8, // used internally to store oversample info
-} 
+}
 
 stbtt_pack_context :: struct {
    user_allocator_context, pack_info: rawptr,
@@ -154,7 +157,7 @@ stbtt_fontinfo :: struct {
     fontstart: i32,
 
     numGlyphs: i32,
-    
+
     loca,head,glyf,hhea,hmtx,kern: i32,
     index_map: i32,
     indexToLocFormat: i32,
