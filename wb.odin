@@ -2,6 +2,7 @@ package workbench
 
 using import        "core:math"
 using import        "core:fmt"
+      import        "core:sort"
       import        "core:strings"
       import        "core:mem"
       import        "core:os"
@@ -108,7 +109,8 @@ screen_to_world :: proc(screen: Vec2) -> Vec2 {
 	// convert to unit size first
 	pos := Vec2{screen.x / cast(f32)current_window_width, screen.y / cast(f32)current_window_height};
 
-	pos.y = 1.0 - pos.y;
+	// assume the incoming `screen` parameter is bottom left == 0, 0
+	// pos.y = 1.0 - pos.y;
 
 	camera_size_x := camera_size * current_aspect_ratio;
 	camera_size_y := camera_size;
@@ -207,6 +209,8 @@ init_opengl :: proc() {
 }
 
 Buffered_Vertex :: struct {
+	render_order:  int,
+	serial_number: int,
 	render_mode_proc: Render_Mode_Proc,
 	shader: Shader_Program,
 	texture: Texture,
@@ -230,8 +234,22 @@ Line_Segment :: struct {
 	color: Colorf,
 }
 
-draw_line :: inline proc(a, b: Vec2, color: Colorf) {
+draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
 	append(&debug_lines, Line_Segment{a, b, color});
+}
+
+draw_debug_box :: proc[draw_debug_box_min_max, draw_debug_box_points];
+draw_debug_box_min_max :: inline proc(min, max: Vec2, color: Colorf) {
+	draw_debug_line(Vec2{min.x, min.y}, Vec2{min.x, max.y}, color);
+	draw_debug_line(Vec2{min.x, max.y}, Vec2{max.x, max.y}, color);
+	draw_debug_line(Vec2{max.x, max.y}, Vec2{max.x, min.y}, color);
+	draw_debug_line(Vec2{max.x, min.y}, Vec2{min.x, min.y}, color);
+}
+draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
+	draw_debug_line(a, b, color);
+	draw_debug_line(b, c, color);
+	draw_debug_line(c, d, color);
+	draw_debug_line(d, a, color);
 }
 
 Sprite :: struct {
@@ -258,43 +276,44 @@ current_texture:     Texture;
 push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
                   push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color];
 
-push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf, layer: int) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color, layer);
+push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf, render_order: int = 0) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color, render_order);
 }
-push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, layer: int) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE, layer);
+push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, render_order: int = 0) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE, render_order);
 }
-push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf, layer: int) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color, layer);
-}
-
-push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf, layer: int) {
-	_push_quad(shader, p0, p1, p2, p3, Sprite{}, color, layer);
-}
-push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, layer: int) {
-	_push_quad(shader, p0, p1, p2, p3, sprite, COLOR_WHITE, layer);
-}
-push_quad_points_sprite_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, layer: int) {
-	_push_quad(shader, p0, p1, p2, p3, sprite, color, layer);
+push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
+	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color, render_order);
 }
 
-_push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, layer: int) {
-	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, layer);
-	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color, layer);
-	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, layer);
-	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, layer);
-	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, layer);
-	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, layer);
+push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf, render_order: int = 0) {
+	_push_quad(shader, p0, p1, p2, p3, Sprite{}, color, render_order);
+}
+push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, render_order: int = 0) {
+	_push_quad(shader, p0, p1, p2, p3, sprite, COLOR_WHITE, render_order);
+}
+push_quad_points_sprite_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
+	_push_quad(shader, p0, p1, p2, p3, sprite, color, render_order);
 }
 
-push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, layer: int) {
+_push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
+	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color, render_order);
+	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, render_order);
+	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+}
+
+push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
 	assert(shader != 0);
 	assert(current_render_mode != nil);
-	vertex_info := Buffered_Vertex{current_render_mode, shader, texture, position, tex_coord, color};
+	serial := len(buffered_vertices);
+	vertex_info := Buffered_Vertex{render_order, serial, current_render_mode, shader, texture, position, tex_coord, color};
 	append(&buffered_vertices, vertex_info);
 }
 
-draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex) {
+draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex, mode: u32) {
 	render_mode_mismatch := vertex_info.render_mode_proc != current_render_mode;
 	shader_mismatch      := vertex_info.shader != current_shader;
 	texture_mismatch     := vertex_info.texture != current_texture;
@@ -392,8 +411,16 @@ flush_debug_lines :: inline proc() {
 		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color, 0);
 	}
 
-	draw_flush(coregl.LINES);
+	draw_buffered_vertices(coregl.LINES);
 	clear(&debug_lines);
+}
+
+draw_buffered_vertices :: proc(mode: u32) {
+	for command in buffered_vertices {
+		draw_buffered_vertex(command, mode);
+	}
+
+	draw_flush(mode);
 }
 
 draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
@@ -404,8 +431,7 @@ draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
 	program := get_current_shader();
 	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
 
-	// don't need this?
-	// bind_buffer(vbo);
+	bind_buffer(vbo);
 
 	// TODO: investigate STATIC_DRAW vs others
 	odingl.BufferData(coregl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], coregl.STATIC_DRAW);
@@ -464,12 +490,15 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 
 		render(target_delta_time);
 
-		current_render_mode = nil;
-		for command in buffered_vertices {
-			draw_buffered_vertex(command);
-		}
+		sort.quick_sort_proc(buffered_vertices[..], proc(a, b: Buffered_Vertex) -> int {
+				diff := a.render_order - b.render_order;
+				if diff != 0 do return diff;
+				return a.serial_number - b.serial_number;
+			});
 
-		draw_flush();
+		current_render_mode = nil;
+
+		draw_buffered_vertices(coregl.TRIANGLES);
 		clear(&buffered_vertices);
 
 		flush_debug_lines();
