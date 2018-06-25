@@ -43,6 +43,7 @@ remove_by_index :: proc(array: ^[dynamic]$T, to_remove: int) {
 	pop(array);
 }
 remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
+	// not sure about this, I think we skip elements when we copy from the end into a remove element
 	for item, index in array {
 		if item == to_remove {
 			array[index] = array[len(array)-1];

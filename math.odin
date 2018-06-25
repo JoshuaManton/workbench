@@ -37,10 +37,22 @@ move_towards_f32 :: proc(a, b: f32, step: f32) -> f32 {
 		}
 	}
 
-	project(Vec2{}, Vec2{});
-
 	return result;
 }
+
+
+rotate_vector :: proc(vec: Vec2, degrees: f32) -> Vec2 {
+	s := sin(to_radians(degrees));
+	c := cos(to_radians(degrees));
+
+	tx := vec.x;
+	ty := vec.y;
+	x := (c * tx) - (s * ty);
+	y := (s * tx) + (c * ty);
+
+	return Vec2{x, y};
+}
+
 
 
 

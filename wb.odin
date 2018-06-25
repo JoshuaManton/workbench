@@ -194,6 +194,10 @@ init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_
 vao: VAO;
 vbo: VBO;
 
+shader_rgba:    Shader_Program;
+shader_text:    Shader_Program;
+shader_texture: Shader_Program;
+
 init_opengl :: proc() {
 	vao = gen_vao();
 	bind_vao(vao);
@@ -206,6 +210,14 @@ init_opengl :: proc() {
 	odingl.ClearColor(0.2, 0.5, 0.8, 1.0);
 	odingl.Enable(coregl.BLEND);
 	odingl.BlendFunc(coregl.SRC_ALPHA, coregl.ONE_MINUS_SRC_ALPHA);
+
+	ok: bool;
+	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
+	assert(ok);
+	shader_texture, ok = load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
+	assert(ok);
+	shader_text, ok    = load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
+	assert(ok);
 }
 
 Buffered_Vertex :: struct {
@@ -265,10 +277,6 @@ COLOR_GREEN := Colorf{0, 1, 0, 1};
 COLOR_BLUE  := Colorf{0, 0, 1, 1};
 COLOR_BLACK := Colorf{0, 0, 0, 1};
 
-shader_rgba:    Shader_Program;
-shader_text:    Shader_Program;
-shader_texture: Shader_Program;
-
 current_render_mode: Render_Mode_Proc;
 current_shader:      Shader_Program;
 current_texture:     Texture;
@@ -307,7 +315,7 @@ _push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: 
 
 push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
 	assert(shader != 0);
-	assert(current_render_mode != nil);
+	assert(current_render_mode != nil, "Render mode isn't set yet.");
 	serial := len(buffered_vertices);
 	vertex_info := Buffered_Vertex{render_order, serial, current_render_mode, shader, texture, position, tex_coord, color};
 	append(&buffered_vertices, vertex_info);
@@ -333,8 +341,8 @@ draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex, mode: u32) {
 	append(&queued_for_drawing, vertex);
 }
 
-_get_size_ratio_for_font :: inline proc(font: ^Font, _size: f32) -> f32 {
-	size := _size / 2; // not sure why this is necessary but the text was being drawn twice as big as it should be
+_get_size_ratio_for_font :: inline proc(font: ^Font, size: f32) -> f32 {
+	size /= 2; // not sure why this is necessary but the text was being drawn twice as big as it should be
 	pixel_size := mul(transform_matrix, Vec4{0, size, 0, 0}).y;
 	pixel_size *= cast(f32)current_window_height;
 	size_ratio := pixel_size / font.size;
@@ -343,7 +351,7 @@ _get_size_ratio_for_font :: inline proc(font: ^Font, _size: f32) -> f32 {
 
 get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
 	size_ratio := _get_size_ratio_for_font(font, size);
-	cur_width : f32 = 0;
+	cur_width: f32;
 	for c in str {
 		pixel_width, _, quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
 		pixel_width *= size_ratio;
@@ -354,14 +362,40 @@ get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
 }
 
 get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
-	size_ratio := _get_size_ratio_for_font(font, size);
-	return size * size_ratio;
+	// size_ratio := _get_size_ratio_for_font(font, size);
+	// return size * size_ratio / 2;
+	assert(current_render_mode == rendering_unit_space);
+
+	biggest_height: f32;
+	for c in font.chars {
+		height := cast(f32)c.y1 - cast(f32)c.y0;
+		// logln(height);
+		if height > biggest_height {
+			biggest_height = height;
+		}
+	}
+
+	biggest_height /= cast(f32)current_window_height;
+
+	return biggest_height * size;
 }
 
 get_centered_baseline :: inline proc(font: ^Font, text: string, size: f32, min, max: Vec2) -> Vec2 {
-	height := get_font_height(font, size);
-	width  := get_string_width(font, text, size);
-	return min + Vec2{(max.x - min.x)/2 - width/2, (max.y - min.y)/2 - height/2};
+	string_width  := get_string_width(font, text, size);
+	string_height := get_font_height(font, size);
+	box_width     := max.x - min.x;
+	box_height    := max.y - min.y;
+
+	leftover_x := box_width - string_width;
+	xx := leftover_x - (leftover_x / 2);
+
+	leftover_y := box_height - string_height;
+	// todo
+	yy := string_height;// - (leftover_y / 2);
+
+	result := min + Vec2{xx, yy};
+
+	return result;
 }
 
 draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
@@ -394,6 +428,8 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 		y1 := position.y - yoff + height;
 		bl := Vec2{x0, y0};
 		tr := Vec2{x1, y1};
+
+		// draw_debug_box(screen_to_world(Vec2{x0 * cast(f32)current_window_width, y0 * cast(f32)current_window_height}), screen_to_world(Vec2{x1 * cast(f32)current_window_width, y1 * cast(f32)current_window_height}), COLOR_GREEN);
 
 		push_quad(shader_text, bl, tr, sprite, color, layer);
 
@@ -465,6 +501,7 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 		last_delta_time = time - last_time;
 
 		acc += last_delta_time;
+		old_frame_count := frame_count;
 		for acc >= target_delta_time {
 			frame_count += 1;
 			acc -= target_delta_time;
@@ -483,6 +520,7 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 			clear(&buffered_vertices);
 			update_input();
 			if !update(target_delta_time) do break game_loop;
+			update_tweeners(last_delta_time);
 		}
 
 		odingl.Viewport(0, 0, current_window_width, current_window_height);
@@ -505,6 +543,7 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 
 		frame_end := win32.time_get_time();
 		glfw.SwapBuffers(main_window);
+		odingl.Finish();
 		log_gl_errors("after SwapBuffers()");
 	}
 }
