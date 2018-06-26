@@ -12,16 +12,16 @@ Tweener :: struct {
 		^Vec4,
 	},
 
-	original_value: union {
-		f32,
+	start: union {
 		Vec2,
+		f32,
 		Vec3,
 		Vec4,
 	},
 
 	target: union {
-		f32,
 		Vec2,
+		f32,
 		Vec3,
 		Vec4,
 	},
@@ -31,11 +31,13 @@ Tweener :: struct {
 
 	start_time: f32,
 	ease_proc: proc(f32) -> f32,
+
+	loop: bool,
 }
 
 tweeners: [dynamic]Tweener;
 
-tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32, delay: f32 = 0) {
+tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32, delay : f32 = 0, loop : bool = false) {
 	addr := cast(^u8)ptr;
 	for i in 0..len(tweeners) {
 		tweener := &tweeners[i];
@@ -45,20 +47,29 @@ tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32, delay:
 		}
 	}
 
-	new_tweener := Tweener{addr, ptr, ptr^, target, 0, duration, time + delay, ease};
+	new_tweener := Tweener{addr, ptr, ptr^, target, 0, duration, time + delay, ease, loop};
 	append(&tweeners, new_tweener);
 }
 
-interpolate :: proc(a, b: $T, t: f32, ease_proc: proc(f32) -> f32) -> T {
-	if t <= 0 {
-		return a;
+update_one_tweener :: proc(kind: type, tweener: ^Tweener, dt: f32) -> kind {
+	tweener.time += dt;
+	assert(tweener.time != 0);
+
+	for tweener.time >= tweener.duration {
+		if !tweener.loop do return tweener.target.(kind);
+
+		tweener.time -= tweener.duration;
+
+		start := tweener.start.(kind);
+		tweener.start = tweener.target;
+		tweener.target = start;
 	}
 
-	if t >= 1 {
-		return b;
-	}
+	t := tweener.time / tweener.duration;
+	t = tweener.ease_proc(t);
 
-	t = ease_proc(t);
+	a := tweener.start.(kind);
+	b := tweener.target.(kind);
 	result := lerp(a, b, t);
 	return result;
 }
@@ -66,39 +77,37 @@ interpolate :: proc(a, b: $T, t: f32, ease_proc: proc(f32) -> f32) -> T {
 update_tweeners :: proc(dt: f32) {
 	tweener_idx := 0;
 	for tweener_idx < len(tweeners) {
-		tweener := &tweeners[tweener_idx];
 		defer tweener_idx += 1;
+
+		tweener := &tweeners[tweener_idx];
+		assert(tweener.duration != 0);
 
 		if time < tweener.start_time do continue;
 
-		tweener.time += dt;
-		assert(tweener.time != 0);
-
-		t := clamp(tweener.time / tweener.duration, 0, 1);
 		switch kind in tweener.ptr {
 			case ^f32: {
-				origin := tweener.original_value.(f32);
+				origin := tweener.start.(f32);
 				target := tweener.target.(f32);
-				kind^ = interpolate(origin, target, tweener.time / tweener.duration, tweener.ease_proc);
+				kind^ = update_one_tweener(f32, tweener, dt);
 			}
 			case ^Vec2: {
-				origin := tweener.original_value.(Vec2);
+				origin := tweener.start.(Vec2);
 				target := tweener.target.(Vec2);
-				kind^ = interpolate(origin, target, tweener.time / tweener.duration, tweener.ease_proc);
+				kind^ = update_one_tweener(Vec2, tweener, dt);
 			}
 			case ^Vec3: {
-				origin := tweener.original_value.(Vec3);
+				origin := tweener.start.(Vec3);
 				target := tweener.target.(Vec3);
-				kind^ = interpolate(origin, target, tweener.time / tweener.duration, tweener.ease_proc);
+				kind^ = update_one_tweener(Vec3, tweener, dt);
 			}
 			case ^Vec4: {
-				origin := tweener.original_value.(Vec4);
+				origin := tweener.start.(Vec4);
 				target := tweener.target.(Vec4);
-				kind^ = interpolate(origin, target, tweener.time / tweener.duration, tweener.ease_proc);
+				kind^ = update_one_tweener(Vec4, tweener, dt);
 			}
 		}
 
-		if tweener.time >= tweener.duration {
+		if !tweener.loop && tweener.time >= tweener.duration {
 			remove(&tweeners, tweener_idx);
 			tweener_idx -= 1;
 		}

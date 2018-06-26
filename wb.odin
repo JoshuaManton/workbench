@@ -429,8 +429,6 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 		bl := Vec2{x0, y0};
 		tr := Vec2{x1, y1};
 
-		// draw_debug_box(screen_to_world(Vec2{x0 * cast(f32)current_window_width, y0 * cast(f32)current_window_height}), screen_to_world(Vec2{x1 * cast(f32)current_window_width, y1 * cast(f32)current_window_height}), COLOR_GREEN);
-
 		push_quad(shader_text, bl, tr, sprite, color, layer);
 
 		cur_x += (pixel_width * pixel_matrix[0][0]);
