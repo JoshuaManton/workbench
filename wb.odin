@@ -30,11 +30,11 @@ camera_rotation: f32;
 
 
 
-current_window_width:  i32;
-_new_window_width:  i32;
+current_window_width:  int;
+_new_window_width:  int;
 
-current_window_height: i32;
-_new_window_height: i32;
+current_window_height: int;
+_new_window_height: int;
 
 current_aspect_ratio:  f32;
 _new_aspect_ratio:  f32;
@@ -128,8 +128,8 @@ screen_to_world :: proc(screen: Vec2) -> Vec2 {
 
 init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_version_major, opengl_version_minor: i32) {
 	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
-		_new_window_width  = w;
-		_new_window_height = h;
+		_new_window_width  = cast(int)w;
+		_new_window_height = cast(int)h;
 		_new_aspect_ratio = cast(f32)w / cast(f32)h;
 
 		top    : f32 =  1;
@@ -232,6 +232,7 @@ Buffered_Vertex :: struct {
 }
 
 buffered_vertices:   [dynamic]Buffered_Vertex;
+debug_vertices:      [dynamic]Buffered_Vertex;
 queued_for_drawing:  [dynamic]Vertex_Type;
 debug_lines:         [dynamic]Line_Segment;
 
@@ -440,6 +441,12 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 
 flush_debug_lines :: inline proc() {
 	rendering_world_space();
+
+	// kinda weird, kinda neat
+	old_vertices := buffered_vertices;
+	buffered_vertices = debug_vertices;
+	defer buffered_vertices = old_vertices;
+
 	for line in debug_lines {
 		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color, 0);
 		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color, 0);
@@ -500,6 +507,8 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 
 		acc += last_delta_time;
 		old_frame_count := frame_count;
+		update_tweeners(last_delta_time);
+
 		for acc >= target_delta_time {
 			frame_count += 1;
 			acc -= target_delta_time;
@@ -518,10 +527,9 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 			clear(&buffered_vertices);
 			update_input();
 			if !update(target_delta_time) do break game_loop;
-			update_tweeners(last_delta_time);
 		}
 
-		odingl.Viewport(0, 0, current_window_width, current_window_height);
+		odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 		odingl.Clear(coregl.COLOR_BUFFER_BIT);
 
 		render(target_delta_time);
@@ -535,7 +543,6 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 		current_render_mode = nil;
 
 		draw_buffered_vertices(coregl.TRIANGLES);
-		clear(&buffered_vertices);
 
 		flush_debug_lines();
 
@@ -559,7 +566,7 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 		logln("Couldn't open font: ", path);
 		return nil, false;
 	}
-	defer free(data);
+	defer delete(data);
 
 	pixels: []u8;
 	chars:  []stb.Baked_Char;
@@ -571,7 +578,7 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 		ret: int;
 		chars, ret = stb.bake_font_bitmap(data, 0, size, pixels, dim, dim, 0, 128);
 		if ret < 0 {
-			free(pixels);
+			delete(pixels);
 			dim *= 2;
 		}
 		else {
@@ -590,7 +597,7 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 }
 
 destroy_font :: inline proc(font: ^Font) {
-	free(font.chars);
+	delete(font.chars);
 	delete_texture(font.id);
 	free(font);
 }
@@ -659,7 +666,7 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 		{bottom_left_x + width_fraction, bottom_left_y},
 	};
 
-	texture.atlas_x += sprite_height;
+	texture.atlas_x += sprite_width;
 
 	sprite := Sprite{coords, cast(f32)sprite_width / PIXELS_PER_WORLD_UNIT, cast(f32)sprite_height / PIXELS_PER_WORLD_UNIT, texture.id};
 	return sprite, true;

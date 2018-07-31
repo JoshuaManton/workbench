@@ -37,7 +37,7 @@ Tweener :: struct {
 
 tweeners: [dynamic]Tweener;
 
-tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32, delay : f32 = 0, loop : bool = false) {
+tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_linear, delay : f32 = 0, loop : bool = false) {
 	addr := cast(^u8)ptr;
 	for i in 0..len(tweeners) {
 		tweener := &tweeners[i];
@@ -74,6 +74,7 @@ update_one_tweener :: proc(kind: type, tweener: ^Tweener, dt: f32) -> kind {
 	return result;
 }
 
+// note: not updated in fixed-dt chunks
 update_tweeners :: proc(dt: f32) {
 	tweener_idx := 0;
 	for tweener_idx < len(tweeners) {

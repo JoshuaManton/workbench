@@ -49,14 +49,14 @@ load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 		logln("Couldn't open shader file: ", vs);
 		return Shader_Program{}, false;
 	}
-	defer free(vs_code);
+	defer delete(vs_code);
 
 	fs_code, ok2 := os.read_entire_file(fs);
 	if !ok2 {
 		logln("Couldn't open shader file: ", fs);
 		return Shader_Program{}, false;
 	}
-	defer free(fs_code);
+	defer delete(fs_code);
 
 	program, ok := load_shader_text(cast(string)vs_code, cast(string)fs_code);
 	return cast(Shader_Program)program, ok;
@@ -75,7 +75,7 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
 
         if result == 0 {
             error_message := make([]u8, info_log_length);
-            defer free(error_message);
+            defer delete(error_message);
 
             log_func(id, i32(info_log_length), nil, &error_message[0]);
             fmt.printf_err("Error in %v:\n%s", type_, string(error_message[0..len(error_message)-1]));
