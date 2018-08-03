@@ -134,16 +134,16 @@ button_default_hover :: proc(button: ^Button_Data) {
 
 }
 button_default_click :: proc(button: ^Button_Data) {
-	tween(&button.x1, 0.2, 2, ease_linear);
-	tween(&button.y1, 0.2, 2, ease_linear);
-	tween(&button.x2, 0.8, 2, ease_linear);
-	tween(&button.y2, 0.8, 2, ease_linear);
+	tween(&button.x1, 0.05, 0.25, ease_out_quart);
+	tween(&button.y1, 0.05, 0.25, ease_out_quart);
+	tween(&button.x2, 0.95, 0.25, ease_out_quart);
+	tween(&button.y2, 0.95, 0.25, ease_out_quart);
 }
 button_default_release :: proc(button: ^Button_Data) {
-	tween(&button.x1, 0, 2, ease_linear);
-	tween(&button.y1, 0, 2, ease_linear);
-	tween(&button.x2, 1, 2, ease_linear);
-	tween(&button.y2, 1, 2, ease_linear);
+	tween(&button.x1, 0, 0.25, ease_out_back);
+	tween(&button.y1, 0, 0.25, ease_out_back);
+	tween(&button.x2, 1, 0.25, ease_out_back);
+	tween(&button.y2, 1, 0.25, ease_out_back);
 }
 
 ui_button :: proc(using button: ^Button_Data) -> bool {
@@ -179,7 +179,7 @@ ui_click :: inline proc(using button: ^Button_Data) {
 	clicked = frame_count;
 }
 
-ui_text :: proc(font: ^Font, str: string, color: Colorf, center_vertically := true, center_horizontally := true, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0) {
+ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_vertically := true, center_horizontally := true, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left);
 	defer ui_pop_rect();
 
@@ -206,7 +206,7 @@ ui_text :: proc(font: ^Font, str: string, color: Colorf, center_vertically := tr
 	// position := Vec2{center_of_rect.x - (string_width / 2), ui_current_rect_unit.y1};
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
 	height := ui_current_rect_unit.y2 - ui_current_rect_unit.y1;
-	draw_string(font, str, position, color, height, 0);
+	draw_string(font, str, position, color, height*size, 0);
 }
 
 // button :: proc(font: ^Font, text: string, text_size: f32, text_color: Colorf, min, max: Vec2, button_color: Colorf, render_order: int, scale: f32 = 1, alpha: f32 = 1) -> bool {

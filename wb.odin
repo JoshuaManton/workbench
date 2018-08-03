@@ -394,7 +394,6 @@ draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex, mode: u32) {
 // }
 
 draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _size: f32, layer: int) -> f32 {
-	logln(#procedure);
 	assert(current_render_mode == rendering_unit_space);
 
 	start := position;
@@ -403,26 +402,27 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _si
 		quad: stb.Aligned_Quad;
 		char_width: f32;
 		{
-			size_in_pixels: Vec2;
-			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_in_pixels.x, &size_in_pixels.y, true);
-			size_in_pixels.y = quad.y1 - quad.y0;
+			//
+			size_pixels: Vec2;
+			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT.
+			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
+			size_pixels.y = abs(quad.y0 - quad.y1);
+
+			//
+			quad.x0 /= cast(f32)current_window_width;
+			quad.y0 /= cast(f32)current_window_height;
+			quad.x1 /= cast(f32)current_window_width;
+			quad.y1 /= cast(f32)current_window_height;
+
+			//
 			size: Vec2;
-			{
-				aspect := cast(f32)size_in_pixels.x / cast(f32)size_in_pixels.y;
-				size_as_fullscreen := Vec2{0, cast(f32)current_window_height};
-				size_as_fullscreen.x = size_as_fullscreen.y * aspect;
-				size.x = size_as_fullscreen.x / cast(f32)current_window_width;
-				size.y = size_as_fullscreen.y / cast(f32)current_window_height;
-				size *= _size;
-			}
+			size.y = _size * (size_pixels.y / font.size);
+			size.x = size.y * (size_pixels.x / size_pixels.y)/2; // no idea why we need a `/2` here but it is way too wide otherwise
 
-			width  := size.x;
-			height := abs(quad.y1 - quad.y0);
+			min = position + Vec2{0, -quad.y1};
+			max = min + size;
 
-			min = position;
-			max = position + size;
-
-			char_width = size.x;
+			char_width = max.x - min.x;
 		}
 
 		sprite: Sprite;
