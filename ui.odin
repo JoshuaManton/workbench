@@ -1,6 +1,7 @@
 package workbench
 
 using import "core:math"
+using import "core:fmt"
 
 //
 // Positioning
@@ -22,27 +23,27 @@ ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
 ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0) {
-	current_rect: Pixel_Rect;
+	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
-		current_rect = Pixel_Rect{0, 0, current_window_width, current_window_height};
+		current_rect = Unit_Rect{0, 0, 1, 1};
 	}
 	else {
-		current_rect = ui_current_rect_pixels;
+		current_rect = ui_current_rect_unit;
 	}
 
 	cur_w := current_rect.x2 - current_rect.x1;
 	cur_h := current_rect.y2 - current_rect.y1;
 
-	new_x1 := current_rect.x1 + cast(int)(cast(f32)cur_w * x1) + left;
-	new_y1 := current_rect.y1 + cast(int)(cast(f32)cur_h * y1) + bottom;
+	new_x1 := current_rect.x1 + (cur_w * x1) + (cast(f32)left / cast(f32)current_window_width);
+	new_y1 := current_rect.y1 + (cur_h * y1) + (cast(f32)bottom / cast(f32)current_window_height);
 
-	new_x2 := current_rect.x2 - cast(int)(cast(f32)cur_w*(1-x2)) - right;
-	new_y2 := current_rect.y2 - cast(int)(cast(f32)cur_h*(1-y2)) - top;
+	new_x2 := current_rect.x2 - cast(f32)cur_w*(1-x2) - cast(f32)right / cast(f32)current_window_width;
+	new_y2 := current_rect.y2 - cast(f32)cur_h*(1-y2) - cast(f32)top / cast(f32)current_window_height;
 
-	ui_current_rect_pixels = Pixel_Rect{new_x1, new_y1, new_x2, new_y2};
+	ui_current_rect_unit = Unit_Rect{new_x1, new_y1, new_x2, new_y2};
 	cww := current_window_width;
 	cwh := current_window_height;
-	ui_current_rect_unit = Unit_Rect{cast(f32)ui_current_rect_pixels.x1 / cast(f32)cww, cast(f32)ui_current_rect_pixels.y1 / cast(f32)cwh, cast(f32)ui_current_rect_pixels.x2 / cast(f32)cww, cast(f32)ui_current_rect_pixels.y2 / cast(f32)cwh};
+	ui_current_rect_pixels = Pixel_Rect{cast(int)(ui_current_rect_unit.x1 * cast(f32)cww), cast(int)(ui_current_rect_unit.y1 * cast(f32)cwh), cast(int)(ui_current_rect_unit.x2 * cast(f32)cww), cast(int)(ui_current_rect_unit.y2 * cast(f32)cwh)};
 
 	append(&ui_rect_stack, UI_Rect{ui_current_rect_pixels, ui_current_rect_unit});
 }
@@ -133,16 +134,16 @@ button_default_hover :: proc(button: ^Button_Data) {
 
 }
 button_default_click :: proc(button: ^Button_Data) {
-	tween(&button.x1, 0.05, 0.25, ease_out_quart);
-	tween(&button.y1, 0.05, 0.25, ease_out_quart);
-	tween(&button.x2, 0.95, 0.25, ease_out_quart);
-	tween(&button.y2, 0.95, 0.25, ease_out_quart);
+	tween(&button.x1, 0.2, 2, ease_linear);
+	tween(&button.y1, 0.2, 2, ease_linear);
+	tween(&button.x2, 0.8, 2, ease_linear);
+	tween(&button.y2, 0.8, 2, ease_linear);
 }
 button_default_release :: proc(button: ^Button_Data) {
-	tween(&button.x1, 0, 0.25, ease_out_back);
-	tween(&button.y1, 0, 0.25, ease_out_back);
-	tween(&button.x2, 1, 0.25, ease_out_back);
-	tween(&button.y2, 1, 0.25, ease_out_back);
+	tween(&button.x1, 0, 2, ease_linear);
+	tween(&button.y1, 0, 2, ease_linear);
+	tween(&button.x2, 1, 2, ease_linear);
+	tween(&button.y2, 1, 2, ease_linear);
 }
 
 ui_button :: proc(using button: ^Button_Data) -> bool {
@@ -176,6 +177,36 @@ ui_button :: proc(using button: ^Button_Data) -> bool {
 
 ui_click :: inline proc(using button: ^Button_Data) {
 	clicked = frame_count;
+}
+
+ui_text :: proc(font: ^Font, str: string, color: Colorf, center_vertically := true, center_horizontally := true, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0) {
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left);
+	defer ui_pop_rect();
+
+/*
+	rendering_pixel_space();
+
+	min := Vec2{cast(f32)ui_current_rect_pixels.x1, cast(f32)ui_current_rect_pixels.y1};
+	max := Vec2{cast(f32)ui_current_rect_pixels.x2, cast(f32)ui_current_rect_pixels.y2};
+	center_of_rect := min + ((max - min) / 2);
+	size := cast(f32)(ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1);
+	string_width : f32 = cast(f32)get_string_width(font, str, size);
+
+	position := Vec2{center_of_rect.x - (string_width / 2), cast(f32)ui_current_rect_pixels.y1};
+	*/
+
+	rendering_unit_space();
+
+	// min := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
+	// max := Vec2{ui_current_rect_unit.x2, ui_current_rect_unit.y2};
+	// center_of_rect := min + ((max - min) / 2);
+	// height := ui_current_rect_unit.y2 - ui_current_rect_unit.y1;
+	// string_width : f32 = cast(f32)get_string_width(font, str, height);
+	// logln(string_width);
+	// position := Vec2{center_of_rect.x - (string_width / 2), ui_current_rect_unit.y1};
+	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
+	height := ui_current_rect_unit.y2 - ui_current_rect_unit.y1;
+	draw_string(font, str, position, color, height, 0);
 }
 
 // button :: proc(font: ^Font, text: string, text_size: f32, text_color: Colorf, min, max: Vec2, button_color: Colorf, render_order: int, scale: f32 = 1, alpha: f32 = 1) -> bool {

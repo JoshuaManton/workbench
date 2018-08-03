@@ -72,7 +72,7 @@ rendering_unit_space :: inline proc() {
 	transform_matrix = scale(transform_matrix, 2);
 
 	pixel_matrix = identity(Mat4);
-	pixel_matrix = scale(pixel_matrix, Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
+	pixel_matrix = scale(pixel_matrix, Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
 }
 
 rendering_pixel_space :: inline proc() {
@@ -84,6 +84,10 @@ rendering_pixel_space :: inline proc() {
 	transform_matrix = scale(transform_matrix, 2);
 
 	pixel_matrix = identity(Mat4);
+}
+
+relative_to_pixel :: inline proc(a: Vec2) -> Vec2 {
+	return to_vec2(mul(pixel_matrix, to_vec4(a)));
 }
 
 set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
@@ -242,29 +246,6 @@ Vertex_Type :: struct {
 	color: Colorf,
 }
 
-Line_Segment :: struct {
-	a, b: Vec2,
-	color: Colorf,
-}
-
-draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
-	append(&debug_lines, Line_Segment{a, b, color});
-}
-
-draw_debug_box :: proc[draw_debug_box_min_max, draw_debug_box_points];
-draw_debug_box_min_max :: inline proc(min, max: Vec2, color: Colorf) {
-	draw_debug_line(Vec2{min.x, min.y}, Vec2{min.x, max.y}, color);
-	draw_debug_line(Vec2{min.x, max.y}, Vec2{max.x, max.y}, color);
-	draw_debug_line(Vec2{max.x, max.y}, Vec2{max.x, min.y}, color);
-	draw_debug_line(Vec2{max.x, min.y}, Vec2{min.x, min.y}, color);
-}
-draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
-	draw_debug_line(a, b, color);
-	draw_debug_line(b, c, color);
-	draw_debug_line(c, d, color);
-	draw_debug_line(d, a, color);
-}
-
 Sprite :: struct {
 	uvs: [4]Vec2,
 	width: f32,
@@ -312,6 +293,19 @@ _push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: 
 	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, render_order);
 	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, render_order);
 	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+
+	if current_render_mode != rendering_pixel_space {
+		p0 = to_vec2(mul(pixel_matrix, to_vec4(p0)));
+		p1 = to_vec2(mul(pixel_matrix, to_vec4(p1)));
+		p2 = to_vec2(mul(pixel_matrix, to_vec4(p2)));
+		p3 = to_vec2(mul(pixel_matrix, to_vec4(p3)));
+	}
+
+	// draw_debug_line(p0, p1, COLOR_GREEN);
+	// draw_debug_line(p1, p2, COLOR_GREEN);
+	// draw_debug_line(p2, p1, COLOR_GREEN);
+	// draw_debug_line(p2, p3, COLOR_GREEN);
+	// draw_debug_line(p3, p0, COLOR_GREEN);
 }
 
 push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
@@ -342,105 +336,139 @@ draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex, mode: u32) {
 	append(&queued_for_drawing, vertex);
 }
 
-_get_size_ratio_for_font :: inline proc(font: ^Font, size: f32) -> f32 {
-	size /= 2; // not sure why this is necessary but the text was being drawn twice as big as it should be
-	pixel_size := mul(transform_matrix, Vec4{0, size, 0, 0}).y;
-	pixel_size *= cast(f32)current_window_height;
-	size_ratio := pixel_size / font.size;
-	return size_ratio;
-}
+// get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
+// 	size_ratio := _get_size_ratio_for_font(font, size);
+// 	cur_pos: Vec2;
+// 	for c in str {
+// 		quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &cur_pos.x, &cur_pos.y, true);
+// 		// char_width comes out as pixels, so we need to convert it to the current render mode
+// 		if current_render_mode == rendering_pixel_space {
+// 		}
+// 		else if current_render_mode == rendering_unit_space {
+// 			char_width = char_width / cast(f32)current_window_width * size_ratio;
+// 		}
+// 		else {
+// 			assert(false);
+// 		}
 
-get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
-	size_ratio := _get_size_ratio_for_font(font, size);
-	cur_width: f32;
-	for c in str {
-		pixel_width, _, quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
-		pixel_width *= size_ratio;
-		cur_width += (pixel_width * pixel_matrix[0][0]);
-	}
+// 		cur_width += char_width;
+// 	}
 
-	return cur_width;
-}
+// 	return cur_width;
+// }
 
-get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
-	// size_ratio := _get_size_ratio_for_font(font, size);
-	// return size * size_ratio / 2;
+// get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
+// 	size_ratio := _get_size_ratio_for_font(font, size);
+// 	// return size * size_ratio / 2;
+// 	assert(current_render_mode == rendering_unit_space);
+
+// 	biggest_height: f32;
+// 	for c in font.chars {
+// 		height := cast(f32)c.y1 - cast(f32)c.y0;
+// 		if height > biggest_height {
+// 			biggest_height = height;
+// 		}
+// 	}
+
+// 	biggest_height /= cast(f32)current_window_height * size_ratio;
+
+// 	return biggest_height * size;
+// }
+
+// get_centered_baseline :: inline proc(font: ^Font, text: string, size: f32, min, max: Vec2) -> Vec2 {
+// 	string_width  := get_string_width(font, text, size);
+// 	string_height := get_font_height(font, size);
+// 	box_width     := max.x - min.x;
+// 	box_height    := max.y - min.y;
+
+// 	leftover_x := box_width - string_width;
+// 	xx := leftover_x - (leftover_x / 2);
+
+// 	leftover_y := box_height - string_height;
+// 	// todo
+// 	yy := string_height;// - (leftover_y / 2);
+
+// 	result := min + Vec2{xx, yy};
+
+// 	return result;
+// }
+
+draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _size: f32, layer: int) -> f32 {
+	logln(#procedure);
 	assert(current_render_mode == rendering_unit_space);
 
-	biggest_height: f32;
-	for c in font.chars {
-		height := cast(f32)c.y1 - cast(f32)c.y0;
-		// logln(height);
-		if height > biggest_height {
-			biggest_height = height;
-		}
-	}
-
-	biggest_height /= cast(f32)current_window_height;
-
-	return biggest_height * size;
-}
-
-get_centered_baseline :: inline proc(font: ^Font, text: string, size: f32, min, max: Vec2) -> Vec2 {
-	string_width  := get_string_width(font, text, size);
-	string_height := get_font_height(font, size);
-	box_width     := max.x - min.x;
-	box_height    := max.y - min.y;
-
-	leftover_x := box_width - string_width;
-	xx := leftover_x - (leftover_x / 2);
-
-	leftover_y := box_height - string_height;
-	// todo
-	yy := string_height;// - (leftover_y / 2);
-
-	result := min + Vec2{xx, yy};
-
-	return result;
-}
-
-draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
-	size_ratio := _get_size_ratio_for_font(font, size);
-	cur_x := position.x;
+	start := position;
 	for c in str {
-		pixel_width, _, quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, true);
-		pixel_width *= size_ratio;
+		min, max: Vec2;
+		quad: stb.Aligned_Quad;
+		char_width: f32;
+		{
+			size_in_pixels: Vec2;
+			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_in_pixels.x, &size_in_pixels.y, true);
+			size_in_pixels.y = quad.y1 - quad.y0;
+			size: Vec2;
+			{
+				aspect := cast(f32)size_in_pixels.x / cast(f32)size_in_pixels.y;
+				size_as_fullscreen := Vec2{0, cast(f32)current_window_height};
+				size_as_fullscreen.x = size_as_fullscreen.y * aspect;
+				size.x = size_as_fullscreen.x / cast(f32)current_window_width;
+				size.y = size_as_fullscreen.y / cast(f32)current_window_height;
+				size *= _size;
+			}
 
-		offset := mul(pixel_matrix, Vec4{quad.x0, quad.y1, 0, 0}) * size_ratio;
-		start  := offset.x;
-		yoff   := offset.y;
+			width  := size.x;
+			height := abs(quad.y1 - quad.y0);
 
-		left_padding := pixel_width - (pixel_width - quad.x0);
-		right_padding := pixel_width - quad.x1;
+			min = position;
+			max = position + size;
 
-		size   := mul(pixel_matrix, Vec4{(pixel_width - right_padding - left_padding), (quad.y1 - quad.y0), 0, 0}) * size_ratio;
-		width  := size.x;
-		height := abs(size.y);
+			char_width = size.x;
+		}
 
-		uv0 := Vec2{quad.s0, quad.t1};
-		uv1 := Vec2{quad.s0, quad.t0};
-		uv2 := Vec2{quad.s1, quad.t0};
-		uv3 := Vec2{quad.s1, quad.t1};
-		sprite := Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
+		sprite: Sprite;
+		{
+			uv0 := Vec2{quad.s0, quad.t1};
+			uv1 := Vec2{quad.s0, quad.t0};
+			uv2 := Vec2{quad.s1, quad.t0};
+			uv3 := Vec2{quad.s1, quad.t1};
+			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
+		}
 
-		x0 := cur_x + start;
-		y0 := position.y - yoff;
-		x1 := cur_x + start + width;
-		y1 := position.y - yoff + height;
-		bl := Vec2{x0, y0};
-		tr := Vec2{x1, y1};
-
-		push_quad(shader_text, bl, tr, sprite, color, layer);
-
-		cur_x += (pixel_width * pixel_matrix[0][0]);
+		push_quad(shader_text, min, max, sprite, color, layer);
+		position.x += char_width;
 	}
 
-	width := cur_x - position.x;
+	width := position.x - start.x;
 	return width;
 }
 
+Line_Segment :: struct {
+	a, b: Vec2,
+	color: Colorf,
+}
+
+log1: bool;
+draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
+	append(&debug_lines, Line_Segment{a, b, color});
+}
+
+draw_debug_box :: proc[draw_debug_box_min_max, draw_debug_box_points];
+draw_debug_box_min_max :: inline proc(min, max: Vec2, color: Colorf) {
+	draw_debug_line(Vec2{min.x, min.y}, Vec2{min.x, max.y}, color);
+	draw_debug_line(Vec2{min.x, max.y}, Vec2{max.x, max.y}, color);
+	draw_debug_line(Vec2{max.x, max.y}, Vec2{max.x, min.y}, color);
+	draw_debug_line(Vec2{max.x, min.y}, Vec2{min.x, min.y}, color);
+}
+draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
+	draw_debug_line(a, b, color);
+	draw_debug_line(b, c, color);
+	draw_debug_line(c, d, color);
+	draw_debug_line(d, a, color);
+}
+
 flush_debug_lines :: inline proc() {
-	rendering_world_space();
+	// rendering_world_space();
+	rendering_pixel_space();
 
 	// kinda weird, kinda neat
 	old_vertices := buffered_vertices;

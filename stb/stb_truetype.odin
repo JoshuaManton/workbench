@@ -55,9 +55,9 @@ bake_font_bitmap :: proc(data: []u8, offset: int, pixel_height: f32, pixels: []u
     return chardata, int(ret);
 }
 
-get_baked_quad :: proc(chardata: []Baked_Char, pw, ph, char_index: int, opengl_fillrule: bool) -> (xpos, ypos: f32, q: Aligned_Quad) {
-    stbtt_GetBakedQuad(cast(^stbtt_bakedchar)&chardata[0], i32(pw), i32(ph), i32(char_index), &xpos, &ypos, &q, i32(opengl_fillrule));
-    return xpos, ypos, Aligned_Quad(q);
+get_baked_quad :: proc(chardata: []Baked_Char, pw, ph, char_index: int, xpos, ypos: ^f32, opengl_fillrule: bool) -> (q: Aligned_Quad) {
+    stbtt_GetBakedQuad(cast(^stbtt_bakedchar)&chardata[0], i32(pw), i32(ph), i32(char_index), xpos, ypos, &q, i32(opengl_fillrule));
+    return Aligned_Quad(q);
 }
 
 
