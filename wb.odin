@@ -404,23 +404,35 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _si
 		{
 			//
 			size_pixels: Vec2;
-			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT.
+			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
 			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
-			size_pixels.y = abs(quad.y0 - quad.y1);
-
-			//
+			size_pixels.y = abs(quad.y1 - quad.y0);
 			quad.x0 /= cast(f32)current_window_width;
 			quad.y0 /= cast(f32)current_window_height;
 			quad.x1 /= cast(f32)current_window_width;
 			quad.y1 /= cast(f32)current_window_height;
 
 			//
-			size: Vec2;
-			size.y = _size * (size_pixels.y / font.size);
-			size.x = size.y * (size_pixels.x / size_pixels.y)/2; // no idea why we need a `/2` here but it is way too wide otherwise
+			char_aspect   := (quad.s1 - quad.s0) / (quad.t1 - quad.t0);
 
-			min = position + Vec2{0, -quad.y1};
-			max = min + size;
+			//
+			char_size_t : f32 = size_pixels.y / font.size;
+			// size.y = _size * char_size_t;
+			// size.x = size.y * char_aspect;
+
+			size: Vec2;
+			size.y = _size * char_size_t;
+			size.x = size.y * char_aspect;
+			logln(char_aspect);
+
+			// max = min + size;
+			min = position + Vec2{quad.x0, -quad.y1};
+			// max = position + Vec2{quad.x1, -quad.y0};
+			max = position + size;
+
+			if c == 'g' {
+				// logln(size);
+			}
 
 			char_width = max.x - min.x;
 		}
@@ -468,7 +480,8 @@ draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
 
 flush_debug_lines :: inline proc() {
 	// rendering_world_space();
-	rendering_pixel_space();
+	// rendering_pixel_space();
+	rendering_unit_space();
 
 	// kinda weird, kinda neat
 	old_vertices := buffered_vertices;

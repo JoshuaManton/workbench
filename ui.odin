@@ -34,11 +34,11 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 	cur_w := current_rect.x2 - current_rect.x1;
 	cur_h := current_rect.y2 - current_rect.y1;
 
-	new_x1 := current_rect.x1 + (cur_w * x1) + (cast(f32)left / cast(f32)current_window_width);
-	new_y1 := current_rect.y1 + (cur_h * y1) + (cast(f32)bottom / cast(f32)current_window_height);
+	new_x1 := current_rect.x1 + (cur_w * x1) + ((cast(f32)left / cast(f32)current_window_width));
+	new_y1 := current_rect.y1 + (cur_h * y1) + ((cast(f32)bottom / cast(f32)current_window_height));
 
-	new_x2 := current_rect.x2 - cast(f32)cur_w*(1-x2) - cast(f32)right / cast(f32)current_window_width;
-	new_y2 := current_rect.y2 - cast(f32)cur_h*(1-y2) - cast(f32)top / cast(f32)current_window_height;
+	new_x2 := current_rect.x2 - cast(f32)cur_w * (1-x2) - ((cast(f32)right / cast(f32)current_window_width));
+	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top / cast(f32)current_window_height));
 
 	ui_current_rect_unit = Unit_Rect{new_x1, new_y1, new_x2, new_y2};
 	cww := current_window_width;
@@ -53,6 +53,39 @@ ui_pop_rect :: inline proc() {
 	rect := ui_rect_stack[len(ui_rect_stack)-1];
 	ui_current_rect_pixels = rect.pixel_rect;
 	ui_current_rect_unit = rect.unit_rect;
+}
+
+ui_fit_to_aspect :: inline proc(ww, hh: f32) {
+	current_rect_width  := (cast(f32)ui_current_rect_pixels.x2 - cast(f32)ui_current_rect_pixels.x1);
+	current_rect_height := (cast(f32)ui_current_rect_pixels.y2 - cast(f32)ui_current_rect_pixels.y1);
+
+	assert(current_rect_height != 0);
+	current_rect_aspect : f32 = cast(f32)(ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1) / cast(f32)(ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1);
+
+	ui_draw_colored_quad(Colorf{1, 0, 0, 1});
+
+	aspect := hh / ww;
+	h_width:  int;
+	h_height: int;
+	if aspect < current_rect_aspect {
+		width  := current_rect_width;
+		height := current_rect_width * aspect;
+		h_width  = cast(int)round(width  / 2);
+		h_height = cast(int)round(height / 2);
+	}
+	else {
+		aspect = ww / hh;
+		height := current_rect_height;
+		width  := current_rect_height * aspect;
+		h_width  = cast(int)round(width  / 2);
+		h_height = cast(int)round(height / 2);
+	}
+
+	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width);
+}
+
+ui_end_fit_to_aspect :: inline proc() {
+	ui_pop_rect();
 }
 
 //
