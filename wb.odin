@@ -407,32 +407,11 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _si
 			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
 			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
 			size_pixels.y = abs(quad.y1 - quad.y0);
-			quad.x0 /= cast(f32)current_window_width;
-			quad.y0 /= cast(f32)current_window_height;
-			quad.x1 /= cast(f32)current_window_width;
-			quad.y1 /= cast(f32)current_window_height;
 
-			//
-			char_aspect   := (quad.s1 - quad.s0) / (quad.t1 - quad.t0);
-
-			//
-			char_size_t : f32 = size_pixels.y / font.size;
-			// size.y = _size * char_size_t;
-			// size.x = size.y * char_aspect;
-
-			size: Vec2;
-			size.y = _size * char_size_t;
-			size.x = size.y * char_aspect;
-			logln(char_aspect);
-
-			// max = min + size;
-			min = position + Vec2{quad.x0, -quad.y1};
-			// max = position + Vec2{quad.x1, -quad.y0};
-			max = position + size;
-
-			if c == 'g' {
-				// logln(size);
-			}
+			ww := cast(f32)current_window_width;
+			hh := cast(f32)current_window_height;
+			min = position + (Vec2{quad.x0, -quad.y1} / font.size * _size * Vec2{hh/ww, 1});
+			max = position + (Vec2{quad.x1, -quad.y0} / font.size * _size * Vec2{hh/ww, 1});
 
 			char_width = max.x - min.x;
 		}
