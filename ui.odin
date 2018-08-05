@@ -62,8 +62,6 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32) {
 	assert(current_rect_height != 0);
 	current_rect_aspect : f32 = cast(f32)(ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1) / cast(f32)(ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1);
 
-	ui_draw_colored_quad(Colorf{1, 0, 0, 1});
-
 	aspect := hh / ww;
 	h_width:  int;
 	h_height: int;
@@ -162,17 +160,17 @@ Button_Data :: struct {
 	clicked: u64,
 }
 
-button_default_data := Button_Data{0, 0, 1, 1, 0, 0, 0, 0, button_default_hover, button_default_click, button_default_release, Colorf{0, 0, 0, 0}, 0};
-button_default_hover :: proc(button: ^Button_Data) {
+default_button_data := Button_Data{0, 0, 1, 1, 0, 0, 0, 0, default_button_hover, default_button_click, default_button_release, Colorf{0, 0, 0, 0}, 0};
+default_button_hover :: proc(button: ^Button_Data) {
 
 }
-button_default_click :: proc(button: ^Button_Data) {
+default_button_click :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0.05, 0.25, ease_out_quart);
 	tween(&button.y1, 0.05, 0.25, ease_out_quart);
 	tween(&button.x2, 0.95, 0.25, ease_out_quart);
 	tween(&button.y2, 0.95, 0.25, ease_out_quart);
 }
-button_default_release :: proc(button: ^Button_Data) {
+default_button_release :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0, 0.25, ease_out_back);
 	tween(&button.y1, 0, 0.25, ease_out_back);
 	tween(&button.x2, 1, 0.25, ease_out_back);
@@ -217,7 +215,6 @@ ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_verti
 	defer ui_pop_rect();
 
 /*
-	rendering_pixel_space();
 
 	min := Vec2{cast(f32)ui_current_rect_pixels.x1, cast(f32)ui_current_rect_pixels.y1};
 	max := Vec2{cast(f32)ui_current_rect_pixels.x2, cast(f32)ui_current_rect_pixels.y2};
@@ -228,8 +225,6 @@ ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_verti
 	position := Vec2{center_of_rect.x - (string_width / 2), cast(f32)ui_current_rect_pixels.y1};
 	*/
 
-	rendering_unit_space();
-
 	// min := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
 	// max := Vec2{ui_current_rect_unit.x2, ui_current_rect_unit.y2};
 	// center_of_rect := min + ((max - min) / 2);
@@ -237,10 +232,46 @@ ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_verti
 	// string_width : f32 = cast(f32)get_string_width(font, str, height);
 	// logln(string_width);
 	// position := Vec2{center_of_rect.x - (string_width / 2), ui_current_rect_unit.y1};
-	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
-	height := ui_current_rect_unit.y2 - ui_current_rect_unit.y1;
-	draw_string(font, str, position, color, height*size, 0);
+	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
+	rendering_unit_space();
+	draw_string(font, str, position, color, height * size, 0);
 }
+
+// draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _size: f32, layer: int) -> f32 {
+// 	start := position;
+// 	for c in str {
+// 		min, max: Vec2;
+// 		quad: stb.Aligned_Quad;
+// 		{
+// 			//
+// 			size_pixels: Vec2;
+// 			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
+// 			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
+// 			size_pixels.y = abs(quad.y1 - quad.y0);
+
+// 			ww := cast(f32)current_window_width;
+// 			hh := cast(f32)current_window_height;
+// 			min = position + (Vec2{quad.x0, -quad.y1} / font.size * _size * Vec2{hh/ww, 1});
+// 			max = position + (Vec2{quad.x1, -quad.y0} / font.size * _size * Vec2{hh/ww, 1});
+// 		}
+
+// 		sprite: Sprite;
+// 		{
+// 			uv0 := Vec2{quad.s0, quad.t1};
+// 			uv1 := Vec2{quad.s0, quad.t0};
+// 			uv2 := Vec2{quad.s1, quad.t0};
+// 			uv3 := Vec2{quad.s1, quad.t1};
+// 			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
+// 		}
+
+// 		push_quad(shader_text, min, max, sprite, color, layer);
+// 		position.x += max.x - min.x;
+// 	}
+
+// 	width := position.x - start.x;
+// 	return width;
+// }
 
 // button :: proc(font: ^Font, text: string, text_size: f32, text_color: Colorf, min, max: Vec2, button_color: Colorf, render_order: int, scale: f32 = 1, alpha: f32 = 1) -> bool {
 // 	rendering_unit_space();

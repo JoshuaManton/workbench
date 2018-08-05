@@ -37,7 +37,7 @@ Tweener :: struct {
 
 tweeners: [dynamic]Tweener;
 
-tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_linear, delay : f32 = 0, loop : bool = false) {
+tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0, loop : bool = false) {
 	addr := cast(^u8)ptr;
 	for i in 0..len(tweeners) {
 		tweener := &tweeners[i];

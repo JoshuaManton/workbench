@@ -393,27 +393,46 @@ draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex, mode: u32) {
 // 	return result;
 // }
 
-draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _size: f32, layer: int) -> f32 {
+draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
+	// todo: make draw_string() be render_mode agnostic
+	// old := current_render_mode;
+	// rendering_unit_space();
+	// defer old();
+
 	assert(current_render_mode == rendering_unit_space);
 
 	start := position;
 	for c in str {
 		min, max: Vec2;
 		quad: stb.Aligned_Quad;
-		char_width: f32;
 		{
 			//
 			size_pixels: Vec2;
 			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
 			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
 			size_pixels.y = abs(quad.y1 - quad.y0);
+			size_pixels *= size;
 
 			ww := cast(f32)current_window_width;
 			hh := cast(f32)current_window_height;
-			min = position + (Vec2{quad.x0, -quad.y1} / font.size * _size * Vec2{hh/ww, 1});
-			max = position + (Vec2{quad.x1, -quad.y0} / font.size * _size * Vec2{hh/ww, 1});
+			// min = position + (Vec2{quad.x0, -quad.y1} * size);
+			// max = position + (Vec2{quad.x1, -quad.y0} * size);
+			min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
+			max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+			// Padding
+			{
+				// full_to_char_width_aspect: f32;
+				// {
+				// 	char_aspect := abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
+				// 	full_width := size_pixels.x;
+				// 	char_width := size_pixels.y * char_aspect;
+				// 	full_to_char_width_aspect = char_width / full_width;
+				// }
 
-			char_width = max.x - min.x;
+				// whitespace := (max.x - min.x) - ((max.x - min.x) * full_to_char_width_aspect);
+				// min.x += whitespace / 2;
+				// max.x -= whitespace / 2;
+			}
 		}
 
 		sprite: Sprite;
@@ -426,7 +445,7 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _si
 		}
 
 		push_quad(shader_text, min, max, sprite, color, layer);
-		position.x += char_width;
+		position.x += max.x - min.x;
 	}
 
 	width := position.x - start.x;
