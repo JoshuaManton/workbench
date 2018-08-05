@@ -404,6 +404,7 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 	start := position;
 	for c in str {
 		min, max: Vec2;
+		whitespace_ratio: f32;
 		quad: stb.Aligned_Quad;
 		{
 			//
@@ -421,17 +422,10 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 			max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
 			// Padding
 			{
-				// full_to_char_width_aspect: f32;
-				// {
-				// 	char_aspect := abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
-				// 	full_width := size_pixels.x;
-				// 	char_width := size_pixels.y * char_aspect;
-				// 	full_to_char_width_aspect = char_width / full_width;
-				// }
-
-				// whitespace := (max.x - min.x) - ((max.x - min.x) * full_to_char_width_aspect);
-				// min.x += whitespace / 2;
-				// max.x -= whitespace / 2;
+				char_aspect := abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
+				full_width := size_pixels.x;
+				char_width := size_pixels.y * char_aspect;
+				whitespace_ratio = 1 - (char_width / full_width);
 			}
 		}
 
@@ -445,7 +439,8 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 		}
 
 		push_quad(shader_text, min, max, sprite, color, layer);
-		position.x += max.x - min.x;
+		width := max.x - min.x;
+		position.x += width + (width * whitespace_ratio);
 	}
 
 	width := position.x - start.x;
