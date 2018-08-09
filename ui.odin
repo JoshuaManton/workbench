@@ -104,7 +104,10 @@ ui_pop_rect :: inline proc() {
 	ui_current_rect_unit = rect.unit_rect;
 }
 
-ui_fit_to_aspect :: inline proc(ww, hh: f32) {
+// todo(josh): not sure if the grow_forever_on_* feature is worth the complexity
+ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_forever_on_y := false) {
+	assert((grow_forever_on_x == false || grow_forever_on_y == false), "Cannot have grow_forever_on_y and grow_forever_on_x both be true.");
+
 	current_rect_width  := (cast(f32)ui_current_rect_pixels.x2 - cast(f32)ui_current_rect_pixels.x1);
 	current_rect_height := (cast(f32)ui_current_rect_pixels.y2 - cast(f32)ui_current_rect_pixels.y1);
 
@@ -112,21 +115,20 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32) {
 	current_rect_aspect : f32 = cast(f32)(ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1) / cast(f32)(ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1);
 
 	aspect := hh / ww;
-	h_width:  int;
-	h_height: int;
-	if aspect < current_rect_aspect {
-		width  := current_rect_width;
-		height := current_rect_width * aspect;
-		h_width  = cast(int)round(width  / 2);
-		h_height = cast(int)round(height / 2);
+	width:  f32;
+	height: f32;
+	if grow_forever_on_y || (!grow_forever_on_x && aspect < current_rect_aspect) {
+		width  = current_rect_width;
+		height = current_rect_width * aspect;
 	}
-	else {
+	else if grow_forever_on_x || aspect >= current_rect_aspect {
 		aspect = ww / hh;
-		height := current_rect_height;
-		width  := current_rect_height * aspect;
-		h_width  = cast(int)round(width  / 2);
-		h_height = cast(int)round(height / 2);
+		height = current_rect_height;
+		width  = current_rect_height * aspect;
 	}
+
+	h_width  := cast(int)round(width  / 2);
+	h_height := cast(int)round(height / 2);
 
 	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width);
 }
