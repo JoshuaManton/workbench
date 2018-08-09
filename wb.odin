@@ -560,6 +560,7 @@ start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_fra
 
 			clear(&buffered_vertices);
 			update_input();
+			update_ui(target_delta_time);
 			if !update(target_delta_time) do break game_loop;
 		}
 

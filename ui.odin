@@ -1,7 +1,56 @@
 package workbench
 
+using import "core:runtime"
 using import "core:math"
 using import "core:fmt"
+      import "core:mem"
+
+//
+// IMGUI Controls
+//
+hot:  IMGUI_ID = -1;
+warm: IMGUI_ID = -1;
+
+IMGUI_ID :: int;
+
+id_counts: map[string]int;
+
+all_imgui_mappings: [dynamic]Location_ID_Mapping;
+
+Location_ID_Mapping :: struct {
+	id: IMGUI_ID,
+	using loc: Source_Code_Location,
+	index: int,
+}
+
+update_ui :: proc(dt: f32) {
+	clear(&id_counts);
+}
+
+get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
+	count, ok := id_counts[loc.file_path];
+	if !ok {
+		id_counts[loc.file_path] = 0;
+		count = 0;
+	}
+	else {
+		count += 1;
+		id_counts[loc.file_path] = count;
+	}
+
+	for val, idx in all_imgui_mappings {
+		if val.line != loc.line do continue;
+		if val.column != loc.column do continue;
+		if val.index != count do continue;
+		if val.file_path != loc.file_path do continue;
+		return val.id;
+	}
+
+	id := len(all_imgui_mappings);
+	mapping := Location_ID_Mapping{id, loc, count};
+	append(&all_imgui_mappings, mapping);
+	return id;
+}
 
 //
 // Positioning
@@ -153,53 +202,86 @@ Button_Data :: struct {
 	top, right, bottom, left: int,
 
 	on_hover: proc(button: ^Button_Data),
-	on_click: proc(button: ^Button_Data),
-	on_release: proc(button: ^Button_Data),
+	on_pressed: proc(button: ^Button_Data),
+	on_released: proc(button: ^Button_Data),
+	on_clicked: proc(button: ^Button_Data),
 
 	color: Colorf,
 	clicked: u64,
 }
 
-default_button_data := Button_Data{0, 0, 1, 1, 0, 0, 0, 0, default_button_hover, default_button_click, default_button_release, Colorf{0, 0, 0, 0}, 0};
+default_button_data := Button_Data{0, 0, 1, 1, 0, 0, 0, 0, default_button_hover, default_button_pressed, default_button_released, nil, Colorf{0, 0, 0, 0}, 0};
 default_button_hover :: proc(button: ^Button_Data) {
 
 }
-default_button_click :: proc(button: ^Button_Data) {
+default_button_pressed :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0.05, 0.25, ease_out_quart);
 	tween(&button.y1, 0.05, 0.25, ease_out_quart);
 	tween(&button.x2, 0.95, 0.25, ease_out_quart);
 	tween(&button.y2, 0.95, 0.25, ease_out_quart);
 }
-default_button_release :: proc(button: ^Button_Data) {
+default_button_released :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0, 0.25, ease_out_back);
 	tween(&button.y1, 0, 0.25, ease_out_back);
 	tween(&button.x2, 1, 0.25, ease_out_back);
 	tween(&button.y2, 1, 0.25, ease_out_back);
 }
 
-ui_button :: proc(using button: ^Button_Data) -> bool {
+ui_button :: proc(using button: ^Button_Data, loc := #caller_location) -> bool {
+	clicked_this_frame := button.clicked == frame_count;
+	if clicked_this_frame {
+		if button.on_clicked != nil {
+			button.on_clicked(button);
+		}
+		return true;
+	}
+
+	// todo(josh): not sure about this, since the rect ends up being _much_ larger most of the time, maybe?
+	full_button_rect_unit := ui_current_rect_unit;
+
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left);
 	defer ui_pop_rect();
 
 	ui_draw_colored_quad(color);
 
-	if button.clicked != frame_count && !(cursor_unit_position.y < ui_current_rect_unit.y2 &&
-		cursor_unit_position.y > ui_current_rect_unit.y1 &&
-		cursor_unit_position.x < ui_current_rect_unit.x2 &&
-		cursor_unit_position.x > ui_current_rect_unit.x1) {
-		return false;
-	}
+	id := get_id_from_location(loc);
+	cursor_in_rect := cursor_unit_position.y < full_button_rect_unit.y2 && cursor_unit_position.y > full_button_rect_unit.y1 && cursor_unit_position.x < full_button_rect_unit.x2 && cursor_unit_position.x > full_button_rect_unit.x1;
 
-	if button.clicked == frame_count || get_mouse_up(Mouse.Left) {
-		if button.on_release != nil {
-			button.on_release(button);
+	if cursor_in_rect {
+		if warm != id && hot == id {
+			if button.on_pressed != nil {
+				button.on_pressed(button);
+			}
 		}
-		return true;
+		warm = id;
+		if get_mouse_down(Mouse.Left) {
+			if button.on_pressed != nil {
+				button.on_pressed(button);
+			}
+			hot = id;
+		}
+	}
+	else {
+		if warm == id || hot == id {
+			if button.on_released != nil {
+				button.on_released(button);
+			}
+			warm = -1;
+		}
 	}
 
-	if get_mouse_down(Mouse.Left) {
-		if button.on_click != nil {
-			button.on_click(button);
+	if get_mouse_up(Mouse.Left) {
+		if hot == id {
+			hot = -1;
+			if warm == id {
+				if button.on_released != nil {
+					button.on_released(button);
+				}
+				if button.on_clicked != nil {
+					button.on_clicked(button);
+				}
+				return true;
+			}
 		}
 	}
 
