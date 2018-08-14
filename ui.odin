@@ -6,10 +6,11 @@ using import "core:fmt"
       import "core:mem"
 
 //
-// IMGUI Controls
+// UI state
 //
 hot:  IMGUI_ID = -1;
 warm: IMGUI_ID = -1;
+scroll_initial_cursor_position: Vec2;
 
 IMGUI_ID :: int;
 
@@ -23,8 +24,17 @@ Location_ID_Mapping :: struct {
 	index: int,
 }
 
+ui_debug: bool;
+
 update_ui :: proc(dt: f32) {
 	clear(&id_counts);
+
+	if get_key_down(Key.F1) {
+		ui_debug = !ui_debug;
+	}
+
+	rendering_unit_space();
+	push_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
 }
 
 get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
@@ -138,42 +148,80 @@ ui_end_fit_to_aspect :: inline proc() {
 }
 
 //
+// Scroll View
+//
+
+Scroll_View :: struct {
+	cur_scroll: f32,
+	is_held: bool,
+}
+
+scroll_view :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0) {
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left);
+	defer ui_pop_rect();
+}
+
+//
 // Grids
 //
 
-Grid_Layout :: struct {
-	w, h: int,
-	cur_x, cur_y: int,
+// Grid_Layout :: struct {
+// 	w, h: int,
 
-	// pixel padding, per element
-	top, right, bottom, left: int,
-}
+// 	using _: struct { // runtime fields
+// 		cur_x, cur_y: int,
+// 		// pixel padding, per element
+// 		top, right, bottom, left: int,
+// 	},
+// }
 
-grid_start :: inline proc(grid: ^Grid_Layout) {
-	ui_push_rect(0, 0, 1, 1); // doesn't matter, gets popped immediately
+// grid_start :: proc(ww, hh: int, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0) -> Grid_Layout {
+// 	assert(ww == -1 || hh == -1 && ww != hh, "Can only pass a width _or_ a height, since we grow forever.");
 
-	grid.cur_x = 0;
-	grid.cur_y = grid.h;
+// 	grid := Grid_Layout{ww, hh, {}};
+// 	if grid.w == -1 {
 
-	grid_next(grid);
-}
+// 	}
+// 	else {
+// 		assert(grid.h == -1, "???? We're supposed to protect against this in grid_start()");
+// 	}
+// 	return grid;
+// }
 
-grid_next :: inline proc(grid: ^Grid_Layout) {
-	grid.cur_y -= 1;
-	if grid.cur_y == -1 {
-		grid.cur_x += 1; // (grid.cur_x + 1) % grid.w;
-		grid.cur_y = grid.h-1;
-	}
+// grid_next :: proc(grid: ^Grid_Layout) {
+// 	if grid.w == -1 {
+// 		grid.cur_h
+// 	}
+// 	else {
+// 		assert(grid.h == -1, "???? We're supposed to protect against this in grid_start()");
+// 	}
+// }
 
-	ui_pop_rect();
-	x1 := cast(f32)grid.cur_x / cast(f32)grid.w;
-	y1 := cast(f32)grid.cur_y / cast(f32)grid.h;
-	ui_push_rect(x1, y1, x1 + 1.0 / cast(f32)grid.w, y1 + 1.0 / cast(f32)grid.h, grid.top, grid.right, grid.bottom, grid.left);
-}
+// grid_start :: inline proc(grid: ^Grid_Layout) {
+// 	ui_push_rect(0, 0, 1, 1); // doesn't matter, gets popped immediately
 
-grid_end :: inline proc() {
-	ui_pop_rect();
-}
+// 	grid.cur_x = 0;
+// 	grid.cur_y = grid.h;
+
+// 	grid_next(grid);
+// }
+
+// grid_next :: inline proc(grid: ^Grid_Layout) {
+// 	grid.cur_y -= 1;
+// 	if grid.cur_y == -1 {
+// 		grid.cur_x += 1; // (grid.cur_x + 1) % grid.w;
+// 		grid.cur_y = grid.h-1;
+// 	}
+
+// 	ui_pop_rect();
+// 	x1 := cast(f32)grid.cur_x / cast(f32)grid.w;
+// 	y1 := cast(f32)grid.cur_y / cast(f32)grid.h;
+// 	ui_push_rect(x1, y1, x1 + 1.0 / cast(f32)grid.w, y1 + 1.0 / cast(f32)grid.h, grid.top, grid.right, grid.bottom, grid.left);
+// }
+
+// grid_end :: inline proc(grid: ^Grid_Layout) {
+// 	ui_pop_rect();
+// }
 
 //
 // Drawing
@@ -272,8 +320,8 @@ ui_button :: proc(using button: ^Button_Data, loc := #caller_location) -> bool {
 		}
 	}
 
-	if get_mouse_up(Mouse.Left) {
-		if hot == id {
+	if hot == id {
+		if !get_mouse(Mouse.Left) {
 			hot = -1;
 			if warm == id {
 				if button.on_released != nil {

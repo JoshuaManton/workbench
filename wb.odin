@@ -527,9 +527,18 @@ time: f32;
 last_delta_time: f32;
 fps_to_draw: f32;
 
-start_game_loop :: proc(update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
+Workbench_Init_Args :: struct {
+	target_delta_time: f32,
+}
+
+start_game_loop :: proc(init: proc(Workbench_Init_Args), update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
 	acc: f32;
 	target_delta_time := 1 / target_framerate;
+
+	if init != nil {
+		args := Workbench_Init_Args{target_delta_time};
+		init(args);
+	}
 
 	game_loop:
 	for !window_should_close(main_window) {
