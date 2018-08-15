@@ -14,6 +14,30 @@ using import        "core:fmt"
       import stb    "shared:workbench/stb"
       import        "shared:workbench/glfw"
 
+main_window: glfw.Window_Handle;
+
+current_window_width:  int;
+current_window_height: int;
+current_aspect_ratio:  f32;
+
+cursor_scroll: f32;
+cursor_world_position:       Vec2;
+cursor_screen_position:      Vec2;
+cursor_unit_position:        Vec2;
+
+frame_count: u64;
+time: f32;
+last_delta_time: f32;
+fps_to_draw: f32;
+
+ // set in callbacks
+_new_ortho_matrix:  Mat4;
+_new_window_width:  int;
+_new_window_height: int;
+_new_aspect_ratio:  f32;
+_new_cursor_scroll: f32;
+_new_cursor_screen_position: Vec2;
+
 init_glfw :: proc(window_name: string, _window_width, _window_height: int, _opengl_version_major, _opengl_version_minor: int) {
 	window_width := cast(i32)_window_width;
 	window_height := cast(i32)_window_height;
@@ -76,4 +100,8 @@ init_glfw :: proc(window_name: string, _window_width, _window_height: int, _open
 
 	// Setup glfw callbacks
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
+}
+
+window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {
+	return glfw.WindowShouldClose(window);
 }
