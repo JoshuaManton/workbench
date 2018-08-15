@@ -154,11 +154,13 @@ _push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: 
 	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, render_order);
 	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
 
-	draw_debug_line(p0, p1, COLOR_GREEN);
-	draw_debug_line(p1, p2, COLOR_GREEN);
-	draw_debug_line(p2, p1, COLOR_GREEN);
-	draw_debug_line(p2, p3, COLOR_GREEN);
-	draw_debug_line(p3, p0, COLOR_GREEN);
+	if debugging_rendering {
+		draw_debug_line(p0, p1, COLOR_GREEN);
+		draw_debug_line(p1, p2, COLOR_GREEN);
+		draw_debug_line(p2, p1, COLOR_GREEN);
+		draw_debug_line(p2, p3, COLOR_GREEN);
+		draw_debug_line(p3, p0, COLOR_GREEN);
+	}
 }
 
 push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
@@ -248,6 +250,8 @@ Font :: struct {
 	chars: []stb.Baked_Char,
 	id: Texture,
 }
+
+font_default: ^Font;
 
 load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	data, ok := os.read_entire_file(path);
@@ -434,7 +438,13 @@ Sprite :: struct {
 buffered_vertices:   [dynamic]Buffered_Vertex;
 queued_for_drawing:  [dynamic]Vertex_Type;
 
+debugging_rendering: bool;
+
 _renderer_update :: proc() {
+	if get_key_down(Key.F4) {
+		debugging_rendering = !debugging_rendering;
+	}
+
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 	odingl.Clear(coregl.COLOR_BUFFER_BIT);
 
@@ -455,8 +465,24 @@ _renderer_update :: proc() {
 }
 
 _draw_buffered_vertices :: proc(mode: u32) {
-	for command in buffered_vertices {
-		_draw_buffered_vertex(command, mode);
+	for vertex_info in buffered_vertices {
+		render_mode_mismatch := vertex_info.render_mode_proc != current_render_mode;
+		shader_mismatch      := vertex_info.shader != current_shader;
+		texture_mismatch     := vertex_info.texture != current_texture;
+		if render_mode_mismatch || shader_mismatch || texture_mismatch {
+			_draw_flush();
+		}
+
+		if shader_mismatch  do set_shader(vertex_info.shader);
+		if texture_mismatch do set_texture(vertex_info.texture);
+
+		if render_mode_mismatch {
+			current_render_mode = vertex_info.render_mode_proc;
+			vertex_info.render_mode_proc();
+		}
+
+		vertex := Vertex_Type{vertex_info.position, vertex_info.tex_coord, vertex_info.color};
+		append(&queued_for_drawing, vertex);
 	}
 
 	_draw_flush(mode);
@@ -482,26 +508,6 @@ _draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
 	clear(&queued_for_drawing);
 }
 
-_draw_buffered_vertex :: proc(vertex_info: Buffered_Vertex, mode: u32) {
-	render_mode_mismatch := vertex_info.render_mode_proc != current_render_mode;
-	shader_mismatch      := vertex_info.shader != current_shader;
-	texture_mismatch     := vertex_info.texture != current_texture;
-	if render_mode_mismatch || shader_mismatch || texture_mismatch {
-		_draw_flush();
-	}
-
-	if shader_mismatch  do set_shader(vertex_info.shader);
-	if texture_mismatch do set_texture(vertex_info.texture);
-
-	if render_mode_mismatch {
-		current_render_mode = vertex_info.render_mode_proc;
-		vertex_info.render_mode_proc();
-	}
-
-	vertex := Vertex_Type{vertex_info.position, vertex_info.tex_coord, vertex_info.color};
-	append(&queued_for_drawing, vertex);
-}
-
 //
 // Debug
 //
@@ -511,8 +517,8 @@ Line_Segment :: struct {
 	color: Colorf,
 }
 
-debug_vertices:      [dynamic]Buffered_Vertex;
-debug_lines:         [dynamic]Line_Segment;
+debug_vertices: [dynamic]Buffered_Vertex;
+debug_lines:    [dynamic]Line_Segment;
 
 draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
 	// :DebugLineIsPixels
@@ -543,7 +549,6 @@ _debug_on_after_render :: inline proc() {
 	// kinda weird, kinda neat
 	old_vertices := buffered_vertices;
 	buffered_vertices = debug_vertices;
-	defer buffered_vertices = old_vertices;
 
 	for line in debug_lines {
 		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color, 0);
@@ -551,5 +556,10 @@ _debug_on_after_render :: inline proc() {
 	}
 
 	_draw_buffered_vertices(coregl.LINES);
+
+	debug_vertices = buffered_vertices;
+	buffered_vertices = old_vertices;
+
+	clear(&debug_vertices);
 	clear(&debug_lines);
 }

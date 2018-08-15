@@ -84,8 +84,9 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 
 			clear(&buffered_vertices);
 			_input_update();
-			_ui_update(client_target_delta_time);
+
 			if !update(client_target_delta_time) do break game_loop;
+			_ui_update(client_target_delta_time);
 		}
 
 		_renderer_update();
