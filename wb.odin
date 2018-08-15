@@ -24,15 +24,28 @@ Workbench_Init_Args :: struct {
 	target_delta_time: f32,
 }
 
+// Maybe '_' these?
+client_init_proc:   proc(Workbench_Init_Args);
+client_update_proc: proc(f32) -> bool;
+client_render_proc: proc(f32);
+
+client_target_framerate: f32;
+client_target_delta_time: f32;
+
 make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, init: proc(Workbench_Init_Args), update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
+	client_init_proc = init;
+	client_update_proc = update;
+	client_render_proc = render;
+	client_target_framerate = target_framerate;
+
 	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	init_opengl(opengl_version_major, opengl_version_minor);
 
 	acc: f32;
-	target_delta_time := 1 / target_framerate;
+	client_target_delta_time = 1 / target_framerate;
 
 	if init != nil {
-		args := Workbench_Init_Args{target_delta_time};
+		args := Workbench_Init_Args{client_target_delta_time};
 		init(args);
 	}
 
@@ -50,9 +63,9 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 		// todo(josh): should this be above or below update? not sure
 		update_tweeners(last_delta_time);
 
-		for acc >= target_delta_time {
+		for acc >= client_target_delta_time {
 			frame_count += 1;
-			acc -= target_delta_time;
+			acc -= client_target_delta_time;
 
 			// Update vars from callbacks
 			{
@@ -70,27 +83,12 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			}
 
 			clear(&buffered_vertices);
-			update_input();
-			update_ui(target_delta_time);
-			if !update(target_delta_time) do break game_loop;
+			_input_update();
+			_ui_update(client_target_delta_time);
+			if !update(client_target_delta_time) do break game_loop;
 		}
 
-		odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
-		odingl.Clear(coregl.COLOR_BUFFER_BIT);
-
-		render(target_delta_time);
-
-		sort.quick_sort_proc(buffered_vertices[..], proc(a, b: Buffered_Vertex) -> int {
-				diff := a.render_order - b.render_order;
-				if diff != 0 do return diff;
-				return a.serial_number - b.serial_number;
-			});
-
-		current_render_mode = nil;
-
-		_draw_buffered_vertices(coregl.TRIANGLES);
-
-		_flush_debug_lines();
+		_renderer_update();
 
 		frame_end := win32.time_get_time();
 		glfw.SwapBuffers(main_window);

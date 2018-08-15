@@ -406,6 +406,7 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 // Internals
 //
 
+// An IR kind of thing
 Buffered_Vertex :: struct {
 	render_order:  int,
 	serial_number: int,
@@ -432,6 +433,26 @@ Sprite :: struct {
 
 buffered_vertices:   [dynamic]Buffered_Vertex;
 queued_for_drawing:  [dynamic]Vertex_Type;
+
+_renderer_update :: proc() {
+	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
+	odingl.Clear(coregl.COLOR_BUFFER_BIT);
+
+	client_render_proc(client_target_delta_time);
+
+	sort.quick_sort_proc(buffered_vertices[..], proc(a, b: Buffered_Vertex) -> int {
+			diff := a.render_order - b.render_order;
+			if diff != 0 do return diff;
+			return a.serial_number - b.serial_number;
+		});
+
+	current_render_mode = nil;
+
+	_draw_buffered_vertices(coregl.TRIANGLES);
+
+	_debug_on_after_render();
+
+}
 
 _draw_buffered_vertices :: proc(mode: u32) {
 	for command in buffered_vertices {
@@ -494,6 +515,7 @@ debug_vertices:      [dynamic]Buffered_Vertex;
 debug_lines:         [dynamic]Line_Segment;
 
 draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
+	// :DebugLineIsPixels
 	if current_render_mode != rendering_pixel_space {
 		a, b = rendermode_to_pixel(a), rendermode_to_pixel(b);
 	}
@@ -514,8 +536,8 @@ draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
 	draw_debug_line(d, a, color);
 }
 
-_flush_debug_lines :: inline proc() {
-	// rendering_world_space();
+_debug_on_after_render :: inline proc() {
+	// :DebugLineIsPixels
 	rendering_pixel_space();
 
 	// kinda weird, kinda neat

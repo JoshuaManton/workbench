@@ -26,7 +26,7 @@ Location_ID_Mapping :: struct {
 
 ui_debug: bool;
 
-update_ui :: proc(dt: f32) {
+_ui_update :: proc(dt: f32) {
 	clear(&id_counts);
 
 	if get_key_down(Key.F1) {
