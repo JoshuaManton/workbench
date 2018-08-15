@@ -16,11 +16,12 @@ using import        "core:fmt"
 
 DEVELOPER :: true;
 
-pixel_to_world_matrix: Mat4;
-
 ortho_matrix:     Mat4;
-transform_matrix: Mat4;
-pixel_matrix:     Mat4;
+
+rendermode_to_viewport_matrix:  Mat4;
+rendermode_to_pixel_matrix:     Mat4;
+
+pixel_to_world_matrix: Mat4;
 
 main_window: glfw.Window_Handle;
 
@@ -28,66 +29,58 @@ camera_size: f32 = 1;
 camera_position: Vec2;
 camera_rotation: f32;
 
-
-
 current_window_width:  int;
-_new_window_width:  int;
-
 current_window_height: int;
-_new_window_height: int;
-
 current_aspect_ratio:  f32;
-_new_aspect_ratio:  f32;
-
-
 
 cursor_scroll: f32;
-_new_cursor_scroll: f32;
-
 cursor_world_position:       Vec2;
 cursor_screen_position:      Vec2;
 cursor_unit_position:        Vec2;
-_new_cursor_screen_position: Vec2;
 
 Render_Mode_Proc :: #type proc();
 
 rendering_world_space :: inline proc() {
 	current_render_mode = rendering_world_space;
 
-	transform_matrix = mul(identity(Mat4), ortho_matrix);
-	transform_matrix = scale(transform_matrix, 1.0 / camera_size);
+	rendermode_to_viewport_matrix = mul(identity(Mat4), ortho_matrix);
+	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, 1.0 / camera_size);
 
-	cam_offset := to_vec3(mul(transform_matrix, to_vec4(camera_position)));
-	transform_matrix = translate(transform_matrix, -cam_offset);
+	cam_offset := to_vec3(mul(rendermode_to_viewport_matrix, to_vec4(camera_position)));
+	rendermode_to_viewport_matrix = translate(rendermode_to_viewport_matrix, -cam_offset);
 
-	pixel_matrix = identity(Mat4);
-	pixel_matrix = scale(pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
+	rendermode_to_pixel_matrix = identity(Mat4);
+	rendermode_to_pixel_matrix = scale(rendermode_to_pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
 }
 
 rendering_unit_space :: inline proc() {
 	current_render_mode = rendering_unit_space;
 
-	transform_matrix = identity(Mat4);
-	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
-	transform_matrix = scale(transform_matrix, 2);
+	rendermode_to_viewport_matrix = identity(Mat4);
+	rendermode_to_viewport_matrix = translate(rendermode_to_viewport_matrix, Vec3{-1, -1, 0});
+	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, 2);
 
-	pixel_matrix = identity(Mat4);
-	pixel_matrix = scale(pixel_matrix, Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
+	rendermode_to_pixel_matrix = identity(Mat4);
+	rendermode_to_pixel_matrix = scale(rendermode_to_pixel_matrix, Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
 }
 
 rendering_pixel_space :: inline proc() {
 	current_render_mode = rendering_pixel_space;
 
-	transform_matrix = identity(Mat4);
-	transform_matrix = scale(transform_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
-	transform_matrix = translate(transform_matrix, Vec3{-1, -1, 0});
-	transform_matrix = scale(transform_matrix, 2);
+	rendermode_to_viewport_matrix = identity(Mat4);
+	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
+	rendermode_to_viewport_matrix = translate(rendermode_to_viewport_matrix, Vec3{-1, -1, 0});
+	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, 2);
 
-	pixel_matrix = identity(Mat4);
+	rendermode_to_pixel_matrix = identity(Mat4);
 }
 
-relative_to_pixel :: inline proc(a: Vec2) -> Vec2 {
-	return to_vec2(mul(pixel_matrix, to_vec4(a)));
+rendermode_to_pixel :: inline proc(a: Vec2) -> Vec2 {
+	return to_vec2(mul(rendermode_to_pixel_matrix, to_vec4(a)));
+}
+
+rendermode_to_viewport :: inline proc(a: Vec2) -> Vec2 {
+	return to_vec2(mul(rendermode_to_pixel_matrix, to_vec4(a)));
 }
 
 set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
@@ -130,98 +123,87 @@ screen_to_world :: proc(screen: Vec2) -> Vec2 {
 	return pos;
 }
 
-init_glfw :: proc(window_name: string, window_width, window_height: i32, opengl_version_major, opengl_version_minor: i32) {
-	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
-		_new_window_width  = cast(int)w;
-		_new_window_height = cast(int)h;
-		_new_aspect_ratio = cast(f32)w / cast(f32)h;
+ // set in callback
+_new_ortho_matrix:  Mat4;
+_new_window_width:  int;
+_new_window_height: int;
+_new_aspect_ratio:  f32;
+_new_cursor_scroll: f32;
+_new_cursor_screen_position: Vec2;
 
-		top    : f32 =  1;
-		bottom : f32 = -1;
-		left   : f32 = -1 * _new_aspect_ratio;
-		right  : f32 =  1 * _new_aspect_ratio;
+make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, init: proc(Workbench_Init_Args), update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
+	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
+	init_opengl(opengl_version_major, opengl_version_minor);
 
-		ortho_matrix = ortho3d(left, right, bottom, top, -1, 1);
+	acc: f32;
+	target_delta_time := 1 / target_framerate;
+
+	if init != nil {
+		args := Workbench_Init_Args{target_delta_time};
+		init(args);
 	}
 
-	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-		_new_cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
+	game_loop:
+	for !window_should_close(main_window) {
+		frame_start := win32.time_get_time();
+
+		last_time := time;
+		time = cast(f32)glfw.GetTime();
+		last_delta_time = time - last_time;
+
+		acc += last_delta_time;
+		old_frame_count := frame_count;
+
+		// todo(josh): should this be below update? not sure
+		update_tweeners(last_delta_time);
+
+		for acc >= target_delta_time {
+			frame_count += 1;
+			acc -= target_delta_time;
+
+			// Update vars from callbacks
+			{
+				ortho_matrix = _new_ortho_matrix;
+
+				current_window_width   = _new_window_width;
+				current_window_height  = _new_window_height;
+				current_aspect_ratio   = _new_aspect_ratio;
+				cursor_screen_position = _new_cursor_screen_position;
+				cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
+				cursor_world_position  = screen_to_world(cursor_screen_position);
+
+				cursor_scroll          = _new_cursor_scroll;
+				_new_cursor_scroll     = 0;
+			}
+
+			clear(&buffered_vertices);
+			update_input();
+			update_ui(target_delta_time);
+			if !update(target_delta_time) do break game_loop;
+		}
+
+		odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
+		odingl.Clear(coregl.COLOR_BUFFER_BIT);
+
+		render(target_delta_time);
+
+		sort.quick_sort_proc(buffered_vertices[..], proc(a, b: Buffered_Vertex) -> int {
+				diff := a.render_order - b.render_order;
+				if diff != 0 do return diff;
+				return a.serial_number - b.serial_number;
+			});
+
+		current_render_mode = nil;
+
+		draw_buffered_vertices(coregl.TRIANGLES);
+
+		flush_debug_lines();
+
+		frame_end := win32.time_get_time();
+		glfw.SwapBuffers(main_window);
+		odingl.Finish();
+		log_gl_errors("after SwapBuffers()");
 	}
-
-	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-		_new_cursor_scroll = cast(f32)y;
-	}
-
-	glfw_error_callback :: proc"c"(error: i32, desc: cstring) {
-		fmt.printf("Error code %d:\n    %s\n", error, cast(string)cast(cstring)desc);
-	}
-
-	// setup glfw
-	glfw.SetErrorCallback(glfw_error_callback);
-
-	if glfw.Init() == 0 do return;
-	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, opengl_version_major);
-	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, opengl_version_minor);
-	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
-	main_window = glfw.CreateWindow(window_width, window_height, window_name, nil, nil);
-	if main_window == nil do return;
-
-	video_mode := glfw.GetVideoMode(glfw.GetPrimaryMonitor());
-	glfw.SetWindowPos(main_window, video_mode.width / 2 - window_width / 2, video_mode.height / 2 - window_height / 2);
-
-	glfw.MakeContextCurrent(main_window);
-	glfw.SwapInterval(1);
-
-	glfw.SetCursorPosCallback(main_window, glfw_cursor_callback);
-	glfw.SetWindowSizeCallback(main_window, glfw_size_callback);
-
-	glfw.SetKeyCallback(main_window, _glfw_key_callback);
-	glfw.SetMouseButtonCallback(main_window, _glfw_mouse_button_callback);
-
-	// :GlfwJoystickPollEventsCrash
-	// this is crashing when I call PollEvents when I unplug a controller for some reason
-	// glfw.SetJoystickCallback(main_window, _glfw_joystick_callback);
-
-	// setup opengl
-	odingl.load_up_to(cast(int)opengl_version_major, cast(int)opengl_version_minor,
-		proc(p: rawptr, name: cstring) {
-			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
-		});
-
-	// Set initial size of window
-	glfw_size_callback(main_window, window_width, window_height);
-
-	// Setup glfw callbacks
-	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
-}
-
-vao: VAO;
-vbo: VBO;
-
-shader_rgba:    Shader_Program;
-shader_text:    Shader_Program;
-shader_texture: Shader_Program;
-
-init_opengl :: proc() {
-	vao = gen_vao();
-	bind_vao(vao);
-
-	vbo = gen_buffer();
-	bind_buffer(vbo);
-
-	set_vertex_format(Vertex_Type);
-
-	odingl.ClearColor(0.2, 0.5, 0.8, 1.0);
-	odingl.Enable(coregl.BLEND);
-	odingl.BlendFunc(coregl.SRC_ALPHA, coregl.ONE_MINUS_SRC_ALPHA);
-
-	ok: bool;
-	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
-	assert(ok);
-	shader_texture, ok = load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
-	assert(ok);
-	shader_text, ok    = load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
-	assert(ok);
 }
 
 Buffered_Vertex :: struct {
@@ -294,18 +276,11 @@ _push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: 
 	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, render_order);
 	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
 
-	if current_render_mode != rendering_pixel_space {
-		p0 = to_vec2(mul(pixel_matrix, to_vec4(p0)));
-		p1 = to_vec2(mul(pixel_matrix, to_vec4(p1)));
-		p2 = to_vec2(mul(pixel_matrix, to_vec4(p2)));
-		p3 = to_vec2(mul(pixel_matrix, to_vec4(p3)));
-	}
-
-	// draw_debug_line(p0, p1, COLOR_GREEN);
-	// draw_debug_line(p1, p2, COLOR_GREEN);
-	// draw_debug_line(p2, p1, COLOR_GREEN);
-	// draw_debug_line(p2, p3, COLOR_GREEN);
-	// draw_debug_line(p3, p0, COLOR_GREEN);
+	draw_debug_line(p0, p1, COLOR_GREEN);
+	draw_debug_line(p1, p2, COLOR_GREEN);
+	draw_debug_line(p2, p1, COLOR_GREEN);
+	draw_debug_line(p2, p3, COLOR_GREEN);
+	draw_debug_line(p3, p0, COLOR_GREEN);
 }
 
 push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
@@ -454,6 +429,9 @@ Line_Segment :: struct {
 
 log1: bool;
 draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
+	if current_render_mode != rendering_pixel_space {
+		a, b = rendermode_to_pixel(a), rendermode_to_pixel(b);
+	}
 	append(&debug_lines, Line_Segment{a, b, color});
 }
 
@@ -473,8 +451,7 @@ draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
 
 flush_debug_lines :: inline proc() {
 	// rendering_world_space();
-	// rendering_pixel_space();
-	rendering_unit_space();
+	rendering_pixel_space();
 
 	// kinda weird, kinda neat
 	old_vertices := buffered_vertices;
@@ -504,7 +481,7 @@ draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
 	}
 
 	program := get_current_shader();
-	uniform_matrix4fv(program, "transform", 1, false, &transform_matrix[0][0]);
+	uniform_matrix4fv(program, "transform", 1, false, &rendermode_to_viewport_matrix[0][0]);
 
 	bind_buffer(vbo);
 
@@ -529,72 +506,6 @@ fps_to_draw: f32;
 
 Workbench_Init_Args :: struct {
 	target_delta_time: f32,
-}
-
-start_game_loop :: proc(init: proc(Workbench_Init_Args), update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
-	acc: f32;
-	target_delta_time := 1 / target_framerate;
-
-	if init != nil {
-		args := Workbench_Init_Args{target_delta_time};
-		init(args);
-	}
-
-	game_loop:
-	for !window_should_close(main_window) {
-		frame_start := win32.time_get_time();
-
-		last_time := time;
-		time = cast(f32)glfw.GetTime();
-		last_delta_time = time - last_time;
-
-		acc += last_delta_time;
-		old_frame_count := frame_count;
-		update_tweeners(last_delta_time);
-
-		for acc >= target_delta_time {
-			frame_count += 1;
-			acc -= target_delta_time;
-
-			// Update vars from callbacks
-			current_window_width   = _new_window_width;
-			current_window_height  = _new_window_height;
-			current_aspect_ratio   = _new_aspect_ratio;
-			cursor_screen_position = _new_cursor_screen_position;
-			cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
-			cursor_world_position  = screen_to_world(cursor_screen_position);
-
-			cursor_scroll          = _new_cursor_scroll;
-			_new_cursor_scroll     = 0;
-
-			clear(&buffered_vertices);
-			update_input();
-			update_ui(target_delta_time);
-			if !update(target_delta_time) do break game_loop;
-		}
-
-		odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
-		odingl.Clear(coregl.COLOR_BUFFER_BIT);
-
-		render(target_delta_time);
-
-		sort.quick_sort_proc(buffered_vertices[..], proc(a, b: Buffered_Vertex) -> int {
-				diff := a.render_order - b.render_order;
-				if diff != 0 do return diff;
-				return a.serial_number - b.serial_number;
-			});
-
-		current_render_mode = nil;
-
-		draw_buffered_vertices(coregl.TRIANGLES);
-
-		flush_debug_lines();
-
-		frame_end := win32.time_get_time();
-		glfw.SwapBuffers(main_window);
-		odingl.Finish();
-		log_gl_errors("after SwapBuffers()");
-	}
 }
 
 Font :: struct {
