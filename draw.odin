@@ -461,7 +461,6 @@ _renderer_update :: proc() {
 	_draw_buffered_vertices(coregl.TRIANGLES);
 
 	_debug_on_after_render();
-
 }
 
 _draw_buffered_vertices :: proc(mode: u32) {
@@ -551,15 +550,14 @@ _debug_on_after_render :: inline proc() {
 	buffered_vertices = debug_vertices;
 
 	for line in debug_lines {
-		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color, 0);
-		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color, 0);
+		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color, 9999);
+		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color, 9999);
 	}
 
 	_draw_buffered_vertices(coregl.LINES);
 
+	// logln("drawing ", len(buffered_vertices), " verts");
+
 	debug_vertices = buffered_vertices;
 	buffered_vertices = old_vertices;
-
-	clear(&debug_vertices);
-	clear(&debug_lines);
 }

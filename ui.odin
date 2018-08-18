@@ -24,13 +24,23 @@ Location_ID_Mapping :: struct {
 	index: int,
 }
 
-_ui_update :: proc(dt: f32) {
+_init_ui :: proc() {
+	subscribe(&_on_before_client_update, _update_ui);
+}
+
+_update_ui :: proc(dt: f32) {
+	// rendering_unit_space();
+	// push_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
+
 	clear(&id_counts);
+	clear(&ui_rect_stack);
+	ui_current_rect_pixels = Pixel_Rect{};
+	ui_current_rect_unit = Unit_Rect{};
 
-	rendering_unit_space();
-	push_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
+	ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0);
+	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
 
-	_ui_debug_update(dt);
+	_ui_debug_screen_update(dt);
 }
 
 get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
@@ -458,7 +468,7 @@ ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_verti
 //
 
 UI_Debug_Rect :: struct {
-	using rect: Rect(f32),
+	using rect: Rect(int),
 	location: Source_Code_Location,
 }
 
@@ -469,8 +479,8 @@ ui_debugging: bool;
 ui_debug_drawing_rects: bool;
 
 maybe_add_ui_debug_rect :: proc(location: Source_Code_Location) {
-	if ui_debugging  && !ui_debug_drawing_rects {
-		append(&ui_debug_rects, UI_Debug_Rect{ui_current_rect_unit, location});
+	if ui_debugging && !ui_debug_drawing_rects {
+		append(&ui_debug_rects, UI_Debug_Rect{ui_current_rect_pixels, location});
 	}
 }
 
@@ -478,7 +488,7 @@ direction_layout_group_next :: proc(vec: Vec2) {
 	rect := ui_pop_rect();
 }
 
-_ui_debug_update :: proc(dt: f32) {
+_ui_debug_screen_update :: proc(dt: f32) {
 	if get_key_down(Key.F5) {
 		ui_debugging = !ui_debugging;
 	}
@@ -494,21 +504,22 @@ _ui_debug_update :: proc(dt: f32) {
 			if ui_debug_cur_idx >= len(ui_debug_rects) do ui_debug_cur_idx = len(ui_debug_rects)-1;
 
 			height : f32 = 0.1;
-			cur_y : f32 = 0.9;
+			cur_y  : f32 = 0.9;
+
 			for rect, i in ui_debug_rects {
 				if ui_debug_cur_idx == i {
-					min := Vec2{rect.x1, rect.y1};
-					max := Vec2{rect.x2, rect.y2};
-					// draw_debug_box(min, max, COLOR_GREEN);
+					// logln("idx is ", i);
+					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+					draw_debug_box(min, max, COLOR_GREEN);
+
+					ui_push_rect(0.5, cur_y, 0.5, cur_y+height, 0, 0, 0, 0);
+					defer ui_pop_rect();
+
+					buf: [2048]byte;
+					str := bprint(buf[..], file_from_path(rect.location.file_path), ":", rect.location.line);
+					ui_text(font_default, str, 1, COLOR_BLACK);
 				}
-
-				ui_push_rect(0.5, cur_y, 0.5, cur_y+height, 0, 0, 0, 0);
-				defer ui_pop_rect();
-
-				buf: [2048]byte;
-				str := bprint(buf[..], file_from_path(rect.location.file_path), ":", rect.location.line);
-				ui_text(font_default, str, 1, COLOR_BLACK);
-				cur_y -= 0.1;
 			}
 		}
 	}

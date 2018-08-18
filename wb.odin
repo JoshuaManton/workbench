@@ -32,21 +32,26 @@ client_render_proc: proc(f32);
 client_target_framerate: f32;
 client_target_delta_time: f32;
 
-make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, init: proc(Workbench_Init_Args), update: proc(f32) -> bool, render: proc(f32), target_framerate: f32) {
-	client_init_proc = init;
-	client_update_proc = update;
-	client_render_proc = render;
-	client_target_framerate = target_framerate;
+_on_before_client_update := make_event(f32);
+_on_after_client_update  := make_event(f32);
 
-	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
-	init_opengl(opengl_version_major, opengl_version_minor);
+make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, _init: proc(Workbench_Init_Args), _update: proc(f32) -> bool, _render: proc(f32), _target_framerate: f32) {
+	client_init_proc = _init;
+	client_update_proc = _update;
+	client_render_proc = _render;
+	client_target_framerate = _target_framerate;
+
+	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
+	_init_opengl(opengl_version_major, opengl_version_minor);
+	_init_input();
+	_init_ui();
 
 	acc: f32;
-	client_target_delta_time = 1 / target_framerate;
+	client_target_delta_time = cast(f32)1 / client_target_framerate;
 
-	if init != nil {
+	if client_init_proc != nil {
 		args := Workbench_Init_Args{client_target_delta_time};
-		init(args);
+		client_init_proc(args);
 	}
 
 	game_loop:
@@ -82,11 +87,13 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 				_new_cursor_scroll     = 0;
 			}
 
+			clear(&debug_vertices);
+			clear(&debug_lines);
 			clear(&buffered_vertices);
-			_input_update();
 
-			if !update(client_target_delta_time) do break game_loop;
-			_ui_update(client_target_delta_time);
+			fire_event(&_on_before_client_update, client_target_delta_time);
+			if !client_update_proc(client_target_delta_time) do break game_loop;
+			fire_event(&_on_after_client_update, client_target_delta_time);
 		}
 
 		_renderer_update();

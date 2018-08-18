@@ -38,7 +38,7 @@ _new_aspect_ratio:  f32;
 _new_cursor_scroll: f32;
 _new_cursor_screen_position: Vec2;
 
-init_glfw :: proc(window_name: string, _window_width, _window_height: int, _opengl_version_major, _opengl_version_minor: int) {
+_init_glfw :: proc(window_name: string, _window_width, _window_height: int, _opengl_version_major, _opengl_version_minor: int) {
 	window_width := cast(i32)_window_width;
 	window_height := cast(i32)_window_height;
 	opengl_version_major := cast(i32)_opengl_version_major;

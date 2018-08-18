@@ -16,7 +16,7 @@ shader_rgba:    Shader_Program;
 shader_text:    Shader_Program;
 shader_texture: Shader_Program;
 
-init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
+_init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 	odingl.load_up_to(opengl_version_major, opengl_version_minor,
 		proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
