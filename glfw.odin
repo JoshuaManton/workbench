@@ -100,6 +100,23 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 
 	// Setup glfw callbacks
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
+
+	subscribe(&_on_before_client_update, _update_glfw);
+}
+
+_update_glfw :: proc(dt: f32) {
+	// Update vars from callbacks
+	ortho_matrix = _new_ortho_matrix;
+
+	current_window_width   = _new_window_width;
+	current_window_height  = _new_window_height;
+	current_aspect_ratio   = _new_aspect_ratio;
+	cursor_screen_position = _new_cursor_screen_position;
+	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
+	cursor_world_position  = screen_to_world(cursor_screen_position);
+
+	cursor_scroll          = _new_cursor_scroll;
+	_new_cursor_scroll     = 0;
 }
 
 window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {

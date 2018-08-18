@@ -26,6 +26,7 @@ Location_ID_Mapping :: struct {
 
 _init_ui :: proc() {
 	subscribe(&_on_before_client_update, _update_ui);
+	subscribe(&_on_after_client_update,  _ui_debug_screen_update);
 }
 
 _update_ui :: proc(dt: f32) {
@@ -33,14 +34,13 @@ _update_ui :: proc(dt: f32) {
 	// push_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
 
 	clear(&id_counts);
+	assert(len(ui_rect_stack) == 0 || len(ui_rect_stack) == 1);
 	clear(&ui_rect_stack);
 	ui_current_rect_pixels = Pixel_Rect{};
 	ui_current_rect_unit = Unit_Rect{};
 
 	ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0);
 	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
-
-	_ui_debug_screen_update(dt);
 }
 
 get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
@@ -498,17 +498,15 @@ _ui_debug_screen_update :: proc(dt: f32) {
 		defer ui_debug_drawing_rects = false;
 
 		ui_debug_cur_idx += cast(int)cursor_scroll;
+		if ui_debug_cur_idx < 0 do ui_debug_cur_idx = 0;
+		if ui_debug_cur_idx >= len(ui_debug_rects) do ui_debug_cur_idx = len(ui_debug_rects)-1;
 
 		if len(ui_debug_rects) > 0 {
-			if ui_debug_cur_idx < 0 do ui_debug_cur_idx = 0;
-			if ui_debug_cur_idx >= len(ui_debug_rects) do ui_debug_cur_idx = len(ui_debug_rects)-1;
-
 			height : f32 = 0.1;
 			cur_y  : f32 = 0.9;
 
 			for rect, i in ui_debug_rects {
 				if ui_debug_cur_idx == i {
-					// logln("idx is ", i);
 					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
 					draw_debug_box(min, max, COLOR_GREEN);

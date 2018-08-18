@@ -440,7 +440,17 @@ queued_for_drawing:  [dynamic]Vertex_Type;
 
 debugging_rendering: bool;
 
-_renderer_update :: proc() {
+_init_renderer :: proc() {
+	subscribe(&_on_before_client_update, _renderer_update);
+}
+
+_renderer_update :: proc(dt: f32) {
+	clear(&debug_vertices);
+	clear(&debug_lines);
+	clear(&buffered_vertices);
+}
+
+_renderer_render :: proc() {
 	if get_key_down(Key.F4) {
 		debugging_rendering = !debugging_rendering;
 	}

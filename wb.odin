@@ -43,6 +43,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_opengl(opengl_version_major, opengl_version_minor);
+	_init_renderer();
 	_init_input();
 	_init_ui();
 
@@ -72,31 +73,12 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			frame_count += 1;
 			acc -= client_target_delta_time;
 
-			// Update vars from callbacks
-			{
-				ortho_matrix = _new_ortho_matrix;
-
-				current_window_width   = _new_window_width;
-				current_window_height  = _new_window_height;
-				current_aspect_ratio   = _new_aspect_ratio;
-				cursor_screen_position = _new_cursor_screen_position;
-				cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
-				cursor_world_position  = screen_to_world(cursor_screen_position);
-
-				cursor_scroll          = _new_cursor_scroll;
-				_new_cursor_scroll     = 0;
-			}
-
-			clear(&debug_vertices);
-			clear(&debug_lines);
-			clear(&buffered_vertices);
-
 			fire_event(&_on_before_client_update, client_target_delta_time);
 			if !client_update_proc(client_target_delta_time) do break game_loop;
 			fire_event(&_on_after_client_update, client_target_delta_time);
 		}
 
-		_renderer_update();
+		_renderer_render();
 
 		frame_end := win32.time_get_time();
 		glfw.SwapBuffers(main_window);
