@@ -167,15 +167,18 @@ ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
 // Directional Layout Groups
 //
 
-// Directional_Layout_Group :: struct {
-// 	origin: Vec2,
-// 	direction: Vec2,
-// 	using _: struct { // runtime fields
-// 		num_items_so_far: int,
-// 	},
-// }
+Directional_Layout_Group :: struct {
+	x1, y1, x2, y2
+	origin: Vec2,
+	direction: Vec2,
+	using _: struct { // runtime fields
+		num_items_so_far: int,
+	},
+}
 
-
+direction_layout_group_next :: proc(dlg: ^Directional_Layout_Group) {
+	rect := ui_pop_rect();
+}
 
 //
 // Scroll View
@@ -484,10 +487,6 @@ maybe_add_ui_debug_rect :: proc(location: Source_Code_Location) {
 	}
 }
 
-direction_layout_group_next :: proc(vec: Vec2) {
-	rect := ui_pop_rect();
-}
-
 _ui_debug_screen_update :: proc(dt: f32) {
 	if get_key_down(Key.F5) {
 		ui_debugging = !ui_debugging;
@@ -502,16 +501,13 @@ _ui_debug_screen_update :: proc(dt: f32) {
 		if ui_debug_cur_idx >= len(ui_debug_rects) do ui_debug_cur_idx = len(ui_debug_rects)-1;
 
 		if len(ui_debug_rects) > 0 {
-			height : f32 = 0.1;
-			cur_y  : f32 = 0.9;
-
 			for rect, i in ui_debug_rects {
 				if ui_debug_cur_idx == i {
 					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
 					draw_debug_box(min, max, COLOR_GREEN);
 
-					ui_push_rect(0.5, cur_y, 0.5, cur_y+height, 0, 0, 0, 0);
+					ui_push_rect(0.5, 0.9, 0.5, 1, 0, 0, 0, 0);
 					defer ui_pop_rect();
 
 					buf: [2048]byte;

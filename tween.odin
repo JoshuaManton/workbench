@@ -51,7 +51,51 @@ tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_
 	append(&tweeners, new_tweener);
 }
 
-update_one_tweener :: proc(kind: type, tweener: ^Tweener, dt: f32) -> kind {
+_init_tween :: proc() {
+	subscribe(&_on_before_client_update, _update_tween);
+}
+
+_update_tween :: proc(dt: f32) {
+	tweener_idx := 0;
+	for tweener_idx < len(tweeners) {
+		defer tweener_idx += 1;
+
+		tweener := &tweeners[tweener_idx];
+		assert(tweener.duration != 0);
+
+		if time < tweener.start_time do continue;
+
+		switch kind in tweener.ptr {
+			case ^f32: {
+				origin := tweener.start.(f32);
+				target := tweener.target.(f32);
+				kind^ = _update_one_tweener(f32, tweener, dt);
+			}
+			case ^Vec2: {
+				origin := tweener.start.(Vec2);
+				target := tweener.target.(Vec2);
+				kind^ = _update_one_tweener(Vec2, tweener, dt);
+			}
+			case ^Vec3: {
+				origin := tweener.start.(Vec3);
+				target := tweener.target.(Vec3);
+				kind^ = _update_one_tweener(Vec3, tweener, dt);
+			}
+			case ^Vec4: {
+				origin := tweener.start.(Vec4);
+				target := tweener.target.(Vec4);
+				kind^ = _update_one_tweener(Vec4, tweener, dt);
+			}
+		}
+
+		if !tweener.loop && tweener.time >= tweener.duration {
+			remove(&tweeners, tweener_idx);
+			tweener_idx -= 1;
+		}
+	}
+}
+
+_update_one_tweener :: proc(kind: type, tweener: ^Tweener, dt: f32) -> kind {
 	tweener.time += dt;
 	assert(tweener.time != 0);
 
@@ -72,47 +116,6 @@ update_one_tweener :: proc(kind: type, tweener: ^Tweener, dt: f32) -> kind {
 	b := tweener.target.(kind);
 	result := lerp(a, b, t);
 	return result;
-}
-
-// note: not updated in fixed-dt chunks
-update_tweeners :: proc(dt: f32) {
-	tweener_idx := 0;
-	for tweener_idx < len(tweeners) {
-		defer tweener_idx += 1;
-
-		tweener := &tweeners[tweener_idx];
-		assert(tweener.duration != 0);
-
-		if time < tweener.start_time do continue;
-
-		switch kind in tweener.ptr {
-			case ^f32: {
-				origin := tweener.start.(f32);
-				target := tweener.target.(f32);
-				kind^ = update_one_tweener(f32, tweener, dt);
-			}
-			case ^Vec2: {
-				origin := tweener.start.(Vec2);
-				target := tweener.target.(Vec2);
-				kind^ = update_one_tweener(Vec2, tweener, dt);
-			}
-			case ^Vec3: {
-				origin := tweener.start.(Vec3);
-				target := tweener.target.(Vec3);
-				kind^ = update_one_tweener(Vec3, tweener, dt);
-			}
-			case ^Vec4: {
-				origin := tweener.start.(Vec4);
-				target := tweener.target.(Vec4);
-				kind^ = update_one_tweener(Vec4, tweener, dt);
-			}
-		}
-
-		if !tweener.loop && tweener.time >= tweener.duration {
-			remove(&tweeners, tweener_idx);
-			tweener_idx -= 1;
-		}
-	}
 }
 
 ease_linear :: proc(t: f32) -> f32 {

@@ -441,16 +441,16 @@ queued_for_drawing:  [dynamic]Vertex_Type;
 debugging_rendering: bool;
 
 _init_renderer :: proc() {
-	subscribe(&_on_before_client_update, _renderer_update);
+	subscribe(&_on_before_client_update, _update_renderer);
 }
 
-_renderer_update :: proc(dt: f32) {
+_update_renderer :: proc(dt: f32) {
 	clear(&debug_vertices);
 	clear(&debug_lines);
 	clear(&buffered_vertices);
 }
 
-_renderer_render :: proc() {
+_wb_render :: proc() {
 	if get_key_down(Key.F4) {
 		debugging_rendering = !debugging_rendering;
 	}
@@ -560,13 +560,11 @@ _debug_on_after_render :: inline proc() {
 	buffered_vertices = debug_vertices;
 
 	for line in debug_lines {
-		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color, 9999);
-		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color, 9999);
+		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color);
+		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color);
 	}
 
 	_draw_buffered_vertices(coregl.LINES);
-
-	// logln("drawing ", len(buffered_vertices), " verts");
 
 	debug_vertices = buffered_vertices;
 	buffered_vertices = old_vertices;

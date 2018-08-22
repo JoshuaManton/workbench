@@ -46,6 +46,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 	_init_renderer();
 	_init_input();
 	_init_ui();
+	_init_tween();
 
 	acc: f32;
 	client_target_delta_time = cast(f32)1 / client_target_framerate;
@@ -61,13 +62,8 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 
 		last_time := time;
 		time = cast(f32)glfw.GetTime();
-		last_delta_time = time - last_time;
-
-		acc += last_delta_time;
-		old_frame_count := frame_count;
-
-		// todo(josh): should this be above or below update? not sure
-		update_tweeners(last_delta_time);
+		lossy_delta_time = time - last_time;
+		acc += lossy_delta_time;
 
 		for acc >= client_target_delta_time {
 			frame_count += 1;
@@ -78,7 +74,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			fire_event(&_on_after_client_update, client_target_delta_time);
 		}
 
-		_renderer_render();
+		_wb_render();
 
 		frame_end := win32.time_get_time();
 		glfw.SwapBuffers(main_window);

@@ -27,7 +27,7 @@ cursor_unit_position:        Vec2;
 
 frame_count: u64;
 time: f32;
-last_delta_time: f32;
+lossy_delta_time: f32;
 fps_to_draw: f32;
 
  // set in callbacks
