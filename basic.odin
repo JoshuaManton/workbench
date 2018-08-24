@@ -19,7 +19,7 @@ inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 
 remove :: proc[remove_value, remove_ptr, remove_by_index];
 remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
-	for i in 0..len(array) {
+	for _, i in array {
 		item := &array[i];
 		if item == to_remove {
 			array[i] = array[len(array)-1];
@@ -29,7 +29,7 @@ remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
 	}
 }
 remove_ptr :: proc(array: ^[dynamic]^$T, to_remove: ^T) {
-	for i in 0..len(array) {
+	for _, i in array {
 		item := array[i];
 		if item == to_remove {
 			array[i] = array[len(array)-1];
@@ -84,6 +84,28 @@ enum_names :: inline proc(enum_type: type) -> []string {
 // Strings
 //
 
+is_whitespace :: inline proc(c: byte) -> bool {
+	switch c {
+		case ' ':  return true;
+		case '\r': return true;
+		case '\n': return true;
+		case '\t': return true;
+	}
+
+	return false;
+}
+
+trim_whitespace :: proc(text: string) -> string {
+	if len(text) == 0 do return text;
+	start := 0;
+	for is_whitespace(text[start]) do start += 1;
+	end := len(text);
+	for is_whitespace(text[start]) do end -= 1;
+
+	new_str := text[start:end];
+	return new_str;
+}
+
 is_digit :: proc[is_digit_u8, is_digit_rune];
 is_digit_u8 :: inline proc(r: u8) -> bool { return '0' <= r && r <= '9' }
 is_digit_rune :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
@@ -120,7 +142,7 @@ find_from_left :: proc(str: string, c: rune) -> (int, bool) {
 }
 
 string_starts_with :: proc(str: string, start: string) -> bool {
-	if len(str) > len(start) do return false;
+	if len(str) < len(start) do return false;
 	for _, i in start {
 		if str[i] != start[i] do return false;
 	}
@@ -128,20 +150,13 @@ string_starts_with :: proc(str: string, start: string) -> bool {
 	return true;
 }
 
-split_by_lines :: proc(str: string, _array : ^[dynamic]string = nil) -> [dynamic]string {
-	array_ptr := _array;
+split_by_lines :: proc(str: string) -> [dynamic]string {
 	array: [dynamic]string;
-
-	if array_ptr == nil {
-		array = make([dynamic]string, 0, 100);
-		array_ptr = &array;
-	}
-
 	start := -1;
-	for i in 0..len(str) {
+	for _, i in str {
 		if str[i] == '\n' || str[i] == '\r' {
 			if start != -1 {
-				append(array_ptr, cast(string)str[start..i]);
+				append(&array, cast(string)str[start:i]);
 			}
 			start = -1;
 		}
@@ -152,7 +167,7 @@ split_by_lines :: proc(str: string, _array : ^[dynamic]string = nil) -> [dynamic
 		}
 	}
 
-	return array_ptr^;
+	return array;
 }
 
 file_from_path :: proc(path: string) -> string {
@@ -168,7 +183,7 @@ file_from_path :: proc(path: string) -> string {
 		end = dot;
 	}
 
-	file = file[start+1..end];
+	file = file[start+1:end];
 
 	return file;
 }

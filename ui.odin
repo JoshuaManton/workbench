@@ -168,7 +168,7 @@ ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
 //
 
 Directional_Layout_Group :: struct {
-	x1, y1, x2, y2
+	x1, y1, x2, y2: f32,
 	origin: Vec2,
 	direction: Vec2,
 	using _: struct { // runtime fields
@@ -511,7 +511,7 @@ _ui_debug_screen_update :: proc(dt: f32) {
 					defer ui_pop_rect();
 
 					buf: [2048]byte;
-					str := bprint(buf[..], file_from_path(rect.location.file_path), ":", rect.location.line);
+					str := bprint(buf[:], file_from_path(rect.location.file_path), ":", rect.location.line);
 					ui_text(font_default, str, 1, COLOR_BLACK);
 				}
 			}

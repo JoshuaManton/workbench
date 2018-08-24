@@ -253,13 +253,13 @@ SetWindowShouldClose :: proc(window: Window_Handle, set: bool) {
     }
     glfwSetWindowShouldClose(window, set ? 1 : 0);
 }
-SetWindowTitle :: proc(window: Window_Handle, fmt_string: string, args: ...any) {
+SetWindowTitle :: proc(window: Window_Handle, fmt_string: string, args: ..any) {
     if len(fmt_string) >= 256 {
         SetWindowTitle(window, "Too long title format string");
         return;
     }
     buf: [1024]u8;
-    title := fmt.bprintf(buf[..], fmt_string, ...args);
+    title := fmt.bprintf(buf[:], fmt_string, ..args);
     glfwSetWindowTitle(window, cstring(&title[0]));
 }
 

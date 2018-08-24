@@ -76,7 +76,7 @@ _update_input :: proc(dt: f32) {
 	{
 		// Buttons
 		{
-			for _controller_idx in 0..len(controllers) {
+			for _, _controller_idx in controllers {
 				controller_idx := cast(i32)_controller_idx;
 				controller := &controllers[controller_idx];
 
@@ -96,7 +96,7 @@ _update_input :: proc(dt: f32) {
 					controller.up   = make([]u8, len(buttons));
 				}
 
-				for button_idx in 0..len(buttons) {
+				for _, button_idx in buttons {
 					value := buttons[button_idx];
 					button := cast(Button)button_idx;
 
@@ -142,7 +142,7 @@ _update_input :: proc(dt: f32) {
 // _glfw_joystick_callback :: proc"c"(id: i32, event: i32)  {
 // 	if event == glfw.CONNECTED {
 // 		// Make sure that controller doesn't already exist
-// 		for controller_idx in 0..len(controllers) {
+// 		for _, controller_idx in controllers {
 // 			controller := &controllers[controller_idx];
 // 			if controller.id == id {
 // 				assert(false);
@@ -156,7 +156,7 @@ _update_input :: proc(dt: f32) {
 // 	}
 
 // 	if event == glfw.DISCONNECTED {
-// 		for controller_idx in 0..len(controllers) {
+// 		for _, controller_idx in controllers {
 // 			controller := &controllers[controller_idx];
 // 			if controller.id == id {
 // 				remove_by_index(&controllers, controller_idx);

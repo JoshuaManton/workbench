@@ -93,7 +93,7 @@ sqr_distance :: inline proc(x, y: $T) -> f32 {
 	return sqr(diff.x) + sqr(diff.y);
 }
 
-minv :: inline proc(args: ...$T) -> T {
+minv :: inline proc(args: ..$T) -> T {
 	assert(len(args) > 0);
 	current := args[0];
 	for arg in args {
@@ -105,7 +105,7 @@ minv :: inline proc(args: ...$T) -> T {
 	return current;
 }
 
-maxv :: inline proc(args: ...$T) -> T {
+maxv :: inline proc(args: ..$T) -> T {
 	assert(len(args) > 0);
 	current := args[0];
 	for arg in args {

@@ -7,7 +7,6 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
       import        "core:sys/win32"
-      import coregl "core:opengl"
 
       import odingl "shared:odin-gl"
 
@@ -184,7 +183,7 @@ Texture_Atlas :: struct {
 create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gen_texture();
 	set_texture(texture);
-	odingl.TexImage2D(coregl.TEXTURE_2D, 0, coregl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, coregl.RGBA, coregl.UNSIGNED_BYTE, nil);
+	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, odingl.RGBA, odingl.UNSIGNED_BYTE, nil);
 
 	data := new_clone(Texture_Atlas{texture, 0, 0, 0});
 
@@ -196,7 +195,7 @@ destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
 	free(atlas);
 }
 
-load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool) {
+load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool) {
 	stb.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
 	pixel_data := stb.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
@@ -216,11 +215,11 @@ load_sprite :: proc(filepath: string, texture: ^Texture_Atlas) -> (Sprite, bool)
 	}
 
 	if sprite_height > texture.biggest_height do texture.biggest_height = sprite_height;
-	odingl.TexSubImage2D(coregl.TEXTURE_2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, coregl.RGBA, coregl.UNSIGNED_BYTE, pixel_data);
-	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_WRAP_S, coregl.MIRRORED_REPEAT);
-	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_WRAP_T, coregl.MIRRORED_REPEAT);
-	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MIN_FILTER, coregl.NEAREST);
-	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MAG_FILTER, coregl.NEAREST);
+	odingl.TexSubImage2D(odingl.TEXTURE_2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, odingl.RGBA, odingl.UNSIGNED_BYTE, pixel_data);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_S, odingl.MIRRORED_REPEAT);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_T, odingl.MIRRORED_REPEAT);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
 	bottom_left_x := cast(f32)texture.atlas_x / ATLAS_DIM;
 	bottom_left_y := cast(f32)texture.atlas_y / ATLAS_DIM;
 
@@ -281,9 +280,9 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 
 	texture := gen_texture();
 	set_texture(texture);
-	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MIN_FILTER, coregl.LINEAR);
-	odingl.TexParameteri(coregl.TEXTURE_2D, coregl.TEXTURE_MAG_FILTER, coregl.LINEAR);
-	odingl.TexImage2D(coregl.TEXTURE_2D, 0, coregl.RGBA, cast(i32)dim, cast(i32)dim, 0, coregl.RED, coregl.UNSIGNED_BYTE, &pixels[0]);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.LINEAR);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.LINEAR);
+	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, cast(i32)dim, cast(i32)dim, 0, odingl.RED, odingl.UNSIGNED_BYTE, &pixels[0]);
 
 	font := new_clone(Font{dim, size, chars, texture});
 	return font, true;
@@ -456,11 +455,11 @@ _wb_render :: proc() {
 	}
 
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
-	odingl.Clear(coregl.COLOR_BUFFER_BIT);
+	odingl.Clear(odingl.COLOR_BUFFER_BIT);
 
 	client_render_proc(client_target_delta_time);
 
-	sort.quick_sort_proc(buffered_vertices[..], proc(a, b: Buffered_Vertex) -> int {
+	sort.quick_sort_proc(buffered_vertices[:], proc(a, b: Buffered_Vertex) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
 			return a.serial_number - b.serial_number;
@@ -468,7 +467,7 @@ _wb_render :: proc() {
 
 	current_render_mode = nil;
 
-	_draw_buffered_vertices(coregl.TRIANGLES);
+	_draw_buffered_vertices(odingl.TRIANGLES);
 
 	_debug_on_after_render();
 }
@@ -497,7 +496,7 @@ _draw_buffered_vertices :: proc(mode: u32) {
 	_draw_flush(mode);
 }
 
-_draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
+_draw_flush :: proc(mode : u32 = odingl.TRIANGLES, loc := #caller_location) {
 	if len(queued_for_drawing) == 0 {
 		return;
 	}
@@ -508,7 +507,7 @@ _draw_flush :: proc(mode : u32 = coregl.TRIANGLES, loc := #caller_location) {
 	bind_buffer(vbo);
 
 	// TODO: investigate STATIC_DRAW vs others
-	odingl.BufferData(coregl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], coregl.STATIC_DRAW);
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], odingl.STATIC_DRAW);
 
 	uniform(program, "atlas_texture", 0);
 
@@ -564,7 +563,7 @@ _debug_on_after_render :: inline proc() {
 		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color);
 	}
 
-	_draw_buffered_vertices(coregl.LINES);
+	_draw_buffered_vertices(odingl.LINES);
 
 	debug_vertices = buffered_vertices;
 	buffered_vertices = old_vertices;

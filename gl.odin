@@ -1,7 +1,6 @@
 package workbench
 
 using import "core:runtime"
-      import coregl "core:opengl"
       import "core:fmt"
       import "core:os"
 using import "core:math"
@@ -31,8 +30,8 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 	set_vertex_format(Vertex_Type);
 
 	odingl.ClearColor(0.2, 0.5, 0.8, 1.0);
-	odingl.Enable(coregl.BLEND);
-	odingl.BlendFunc(coregl.SRC_ALPHA, coregl.ONE_MINUS_SRC_ALPHA);
+	odingl.Enable(odingl.BLEND);
+	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
 
 	ok: bool;
 	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);

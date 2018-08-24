@@ -7,7 +7,6 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
       import        "core:sys/win32"
-      import coregl "core:opengl"
 
       import odingl "shared:odin-gl"
 
@@ -84,5 +83,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 }
 
 main :: proc() {
-
+	when DEVELOPER {
+		test_csv();
+	}
 }

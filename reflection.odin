@@ -2,7 +2,43 @@ package workbench
 
 using import "core:runtime"
 
+      import "core:mem"
       import "core:fmt"
+
+Field_Info :: struct {
+    name:   string,
+    t:      ^Type_Info,
+    offset: int,
+}
+
+get_struct_field_info :: proc(T: type, field_name: string) -> (Field_Info, bool) {
+    ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);
+    for name, i in ti.names {
+        if name == field_name {
+            t := ti.types[i];
+            offset := ti.offsets[i];
+            return Field_Info{name, t, cast(int)offset}, true;
+        }
+    }
+    return Field_Info{}, false;
+}
+
+set_struct_field :: proc(thing: ^$T, info: Field_Info, value: $S) {
+    when DEVELOPER {
+        ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);
+        found: bool;
+        for name, i in ti.names {
+            if name == info.name {
+                assert(ti.types[i] == info.t, fmt.aprintln("Type", type_info_of(T), "has a field", name, "but the type is", ti.types[i], "instead of the expected", type_info_of(S)));
+                assert(cast(int)ti.offsets[i] == info.offset, fmt.aprintln("Type", type_info_of(T), "has a field", name, "but the offset is", ti.offsets[i], "instead of the expected", info.offset));
+                found = true;
+            }
+        }
+        if !found do assert(false, fmt.aprintln("Type", type_info_of(T), "doesn't have a field called", info.name));
+    }
+    field_ptr := mem.ptr_offset(cast(^byte)thing, info.offset);
+    mem.copy(field_ptr, &value, size_of(S));
+}
 
 get_union_type_info :: proc(v : any) -> ^Type_Info {
     if tag := get_union_tag(v); tag > 0 {

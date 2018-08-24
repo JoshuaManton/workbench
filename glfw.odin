@@ -7,7 +7,6 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
       import        "core:sys/win32"
-      import coregl "core:opengl"
 
       import odingl "shared:odin-gl"
 
