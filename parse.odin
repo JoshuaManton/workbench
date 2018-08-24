@@ -17,4 +17,4 @@ parse_u64  :: inline proc(str: string) -> u64  do return cast(u64) strconv.parse
 parse_f32  :: inline proc(str: string) -> f32 do return strconv.parse_f32(str);
 parse_f64  :: inline proc(str: string) -> f64 do return strconv.parse_f64(str);
 
-parse_bool :: inline proc(str: string) -> (bool, bool) do return strconv.parse_bool(str);
+parse_bool :: inline proc(str: string) -> bool { val, ok := strconv.parse_bool(str); assert(ok); return val; }

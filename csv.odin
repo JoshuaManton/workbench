@@ -12,6 +12,15 @@ Csv_Row :: struct {
 	values: [dynamic]string,
 }
 
+parse_csv_from_file :: proc(filepath: string, Record: type) -> [dynamic]Record {
+	bytes, ok := os.read_entire_file(filepath);
+	if !ok do return nil;
+
+	defer delete(bytes);
+	records := parse_csv(cast(string)bytes[:], Record);
+	return records;
+}
+
 parse_csv :: proc(text: string, Record: type) -> [dynamic]Record {
 	// todo(josh): @Optimization probably
 	text = trim_whitespace(text);
@@ -124,7 +133,7 @@ parse_csv :: proc(text: string, Record: type) -> [dynamic]Record {
 					set_struct_field(&record, field_info, value);
 
 				case bool:
-					value, ok := parse_bool(str_value); assert(ok);
+					value := parse_bool(str_value);
 					set_struct_field(&record, field_info, value);
 
 				case:
