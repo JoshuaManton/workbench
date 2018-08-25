@@ -123,29 +123,26 @@ COLOR_BLUE  := Colorf{0, 0, 1, 1};
 COLOR_BLACK := Colorf{0, 0, 0, 1};
 
 push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
-                  push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color];
+                  push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color,
+                  ];
 
 push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf, render_order: int = 0) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color, render_order);
+	push_quad_points_sprite_color(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color, render_order);
 }
 push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, render_order: int = 0) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE, render_order);
+	push_quad_points_sprite_color(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE, render_order);
 }
 push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
-	_push_quad(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color, render_order);
+	push_quad_points_sprite_color(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color, render_order);
 }
 
 push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf, render_order: int = 0) {
-	_push_quad(shader, p0, p1, p2, p3, Sprite{}, color, render_order);
+	push_quad_points_sprite_color(shader, p0, p1, p2, p3, Sprite{}, color, render_order);
 }
 push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, render_order: int = 0) {
-	_push_quad(shader, p0, p1, p2, p3, sprite, COLOR_WHITE, render_order);
+	push_quad_points_sprite_color(shader, p0, p1, p2, p3, sprite, COLOR_WHITE, render_order);
 }
-push_quad_points_sprite_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
-	_push_quad(shader, p0, p1, p2, p3, sprite, color, render_order);
-}
-
-_push_quad :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
+push_quad_points_sprite_color :: proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
 	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
 	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color, render_order);
 	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, render_order);
