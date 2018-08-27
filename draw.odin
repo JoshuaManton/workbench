@@ -46,11 +46,16 @@ perspective_camera :: proc(fov: f32) {
 }
 
 world_to_viewport :: inline proc(position: Vec3) -> Vec3 {
-	mvp := mul(mul(projection_matrix, view_matrix), model_matrix);
-	result := mul(mvp, Vec4{position.x, position.y, position.z, 1});
-	assert(result.w != 0);
-	new_result := Vec3{result.x, result.y, result.z} / result.w;
-	return new_result;
+	if is_perspective {
+		mvp := mul(mul(projection_matrix, view_matrix), model_matrix);
+		result := mul(mvp, Vec4{position.x, position.y, position.z, 1});
+		assert(result.w != 0);
+		new_result := Vec3{result.x, result.y, result.z} / result.w;
+		return new_result;
+	}
+
+	result := mul(projection_matrix, Vec4{position.x, position.y, position.z, 1});
+	return Vec3{result.x, result.y, result.z};
 }
 
 unit_to_viewport :: inline proc(position: Vec3) -> Vec3 {
@@ -164,6 +169,27 @@ push_quad_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Prog
 	push_quad_sprite_color(rendermode, shader, min, max, sprite, COLOR_WHITE, render_order);
 }
 push_quad_sprite_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, color: Colorf, render_order: int = 0) {
+	p0, p1, p2, p3 := min, Vec3{min.x, max.y, max.z}, max, Vec3{max.x, min.y, min.z};
+
+	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p1, sprite.uvs[1], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+
+	if debugging_rendering {
+		draw_debug_line(rendermode, p0, p1, COLOR_GREEN);
+		draw_debug_line(rendermode, p1, p2, COLOR_GREEN);
+		draw_debug_line(rendermode, p2, p1, COLOR_GREEN);
+		draw_debug_line(rendermode, p2, p3, COLOR_GREEN);
+		draw_debug_line(rendermode, p3, p0, COLOR_GREEN);
+	}
+}
+push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, scale: Vec3, sprite: Sprite, color: Colorf, render_order: int = 0) {
+	half_size := (Vec3{sprite.width, sprite.height, 0} * scale) / 2;
+	min := position - half_size;
+	max := position + half_size;
 	p0, p1, p2, p3 := min, Vec3{min.x, max.y, max.z}, max, Vec3{max.x, min.y, min.z};
 
 	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);

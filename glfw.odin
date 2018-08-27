@@ -112,7 +112,7 @@ _update_glfw :: proc(dt: f32) {
 		left   : f32 = -1 * current_aspect_ratio;
 		right  : f32 =  1 * current_aspect_ratio;
 
-		projection_matrix = ortho3d(left, right, bottom, top, 0.1, 1000);
+		projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	}
 	else {
 		projection_matrix = perspective(to_radians(camera_size), current_aspect_ratio, 0.001, 1000);
