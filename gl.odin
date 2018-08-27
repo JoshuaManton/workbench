@@ -15,6 +15,8 @@ shader_rgba:    Shader_Program;
 shader_text:    Shader_Program;
 shader_texture: Shader_Program;
 
+shader_rgba_3d:    Shader_Program;
+
 _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 	odingl.load_up_to(opengl_version_major, opengl_version_minor,
 		proc(p: rawptr, name: cstring) {
@@ -31,6 +33,8 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 
 	odingl.ClearColor(0.2, 0.5, 0.8, 1.0);
 	odingl.Enable(odingl.BLEND);
+	// odingl.Enable(odingl.CULL_FACE);
+	odingl.Enable(odingl.DEPTH_TEST);
 	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
 
 	ok: bool;
@@ -39,5 +43,7 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 	shader_texture, ok = load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
 	assert(ok);
 	shader_text, ok    = load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
+	assert(ok);
+	shader_rgba_3d, ok = load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
 	assert(ok);
 }

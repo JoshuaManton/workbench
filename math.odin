@@ -121,17 +121,35 @@ degrees_to_vector :: inline proc(degrees: f32) -> Vec2 {
 	return vec;
 }
 
-to_vec2 :: proc[to_vec2_from_vec3, to_vec2_from_vec4];
-to_vec2_from_vec3 :: inline proc(a: Vec3) -> Vec2 do return Vec2{a.x, a.y};
-to_vec2_from_vec4 :: inline proc(a: Vec4) -> Vec2 do return Vec2{a.x, a.y};
+to_vec2 :: inline proc(a: $T/[$N]$E) -> Vec2 {
+	result: Vec2;
+	idx := 0;
+	for idx < len(a) && idx < len(result) {
+		result[idx] = a[idx];
+		idx += 1;
+	}
+	return result;
+}
 
-to_vec3 :: proc[to_vec3_from_vec2, to_vec3_from_vec4];
-to_vec3_from_vec2 :: inline proc(a: Vec2) -> Vec3 do return Vec3{a.x, a.y, 0};
-to_vec3_from_vec4 :: inline proc(a: Vec4) -> Vec3 do return Vec3{a.x, a.y, a.z};
+to_vec3 :: inline proc(a: $T/[$N]$E) -> Vec3 {
+	result: Vec3;
+	idx := 0;
+	for idx < len(a) && idx < len(result) {
+		result[idx] = a[idx];
+		idx += 1;
+	}
+	return result;
+}
 
-to_vec4 :: proc[to_vec4_from_vec2, to_vec4_from_vec3];
-to_vec4_from_vec2 :: inline proc(a: Vec2) -> Vec4 do return Vec4{a.x, a.y, 0, 0};
-to_vec4_from_vec3 :: inline proc(a: Vec3) -> Vec4 do return Vec4{a.x, a.y, a.z, 0};
+to_vec4 :: inline proc(a: $T/[$N]$E) -> Vec4 {
+	result: Vec4;
+	idx := 0;
+	for idx < len(a) && idx < len(result) {
+		result[idx] = a[idx];
+		idx += 1;
+	}
+	return result;
+}
 
 translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
 	m[3][0] += v[0];

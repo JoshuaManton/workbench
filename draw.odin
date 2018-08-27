@@ -17,82 +17,114 @@ using import        "core:fmt"
 // Rendermodes
 //
 
-Render_Mode_Proc :: #type proc();
+Rendermode_Proc :: #type proc(Vec3) -> Vec3;
 
-current_render_mode: Render_Mode_Proc;
 current_shader:      Shader_Program;
 current_texture:     Texture;
 
-ortho_matrix:     Mat4;
+model_matrix:      Mat4;
+view_matrix:       Mat4;
+projection_matrix: Mat4;
 
-rendermode_to_viewport_matrix:  Mat4;
-rendermode_to_pixel_matrix:     Mat4;
+unit_to_viewport_matrix:  Mat4;
+pixel_to_viewport_matrix: Mat4;
 
+world_to_pixel_matrix: Mat4;
+unit_to_pixel_matrix:  Mat4;
 pixel_to_world_matrix: Mat4;
 
-rendering_world_space :: inline proc() {
-	current_render_mode = rendering_world_space;
+is_perspective: bool;
 
-	rendermode_to_viewport_matrix = mul(identity(Mat4), ortho_matrix);
-	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, 1.0 / camera_size);
-
-	cam_offset := to_vec3(mul(rendermode_to_viewport_matrix, to_vec4(camera_position)));
-	rendermode_to_viewport_matrix = translate(rendermode_to_viewport_matrix, -cam_offset);
-
-	rendermode_to_pixel_matrix = identity(Mat4);
-	rendermode_to_pixel_matrix = scale(rendermode_to_pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
+orthographic_camera :: proc(size: f32) {
+	is_perspective = false;
+	camera_size = size;
 }
 
-rendering_unit_space :: inline proc() {
-	current_render_mode = rendering_unit_space;
-
-	rendermode_to_viewport_matrix = identity(Mat4);
-	rendermode_to_viewport_matrix = translate(rendermode_to_viewport_matrix, Vec3{-1, -1, 0});
-	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, 2);
-
-	rendermode_to_pixel_matrix = identity(Mat4);
-	rendermode_to_pixel_matrix = scale(rendermode_to_pixel_matrix, Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
+perspective_camera :: proc(fov: f32) {
+	is_perspective = true;
+	camera_size = fov;
 }
 
-rendering_pixel_space :: inline proc() {
-	current_render_mode = rendering_pixel_space;
-
-	rendermode_to_viewport_matrix = identity(Mat4);
-	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, to_vec3(Vec2{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height}));
-	rendermode_to_viewport_matrix = translate(rendermode_to_viewport_matrix, Vec3{-1, -1, 0});
-	rendermode_to_viewport_matrix = scale(rendermode_to_viewport_matrix, 2);
-
-	rendermode_to_pixel_matrix = identity(Mat4);
+world_to_viewport :: inline proc(position: Vec3) -> Vec3 {
+	mvp := mul(mul(projection_matrix, view_matrix), model_matrix);
+	result := mul(mvp, Vec4{position.x, position.y, position.z, 1});
+	assert(result.w != 0);
+	new_result := Vec3{result.x, result.y, result.z} / result.w;
+	return new_result;
 }
 
-rendermode_to_pixel :: inline proc(a: Vec2) -> Vec2 {
-	return to_vec2(mul(rendermode_to_pixel_matrix, to_vec4(a)));
+unit_to_viewport :: inline proc(position: Vec3) -> Vec3 {
+	result := mul(unit_to_viewport_matrix, Vec4{position.x, position.y, 0, 1});
+	return Vec3{result.x, result.y, 0};
 }
 
-rendermode_to_viewport :: inline proc(a: Vec2) -> Vec2 {
-	return to_vec2(mul(rendermode_to_pixel_matrix, to_vec4(a)));
+pixel_to_viewport :: inline proc(position: Vec3) -> Vec3 {
+	result := mul(pixel_to_viewport_matrix, Vec4{position.x, position.y, 0, 1});
+	return Vec3{result.x, result.y, 0};
 }
 
-screen_to_world :: proc(screen: Vec2) -> Vec2 {
-	// convert to unit size first
-	pos := Vec2{screen.x / cast(f32)current_window_width, screen.y / cast(f32)current_window_height};
-
-	// assume the incoming `screen` parameter is bottom left == 0, 0
-	// pos.y = 1.0 - pos.y;
-
-	camera_size_x := camera_size * current_aspect_ratio;
-	camera_size_y := camera_size;
-
-	pos.x *= camera_size_x * 2.0;
-	pos.y *= camera_size_y * 2.0;
-
-	pos.x -= camera_size_x;
-	pos.y -= camera_size_y;
-
-	pos += camera_position;
-
-	return pos;
+world_to_pixel :: inline proc(a: Vec3) -> Vec3 {
+	result := mul(world_to_pixel_matrix, Vec4{a.x, a.y, 0, 1});
+	return Vec3{result.x, result.y, result.z};
 }
+
+unit_to_pixel :: inline proc(a: Vec3) -> Vec3 {
+	result := mul(unit_to_pixel_matrix, Vec4{a.x, a.y, 0, 1});
+	return Vec3{result.x, result.y, 0};
+}
+
+
+
+
+
+// world_to_viewport :: inline proc(position: Vec3) -> Vec2 {
+// 	return to_vec2(mul(world_to_viewport_matrix, position));
+// }
+
+// unit_to_viewport :: inline proc(position: Vec3) -> Vec2 {
+// 	return (to_vec2(position) - Vec2{0.5, 0.5}) * 2;
+// 	// return to_vec2(mul(unit_to_viewport_matrix, to_vec3(position)));
+// }
+
+// pixel_to_viewport :: inline proc(position: Vec3) -> Vec2 {
+// 	return unit_to_viewport(to_vec3(to_vec2(position) / Vec2{cast(f32)current_window_width, cast(f32)current_window_height}));
+// 	// return to_vec2(mul(pixel_to_viewport_matrix, to_vec3(position)));
+// }
+
+// world_to_pixel :: inline proc(a: Vec3) -> Vec2 {
+// 	return to_vec2(mul(world_to_pixel_matrix, to_vec3(a)));
+// }
+
+// unit_to_pixel :: inline proc(a: Vec3) -> Vec3 {
+// 	return a * Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0};
+// 	// return to_vec2(mul(unit_to_pixel_matrix, to_vec3(a)));
+// }
+
+
+
+
+
+
+// screen_to_world :: proc(screen: Vec3) -> Vec3 {
+// 	// convert to unit size first
+// 	pos := Vec3{screen.x / cast(f32)current_window_width, screen.y / cast(f32)current_window_height, 0};
+
+// 	// assume the incoming `screen` parameter is bottom left == 0, 0
+// 	// pos.y = 1.0 - pos.y;
+
+// 	camera_size_x := camera_size * current_aspect_ratio;
+// 	camera_size_y := camera_size;
+
+// 	pos.x *= camera_size_x * 2.0;
+// 	pos.y *= camera_size_y * 2.0;
+
+// 	pos.x -= camera_size_x;
+// 	pos.y -= camera_size_y;
+
+// 	pos += camera_position;
+
+// 	return pos;
+// }
 
 set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
 	_draw_flush();
@@ -113,8 +145,9 @@ set_texture :: inline proc(texture: Texture, location := #caller_location) {
 //
 
 camera_size: f32 = 1;
-camera_position: Vec2;
-camera_rotation: f32;
+camera_position: Vec3;
+camera_rotation: Vec3;
+camera_target: Vec3;
 
 COLOR_WHITE := Colorf{1, 1, 1, 1};
 COLOR_RED   := Colorf{1, 0, 0, 1};
@@ -122,48 +155,42 @@ COLOR_GREEN := Colorf{0, 1, 0, 1};
 COLOR_BLUE  := Colorf{0, 0, 1, 1};
 COLOR_BLACK := Colorf{0, 0, 0, 1};
 
-push_quad :: proc[push_quad_min_max_color, push_quad_min_max_sprite, push_quad_min_max_sprite_color,
-                  push_quad_points_color,  push_quad_points_sprite,  push_quad_points_sprite_color,
-                  ];
+push_quad :: proc[push_quad_color, push_quad_sprite, push_quad_sprite_color];
 
-push_quad_min_max_color :: inline proc(shader: Shader_Program, min, max: Vec2, color: Colorf, render_order: int = 0) {
-	push_quad_points_sprite_color(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, Sprite{}, color, render_order);
+push_quad_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, color: Colorf, render_order: int = 0) {
+	push_quad_sprite_color(rendermode, shader, min, max, Sprite{}, color, render_order);
 }
-push_quad_min_max_sprite :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, render_order: int = 0) {
-	push_quad_points_sprite_color(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, COLOR_WHITE, render_order);
+push_quad_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, render_order: int = 0) {
+	push_quad_sprite_color(rendermode, shader, min, max, sprite, COLOR_WHITE, render_order);
 }
-push_quad_min_max_sprite_color :: inline proc(shader: Shader_Program, min, max: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
-	push_quad_points_sprite_color(shader, min, Vec2{min.x, max.y}, max, Vec2{max.x, min.y}, sprite, color, render_order);
-}
+push_quad_sprite_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, color: Colorf, render_order: int = 0) {
+	p0, p1, p2, p3 := min, Vec3{min.x, max.y, max.z}, max, Vec3{max.x, min.y, min.z};
 
-push_quad_points_color :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, color: Colorf, render_order: int = 0) {
-	push_quad_points_sprite_color(shader, p0, p1, p2, p3, Sprite{}, color, render_order);
-}
-push_quad_points_sprite :: inline proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, render_order: int = 0) {
-	push_quad_points_sprite_color(shader, p0, p1, p2, p3, sprite, COLOR_WHITE, render_order);
-}
-push_quad_points_sprite_color :: proc(shader: Shader_Program, p0, p1, p2, p3: Vec2, sprite: Sprite, color: Colorf, render_order: int = 0) {
-	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
-	push_vertex(shader, sprite.id, p1, sprite.uvs[1], color, render_order);
-	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, render_order);
-	push_vertex(shader, sprite.id, p2, sprite.uvs[2], color, render_order);
-	push_vertex(shader, sprite.id, p3, sprite.uvs[3], color, render_order);
-	push_vertex(shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p1, sprite.uvs[1], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
+	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
 
 	if debugging_rendering {
-		draw_debug_line(p0, p1, COLOR_GREEN);
-		draw_debug_line(p1, p2, COLOR_GREEN);
-		draw_debug_line(p2, p1, COLOR_GREEN);
-		draw_debug_line(p2, p3, COLOR_GREEN);
-		draw_debug_line(p3, p0, COLOR_GREEN);
+		draw_debug_line(rendermode, p0, p1, COLOR_GREEN);
+		draw_debug_line(rendermode, p1, p2, COLOR_GREEN);
+		draw_debug_line(rendermode, p2, p1, COLOR_GREEN);
+		draw_debug_line(rendermode, p2, p3, COLOR_GREEN);
+		draw_debug_line(rendermode, p3, p0, COLOR_GREEN);
 	}
 }
 
-push_vertex :: inline proc(shader: Shader_Program, texture: Texture, position: Vec2, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
+push_vertex :: proc[push_vertex_color, push_vertex_color_texture];
+push_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, color: Colorf, render_order: int = 0) {
+	push_vertex_color_texture(rendermode, shader, 0, position, Vec2{}, color, render_order);
+}
+
+push_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
 	assert(shader != 0);
-	assert(current_render_mode != nil, "Render mode isn't set yet.");
 	serial := len(buffered_vertices);
-	vertex_info := Buffered_Vertex{render_order, serial, current_render_mode, shader, texture, position, tex_coord, color};
+	vertex_info := Buffered_Vertex{render_order, serial, rendermode, shader, texture, position, tex_coord, color};
 	append(&buffered_vertices, vertex_info);
 }
 
@@ -291,13 +318,13 @@ destroy_font :: inline proc(font: ^Font) {
 	free(font);
 }
 
-draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
+draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
 	// todo: make draw_string() be render_mode agnostic
 	// old := current_render_mode;
 	// rendering_unit_space();
 	// defer old();
 
-	assert(current_render_mode == rendering_unit_space);
+	assert(rendermode == unit_to_viewport);
 
 	start := position;
 	for c in str {
@@ -336,7 +363,7 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
 		}
 
-		push_quad(shader_text, min, max, sprite, color, layer);
+		push_quad(rendermode, shader_text, to_vec3(min), to_vec3(max), sprite, color, layer);
 		width := max.x - min.x;
 		position.x += width + (width * whitespace_ratio);
 	}
@@ -406,20 +433,19 @@ draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, siz
 // Internals
 //
 
-// An IR kind of thing
 Buffered_Vertex :: struct {
 	render_order:  int,
 	serial_number: int,
-	render_mode_proc: Render_Mode_Proc,
+	rendermode: Rendermode_Proc,
 	shader: Shader_Program,
 	texture: Texture,
-	position: Vec2,
+	position: Vec3,
 	tex_coord: Vec2,
 	color: Colorf,
 }
 
 Vertex_Type :: struct {
-	vertex_position: Vec2,
+	vertex_position: Vec3,
 	tex_coord: Vec2,
 	color: Colorf,
 }
@@ -452,41 +478,33 @@ _wb_render :: proc() {
 	}
 
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
-	odingl.Clear(odingl.COLOR_BUFFER_BIT);
+	odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT);
 
 	client_render_proc(client_target_delta_time);
 
+	draw_buffered_vertices(odingl.TRIANGLES);
+
+	_debug_on_after_render();
+}
+
+draw_buffered_vertices :: proc(mode: u32) {
 	sort.quick_sort_proc(buffered_vertices[:], proc(a, b: Buffered_Vertex) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
 			return a.serial_number - b.serial_number;
 		});
 
-	current_render_mode = nil;
-
-	_draw_buffered_vertices(odingl.TRIANGLES);
-
-	_debug_on_after_render();
-}
-
-_draw_buffered_vertices :: proc(mode: u32) {
 	for vertex_info in buffered_vertices {
-		render_mode_mismatch := vertex_info.render_mode_proc != current_render_mode;
 		shader_mismatch      := vertex_info.shader != current_shader;
 		texture_mismatch     := vertex_info.texture != current_texture;
-		if render_mode_mismatch || shader_mismatch || texture_mismatch {
+		if shader_mismatch || texture_mismatch {
 			_draw_flush();
 		}
 
 		if shader_mismatch  do set_shader(vertex_info.shader);
 		if texture_mismatch do set_texture(vertex_info.texture);
 
-		if render_mode_mismatch {
-			current_render_mode = vertex_info.render_mode_proc;
-			vertex_info.render_mode_proc();
-		}
-
-		vertex := Vertex_Type{vertex_info.position, vertex_info.tex_coord, vertex_info.color};
+		vertex := Vertex_Type{vertex_info.rendermode(vertex_info.position), vertex_info.tex_coord, vertex_info.color};
 		append(&queued_for_drawing, vertex);
 	}
 
@@ -498,14 +516,12 @@ _draw_flush :: proc(mode : u32 = odingl.TRIANGLES, loc := #caller_location) {
 		return;
 	}
 
-	program := get_current_shader();
-	uniform_matrix4fv(program, "transform", 1, false, &rendermode_to_viewport_matrix[0][0]);
-
 	bind_buffer(vbo);
 
 	// TODO: investigate STATIC_DRAW vs others
 	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], odingl.STATIC_DRAW);
 
+	program := get_current_shader();
 	uniform(program, "atlas_texture", 0);
 
 	odingl.DrawArrays(mode, 0, cast(i32)len(queued_for_drawing));
@@ -518,49 +534,43 @@ _draw_flush :: proc(mode : u32 = odingl.TRIANGLES, loc := #caller_location) {
 //
 
 Line_Segment :: struct {
-	a, b: Vec2,
+	a, b: Vec3,
 	color: Colorf,
+	rendermode: Rendermode_Proc,
 }
 
 debug_vertices: [dynamic]Buffered_Vertex;
 debug_lines:    [dynamic]Line_Segment;
 
-draw_debug_line :: inline proc(a, b: Vec2, color: Colorf) {
-	// :DebugLineIsPixels
-	if current_render_mode != rendering_pixel_space {
-		a, b = rendermode_to_pixel(a), rendermode_to_pixel(b);
-	}
-	append(&debug_lines, Line_Segment{a, b, color});
+draw_debug_line :: inline proc(rendermode: Rendermode_Proc, a, b: Vec3, color: Colorf) {
+	append(&debug_lines, Line_Segment{a, b, color, rendermode});
 }
 
 draw_debug_box :: proc[draw_debug_box_min_max, draw_debug_box_points];
-draw_debug_box_min_max :: inline proc(min, max: Vec2, color: Colorf) {
-	draw_debug_line(Vec2{min.x, min.y}, Vec2{min.x, max.y}, color);
-	draw_debug_line(Vec2{min.x, max.y}, Vec2{max.x, max.y}, color);
-	draw_debug_line(Vec2{max.x, max.y}, Vec2{max.x, min.y}, color);
-	draw_debug_line(Vec2{max.x, min.y}, Vec2{min.x, min.y}, color);
+draw_debug_box_min_max :: inline proc(rendermode: Rendermode_Proc, min, max: Vec3, color: Colorf) {
+	draw_debug_line(rendermode, Vec3{min.x, min.y, min.z}, Vec3{min.x, max.y, max.z}, color);
+	draw_debug_line(rendermode, Vec3{min.x, max.y, max.z}, Vec3{max.x, max.y, max.z}, color);
+	draw_debug_line(rendermode, Vec3{max.x, max.y, max.z}, Vec3{max.x, min.y, min.z}, color);
+	draw_debug_line(rendermode, Vec3{max.x, min.y, min.z}, Vec3{min.x, min.y, min.z}, color);
 }
-draw_debug_box_points :: inline proc(a, b, c, d: Vec2, color: Colorf) {
-	draw_debug_line(a, b, color);
-	draw_debug_line(b, c, color);
-	draw_debug_line(c, d, color);
-	draw_debug_line(d, a, color);
+draw_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Vec3, color: Colorf) {
+	draw_debug_line(rendermode, a, b, color);
+	draw_debug_line(rendermode, b, c, color);
+	draw_debug_line(rendermode, c, d, color);
+	draw_debug_line(rendermode, d, a, color);
 }
 
 _debug_on_after_render :: inline proc() {
-	// :DebugLineIsPixels
-	rendering_pixel_space();
-
 	// kinda weird, kinda neat
 	old_vertices := buffered_vertices;
 	buffered_vertices = debug_vertices;
 
 	for line in debug_lines {
-		push_vertex(shader_rgba, 0, line.a, Vec2{}, line.color);
-		push_vertex(shader_rgba, 0, line.b, Vec2{}, line.color);
+		push_vertex(line.rendermode, shader_rgba, 0, line.a, Vec2{}, line.color);
+		push_vertex(line.rendermode, shader_rgba, 0, line.b, Vec2{}, line.color);
 	}
 
-	_draw_buffered_vertices(odingl.LINES);
+	draw_buffered_vertices(odingl.LINES);
 
 	debug_vertices = buffered_vertices;
 	buffered_vertices = old_vertices;

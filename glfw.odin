@@ -20,9 +20,9 @@ current_window_height: int;
 current_aspect_ratio:  f32;
 
 cursor_scroll: f32;
-cursor_world_position:       Vec2;
-cursor_screen_position:      Vec2;
-cursor_unit_position:        Vec2;
+cursor_world_position:  Vec2;
+cursor_screen_position: Vec2;
+cursor_unit_position:   Vec2;
 
 frame_count: u64;
 time: f32;
@@ -30,7 +30,7 @@ lossy_delta_time: f32;
 fps_to_draw: f32;
 
  // set in callbacks
-_new_ortho_matrix:  Mat4;
+_new_ortho_matrix:  Mat3;
 _new_window_width:  int;
 _new_window_height: int;
 _new_aspect_ratio:  f32;
@@ -47,13 +47,6 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 		_new_window_width  = cast(int)w;
 		_new_window_height = cast(int)h;
 		_new_aspect_ratio = cast(f32)w / cast(f32)h;
-
-		top    : f32 =  1;
-		bottom : f32 = -1;
-		left   : f32 = -1 * _new_aspect_ratio;
-		right  : f32 =  1 * _new_aspect_ratio;
-
-		_new_ortho_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	}
 
 	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
@@ -105,17 +98,56 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 
 _update_glfw :: proc(dt: f32) {
 	// Update vars from callbacks
-	ortho_matrix = _new_ortho_matrix;
-
 	current_window_width   = _new_window_width;
 	current_window_height  = _new_window_height;
 	current_aspect_ratio   = _new_aspect_ratio;
-	cursor_screen_position = _new_cursor_screen_position;
-	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
-	cursor_world_position  = screen_to_world(cursor_screen_position);
-
 	cursor_scroll          = _new_cursor_scroll;
 	_new_cursor_scroll     = 0;
+	cursor_screen_position = _new_cursor_screen_position;
+	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
+
+	if !is_perspective {
+		top    : f32 =  1;
+		bottom : f32 = -1;
+		left   : f32 = -1 * current_aspect_ratio;
+		right  : f32 =  1 * current_aspect_ratio;
+
+		projection_matrix = ortho3d(left, right, bottom, top, 0.1, 1000);
+	}
+	else {
+		projection_matrix = perspective(to_radians(camera_size), current_aspect_ratio, 0.001, 1000);
+		// view_matrix       = look_at(camera_position, Vec3{}, Vec3{0, 1, 0});
+		view_matrix       = translate(identity(Mat4), camera_position);
+		model_matrix      = identity(Mat4);
+	}
+
+	// World space
+	{
+		// world_to_viewport_matrix = mul(identity(Mat4), projection_matrix);
+		// world_to_viewport_matrix = translate(world_to_viewport_matrix, -camera_position);
+		// world_to_viewport_matrix = scale(world_to_viewport_matrix, 1.0 / camera_size);
+		// cam_offset := to_vec3(mul(world_to_viewport_matrix, Vec4{camera_position.x, camera_position.y, camera_position.z, 1}));
+
+		world_to_pixel_matrix = identity(Mat4);
+		world_to_pixel_matrix = scale(world_to_pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
+	}
+
+	// Unit space
+	{
+		unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-5, -5, 0});
+		unit_to_viewport_matrix = scale(unit_to_viewport_matrix, 2);
+
+		unit_to_pixel_matrix = scale(identity(Mat4), Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
+	}
+
+	// Pixel space
+	{
+		pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
+		pixel_to_viewport_matrix = translate(pixel_to_viewport_matrix, Vec3{-1, -1, 0});
+		pixel_to_viewport_matrix = scale(pixel_to_viewport_matrix, 2);
+	}
+
+	// cursor_world_position  = screen_to_world(cursor_screen_position);
 }
 
 window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {

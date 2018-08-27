@@ -262,13 +262,12 @@ scroll_view :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left
 
 ui_draw_colored_quad :: proc[ui_draw_colored_quad_current, ui_draw_colored_quad_push];
 ui_draw_colored_quad_current :: inline proc(color: Colorf) {
-	rendering_pixel_space();
 	rect := ui_current_rect_pixels;
 
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
 
-	push_quad(shader_rgba, min, max, color);
+	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
@@ -399,8 +398,7 @@ ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_verti
 	// position := Vec2{center_of_rect.x - (string_width / 2), ui_current_rect_unit.y1};
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
-	rendering_unit_space();
-	draw_string(font, str, position, color, height * size, 9999); // todo(josh): proper render order on text
+	draw_string(unit_to_viewport, font, str, position, color, height * size, 9999); // todo(josh): proper render order on text
 }
 
 // draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _size: f32, layer: int) -> f32 {
@@ -505,7 +503,7 @@ _ui_debug_screen_update :: proc(dt: f32) {
 				if ui_debug_cur_idx == i {
 					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-					draw_debug_box(min, max, COLOR_GREEN);
+					draw_debug_box(unit_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
 
 					ui_push_rect(0.5, 0.9, 0.5, 1, 0, 0, 0, 0);
 					defer ui_pop_rect();
