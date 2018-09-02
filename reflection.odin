@@ -11,7 +11,7 @@ Field_Info :: struct {
     offset: int,
 }
 
-get_struct_field_info :: proc(T: type, field_name: string) -> (Field_Info, bool) {
+get_struct_field_info :: proc($T: typeid, field_name: string) -> (Field_Info, bool) {
     ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);
     for name, i in ti.names {
         if name == field_name {
@@ -42,7 +42,7 @@ set_struct_field :: proc(thing: ^$T, info: Field_Info, value: $S) {
 
 get_union_type_info :: proc(v : any) -> ^Type_Info {
     if tag := get_union_tag(v); tag > 0 {
-        info := type_info_base(type_info_of(v.typeid)).variant.(Type_Info_Union);
+        info := type_info_base(type_info_of(v.id)).variant.(Type_Info_Union);
 
         return info.variants[tag - 1];
     }
@@ -51,7 +51,7 @@ get_union_type_info :: proc(v : any) -> ^Type_Info {
 }
 
 get_union_tag :: proc(v : any) -> i64 {
-    info, ok := type_info_base(type_info_of(v.typeid)).variant.(Type_Info_Union);
+    info, ok := type_info_base(type_info_of(v.id)).variant.(Type_Info_Union);
     tag_ptr := uintptr(v.data) + info.tag_offset;
     tag_any := any{rawptr(tag_ptr), info.tag_type.id};
 
@@ -73,7 +73,7 @@ get_union_tag :: proc(v : any) -> i64 {
 }
 
 set_union_type_info :: proc(v : any, type_info : ^Type_Info) {
-    info := type_info_base(type_info_of(v.typeid)).variant.(Type_Info_Union);
+    info := type_info_base(type_info_of(v.id)).variant.(Type_Info_Union);
 
     for variant, i in info.variants {
         if variant == type_info {
@@ -86,7 +86,7 @@ set_union_type_info :: proc(v : any, type_info : ^Type_Info) {
 }
 
 set_union_tag :: proc(v : any, tag : i64) {
-    info, ok := type_info_base(type_info_of(v.typeid)).variant.(Type_Info_Union);
+    info, ok := type_info_base(type_info_of(v.id)).variant.(Type_Info_Union);
     tag_ptr := uintptr(v.data) + info.tag_offset;
     tag_any := any{rawptr(tag_ptr), info.tag_type.id};
 

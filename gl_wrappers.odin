@@ -193,8 +193,8 @@ get_uniform_location :: inline proc(program: Shader_Program, str: string, loc :=
 	return uniform_loc;
 }
 
-set_vertex_format :: proc(vertex_type: type) {
-	ti := type_info_base(type_info_of(vertex_type)).variant.(Type_Info_Struct);
+set_vertex_format :: proc($Type: typeid) {
+	ti := type_info_base(type_info_of(Type)).variant.(Type_Info_Struct);
 
 	for name, _i in ti.names {
 		i := cast(u32)_i;
@@ -204,7 +204,7 @@ set_vertex_format :: proc(vertex_type: type) {
 		type_of_elements: u32;
 
 		a: any;
-		a.typeid = typeid_of(ti.types[i]);
+		a.id = ti.types[i].id;
 		switch kind in a {
 			case Vec2: {
 				num_elements = 2;
@@ -259,7 +259,7 @@ set_vertex_format :: proc(vertex_type: type) {
 			}
 		}
 
-		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, size_of(vertex_type), offset_in_struct);
+		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, size_of(Type), offset_in_struct);
 		odingl.EnableVertexAttribArray(i);
 	}
 }

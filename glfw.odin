@@ -15,8 +15,8 @@ using import        "core:fmt"
 
 main_window: glfw.Window_Handle;
 
-current_window_width:  int;
-current_window_height: int;
+current_window_width:  f32;
+current_window_height: f32;
 current_aspect_ratio:  f32;
 
 cursor_scroll: f32;
@@ -31,8 +31,8 @@ fps_to_draw: f32;
 
  // set in callbacks
 _new_ortho_matrix:  Mat3;
-_new_window_width:  int;
-_new_window_height: int;
+_new_window_width:  f32;
+_new_window_height: f32;
 _new_aspect_ratio:  f32;
 _new_cursor_scroll: f32;
 _new_cursor_screen_position: Vec2;
@@ -44,8 +44,8 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 	opengl_version_minor := cast(i32)_opengl_version_minor;
 
 	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
-		_new_window_width  = cast(int)w;
-		_new_window_height = cast(int)h;
+		_new_window_width  = cast(f32)w;
+		_new_window_height = cast(f32)h;
 		_new_aspect_ratio = cast(f32)w / cast(f32)h;
 	}
 
@@ -92,8 +92,6 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 
 	// Setup glfw callbacks
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
-
-	subscribe(&_on_before_client_update, _update_glfw);
 }
 
 _update_glfw :: proc(dt: f32) {
@@ -121,17 +119,6 @@ _update_glfw :: proc(dt: f32) {
 		model_matrix      = identity(Mat4);
 	}
 
-	// World space
-	{
-		// world_to_viewport_matrix = mul(identity(Mat4), projection_matrix);
-		// world_to_viewport_matrix = translate(world_to_viewport_matrix, -camera_position);
-		// world_to_viewport_matrix = scale(world_to_viewport_matrix, 1.0 / camera_size);
-		// cam_offset := to_vec3(mul(world_to_viewport_matrix, Vec4{camera_position.x, camera_position.y, camera_position.z, 1}));
-
-		world_to_pixel_matrix = identity(Mat4);
-		world_to_pixel_matrix = scale(world_to_pixel_matrix, 1.0 / PIXELS_PER_WORLD_UNIT);
-	}
-
 	// Unit space
 	{
 		unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-5, -5, 0});
@@ -145,6 +132,17 @@ _update_glfw :: proc(dt: f32) {
 		pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
 		pixel_to_viewport_matrix = translate(pixel_to_viewport_matrix, Vec3{-1, -1, 0});
 		pixel_to_viewport_matrix = scale(pixel_to_viewport_matrix, 2);
+	}
+
+	// Viewport space
+	{
+		viewport_to_pixel_matrix = identity(Mat4);
+		viewport_to_pixel_matrix = translate(viewport_to_pixel_matrix, Vec3{1, 1, 0});
+		viewport_to_pixel_matrix = scale(viewport_to_pixel_matrix, Vec3{cast(f32)current_window_width/2, cast(f32)current_window_height/2, 0});
+
+		viewport_to_unit_matrix = identity(Mat4);
+		viewport_to_unit_matrix = translate(viewport_to_unit_matrix, Vec3{1, 1, 0});
+		viewport_to_unit_matrix = scale(viewport_to_unit_matrix, 0.5);
 	}
 
 	// cursor_world_position  = screen_to_world(cursor_screen_position);

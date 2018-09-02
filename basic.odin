@@ -70,13 +70,13 @@ equals_colori :: inline proc(a, b: Colori) -> bool {
 // Enums
 //
 
-enum_length :: inline proc(enum_type: type) -> int {
-	info := type_info_base(type_info_of(enum_type));
+enum_length :: inline proc($Enum_Type: typeid) -> int {
+	info := type_info_base(type_info_of(Enum_Type));
 	return len(info.variant.(Type_Info_Enum).names);
 }
 
-enum_names :: inline proc(enum_type: type) -> []string {
-	info := type_info_base(type_info_of(enum_type));
+enum_names :: inline proc($Enum_Type: typeid) -> []string {
+	info := type_info_base(type_info_of(Enum_Type));
 	return info.variant.(Type_Info_Enum).names;
 }
 

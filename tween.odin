@@ -51,10 +51,6 @@ tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_
 	append(&tweeners, new_tweener);
 }
 
-_init_tween :: proc() {
-	subscribe(&_on_before_client_update, _update_tween);
-}
-
 _update_tween :: proc(dt: f32) {
 	tweener_idx := 0;
 	for tweener_idx < len(tweeners) {
@@ -95,7 +91,7 @@ _update_tween :: proc(dt: f32) {
 	}
 }
 
-_update_one_tweener :: proc(kind: type, tweener: ^Tweener, dt: f32) -> kind {
+_update_one_tweener :: proc($kind: typeid, tweener: ^Tweener, dt: f32) -> kind {
 	tweener.time += dt;
 	assert(tweener.time != 0);
 

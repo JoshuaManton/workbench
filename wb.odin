@@ -31,8 +31,8 @@ client_render_proc: proc(f32);
 client_target_framerate: f32;
 client_target_delta_time: f32;
 
-_on_before_client_update := make_event(f32);
-_on_after_client_update  := make_event(f32);
+// _on_before_client_update := make_event(f32);
+// _on_after_client_update  := make_event(f32);
 
 make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, _init: proc(Workbench_Init_Args), _update: proc(f32) -> bool, _render: proc(f32), _target_framerate: f32) {
 	client_init_proc = _init;
@@ -42,10 +42,6 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_opengl(opengl_version_major, opengl_version_minor);
-	_init_renderer();
-	_init_input();
-	_init_ui();
-	_init_tween();
 
 	acc: f32;
 	client_target_delta_time = cast(f32)1 / client_target_framerate;
@@ -68,9 +64,15 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			frame_count += 1;
 			acc -= client_target_delta_time;
 
-			fire_event(&_on_before_client_update, client_target_delta_time);
+			_update_glfw(client_target_delta_time);
+			_update_input(client_target_delta_time);
+			_update_tween(client_target_delta_time);
+			_update_ui(client_target_delta_time);
+			_update_renderer(client_target_delta_time);
+
 			if !client_update_proc(client_target_delta_time) do break game_loop;
-			fire_event(&_on_after_client_update, client_target_delta_time);
+			_ui_debug_screen_update(client_target_delta_time);
+			// call_coroutines();
 		}
 
 		_wb_render();
@@ -82,8 +84,38 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 	}
 }
 
+// Coroutine :: struct {
+// 	callback: proc(rawptr, int),
+// 	userdata: rawptr,
+
+// 	state: int,
+// }
+
+// coroutines: [dynamic]Coroutine;
+
+// start_coroutine :: proc(callback: proc(rawptr, int), userdata: rawptr, loc := #caller_location) -> bool {
+// 	if callback == nil {
+// 		logln("Nil callback passed to start_coroutine() from: ", loc);
+// 		return false;
+// 	}
+
+// 	coroutine := Coroutine{callback, userdata, 0};
+// 	append(&coroutines, coroutine);
+// 	return true;
+// }
+
+// call_coroutines :: proc() {
+// 	for _, i in coroutines {
+// 		coroutine := &coroutines[i];
+// 		assert(coroutine.callback != nil);
+
+// 		continue_calling := coroutine.callback(coroutine.userdata, coroutine.state);
+// 	}
+// }
+
 main :: proc() {
 	when DEVELOPER {
-		test_csv();
+		_test_csv();
+		_test_alphabetical_notation();
 	}
 }

@@ -5,6 +5,8 @@ using import "core:math"
 using import "core:fmt"
       import "core:mem"
 
+      import odingl "shared:odin-gl"
+
 //
 // UI state
 //
@@ -22,11 +24,6 @@ Location_ID_Mapping :: struct {
 	id: IMGUI_ID,
 	using loc: Source_Code_Location,
 	index: int,
-}
-
-_init_ui :: proc() {
-	subscribe(&_on_before_client_update, _update_ui);
-	subscribe(&_on_after_client_update,  _ui_debug_screen_update);
 }
 
 _update_ui :: proc(dt: f32) {
@@ -54,24 +51,24 @@ get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
 		id_counts[loc.file_path] = count;
 	}
 
-	for val, idx in all_imgui_mappings {
-		if val.line != loc.line do continue;
-		if val.column != loc.column do continue;
-		if val.index != count do continue;
-		if val.file_path != loc.file_path do continue;
-		return val.id;
-	}
+	// for val, idx in all_imgui_mappings {
+	// 	if val.line != loc.line do continue;
+	// 	if val.column != loc.column do continue;
+	// 	if val.index != count do continue;
+	// 	if val.file_path != loc.file_path do continue;
+	// 	return val.id;
+	// }
 
 	id := len(all_imgui_mappings);
 	mapping := Location_ID_Mapping{id, loc, count};
 	append(&all_imgui_mappings, mapping);
-	return id;
+	return 1;
 }
 
 //
 // Positioning
 //
-Rect :: struct(kind: type) {
+Rect :: struct(kind: typeid) {
 	x1, y1, x2, y2: kind,
 }
 
@@ -87,7 +84,7 @@ ui_rect_stack: [dynamic]UI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
-ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, pivot := Vec2{0.5, 0.5}, loc := #caller_location) {
 	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
 		current_rect = Unit_Rect{0, 0, 1, 1};
@@ -130,6 +127,16 @@ ui_pop_rect :: inline proc(loc := #caller_location) -> UI_Rect {
 	return popped_rect;
 }
 
+ui_scissor :: proc() {
+	odingl.Enable(odingl.SCISSOR_TEST);
+	odingl.Scissor(ui_current_rect_pixels.x1, ui_current_rect_pixels.y1, ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1, ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1);
+}
+
+ui_end_scissor :: proc() {
+	odingl.Disable(odingl.SCISSOR_TEST);
+	odingl.Scissor(0, 0, current_window_width, current_window_height);
+}
+
 // todo(josh): not sure if the grow_forever_on_* feature is worth the complexity
 ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_forever_on_y := false, loc := #caller_location) {
 	assert((grow_forever_on_x == false || grow_forever_on_y == false), "Cannot have grow_forever_on_y and grow_forever_on_x both be true.");
@@ -156,7 +163,7 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_fo
 	h_width  := cast(int)round(width  / 2);
 	h_height := cast(int)round(height / 2);
 
-	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, loc);
+	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, {}, loc);
 }
 
 ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
@@ -190,7 +197,7 @@ Scroll_View :: struct {
 }
 
 scroll_view :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
 	defer ui_pop_rect(loc);
 }
 
@@ -270,7 +277,7 @@ ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
 	ui_draw_colored_quad(color);
 	ui_pop_rect(loc);
 }
@@ -321,7 +328,7 @@ ui_button :: proc(using button: ^Button_Data, loc := #caller_location) -> bool {
 	// todo(josh): not sure about this, since the rect ends up being _much_ larger most of the time, maybe?
 	full_button_rect_unit := ui_current_rect_unit;
 
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
 	defer ui_pop_rect(loc);
 
 	ui_draw_colored_quad(color);
@@ -375,7 +382,7 @@ ui_click :: inline proc(using button: ^Button_Data) {
 }
 
 ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_vertically := true, center_horizontally := true, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
 	defer ui_pop_rect(loc);
 
 /*
@@ -503,7 +510,7 @@ _ui_debug_screen_update :: proc(dt: f32) {
 				if ui_debug_cur_idx == i {
 					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-					draw_debug_box(unit_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
+					draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
 
 					ui_push_rect(0.5, 0.9, 0.5, 1, 0, 0, 0, 0);
 					defer ui_pop_rect();

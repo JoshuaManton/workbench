@@ -58,10 +58,6 @@ _up_mid_frame   := make([dynamic]Key_Press, 0, 5);
 
 controllers: [glfw.JOYSTICK_LAST+1]Controller_State;
 
-_init_input :: proc() {
-	subscribe(&_on_before_client_update, _update_input);
-}
-
 _update_input :: proc(dt: f32) {
 	glfw.PollEvents();
 

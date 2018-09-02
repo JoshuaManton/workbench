@@ -12,16 +12,16 @@ Csv_Row :: struct {
 	values: [dynamic]string,
 }
 
-parse_csv_from_file :: proc(filepath: string, Record: type) -> [dynamic]Record {
+parse_csv_from_file :: proc($Record: typeid, filepath: string) -> [dynamic]Record {
 	bytes, ok := os.read_entire_file(filepath);
 	if !ok do return nil;
 
 	defer delete(bytes);
-	records := parse_csv(cast(string)bytes[:], Record);
+	records := parse_csv(Record, cast(string)bytes[:]);
 	return records;
 }
 
-parse_csv :: proc(text: string, Record: type) -> [dynamic]Record {
+parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 	// todo(josh): @Optimization probably
 	text = trim_whitespace(text);
 
@@ -88,7 +88,7 @@ parse_csv :: proc(text: string, Record: type) -> [dynamic]Record {
 			str_value := row.values[column_idx];
 			field_info, ok := get_struct_field_info(Record, field_name); assert(ok, aprintln("Type", type_info_of(Record), "doesn't have a field called", field_name));
 			a: any;
-			a.typeid = typeid_of(field_info.t);
+			a.id = field_info.t.id;
 			switch kind in a {
 				case string:
 					set_struct_field(&record, field_info, str_value);
@@ -145,4 +145,42 @@ parse_csv :: proc(text: string, Record: type) -> [dynamic]Record {
 	}
 
 	return records;
+}
+
+when DEVELOPER {
+	_test_csv :: proc() {
+		WEAPONS_CSV_TEXT ::
+`weapon_name,physical_damage,fire_damage,lightning_damage,strength_scaling,dexterity_scaling,fire_scaling,lightning_scaling,enchanted
+"Longsword",100,,,10,10,,,false
+Fire Sword,60,60,,7,7,7,,false
+"Sword of Light, The",,,150,5,5,,5,true`;
+
+		Weapon_Record :: struct {
+			weapon_name: string,
+			enchanted: bool,
+
+			physical_damage:  int,
+			fire_damage:      int,
+			lightning_damage: int,
+
+			strength_scaling:  f32,
+			dexterity_scaling: f32,
+			fire_scaling:      f32,
+			lightning_scaling: f32,
+		}
+
+		weapons := parse_csv(Weapon_Record, WEAPONS_CSV_TEXT);
+
+		assert(weapons[0].weapon_name == "Longsword");
+		assert(weapons[0].physical_damage == 100);
+		assert(weapons[0].enchanted == false);
+
+		assert(weapons[1].weapon_name == "Fire Sword");
+		assert(weapons[1].fire_damage == 60);
+		assert(weapons[1].fire_scaling == 7);
+
+		assert(weapons[2].weapon_name == "Sword of Light, The");
+		assert(weapons[2].physical_damage == 0);
+		assert(weapons[2].enchanted == true);
+	}
 }

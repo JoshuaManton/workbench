@@ -26,21 +26,23 @@ model_matrix:      Mat4;
 view_matrix:       Mat4;
 projection_matrix: Mat4;
 
+unit_to_pixel_matrix:  Mat4;
 unit_to_viewport_matrix:  Mat4;
+
+pixel_to_world_matrix: Mat4;
 pixel_to_viewport_matrix: Mat4;
 
-world_to_pixel_matrix: Mat4;
-unit_to_pixel_matrix:  Mat4;
-pixel_to_world_matrix: Mat4;
+viewport_to_pixel_matrix: Mat4;
+viewport_to_unit_matrix:  Mat4;
 
 is_perspective: bool;
 
-orthographic_camera :: proc(size: f32) {
+orthographic_camera :: inline proc(size: f32) {
 	is_perspective = false;
 	camera_size = size;
 }
 
-perspective_camera :: proc(fov: f32) {
+perspective_camera :: inline proc(fov: f32) {
 	is_perspective = true;
 	camera_size = fov;
 }
@@ -57,26 +59,52 @@ world_to_viewport :: inline proc(position: Vec3) -> Vec3 {
 	result := mul(projection_matrix, Vec4{position.x, position.y, position.z, 1});
 	return Vec3{result.x, result.y, result.z};
 }
-
-unit_to_viewport :: inline proc(position: Vec3) -> Vec3 {
-	result := mul(unit_to_viewport_matrix, Vec4{position.x, position.y, 0, 1});
-	return Vec3{result.x, result.y, 0};
-}
-
-pixel_to_viewport :: inline proc(position: Vec3) -> Vec3 {
-	result := mul(pixel_to_viewport_matrix, Vec4{position.x, position.y, 0, 1});
-	return Vec3{result.x, result.y, 0};
-}
-
 world_to_pixel :: inline proc(a: Vec3) -> Vec3 {
-	result := mul(world_to_pixel_matrix, Vec4{a.x, a.y, 0, 1});
-	return Vec3{result.x, result.y, result.z};
+	result := world_to_viewport(a);
+	result = viewport_to_pixel(result);
+	return result;
+}
+world_to_unit :: inline proc(a: Vec3) -> Vec3 {
+	result := world_to_viewport(a);
+	result = viewport_to_unit(result);
+	return result;
 }
 
 unit_to_pixel :: inline proc(a: Vec3) -> Vec3 {
 	result := mul(unit_to_pixel_matrix, Vec4{a.x, a.y, 0, 1});
 	return Vec3{result.x, result.y, 0};
 }
+unit_to_viewport :: inline proc(a: Vec3) -> Vec3 {
+	result := mul(unit_to_viewport_matrix, Vec4{a.x, a.y, 0, 1});
+	return Vec3{result.x, result.y, 0};
+}
+
+pixel_to_viewport :: inline proc(a: Vec3) -> Vec3 {
+	a /= Vec3{current_window_width/2, current_window_height/2, 0};
+	a -= Vec3{1, 1, 0};
+	a.z = 0;
+	return a;
+}
+pixel_to_unit :: inline proc(a: Vec3) -> Vec3 {
+	a /= Vec3{current_window_width, current_window_height, 0};
+	a.z = 0;
+	return a;
+}
+
+viewport_to_pixel :: inline proc(a: Vec3) -> Vec3 {
+	a += Vec3{1, 1, 0};
+	a *= Vec3{current_window_width/2, current_window_height/2, 0};
+	a.z = 0;
+	return a;
+}
+viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
+	a += Vec3{1, 1, 0};
+	a /= 2;
+	a.z = 0;
+	return a;
+}
+
+
 
 
 
@@ -154,11 +182,12 @@ camera_position: Vec3;
 camera_rotation: Vec3;
 camera_target: Vec3;
 
-COLOR_WHITE := Colorf{1, 1, 1, 1};
-COLOR_RED   := Colorf{1, 0, 0, 1};
-COLOR_GREEN := Colorf{0, 1, 0, 1};
-COLOR_BLUE  := Colorf{0, 0, 1, 1};
-COLOR_BLACK := Colorf{0, 0, 0, 1};
+COLOR_WHITE  := Colorf{1, 1, 1, 1};
+COLOR_RED    := Colorf{1, 0, 0, 1};
+COLOR_GREEN  := Colorf{0, 1, 0, 1};
+COLOR_BLUE   := Colorf{0, 0, 1, 1};
+COLOR_BLACK  := Colorf{0, 0, 0, 1};
+COLOR_YELLOW := Colorf{1, 1, 0, 1};
 
 push_quad :: proc[push_quad_color, push_quad_sprite, push_quad_sprite_color];
 
@@ -186,10 +215,13 @@ push_quad_sprite_color :: inline proc(rendermode: Rendermode_Proc, shader: Shade
 		draw_debug_line(rendermode, p3, p0, COLOR_GREEN);
 	}
 }
-push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, scale: Vec3, sprite: Sprite, color: Colorf, render_order: int = 0) {
-	half_size := (Vec3{sprite.width, sprite.height, 0} * scale) / 2;
-	min := position - half_size;
-	max := position + half_size;
+push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, scale: Vec3, sprite: Sprite, color: Colorf, _pivot := Vec2{0.5, 0.5}, render_order: int = 0) {
+	pivot := to_vec3(_pivot);
+	size := (Vec3{sprite.width, sprite.height, 0} * scale);
+	min := position;
+	max := min + size;
+	min -= size * pivot;
+	max -= size * pivot;
 	p0, p1, p2, p3 := min, Vec3{min.x, max.y, max.z}, max, Vec3{max.x, min.y, min.z};
 
 	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
@@ -213,135 +245,11 @@ push_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Pro
 	push_vertex_color_texture(rendermode, shader, 0, position, Vec2{}, color, render_order);
 }
 
-push_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, render_order: int = 0) {
+push_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, render_order: int = 0, buffer := buffered_vertices) {
 	assert(shader != 0);
 	serial := len(buffered_vertices);
 	vertex_info := Buffered_Vertex{render_order, serial, rendermode, shader, texture, position, tex_coord, color};
 	append(&buffered_vertices, vertex_info);
-}
-
-ATLAS_DIM :: 2048;
-PIXELS_PER_WORLD_UNIT :: 64;
-
-Texture_Atlas :: struct {
-	id: Texture,
-	atlas_x: i32,
-	atlas_y: i32,
-	biggest_height: i32,
-}
-
-create_atlas :: inline proc() -> ^Texture_Atlas {
-	texture := gen_texture();
-	set_texture(texture);
-	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, odingl.RGBA, odingl.UNSIGNED_BYTE, nil);
-
-	data := new_clone(Texture_Atlas{texture, 0, 0, 0});
-
-	return data;
-}
-
-destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
-	delete_texture(atlas.id);
-	free(atlas);
-}
-
-load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool) {
-	stb.set_flip_vertically_on_load(1);
-	sprite_width, sprite_height, channels: i32;
-	pixel_data := stb.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
-	if pixel_data == nil {
-		logln("Couldn't load sprite: ", filepath);
-		return Sprite{}, false;
-	}
-
-	defer stb.image_free(pixel_data);
-
-	set_texture(texture.id);
-
-	if texture.atlas_x + sprite_width > ATLAS_DIM {
-		texture.atlas_y += texture.biggest_height;
-		texture.biggest_height = 0;
-		texture.atlas_x = 0;
-	}
-
-	if sprite_height > texture.biggest_height do texture.biggest_height = sprite_height;
-	odingl.TexSubImage2D(odingl.TEXTURE_2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, odingl.RGBA, odingl.UNSIGNED_BYTE, pixel_data);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_S, odingl.MIRRORED_REPEAT);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_T, odingl.MIRRORED_REPEAT);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
-	bottom_left_x := cast(f32)texture.atlas_x / ATLAS_DIM;
-	bottom_left_y := cast(f32)texture.atlas_y / ATLAS_DIM;
-
-	width_fraction  := cast(f32)sprite_width / ATLAS_DIM;
-	height_fraction := cast(f32)sprite_height / ATLAS_DIM;
-
-	coords := [4]Vec2 {
-		{bottom_left_x,                  bottom_left_y},
-		{bottom_left_x,                  bottom_left_y + height_fraction},
-		{bottom_left_x + width_fraction, bottom_left_y + height_fraction},
-		{bottom_left_x + width_fraction, bottom_left_y},
-	};
-
-	texture.atlas_x += sprite_width;
-
-	sprite := Sprite{coords, cast(f32)sprite_width / PIXELS_PER_WORLD_UNIT, cast(f32)sprite_height / PIXELS_PER_WORLD_UNIT, texture.id};
-	return sprite, true;
-}
-
-//
-// Strings
-//
-
-Font :: struct {
-	dim: int,
-	size: f32,
-	chars: []stb.Baked_Char,
-	id: Texture,
-}
-
-font_default: ^Font;
-
-load_font :: proc(path: string, size: f32) -> (^Font, bool) {
-	data, ok := os.read_entire_file(path);
-	if !ok {
-		logln("Couldn't open font: ", path);
-		return nil, false;
-	}
-	defer delete(data);
-
-	pixels: []u8;
-	chars:  []stb.Baked_Char;
-	dim := 128;
-
-	// @InfiniteLoop
-	for {
-		pixels = make([]u8, dim * dim);
-		ret: int;
-		chars, ret = stb.bake_font_bitmap(data, 0, size, pixels, dim, dim, 0, 128);
-		if ret < 0 {
-			delete(pixels);
-			dim *= 2;
-		}
-		else {
-			break;
-		}
-	}
-
-	texture := gen_texture();
-	set_texture(texture);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.LINEAR);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.LINEAR);
-	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, cast(i32)dim, cast(i32)dim, 0, odingl.RED, odingl.UNSIGNED_BYTE, &pixels[0]);
-
-	font := new_clone(Font{dim, size, chars, texture});
-	return font, true;
-}
-
-destroy_font :: inline proc(font: ^Font) {
-	delete(font.chars);
-	delete_texture(font.id);
-	free(font);
 }
 
 draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
@@ -488,10 +396,6 @@ queued_for_drawing:  [dynamic]Vertex_Type;
 
 debugging_rendering: bool;
 
-_init_renderer :: proc() {
-	subscribe(&_on_before_client_update, _update_renderer);
-}
-
 _update_renderer :: proc(dt: f32) {
 	clear(&debug_vertices);
 	clear(&debug_lines);
@@ -508,19 +412,18 @@ _wb_render :: proc() {
 
 	client_render_proc(client_target_delta_time);
 
-	draw_buffered_vertices(odingl.TRIANGLES);
-
 	_debug_on_after_render();
+	draw_buffered_vertices(odingl.TRIANGLES, buffered_vertices);
 }
 
-draw_buffered_vertices :: proc(mode: u32) {
-	sort.quick_sort_proc(buffered_vertices[:], proc(a, b: Buffered_Vertex) -> int {
+draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
+	sort.quick_sort_proc(verts[:], proc(a, b: Buffered_Vertex) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
-			return a.serial_number - b.serial_number;
+			return b.serial_number - a.serial_number;
 		});
 
-	for vertex_info in buffered_vertices {
+	for vertex_info in verts {
 		shader_mismatch      := vertex_info.shader != current_shader;
 		texture_mismatch     := vertex_info.texture != current_texture;
 		if shader_mismatch || texture_mismatch {
@@ -587,6 +490,8 @@ draw_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Ve
 }
 
 _debug_on_after_render :: inline proc() {
+	_draw_flush();
+
 	// kinda weird, kinda neat
 	old_vertices := buffered_vertices;
 	buffered_vertices = debug_vertices;
@@ -596,7 +501,7 @@ _debug_on_after_render :: inline proc() {
 		push_vertex(line.rendermode, shader_rgba, 0, line.b, Vec2{}, line.color);
 	}
 
-	draw_buffered_vertices(odingl.LINES);
+	draw_buffered_vertices(odingl.LINES, buffered_vertices);
 
 	debug_vertices = buffered_vertices;
 	buffered_vertices = old_vertices;
