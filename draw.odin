@@ -232,7 +232,15 @@ draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, posit
 			max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
 			// Padding
 			{
-				char_aspect := abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
+				// todo(josh): @DrawStringSpaces: Currently dont handle spaces properly :/
+				abs_hh := abs(quad.t1 - quad.t0);
+				char_aspect: f32;
+				if abs_hh == 0 {
+					char_aspect = 1;
+				}
+				else {
+					char_aspect = abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
+				}
 				full_width := size_pixels.x;
 				char_width := size_pixels.y * char_aspect;
 				whitespace_ratio = 1 - (char_width / full_width);
