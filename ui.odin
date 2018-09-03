@@ -51,13 +51,13 @@ get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
 		id_counts[loc.file_path] = count;
 	}
 
-	// for val, idx in all_imgui_mappings {
-	// 	if val.line != loc.line do continue;
-	// 	if val.column != loc.column do continue;
-	// 	if val.index != count do continue;
-	// 	if val.file_path != loc.file_path do continue;
-	// 	return val.id;
-	// }
+	for val, idx in all_imgui_mappings {
+		if val.line != loc.line           do continue;
+		if val.column != loc.column       do continue;
+		if val.index != count             do continue;
+		if val.file_path != loc.file_path do continue;
+		return val.id;
+	}
 
 	id := len(all_imgui_mappings);
 	mapping := Location_ID_Mapping{id, loc, count};
@@ -68,6 +68,7 @@ get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
 //
 // Positioning
 //
+
 Rect :: struct(kind: typeid) {
 	x1, y1, x2, y2: kind,
 }
@@ -84,7 +85,7 @@ ui_rect_stack: [dynamic]UI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
-ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, pivot := Vec2{0.5, 0.5}, loc := #caller_location) {
+ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location, pivot := Vec2{0.5, 0.5}) {
 	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
 		current_rect = Unit_Rect{0, 0, 1, 1};
@@ -127,14 +128,9 @@ ui_pop_rect :: inline proc(loc := #caller_location) -> UI_Rect {
 	return popped_rect;
 }
 
-ui_scissor :: proc() {
-	odingl.Enable(odingl.SCISSOR_TEST);
-	odingl.Scissor(ui_current_rect_pixels.x1, ui_current_rect_pixels.y1, ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1, ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1);
-}
-
-ui_end_scissor :: proc() {
-	odingl.Disable(odingl.SCISSOR_TEST);
-	odingl.Scissor(0, 0, current_window_width, current_window_height);
+mouse_in_current_rect :: inline proc() -> bool {
+	cursor_in_rect := cursor_unit_position.y < ui_current_rect_unit.y2 && cursor_unit_position.y > ui_current_rect_unit.y1 && cursor_unit_position.x < ui_current_rect_unit.x2 && cursor_unit_position.x > ui_current_rect_unit.x1;
+	return cursor_in_rect;
 }
 
 // todo(josh): not sure if the grow_forever_on_* feature is worth the complexity
@@ -163,7 +159,7 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_fo
 	h_width  := cast(int)round(width  / 2);
 	h_height := cast(int)round(height / 2);
 
-	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, {}, loc);
+	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, loc);
 }
 
 ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
@@ -192,13 +188,25 @@ direction_layout_group_next :: proc(dlg: ^Directional_Layout_Group) {
 //
 
 Scroll_View :: struct {
-	cur_scroll: f32,
-	is_held: bool,
+	min, max: f32,
+
+	using _: struct { // runtime values
+		cur_scroll_target: f32,
+		cur_scroll_lerped: f32,
+	}
 }
 
-scroll_view :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
-	defer ui_pop_rect(loc);
+ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, y2: f32 = 1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	sv.cur_scroll_target = clamp(sv.cur_scroll_target, sv.min, sv.max);
+	if mouse_in_current_rect() {
+		sv.cur_scroll_target -= cursor_scroll * 0.1;
+	}
+	sv.cur_scroll_lerped = lerp(sv.cur_scroll_lerped, sv.cur_scroll_target, 20 * client_target_delta_time);
+	ui_push_rect(x1, y1 + sv.cur_scroll_lerped, x2, y2 + sv.cur_scroll_lerped, top, right, bottom, left, loc);
+}
+
+ui_end_scroll_view :: proc(loc := #caller_location) {
+	ui_pop_rect(loc);
 }
 
 //
@@ -270,18 +278,28 @@ scroll_view :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left
 ui_draw_colored_quad :: proc[ui_draw_colored_quad_current, ui_draw_colored_quad_push];
 ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	rect := ui_current_rect_pixels;
-
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-
 	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
 	ui_draw_colored_quad(color);
 	ui_pop_rect(loc);
 }
 
+ui_draw_sprite :: proc[ui_draw_sprite_current, ui_draw_sprite_push];
+ui_draw_sprite_current :: proc(sprite: Sprite) {
+	rect := ui_current_rect_pixels;
+	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+	push_quad(pixel_to_viewport, shader_texture, to_vec3(min), to_vec3(max), sprite);
+}
+ui_draw_sprite_push :: proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
+	ui_draw_sprite_current(sprite);
+	ui_pop_rect(loc);
+}
 //
 // Buttons
 //
@@ -328,34 +346,27 @@ ui_button :: proc(using button: ^Button_Data, loc := #caller_location) -> bool {
 	// todo(josh): not sure about this, since the rect ends up being _much_ larger most of the time, maybe?
 	full_button_rect_unit := ui_current_rect_unit;
 
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
 	defer ui_pop_rect(loc);
 
 	ui_draw_colored_quad(color);
 
 	id := get_id_from_location(loc);
-	cursor_in_rect := cursor_unit_position.y < full_button_rect_unit.y2 && cursor_unit_position.y > full_button_rect_unit.y1 && cursor_unit_position.x < full_button_rect_unit.x2 && cursor_unit_position.x > full_button_rect_unit.x1;
 
-	if cursor_in_rect {
+	if mouse_in_current_rect() {
 		if warm != id && hot == id {
-			if button.on_pressed != nil {
-				button.on_pressed(button);
-			}
+			if button.on_pressed != nil do button.on_pressed(button);
 		}
 		warm = id;
 		if get_mouse_down(Mouse.Left) {
-			if button.on_pressed != nil {
-				button.on_pressed(button);
-			}
 			hot = id;
+			if button.on_pressed != nil do button.on_pressed(button);
 		}
 	}
 	else {
 		if warm == id || hot == id {
-			if button.on_released != nil {
-				button.on_released(button);
-			}
 			warm = -1;
+			if button.on_released != nil do button.on_released(button);
 		}
 	}
 
@@ -381,95 +392,16 @@ ui_click :: inline proc(using button: ^Button_Data) {
 	clicked = frame_count;
 }
 
-ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, center_vertically := true, center_horizontally := true, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, {}, loc);
+ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	assert(font != nil);
+
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, loc);
 	defer ui_pop_rect(loc);
 
-/*
-
-	min := Vec2{cast(f32)ui_current_rect_pixels.x1, cast(f32)ui_current_rect_pixels.y1};
-	max := Vec2{cast(f32)ui_current_rect_pixels.x2, cast(f32)ui_current_rect_pixels.y2};
-	center_of_rect := min + ((max - min) / 2);
-	size := cast(f32)(ui_current_rect_pixels.y2 - ui_current_rect_pixels.y1);
-	string_width : f32 = cast(f32)get_string_width(font, str, size);
-
-	position := Vec2{center_of_rect.x - (string_width / 2), cast(f32)ui_current_rect_pixels.y1};
-	*/
-
-	// min := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
-	// max := Vec2{ui_current_rect_unit.x2, ui_current_rect_unit.y2};
-	// center_of_rect := min + ((max - min) / 2);
-	// height := ui_current_rect_unit.y2 - ui_current_rect_unit.y1;
-	// string_width : f32 = cast(f32)get_string_width(font, str, height);
-	// logln(string_width);
-	// position := Vec2{center_of_rect.x - (string_width / 2), ui_current_rect_unit.y1};
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
-	draw_string(unit_to_viewport, font, str, position, color, height * size, 9999); // todo(josh): proper render order on text
+	draw_string(unit_to_viewport, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
-
-// draw_string :: proc(font: ^Font, str: string, position: Vec2, color: Colorf, _size: f32, layer: int) -> f32 {
-// 	start := position;
-// 	for c in str {
-// 		min, max: Vec2;
-// 		quad: stb.Aligned_Quad;
-// 		{
-// 			//
-// 			size_pixels: Vec2;
-// 			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
-// 			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
-// 			size_pixels.y = abs(quad.y1 - quad.y0);
-
-// 			ww := cast(f32)current_window_width;
-// 			hh := cast(f32)current_window_height;
-// 			min = position + (Vec2{quad.x0, -quad.y1} / font.size * _size * Vec2{hh/ww, 1});
-// 			max = position + (Vec2{quad.x1, -quad.y0} / font.size * _size * Vec2{hh/ww, 1});
-// 		}
-
-// 		sprite: Sprite;
-// 		{
-// 			uv0 := Vec2{quad.s0, quad.t1};
-// 			uv1 := Vec2{quad.s0, quad.t0};
-// 			uv2 := Vec2{quad.s1, quad.t0};
-// 			uv3 := Vec2{quad.s1, quad.t1};
-// 			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
-// 		}
-
-// 		push_quad(shader_text, min, max, sprite, color, layer);
-// 		position.x += max.x - min.x;
-// 	}
-
-// 	width := position.x - start.x;
-// 	return width;
-// }
-
-// button :: proc(font: ^Font, text: string, text_size: f32, text_color: Colorf, min, max: Vec2, button_color: Colorf, render_order: int, scale: f32 = 1, alpha: f32 = 1) -> bool {
-// 	rendering_unit_space();
-
-// 	text_color.a   = alpha;
-// 	button_color.a = alpha;
-
-// 	half_width  := (max.x - min.x) / 2;
-// 	half_height := (max.y - min.y) / 2;
-// 	middle := min + ((max-min) / 2);
-
-// 	p0 := middle + (Vec2{-half_width, -half_height} * scale);
-// 	p1 := middle + (Vec2{-half_width,  half_height} * scale);
-// 	p2 := middle + (Vec2{ half_width,  half_height} * scale);
-// 	p3 := middle + (Vec2{ half_width, -half_height} * scale);
-
-// 	push_quad(shader_rgba, p0, p1, p2, p3, button_color, render_order);
-// 	baseline := get_centered_baseline(font, text, text_size * scale, p0, p2);
-// 	draw_string(font, text, baseline, text_color, text_size * scale, render_order+1);
-
-// 	assert(current_render_mode == rendering_unit_space);
-// 	mouse_pos := cursor_unit_position;
-// 	if get_mouse_up(Mouse.Left) && mouse_pos.x >= min.x && mouse_pos.y >= min.y && mouse_pos.x <= max.x && mouse_pos.y <= max.y {
-// 		return true;
-// 	}
-
-// 	return false;
-// }
 
 //
 // Debug

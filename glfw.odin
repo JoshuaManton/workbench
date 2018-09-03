@@ -121,7 +121,7 @@ _update_glfw :: proc(dt: f32) {
 
 	// Unit space
 	{
-		unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-5, -5, 0});
+		unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-1, -1, 0});
 		unit_to_viewport_matrix = scale(unit_to_viewport_matrix, 2);
 
 		unit_to_pixel_matrix = scale(identity(Mat4), Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});

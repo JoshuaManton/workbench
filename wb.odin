@@ -64,11 +64,11 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			frame_count += 1;
 			acc -= client_target_delta_time;
 
+			_update_renderer(client_target_delta_time);
 			_update_glfw(client_target_delta_time);
 			_update_input(client_target_delta_time);
 			_update_tween(client_target_delta_time);
 			_update_ui(client_target_delta_time);
-			_update_renderer(client_target_delta_time);
 
 			if !client_update_proc(client_target_delta_time) do break game_loop;
 			_ui_debug_screen_update(client_target_delta_time);

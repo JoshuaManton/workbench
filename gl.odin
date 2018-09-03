@@ -31,10 +31,9 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 
 	set_vertex_format(Vertex_Type);
 
-	odingl.ClearColor(0.2, 0.5, 0.8, 1.0);
 	odingl.Enable(odingl.BLEND);
 	// odingl.Enable(odingl.CULL_FACE);
-	odingl.Enable(odingl.DEPTH_TEST);
+	// odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
 	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
 
 	ok: bool;
