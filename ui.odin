@@ -327,7 +327,7 @@ default_button_released :: proc(button: ^Button_Data) {
 	tween(&button.y2, 1, 0.25, ease_out_back);
 }
 
-ui_button :: proc(using button: ^Button_Data, loc := #caller_location) -> bool {
+ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text_Data = nil, loc := #caller_location) -> bool {
 	clicked_this_frame := button.clicked == frame_count;
 	if clicked_this_frame {
 		if button.on_clicked != nil {
@@ -342,10 +342,18 @@ ui_button :: proc(using button: ^Button_Data, loc := #caller_location) -> bool {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Button, loc);
 	defer ui_pop_rect(loc);
 
+	// Draw button stuff
 	ui_draw_colored_quad(color);
 
-	id := get_id_from_location(loc);
+	// Draw text stuff
+	if text_data != nil {
+		if str == "" {
+			panic(tprint(loc));
+		}
+		ui_text(str, text_data);
+	}
 
+	id := get_id_from_location(loc);
 	if mouse_in_current_rect() {
 		if warm != id && hot == id {
 			if button.on_pressed != nil do button.on_pressed(button);
@@ -385,7 +393,27 @@ ui_click :: inline proc(using button: ^Button_Data) {
 	clicked = frame_count;
 }
 
-ui_text :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+Text_Data :: struct {
+	font: ^Font,
+	size: f32,
+	color: Colorf,
+
+	x1, y1, x2, y2: f32,
+	top, right, bottom, left: int,
+}
+
+ui_text :: proc[ui_text_data, ui_text_args];
+ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
+	assert(font != nil);
+
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
+	defer ui_pop_rect(loc);
+
+	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
+	draw_string(unit_to_viewport, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+}
+ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	assert(font != nil);
 
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
@@ -454,7 +482,7 @@ _ui_debug_screen_update :: proc(dt: f32) {
 					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
 					draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
 
-					ui_push_rect(0, 0, 1, 0.1);
+					ui_push_rect(0, 0.05, 1, 0.15);
 					defer ui_pop_rect();
 
 					buf: [2048]byte;
