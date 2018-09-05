@@ -212,7 +212,11 @@ draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, posit
 	assert(rendermode == unit_to_viewport);
 
 	start := position;
-	for c in str {
+	for _, i in str {
+		c := str[i];
+		is_space := c == ' ';
+		if is_space do c = 'l'; // @DrawStringSpaces: @Hack:
+
 		min, max: Vec2;
 		whitespace_ratio: f32;
 		quad: stb.Aligned_Quad;
@@ -256,7 +260,10 @@ draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, posit
 			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
 		}
 
-		push_quad_sprite_color(rendermode, shader_text, to_vec3(min), to_vec3(max), sprite, color, layer);
+		if !is_space {
+			push_quad_sprite_color(rendermode, shader_text, to_vec3(min), to_vec3(max), sprite, color, layer);
+		}
+
 		width := max.x - min.x;
 		position.x += width + (width * whitespace_ratio);
 	}
