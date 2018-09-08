@@ -105,16 +105,15 @@ _update_glfw :: proc(dt: f32) {
 	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
 
 	if !is_perspective {
-		top    : f32 =  1;
-		bottom : f32 = -1;
-		left   : f32 = -1 * current_aspect_ratio;
-		right  : f32 =  1 * current_aspect_ratio;
+		top    : f32 =  1 * camera_size + camera_position.y;
+		bottom : f32 = -1 * camera_size + camera_position.y;
+		left   : f32 = -1 * current_aspect_ratio * camera_size + camera_position.x;
+		right  : f32 =  1 * current_aspect_ratio * camera_size + camera_position.x;
 
 		projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	}
 	else {
 		projection_matrix = perspective(to_radians(camera_size), current_aspect_ratio, 0.001, 1000);
-		// view_matrix       = look_at(camera_position, Vec3{}, Vec3{0, 1, 0});
 		view_matrix       = translate(identity(Mat4), camera_position);
 		model_matrix      = identity(Mat4);
 	}

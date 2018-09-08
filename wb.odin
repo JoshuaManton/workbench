@@ -42,6 +42,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_opengl(opengl_version_major, opengl_version_minor);
+	_init_random_number_generator();
 
 	acc: f32;
 	client_target_delta_time = cast(f32)1 / client_target_framerate;
@@ -64,6 +65,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			frame_count += 1;
 			acc -= client_target_delta_time;
 
+			_update_catalog();
 			_update_renderer(client_target_delta_time);
 			_update_glfw(client_target_delta_time);
 			_update_input(client_target_delta_time);

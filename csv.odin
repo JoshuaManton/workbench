@@ -22,6 +22,7 @@ parse_csv_from_file :: proc($Record: typeid, filepath: string) -> [dynamic]Recor
 }
 
 parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
+	logln(1);
 	// todo(josh): @Optimization probably
 	text = trim_whitespace(text);
 
@@ -29,6 +30,7 @@ parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 
 	cur_row: Csv_Row;
 	value_so_far: [dynamic]byte;
+	defer delete(value_so_far);
 
 	text_idx := 0;
 	for text_idx < len(text) {
@@ -145,6 +147,42 @@ parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 	}
 
 	return records;
+}
+
+// this is kind of a weird super-specific thing but we'll see
+// maybe we will end up having this kind of thing for fonts
+// and textures? :thinking:
+csv_catalog_subscribe :: proc(handle: Catalog_Item_Handle, $Record: typeid, list: ^[dynamic]$T) {
+	catalog_subscribe(handle, list, proc(_userdata: rawptr, text: string, first: bool) {
+		list := cast(^[dynamic]T)_userdata;
+		records := parse_csv(Record, text);
+		if first {
+			for record in records {
+				defn: T;
+				defn.wb__record = record;
+				append(list, defn);
+			}
+		}
+		else {
+			for record in records {
+				found := false;
+				for _, i in list {
+					defn := &list[i];
+					if defn.name != record.name {
+						continue;
+					}
+					found = true;
+					defn.wb__record = record;
+					break;
+				}
+				if !found {
+					defn: T;
+					defn.wb__record = record;
+					append(list, defn);
+				}
+			}
+		}
+	});
 }
 
 when DEVELOPER {

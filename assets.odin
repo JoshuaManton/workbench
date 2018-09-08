@@ -12,7 +12,7 @@ using import        "core:fmt"
 //
 
 ATLAS_DIM :: 2048;
-PIXELS_PER_WORLD_UNIT :: 64;
+PIXELS_PER_WORLD_UNIT :: 24;
 
 Texture_Atlas :: struct {
 	id: Texture,

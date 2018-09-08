@@ -17,7 +17,7 @@ inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 	return &array[length-1];
 }
 
-remove :: proc[remove_value, remove_ptr, remove_by_index];
+remove :: proc[remove_value, remove_ptr];
 remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
 	for _, i in array {
 		item := &array[i];
@@ -38,11 +38,12 @@ remove_ptr :: proc(array: ^[dynamic]^$T, to_remove: ^T) {
 		}
 	}
 }
-remove_by_index :: proc(array: ^[dynamic]$T, to_remove: int) {
+remove_at :: proc(array: ^[dynamic]$T, to_remove: int) {
 	array[to_remove] = array[len(array)-1];
 	pop(array);
 }
 remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
+	assert(false, "this proc seems weird");
 	// not sure about this, I think we skip elements when we copy from the end into a remove element
 	for item, index in array {
 		if item == to_remove {

@@ -3,7 +3,7 @@ package workbench
 using import "core:math"
 
 Tweener :: struct {
-	addr: ^u8,
+	addr: rawptr,
 
 	ptr: union {
 		^f32,
@@ -26,35 +26,61 @@ Tweener :: struct {
 		Vec4,
 	},
 
-	time:     f32,
+	cur_time: f32,
 	duration: f32,
 
-	start_time: f32,
 	ease_proc: proc(f32) -> f32,
 
+	callback: Tween_Callback,
+	start_time: f32,
 	loop: bool,
 }
 
 tweeners: [dynamic]Tweener;
+updating_tweens: bool;
 
-tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0, loop : bool = false) {
-	addr := cast(^u8)ptr;
+Tween_Callback :: struct {
+	procedure: proc(rawptr),
+	data: rawptr,
+}
+
+Tween_Params :: struct {
+	callback: Tween_Callback,
+	delay: f32,
+	loop: bool,
+	allow_duplicates: bool,
+}
+
+tween_kill :: proc(ptr: rawptr) {
 	for _, i in tweeners {
-		tweener := &tweeners[i];
-		if tweener.addr == addr {
-			remove(&tweeners, i);
+		if tweeners[i].addr == ptr {
+			remove_at(&tweeners, i);
 			break;
 		}
 	}
+}
 
-	new_tweener := Tweener{addr, ptr, ptr^, target, 0, duration, time + delay, ease, loop};
+tween_kill_index :: proc(idx: int) {
+	remove_at(&tweeners, idx);
+}
+
+tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, tween_params: Tween_Params = {}) -> ^Tweener {
+	if !tween_params.allow_duplicates {
+		tween_kill(ptr);
+	}
+
+	new_tweener := Tweener{ptr, ptr, ptr^, target, 0, duration, ease, tween_params.callback, time + tween_params.delay, tween_params.loop};
+	idx := len(tweeners);
 	append(&tweeners, new_tweener);
+	return &tweeners[idx];
 }
 
 _update_tween :: proc(dt: f32) {
-	tweener_idx := 0;
-	for tweener_idx < len(tweeners) {
-		defer tweener_idx += 1;
+	tweener_idx := len(tweeners)-1;
+	updating_tweens = true;
+	defer updating_tweens = false;
+	for tweener_idx >= 0 {
+		defer tweener_idx -= 1;
 
 		tweener := &tweeners[tweener_idx];
 		assert(tweener.duration != 0);
@@ -63,50 +89,44 @@ _update_tween :: proc(dt: f32) {
 
 		switch kind in tweener.ptr {
 			case ^f32: {
-				origin := tweener.start.(f32);
-				target := tweener.target.(f32);
 				kind^ = _update_one_tweener(f32, tweener, dt);
 			}
 			case ^Vec2: {
-				origin := tweener.start.(Vec2);
-				target := tweener.target.(Vec2);
 				kind^ = _update_one_tweener(Vec2, tweener, dt);
 			}
 			case ^Vec3: {
-				origin := tweener.start.(Vec3);
-				target := tweener.target.(Vec3);
 				kind^ = _update_one_tweener(Vec3, tweener, dt);
 			}
 			case ^Vec4: {
-				origin := tweener.start.(Vec4);
-				target := tweener.target.(Vec4);
 				kind^ = _update_one_tweener(Vec4, tweener, dt);
 			}
 		}
 
-		if !tweener.loop && tweener.time >= tweener.duration {
-			remove(&tweeners, tweener_idx);
-			tweener_idx -= 1;
+		if !tweener.loop && tweener.cur_time >= tweener.duration {
+			if tweener.callback.procedure != nil {
+				tweener.callback.procedure(tweener.callback.data);
+			}
+			tween_kill_index(tweener_idx);
 		}
 	}
 }
 
 _update_one_tweener :: proc($kind: typeid, tweener: ^Tweener, dt: f32) -> kind {
-	tweener.time += dt;
-	assert(tweener.time != 0);
+	tweener.cur_time += dt;
+	assert(tweener.cur_time != 0);
 
-	for tweener.time >= tweener.duration {
+	for tweener.cur_time >= tweener.duration {
 		if !tweener.loop do return tweener.target.(kind);
 
-		tweener.time -= tweener.duration;
+		tweener.cur_time -= tweener.duration;
 
 		start := tweener.start.(kind);
 		tweener.start = tweener.target;
 		tweener.target = start;
 	}
 
-	t := tweener.time / tweener.duration;
-	t = tweener.ease_proc(t);
+	t := tweener.cur_time / tweener.duration;
+	t  = tweener.ease_proc(t);
 
 	a := tweener.start.(kind);
 	b := tweener.target.(kind);

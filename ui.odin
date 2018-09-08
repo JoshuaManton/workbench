@@ -350,7 +350,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		if str == "" {
 			panic(tprint(loc));
 		}
-		ui_text(str, text_data);
+		ui_text(str, text_data, loc);
 	}
 
 	id := get_id_from_location(loc);
@@ -404,7 +404,7 @@ Text_Data :: struct {
 
 ui_text :: proc[ui_text_data, ui_text_args];
 ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
-	assert(font != nil);
+	assert(font != nil, tprint(loc));
 
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
 	defer ui_pop_rect(loc);

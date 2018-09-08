@@ -155,7 +155,7 @@ _update_input :: proc(dt: f32) {
 // 		for _, controller_idx in controllers {
 // 			controller := &controllers[controller_idx];
 // 			if controller.id == id {
-// 				remove_by_index(&controllers, controller_idx);
+// 				remove_at(&controllers, controller_idx);
 // 				return;
 // 			}
 // 		}
@@ -191,7 +191,7 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: Key, scancode: i3
 				}
 			}
 			assert(idx != -1);
-			remove_by_index(&_held_mid_frame, idx);
+			remove_at(&_held_mid_frame, idx);
 			append(&_up_mid_frame, Key_Press{key});
 		}
 	}
@@ -212,7 +212,7 @@ _glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: Mouse
 				}
 			}
 			assert(idx != -1);
-			remove_by_index(&_held_mid_frame, idx);
+			remove_at(&_held_mid_frame, idx);
 			append(&_up_mid_frame, Key_Press{button});
 		}
 	}
