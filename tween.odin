@@ -36,7 +36,7 @@ Tweener :: struct {
 	loop: bool,
 }
 
-tweeners: [dynamic]Tweener;
+tweeners: [dynamic]^Tweener;
 updating_tweens: bool;
 
 Tween_Callback :: struct {
@@ -51,28 +51,33 @@ Tween_Params :: struct {
 	allow_duplicates: bool,
 }
 
-tween_kill :: proc(ptr: rawptr) {
+tween_kill :: inline proc(ptr: rawptr) {
 	for _, i in tweeners {
+		tweener := tweeners[i];
 		if tweeners[i].addr == ptr {
-			remove_at(&tweeners, i);
+			tween_kill_index(i);
 			break;
 		}
 	}
 }
 
-tween_kill_index :: proc(idx: int) {
+tween_kill_index :: inline proc(idx: int) {
+	tweener := tweeners[idx];
 	remove_at(&tweeners, idx);
+	free(tweener);
 }
 
 tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, tween_params: Tween_Params = {}) -> ^Tweener {
+	assert(!updating_tweens);
+
 	if !tween_params.allow_duplicates {
 		tween_kill(ptr);
 	}
 
-	new_tweener := Tweener{ptr, ptr, ptr^, target, 0, duration, ease, tween_params.callback, time + tween_params.delay, tween_params.loop};
+	new_tweener := new_clone(Tweener{ptr, ptr, ptr^, target, 0, duration, ease, tween_params.callback, time + tween_params.delay, tween_params.loop}); // @Alloc
 	idx := len(tweeners);
 	append(&tweeners, new_tweener);
-	return &tweeners[idx];
+	return new_tweener;
 }
 
 _update_tween :: proc(dt: f32) {
@@ -82,7 +87,7 @@ _update_tween :: proc(dt: f32) {
 	for tweener_idx >= 0 {
 		defer tweener_idx -= 1;
 
-		tweener := &tweeners[tweener_idx];
+		tweener := tweeners[tweener_idx];
 		assert(tweener.duration != 0);
 
 		if time < tweener.start_time do continue;
