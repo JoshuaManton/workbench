@@ -2,6 +2,11 @@ package workbench
 
 using import "core:math"
 
+sin01 :: inline proc(t: f32) -> f32 {
+	result := (sin(t)+1)/2;
+	return result;
+}
+
 Vec2i :: distinct [2]int;
 Vec3i :: distinct [3]int;
 Vec4i :: distinct [4]int;

@@ -2,8 +2,6 @@ package workbench
 
 import "core:os"
 
-when DEVELOPER {
-
 Subscriber :: struct {
 	userdata: rawptr,
 	callback: Catalog_Callback,
@@ -18,37 +16,25 @@ Catalog_Item :: struct {
 }
 
 Catalog_Callback :: proc(rawptr, string, bool);
-Catalog_Item_Handle :: int;
 
-cur_catalog_item_handle: int = 1;
-all_items: [1024]Catalog_Item;
+all_items: [dynamic]^Catalog_Item;
 
-catalog_add :: proc(path: string) -> (Catalog_Item_Handle, bool) {
+catalog_add :: proc(path: string) -> ^Catalog_Item {
 	time     := os.last_write_time_by_name(path);
 	text, ok := os.read_entire_file(path);
-	if !ok do return -1, false;
+	if !ok do return nil;
 
-	item := Catalog_Item{path, cast(string)text, time, nil};
-	handle := cur_catalog_item_handle;
-	all_items[handle] = item;
-	cur_catalog_item_handle += 1;
-	assert(cur_catalog_item_handle < 1024);
-	return handle, true;
+	item := new_clone(Catalog_Item{path, cast(string)text, time, nil}); // @Alloc
+	append(&all_items, item);
+	return item;
 }
 
-catalog_get :: inline proc(handle: Catalog_Item_Handle) -> ^Catalog_Item {
-	assert(cur_catalog_item_handle != 0);
-	return &all_items[handle];
-}
-
-catalog_subscribe :: inline proc(handle: Catalog_Item_Handle, userdata: rawptr, callback: Catalog_Callback) {
-	item := catalog_get(handle);
+catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: rawptr, callback: Catalog_Callback) {
 	append(&item.subscribers, Subscriber{userdata, callback});
 	callback(userdata, item.text, true);
 }
 
-catalog_unsubscribe :: inline proc(handle: Catalog_Item_Handle, callback: Catalog_Callback) {
-	item := catalog_get(handle);
+catalog_unsubscribe :: inline proc(item: Catalog_Item, callback: Catalog_Callback) {
 	for sub, i in item.subscribers {
 		if sub.callback == callback {
 			remove_at(&item.subscribers, i);
@@ -57,9 +43,11 @@ catalog_unsubscribe :: inline proc(handle: Catalog_Item_Handle, callback: Catalo
 	}
 }
 
+when DEVELOPER {
+
 _update_catalog :: proc() {
 	for _, i in all_items {
-		item := &all_items[i];
+		item := all_items[i];
 		new_write_time := os.last_write_time_by_name(item.path);
 
 		if new_write_time > item.last_write_time {

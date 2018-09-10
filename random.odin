@@ -6,7 +6,7 @@ using import "core:math"
 
 rstate: rand.Rand;
 
-_init_random_number_generator :: proc() {
+_init_random_number_generator :: inline proc() {
 	rand.init(&rstate);
 }
 
@@ -21,7 +21,7 @@ random01 :: inline proc() -> f32 {
 	return value;
 }
 
-random_unit_vector :: proc() -> Vec3 {
+random_unit_vector :: inline proc() -> Vec3 {
 	v := Vec3{random_range(-1, 1), random_range(-1, 1), random_range(-1, 1)};
 	return v;
 }

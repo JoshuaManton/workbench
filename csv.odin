@@ -152,8 +152,8 @@ parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 // this is kind of a weird super-specific thing but we'll see
 // maybe we will end up having this kind of thing for fonts
 // and textures? :thinking:
-csv_catalog_subscribe :: proc(handle: Catalog_Item_Handle, $Record: typeid, list: ^[dynamic]$T) {
-	catalog_subscribe(handle, list, proc(_userdata: rawptr, text: string, first: bool) {
+csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dynamic]$T) {
+	catalog_subscribe(item, list, proc(_userdata: rawptr, text: string, first: bool) {
 		list := cast(^[dynamic]T)_userdata;
 		records := parse_csv(Record, text);
 		if first {

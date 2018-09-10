@@ -36,7 +36,7 @@ Tweener :: struct {
 
 	active: bool,
 
-	callback: Tween_Callback,
+	callback: proc(rawptr),
 	callback_data: rawptr,
 
 	queued_tween: ^Tweener,
@@ -45,12 +45,10 @@ Tweener :: struct {
 tweeners: [dynamic]^Tweener;
 updating_tweens: bool;
 
-Tween_Callback :: proc(rawptr);
-
 Tween_Params :: struct {
 	delay: f32,
 	loop: bool,
-	callback: Tween_Callback,
+	callback: proc(rawptr),
 }
 
 tween_destroy :: inline proc(ptr: rawptr) {
@@ -78,15 +76,15 @@ tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_
 	return new_tweener;
 }
 
-tween_make :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0) -> ^Tweener {
+tween_make :: inline proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0) -> ^Tweener {
 	new_tweener := new_clone(Tweener{ptr, ptr, ptr^, target, 0, duration, ease, time + delay, false, false, nil, nil, nil}); // @Alloc
 	append(&tweeners, new_tweener);
 	return new_tweener;
 }
 
-tween_callback :: proc(a: ^Tweener, callback: Tween_Callback, data: rawptr) {
-	a.callback = callback;
-	a.callback_data = data;
+tween_callback :: inline proc(a: ^Tweener, userdata: ^$T, callback: proc(^T)) {
+	a.callback = auto_cast callback;
+	a.callback_data = userdata;
 }
 
 tween_queue :: inline proc(a, b: ^Tweener) {

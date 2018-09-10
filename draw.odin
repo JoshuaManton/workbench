@@ -408,7 +408,7 @@ _wb_render :: proc() {
 		debugging_rendering = !debugging_rendering;
 	}
 
-	odingl.ClearColor((sin(time)+1)/2, 0.5, 0.8, 1.0);
+	odingl.ClearColor(sin01(time), 0.5, 0.8, 1.0);
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 	// odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
 	odingl.Clear(odingl.COLOR_BUFFER_BIT);
