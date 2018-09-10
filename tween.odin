@@ -31,53 +31,67 @@ Tweener :: struct {
 
 	ease_proc: proc(f32) -> f32,
 
-	callback: Tween_Callback,
 	start_time: f32,
 	loop: bool,
+
+	active: bool,
+
+	callback: Tween_Callback,
+	callback_data: rawptr,
+
+	queued_tween: ^Tweener,
 }
 
 tweeners: [dynamic]^Tweener;
 updating_tweens: bool;
 
-Tween_Callback :: struct {
-	procedure: proc(rawptr),
-	data: rawptr,
-}
+Tween_Callback :: proc(rawptr);
 
 Tween_Params :: struct {
-	callback: Tween_Callback,
 	delay: f32,
 	loop: bool,
-	allow_duplicates: bool,
+	callback: Tween_Callback,
 }
 
-tween_kill :: inline proc(ptr: rawptr) {
+tween_destroy :: inline proc(ptr: rawptr) {
 	for _, i in tweeners {
 		tweener := tweeners[i];
 		if tweeners[i].addr == ptr {
-			tween_kill_index(i);
+			tween_destroy_index(i);
 			break;
 		}
 	}
 }
 
-tween_kill_index :: inline proc(idx: int) {
+tween_destroy_index :: inline proc(idx: int) {
 	tweener := tweeners[idx];
 	remove_at(&tweeners, idx);
 	free(tweener);
 }
 
-tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, tween_params: Tween_Params = {}) -> ^Tweener {
+tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0) -> ^Tweener {
 	assert(!updating_tweens);
 
-	if !tween_params.allow_duplicates {
-		tween_kill(ptr);
-	}
+	tween_destroy(ptr);
+	new_tweener := tween_make(ptr, target, duration, ease, delay);
+	new_tweener.active = true;
+	return new_tweener;
+}
 
-	new_tweener := new_clone(Tweener{ptr, ptr, ptr^, target, 0, duration, ease, tween_params.callback, time + tween_params.delay, tween_params.loop}); // @Alloc
-	idx := len(tweeners);
+tween_make :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0) -> ^Tweener {
+	new_tweener := new_clone(Tweener{ptr, ptr, ptr^, target, 0, duration, ease, time + delay, false, false, nil, nil, nil}); // @Alloc
 	append(&tweeners, new_tweener);
 	return new_tweener;
+}
+
+tween_callback :: proc(a: ^Tweener, callback: Tween_Callback, data: rawptr) {
+	a.callback = callback;
+	a.callback_data = data;
+}
+
+tween_queue :: inline proc(a, b: ^Tweener) {
+	b.active = false;
+	a.queued_tween = b;
 }
 
 _update_tween :: proc(dt: f32) {
@@ -90,6 +104,7 @@ _update_tween :: proc(dt: f32) {
 		tweener := tweeners[tweener_idx];
 		assert(tweener.duration != 0);
 
+		if !tweener.active do continue;
 		if time < tweener.start_time do continue;
 
 		switch kind in tweener.ptr {
@@ -108,10 +123,27 @@ _update_tween :: proc(dt: f32) {
 		}
 
 		if !tweener.loop && tweener.cur_time >= tweener.duration {
-			if tweener.callback.procedure != nil {
-				tweener.callback.procedure(tweener.callback.data);
+			if tweener.callback != nil {
+				tweener.callback(tweener.callback_data);
 			}
-			tween_kill_index(tweener_idx);
+			if tweener.queued_tween != nil {
+				tweener.queued_tween.active = true;
+				switch kind in tweener.queued_tween.ptr {
+					case ^f32: {
+						tweener.queued_tween.start = kind^;
+					}
+					case ^Vec2: {
+						tweener.queued_tween.start = kind^;
+					}
+					case ^Vec3: {
+						tweener.queued_tween.start = kind^;
+					}
+					case ^Vec4: {
+						tweener.queued_tween.start = kind^;
+					}
+				}
+			}
+			tween_destroy_index(tweener_idx);
 		}
 	}
 }
