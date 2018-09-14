@@ -15,6 +15,8 @@ using import        "core:fmt"
 
 main_window: glfw.Window_Handle;
 
+window_is_focused := true;
+
 current_window_width:  f32;
 current_window_height: f32;
 current_aspect_ratio:  f32;
@@ -36,6 +38,7 @@ _new_window_height: f32;
 _new_aspect_ratio:  f32;
 _new_cursor_scroll: f32;
 _new_cursor_screen_position: Vec2;
+_new_window_is_focused := true;
 
 _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _opengl_version_major, _opengl_version_minor: int) {
 	window_width := cast(i32)_window_width;
@@ -51,6 +54,10 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 
 	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
 		_new_cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
+	}
+
+	glfw_focus_callback :: proc"c"(main_window: glfw.Window_Handle, focus: int) {
+		_new_window_is_focused = cast(bool)focus;
 	}
 
 	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
@@ -103,6 +110,7 @@ _update_glfw :: proc(dt: f32) {
 	_new_cursor_scroll     = 0;
 	cursor_screen_position = _new_cursor_screen_position;
 	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
+	window_is_focused = _new_window_is_focused;
 
 	if !is_perspective {
 		top    : f32 =  1 * camera_size + camera_position.y;

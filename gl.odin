@@ -26,7 +26,7 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 	vao = gen_vao();
 	bind_vao(vao);
 
-	vbo = gen_buffer();
+	vbo = cast(VBO)gen_buffer();
 	bind_buffer(vbo);
 
 	set_vertex_format(Vertex_Type);

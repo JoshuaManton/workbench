@@ -22,7 +22,6 @@ parse_csv_from_file :: proc($Record: typeid, filepath: string) -> [dynamic]Recor
 }
 
 parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
-	logln(1);
 	// todo(josh): @Optimization probably
 	text = trim_whitespace(text);
 

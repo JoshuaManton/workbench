@@ -51,7 +51,7 @@ Tween_Params :: struct {
 	callback: proc(rawptr),
 }
 
-tween_destroy :: inline proc(ptr: rawptr) {
+tween_destroy :: proc(ptr: rawptr) {
 	for _, i in tweeners {
 		tweener := tweeners[i];
 		if tweeners[i].addr == ptr {

@@ -315,10 +315,11 @@ default_button_hover :: proc(button: ^Button_Data) {
 
 }
 default_button_pressed :: proc(button: ^Button_Data) {
-	tween(&button.x1, 0.05, 0.25, ease_out_quart);
-	tween(&button.y1, 0.05, 0.25, ease_out_quart);
-	tween(&button.x2, 0.95, 0.25, ease_out_quart);
-	tween(&button.y2, 0.95, 0.25, ease_out_quart);
+	TARGET_SIZE :: 0.8;
+	tween(&button.x1, 1-TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.y1, 1-TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.x2, TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.y2, TARGET_SIZE, 0.25, ease_out_quart);
 }
 default_button_released :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0, 0.25, ease_out_back);
@@ -398,6 +399,13 @@ Text_Data :: struct {
 	size: f32,
 	color: Colorf,
 
+	using shadow_params: struct {
+		shadow: int, // in pixels, 0 for none
+		shadow_color: Colorf,
+	},
+
+	center: bool,
+
 	x1, y1, x2, y2: f32,
 	top, right, bottom, left: int,
 }
@@ -409,9 +417,27 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
 	defer ui_pop_rect(loc);
 
-	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
-	draw_string(unit_to_viewport, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * current_window_height / font.size * size;
+
+	if center {
+		ww := get_string_width(font, str, height);
+		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
+		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
+
+		// text_size_to_rect := (font.size * size / (rect_height * current_window_height));
+		// logln(text_size_to_rect);
+
+		position = Vec2{ui_current_rect_unit.x1 + (rect_width  / 2) - ww/2,
+						// ui_current_rect_unit.y1 + (rect_height / 2) - (text_size_to_rect)};
+						ui_current_rect_unit.y1};
+	}
+
+	if shadow != 0 {
+		draw_string(unit_to_viewport, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	}
+
+	draw_string(unit_to_viewport, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
 ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	assert(font != nil);

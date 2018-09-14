@@ -272,26 +272,60 @@ draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, posit
 	return width;
 }
 
-// get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
-// 	size_ratio := _get_size_ratio_for_font(font, size);
-// 	cur_pos: Vec2;
-// 	for c in str {
-// 		quad := stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &cur_pos.x, &cur_pos.y, true);
-// 		// char_width comes out as pixels, so we need to convert it to the current render mode
-// 		if current_render_mode == rendering_pixel_space {
-// 		}
-// 		else if current_render_mode == rendering_unit_space {
-// 			char_width = char_width / cast(f32)current_window_width * size_ratio;
-// 		}
-// 		else {
-// 			assert(false);
-// 		}
+get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
+	// todo: make draw_string() be render_mode agnostic
+	// old := current_render_mode;
+	// rendering_unit_space();
+	// defer old();
 
-// 		cur_width += char_width;
-// 	}
+	start: Vec2;
+	position := start;
+	for _, i in str {
+		c := str[i];
+		is_space := c == ' ';
+		if is_space do c = 'l'; // @DrawStringSpaces: @Hack:
 
-// 	return cur_width;
-// }
+		min, max: Vec2;
+		whitespace_ratio: f32;
+		quad: stb.Aligned_Quad;
+		{
+			//
+			size_pixels: Vec2;
+			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
+			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
+			size_pixels.y = abs(quad.y1 - quad.y0);
+			size_pixels *= size;
+
+			ww := cast(f32)current_window_width;
+			hh := cast(f32)current_window_height;
+			// min = position + (Vec2{quad.x0, -quad.y1} * size);
+			// max = position + (Vec2{quad.x1, -quad.y0} * size);
+			min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
+			max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+			// Padding
+			{
+				// todo(josh): @DrawStringSpaces: Currently dont handle spaces properly :/
+				abs_hh := abs(quad.t1 - quad.t0);
+				char_aspect: f32;
+				if abs_hh == 0 {
+					char_aspect = 1;
+				}
+				else {
+					char_aspect = abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
+				}
+				full_width := size_pixels.x;
+				char_width := size_pixels.y * char_aspect;
+				whitespace_ratio = 1 - (char_width / full_width);
+			}
+		}
+
+		width := max.x - min.x;
+		position.x += width + (width * whitespace_ratio);
+	}
+
+	width := position.x - start.x;
+	return width;
+}
 
 // get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
 // 	size_ratio := _get_size_ratio_for_font(font, size);
@@ -408,6 +442,16 @@ _wb_render :: proc() {
 		debugging_rendering = !debugging_rendering;
 	}
 
+	bind_vao(vao);
+	bind_buffer(vbo);
+
+	set_vertex_format(Vertex_Type);
+
+	odingl.Enable(odingl.BLEND);
+	// odingl.Enable(odingl.CULL_FACE);
+	// odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
+	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
+
 	odingl.ClearColor(sin01(time), 0.5, 0.8, 1.0);
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 	// odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
@@ -465,7 +509,7 @@ _draw_flush :: proc(mode : u32 = odingl.TRIANGLES, loc := #caller_location) {
 	bind_buffer(vbo);
 
 	// TODO: investigate STATIC_DRAW vs others
-	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], odingl.STATIC_DRAW);
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(queued_for_drawing), &queued_for_drawing[0], odingl.STREAM_DRAW);
 
 	program := get_current_shader();
 	uniform(program, "atlas_texture", 0);
