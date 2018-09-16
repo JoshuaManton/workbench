@@ -1,9 +1,9 @@
 package workbench
 
 using import "core:runtime"
+using import "core:fmt"
 
       import "core:mem"
-      import "core:fmt"
 
 Field_Info :: struct {
     name:   string,
@@ -29,12 +29,12 @@ set_struct_field :: proc(thing: ^$T, info: Field_Info, value: $S) {
         found: bool;
         for name, i in ti.names {
             if name == info.name {
-                assert(ti.types[i] == info.t, fmt.aprintln("Type", type_info_of(T), "has a field", name, "but the type is", ti.types[i], "instead of the expected", type_info_of(S)));
-                assert(cast(int)ti.offsets[i] == info.offset, fmt.aprintln("Type", type_info_of(T), "has a field", name, "but the offset is", ti.offsets[i], "instead of the expected", info.offset));
+                assert(ti.types[i] == info.t, tprint("Type", type_info_of(T), "has a field", name, "but the type is", ti.types[i], "instead of the expected", type_info_of(S)));
+                assert(cast(int)ti.offsets[i] == info.offset, tprint("Type", type_info_of(T), "has a field", name, "but the offset is", ti.offsets[i], "instead of the expected", info.offset));
                 found = true;
             }
         }
-        if !found do assert(false, fmt.aprintln("Type", type_info_of(T), "doesn't have a field called", info.name));
+        if !found do assert(false, tprint("Type", type_info_of(T), "doesn't have a field called", info.name));
     }
     field_ptr := mem.ptr_offset(cast(^byte)thing, info.offset);
     mem.copy(field_ptr, &value, size_of(S));

@@ -9,6 +9,7 @@ using import        "core:fmt"
       import        "core:sys/win32"
 
       import odingl "shared:odin-gl"
+      import imgui  "shared:odin-imgui"
 
       import stb    "shared:workbench/stb"
       import        "shared:workbench/glfw"
@@ -46,22 +47,22 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 	opengl_version_major := cast(i32)_opengl_version_major;
 	opengl_version_minor := cast(i32)_opengl_version_minor;
 
-	glfw_size_callback :: proc"c"(main_window: glfw.Window_Handle, w, h: i32) {
+	glfw_size_callback :: proc"c"(window: glfw.Window_Handle, w, h: i32) {
 		_new_window_width  = cast(f32)w;
 		_new_window_height = cast(f32)h;
 		_new_aspect_ratio = cast(f32)w / cast(f32)h;
 	}
 
-	glfw_cursor_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
+	glfw_cursor_callback :: proc"c"(window: glfw.Window_Handle, x, y: f64) {
 		_new_cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
 	}
 
-	glfw_focus_callback :: proc"c"(main_window: glfw.Window_Handle, focus: int) {
-		_new_window_is_focused = cast(bool)focus;
+	glfw_scroll_callback :: proc"c"(window: glfw.Window_Handle, x, y: f64) {
+		_new_cursor_scroll = cast(f32)y;
 	}
 
-	glfw_scroll_callback :: proc"c"(main_window: glfw.Window_Handle, x, y: f64) {
-		_new_cursor_scroll = cast(f32)y;
+	glfw_character_callback :: proc"c"(window: glfw.Window_Handle, codepoint: u32) {
+		imgui.gui_io_add_input_character(u16(codepoint));
 	}
 
 	glfw_error_callback :: proc"c"(error: i32, desc: cstring) {
@@ -89,6 +90,8 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 
 	glfw.SetKeyCallback(main_window, _glfw_key_callback);
 	glfw.SetMouseButtonCallback(main_window, _glfw_mouse_button_callback);
+
+	glfw.SetCharCallback(main_window, glfw_character_callback);
 
 	// :GlfwJoystickPollEventsCrash
 	// this is crashing when I call PollEvents when I unplug a controller for some reason

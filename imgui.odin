@@ -6,15 +6,18 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 13-09-2018 21:57:51 UTC-8
+ *  @Last Time: 15-09-2018 19:55:05 UTC-8
  *
  *  @Description:
  *
  */
 package workbench
 
-import "core:fmt";
+using import "core:runtime"
+using import "core:fmt"
+
 import "core:mem";
+import "core:strconv"
 import "core:math";
 import "core:os";
 import "core:sys/win32"
@@ -22,32 +25,6 @@ import "core:sys/win32"
 import    "shared:workbench/glfw"
 import    "shared:odin-imgui"
 import gl "shared:odin-gl"
-
-default_font  : ^imgui.Font;
-mono_font     : ^imgui.Font;
-
-
-State :: struct {
-    //Misc
-    mouse_wheel_delta : i32,
-
-    //Render
-    main_program      : Shader_Program,
-    vbo_handle        : VBO,
-    ebo_handle        : EBO,
-}
-
-FrameState :: struct {
-    deltatime     : f32,
-    window_width  : int,
-    window_height : int,
-    window_focus  : bool,
-    mouse_x       : int,
-    mouse_y       : int,
-    mouse_wheel   : int,
-    left_mouse    : bool,
-    right_mouse   : bool,
-}
 
 imgui_program: Shader_Program;
 
@@ -60,8 +37,6 @@ imgui_attrib_color: Location;
 
 imgui_vbo_handle: VBO;
 imgui_ebo_handle: EBO;
-
-
 
 _init_dear_imgui :: proc() {
     // imgui.create_context();
@@ -88,7 +63,7 @@ _init_dear_imgui :: proc() {
     io.key_map[imgui.Key.Y]          = i32(Key.Y);
     io.key_map[imgui.Key.Z]          = i32(Key.Z);
 
-    vertexShaderString ::
+    vs ::
         `#version 330
         uniform mat4 ProjMtx;
         in vec2 Position;
@@ -103,7 +78,7 @@ _init_dear_imgui :: proc() {
            gl_Position = ProjMtx * vec4(Position.xy,0,1);
         }`;
 
-    fragmentShaderString ::
+    fs ::
         `#version 330
         uniform sampler2D Texture;
         in vec2 Frag_UV;
@@ -115,7 +90,7 @@ _init_dear_imgui :: proc() {
         }`;
 
 	ok: bool;
-    imgui_program, ok = load_shader_text(vertexShaderString, fragmentShaderString);
+    imgui_program, ok = load_shader_text(vs, fs);
     assert(ok);
 
     imgui_uniform_texture    = get_uniform_location(imgui_program, "Texture");
@@ -438,4 +413,127 @@ begin_panel :: proc(label : string, pos, size : imgui.Vec2) -> bool {
 
 columns_reset :: proc() {
     imgui.columns(count = 1, border = false);
+}
+
+imgui_struct_window :: proc(value: ^$T) {
+    imgui_struct_window_field :: proc(name: string, data: rawptr, ti: ^Type_Info) {
+        simple_field :: proc(name: string, data: rawptr, $T: typeid) {
+            if T == string {
+                imgui.text(tprint(name, " = ", tprint("\"", (cast(^T)data)^), "\""));
+            }
+            else {
+                imgui.text(tprint(name, " = ", (cast(^T)data)^));
+            }
+        }
+
+        block_field_start :: proc(name: string, typename: string) -> bool {
+            if name != "" {
+                if imgui.collapsing_header(tprint(name, ": ", typename, " {")) {
+                    imgui.indent();
+                    return true;
+                }
+                else {
+                    imgui.same_line();
+                    imgui.text(" ... }");
+                }
+                return false;
+            }
+            return true;
+        }
+        block_field_end :: proc(name: string) {
+            if name != "" {
+                imgui.unindent();
+                imgui.text("}");
+            }
+        }
+
+        switch kind in ti.variant {
+            case Type_Info_Integer: {
+                if kind.signed {
+                    switch ti.size {
+                        case 8: simple_field(name, data, i64);
+                        case 4: simple_field(name, data, i32);
+                        case 2: simple_field(name, data, i16);
+                        case 1: simple_field(name, data, i8);
+                        case: assert(false, tprint(ti.size));
+                    }
+                }
+                else {
+                    switch ti.size {
+                        case 8: simple_field(name, data, u64);
+                        case 4: simple_field(name, data, u32);
+                        case 2: simple_field(name, data, u16);
+                        case 1: simple_field(name, data, u8);
+                        case: assert(false, tprint(ti.size));
+                    }
+                }
+            }
+            case Type_Info_Float: {
+                switch ti.size {
+                    case 8: simple_field(name, data, f64);
+                    case 4: simple_field(name, data, f32);
+                    case: assert(false, tprint(ti.size));
+                }
+            }
+            case Type_Info_String: {
+                assert(ti.size == size_of(string));
+                simple_field(name, data, string);
+            }
+            case Type_Info_Boolean: {
+                assert(ti.size == size_of(bool));
+                simple_field(name, data, bool);
+            }
+            case Type_Info_Pointer: {
+                simple_field(name, data, ^byte);
+            }
+            case Type_Info_Named: {
+                if block_field_start(name, kind.name) {
+                    defer block_field_end(name);
+
+                    base := ti.variant.(Type_Info_Named).base.variant.(Type_Info_Struct);
+                    for name, i in base.names {
+                        t := base.types[i];
+                        offset := base.offsets[i];
+                        data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
+                        imgui_struct_window_field(name, data, t);
+                    }
+                }
+            }
+            case Type_Info_Slice: {
+                if block_field_start(name, tprint("[]", kind.elem)) {
+                    defer block_field_end(name);
+
+                    slice := (cast(^mem.Raw_Slice)data)^;
+                    for i in 0..slice.len-1 {
+                        imgui_struct_window_field(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
+                    }
+                }
+            }
+            case Type_Info_Array: {
+                if block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
+                    defer block_field_end(name);
+
+                    for i in 0..kind.count-1 {
+                        imgui_struct_window_field(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
+                    }
+                }
+            }
+            case Type_Info_Dynamic_Array: {
+                if block_field_start(name, tprint("[dynamic]", kind.elem)) {
+                    defer block_field_end(name);
+
+                    array := (cast(^mem.Raw_Dynamic_Array)data)^;
+                    for i in 0..array.len-1 {
+                        imgui_struct_window_field(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
+                    }
+                }
+            }
+            case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
+        }
+    }
+
+    imgui.begin(tprint(type_info_of(T)));
+    defer imgui.end();
+
+    imgui_struct_window_field("", value, type_info_of(T));
 }
