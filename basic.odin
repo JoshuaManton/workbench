@@ -53,6 +53,11 @@ remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 	}
 }
 
+last :: proc[last_dyn, last_slice, last_array];
+last_dyn   :: inline proc(list: [dynamic]$T) -> ^T do return &list[len(list)-1];
+last_slice :: inline proc(list: []$T)        -> ^T do return &list[len(list)-1];
+last_array :: inline proc(list: [$N]$T)      -> ^T do return &list[N-1];
+
 //
 // Equals
 //

@@ -12,7 +12,7 @@ using import "core:fmt"
 //
 hot:  IMGUI_ID = -1;
 warm: IMGUI_ID = -1;
-scroll_initial_cursor_position: Vec2;
+cursor_pixel_position_on_clicked: Vec2;
 
 IMGUI_ID :: int;
 
@@ -27,6 +27,9 @@ Location_ID_Mapping :: struct {
 }
 
 _update_ui :: proc(dt: f32) {
+	if get_mouse_down(Mouse.Left) {
+		cursor_pixel_position_on_clicked = cursor_screen_position;
+	}
 	// rendering_unit_space();
 	// push_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
 
@@ -186,12 +189,55 @@ Scroll_View :: struct {
 	using _: struct { // runtime values
 		cur_scroll_target: f32,
 		cur_scroll_lerped: f32,
+		mouse_pressed_position: f32,
+		scroll_at_pressed_position: f32,
+		pressed_in_rect: bool,
 	}
 }
 
+scroll_views: [dynamic]bool;
+in_scroll_view: bool;
+
 ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, y2: f32 = 1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	append(&scroll_views, true);
+	in_scroll_view = true;
+
+	id := get_id_from_location(loc);
+
+	if get_mouse_up(Mouse.Left) {
+		sv.pressed_in_rect = false;
+	}
+
+	in_rect := mouse_in_current_rect();
+	if in_rect {
+		if hot == -1 {
+			warm = id;
+		}
+	}
+
+	if warm == id {
+		if get_mouse_down(Mouse.Left) {
+			sv.pressed_in_rect = true;
+			sv.mouse_pressed_position = cursor_screen_position.y/current_window_height;
+			sv.scroll_at_pressed_position = sv.cur_scroll_target;
+		}
+		if get_mouse(Mouse.Left) && sv.pressed_in_rect {
+			if abs(cursor_unit_position.y - sv.mouse_pressed_position) > 0.005 {
+				logln(abs(cursor_unit_position.y - sv.mouse_pressed_position));
+				hot = id;
+			}
+		}
+	}
+
+	if hot == id {
+		if get_mouse_up(Mouse.Left) {
+			hot = -1;
+		}
+		sv.cur_scroll_target = sv.scroll_at_pressed_position - (sv.mouse_pressed_position - cursor_screen_position.y/current_window_height);
+	}
+
 	sv.cur_scroll_target = clamp(sv.cur_scroll_target, sv.min, sv.max);
-	if mouse_in_current_rect() {
+	if in_rect {
 		sv.cur_scroll_target -= cursor_scroll * 0.1;
 	}
 	sv.cur_scroll_lerped = lerp(sv.cur_scroll_lerped, sv.cur_scroll_target, 20 * client_target_delta_time);
@@ -200,6 +246,13 @@ ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, 
 
 ui_end_scroll_view :: proc(loc := #caller_location) {
 	ui_pop_rect(loc);
+	pop(&scroll_views);
+	if len(scroll_views) > 0 {
+		in_scroll_view = last(scroll_views)^;
+	}
+	else {
+		in_scroll_view = false;
+	}
 }
 
 //
@@ -340,6 +393,8 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	// todo(josh): not sure about this, since the rect ends up being _much_ larger most of the time, maybe?
 	full_button_rect_unit := ui_current_rect_unit;
 
+	in_rect := mouse_in_current_rect();
+
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Button, loc);
 	defer ui_pop_rect(loc);
 
@@ -355,34 +410,41 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	}
 
 	id := get_id_from_location(loc);
-	if mouse_in_current_rect() {
-		if warm != id && hot == id {
-			if button.on_pressed != nil do button.on_pressed(button);
-		}
-		warm = id;
-		if get_mouse_down(Mouse.Left) {
-			hot = id;
-			if button.on_pressed != nil do button.on_pressed(button);
+	if in_rect {
+		if hot == -1 {
+			warm = id;
 		}
 	}
 	else {
-		if warm == id || hot == id {
-			warm = -1;
+		if hot == id {
+			hot = -1;
 			if button.on_released != nil do button.on_released(button);
 		}
 	}
 
+	if (warm == id && get_mouse_down(Mouse.Left)) || (warm != id && hot == id) { // on pressed || was pressed and cursor re-entered rect
+		warm = id;
+		hot = id;
+		if button.on_pressed != nil do button.on_pressed(button);
+	}
+
 	if hot == id {
-		if !get_mouse(Mouse.Left) {
+		if in_scroll_view && magnitude(cursor_screen_position - cursor_pixel_position_on_clicked) > 30 {
 			hot = -1;
-			if warm == id {
-				if button.on_released != nil {
-					button.on_released(button);
+			if button.on_released != nil do button.on_released(button);
+		}
+		else {
+			if !get_mouse(Mouse.Left) {
+				hot = -1;
+				if warm == id {
+					if button.on_released != nil {
+						button.on_released(button);
+					}
+					if button.on_clicked != nil {
+						button.on_clicked(button);
+					}
+					return true;
 				}
-				if button.on_clicked != nil {
-					button.on_clicked(button);
-				}
-				return true;
 			}
 		}
 	}
