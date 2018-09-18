@@ -189,7 +189,6 @@ Scroll_View :: struct {
 	using _: struct { // runtime values
 		cur_scroll_target: f32,
 		cur_scroll_lerped: f32,
-		mouse_pressed_position: f32,
 		scroll_at_pressed_position: f32,
 		pressed_in_rect: bool,
 	}
@@ -214,16 +213,20 @@ ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, 
 			warm = id;
 		}
 	}
+	else {
+		if warm == id {
+			warm = -1;
+		}
+	}
 
 	if warm == id {
 		if get_mouse_down(Mouse.Left) {
 			sv.pressed_in_rect = true;
-			sv.mouse_pressed_position = cursor_screen_position.y/current_window_height;
 			sv.scroll_at_pressed_position = sv.cur_scroll_target;
 		}
+
 		if get_mouse(Mouse.Left) && sv.pressed_in_rect {
-			if abs(cursor_unit_position.y - sv.mouse_pressed_position) > 0.005 {
-				logln(abs(cursor_unit_position.y - sv.mouse_pressed_position));
+			if abs(cursor_screen_position.y - cursor_pixel_position_on_clicked.y) > 0.005 {
 				hot = id;
 			}
 		}
@@ -233,15 +236,16 @@ ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, 
 		if get_mouse_up(Mouse.Left) {
 			hot = -1;
 		}
-		sv.cur_scroll_target = sv.scroll_at_pressed_position - (sv.mouse_pressed_position - cursor_screen_position.y/current_window_height);
+		sv.cur_scroll_target = sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked.y - cursor_screen_position.y);
 	}
 
 	sv.cur_scroll_target = clamp(sv.cur_scroll_target, sv.min, sv.max);
 	if in_rect {
-		sv.cur_scroll_target -= cursor_scroll * 0.1;
+		sv.cur_scroll_target -= cursor_scroll * 10;
 	}
 	sv.cur_scroll_lerped = lerp(sv.cur_scroll_lerped, sv.cur_scroll_target, 20 * client_target_delta_time);
-	ui_push_rect(x1, y1 + sv.cur_scroll_lerped, x2, y2 + sv.cur_scroll_lerped, top, right, bottom, left, UI_Action_Type.Scroll_View, loc);
+
+	ui_push_rect(x1, y1, x2, y2, top - cast(int)sv.cur_scroll_lerped, right, bottom + cast(int)sv.cur_scroll_lerped, left, UI_Action_Type.Scroll_View, loc);
 }
 
 ui_end_scroll_view :: proc(loc := #caller_location) {
@@ -419,6 +423,9 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		if hot == id {
 			hot = -1;
 			if button.on_released != nil do button.on_released(button);
+		}
+		if warm == id {
+			warm = -1;
 		}
 	}
 
