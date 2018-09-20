@@ -4,6 +4,8 @@ using import "core:runtime"
 using import "core:math"
 using import "core:fmt"
       import "core:mem"
+      import "core:strings"
+      import "core:os"
 
       import odingl "shared:odin-gl"
       import imgui "shared:odin-imgui"
@@ -557,40 +559,82 @@ ui_debug_drawing_rects: bool;
 
 when DEVELOPER {
 	maybe_add_ui_debug_rect :: proc(kind: UI_Action_Type, location: Source_Code_Location) {
-		if ui_debugging && !ui_debug_drawing_rects {
+		if ui_debugging {
 			append(&ui_debug_actions, UI_Action{kind, ui_current_rect_pixels, location});
 		}
 	}
+}
+
+UI_Debug_File_Line :: struct {
+	file_path: string,
+	line: int,
+	text: string,
+}
+
+all_ui_debug_file_lines: [dynamic]UI_Debug_File_Line;
+
+ui_debug_get_file_line :: proc(file_path: string, line: int) -> (string, bool) {
+	for fl in all_ui_debug_file_lines {
+		if fl.line == line && fl.file_path == file_path do return fl.text, true;
+	}
+	data, ok := os.read_entire_file(file_path);
+	if !ok {
+		return "", false;
+	}
+	defer delete(data);
+
+	cur_line := 1;
+	line_start := -1;
+	for b, i in data {
+		if b == '\n' {
+			cur_line += 1;
+			if cur_line == line {
+				line_start = i;
+			}
+			else if cur_line == line + 1 {
+				text := strings.new_string(cast(string)data[line_start:i]);
+				fl := UI_Debug_File_Line{file_path, line, text};
+				append(&all_ui_debug_file_lines, fl);
+				return text, true;
+			}
+		}
+	}
+	return "", false;
 }
 
 _ui_debug_screen_update :: proc() {
 	prev_layer := swap_render_layers(9999); // @ProperDebugLineRenderLayer
 	defer swap_render_layers(prev_layer);
 
-	if get_key_down(Key.F5) {
-		ui_debugging = !ui_debugging;
-	}
-
 	if ui_debugging {
 		if imgui.begin("UI System") {
 			defer imgui.end();
 
-			for rect, i in ui_debug_actions {
-				if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
-					ui_debug_cur_idx = i;
-				}
+			if len(ui_debug_actions) > 0 {
+				imgui_struct(&ui_debug_actions[ui_debug_cur_idx], "ui_element");
 
-				if ui_debug_cur_idx == i {
-					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
-					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-					draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
+				for rect, i in ui_debug_actions {
+					if ui_debug_cur_idx == i {
+						imgui.bullet();
+					}
+					if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
+						ui_debug_cur_idx = i;
+					}
 
-					ui_push_rect(0, 0.05, 1, 0.15);
-					defer ui_pop_rect();
+					text, ok := ui_debug_get_file_line(rect.location.file_path, rect.location.line);
+					if ok {
+						imgui.same_line();
+						imgui.text(trim_whitespace(text));
+					}
 
-					buf: [2048]byte;
-					str := bprint(buf[:], "[", rect.kind, "] ", file_from_path(rect.location.file_path), ":", rect.location.line);
-					ui_text(font_default, str, 1, COLOR_GREEN);
+					if ui_debug_cur_idx == i {
+						min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+						max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+						draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
+
+						ui_push_rect(0, 0.05, 1, 0.15);
+						defer ui_pop_rect();
+					}
 				}
 			}
 		}

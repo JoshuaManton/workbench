@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 19-09-2018 21:01:55 UTC-8
+ *  @Last Time: 20-09-2018 00:20:40 UTC-8
  *
  *  @Description:
  *
@@ -152,6 +152,12 @@ _init_dear_imgui :: proc() {
     // Style
     //
 
+    // WB STYLE
+    // todo
+
+
+
+
     // BREW STYLE
     style := imgui.get_style();
     style.window_padding = imgui.Vec2{6, 6};
@@ -199,6 +205,8 @@ _init_dear_imgui :: proc() {
 
 
 
+
+    // SOME STYLE I FOUND ONLINE
     // style := imgui.get_style();
 
     // style.window_padding = imgui.Vec2{15, 15};
@@ -415,133 +423,165 @@ columns_reset :: proc() {
     imgui.columns(count = 1, border = false);
 }
 
-imgui_struct_window :: proc(value: ^$T) {
-    imgui_struct_window_field :: proc(name: string, data: rawptr, ti: ^Type_Info) {
-        simple_field :: proc(name: string, data: rawptr, $T: typeid) {
-            value: string;
 
-            if T == string {
-                value = tprint("\"", (cast(^T)data)^, "\"");
-            }
-            else if T == f32 || T == f64 {
-                value = tprintf("%.8f", (cast(^T)data)^,);
-            }
-            else {
-                value = tprint((cast(^T)data)^);
-            }
 
-            result := tprint(name, " = ", value);
-            imgui.text(result);
-        }
-
-        block_field_start :: proc(name: string, typename: string) -> bool {
-            if name != "" {
-                if imgui.collapsing_header(tprint(name, ": ", typename, " {")) {
-                    imgui.indent();
-                    return true;
-                }
-                else {
-                    imgui.same_line();
-                    imgui.text(" ... }");
-                }
-                return false;
-            }
-            return true;
-        }
-        block_field_end :: proc(name: string) {
-            if name != "" {
-                imgui.unindent();
-                imgui.text("}");
-            }
-        }
-
-        switch kind in ti.variant {
-            case Type_Info_Integer: {
-                if kind.signed {
-                    switch ti.size {
-                        case 8: simple_field(name, data, i64);
-                        case 4: simple_field(name, data, i32);
-                        case 2: simple_field(name, data, i16);
-                        case 1: simple_field(name, data, i8);
-                        case: assert(false, tprint(ti.size));
-                    }
-                }
-                else {
-                    switch ti.size {
-                        case 8: simple_field(name, data, u64);
-                        case 4: simple_field(name, data, u32);
-                        case 2: simple_field(name, data, u16);
-                        case 1: simple_field(name, data, u8);
-                        case: assert(false, tprint(ti.size));
-                    }
-                }
-            }
-            case Type_Info_Float: {
-                switch ti.size {
-                    case 8: simple_field(name, data, f64);
-                    case 4: simple_field(name, data, f32);
-                    case: assert(false, tprint(ti.size));
-                }
-            }
-            case Type_Info_String: {
-                assert(ti.size == size_of(string));
-                simple_field(name, data, string);
-            }
-            case Type_Info_Boolean: {
-                assert(ti.size == size_of(bool));
-                simple_field(name, data, bool);
-            }
-            case Type_Info_Pointer: {
-                simple_field(name, data, ^byte);
-            }
-            case Type_Info_Named: {
-                if block_field_start(name, kind.name) {
-                    defer block_field_end(name);
-
-                    base := ti.variant.(Type_Info_Named).base.variant.(Type_Info_Struct);
-                    for name, i in base.names {
-                        t := base.types[i];
-                        offset := base.offsets[i];
-                        data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
-                        imgui_struct_window_field(name, data, t);
-                    }
-                }
-            }
-            case Type_Info_Slice: {
-                if block_field_start(name, tprint("[]", kind.elem)) {
-                    defer block_field_end(name);
-
-                    slice := (cast(^mem.Raw_Slice)data)^;
-                    for i in 0..slice.len-1 {
-                        imgui_struct_window_field(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
-                    }
-                }
-            }
-            case Type_Info_Array: {
-                if block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
-                    defer block_field_end(name);
-
-                    for i in 0..kind.count-1 {
-                        imgui_struct_window_field(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
-                    }
-                }
-            }
-            case Type_Info_Dynamic_Array: {
-                if block_field_start(name, tprint("[dynamic]", kind.elem)) {
-                    defer block_field_end(name);
-
-                    array := (cast(^mem.Raw_Dynamic_Array)data)^;
-                    for i in 0..array.len-1 {
-                        imgui_struct_window_field(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
-                    }
-                }
-            }
-            case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
-        }
-    }
-
+imgui_struct_window :: inline proc(value: ^$T) {
     imgui.begin(tprint(type_info_of(T)));
     defer imgui.end();
 
-    imgui_struct_window_field("", value, type_info_of(T));
+    imgui_struct_internal("", value, type_info_of(T));
+}
+
+imgui_struct :: inline proc(value: ^$T, name: string) {
+    if imgui_struct_block_field_start(name, tprint(type_info_of(T))) {
+        defer imgui_struct_block_field_end(name);
+        imgui_struct_internal("", value, type_info_of(T));
+    }
+}
+
+imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
+    if name != "" {
+        if imgui.collapsing_header(tprint(name, ": ", typename, " {")) {
+            imgui.indent();
+            return true;
+        }
+        else {
+            imgui.same_line();
+            imgui.text(" ... }");
+        }
+        return false;
+    }
+    return true;
+}
+imgui_struct_block_field_end :: proc(name: string) {
+    if name != "" {
+        imgui.unindent();
+        imgui.text("}");
+    }
+}
+
+imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
+    simple_field :: proc(name: string, data: rawptr, $T: typeid) {
+        value: string;
+
+        _, is_pointer := type_info_of(T).variant.(Type_Info_Pointer);
+        if T == string {
+            value = tprint("\"", (cast(^T)data)^, "\"");
+        }
+        else if T == f32 || T == f64 {
+            value = tprintf("%.8f", (cast(^T)data)^,);
+        }
+        else if is_pointer && (cast(^^byte)data)^ == nil {
+            value = "nil";
+        }
+        else {
+            value = tprint((cast(^T)data)^);
+        }
+
+        result := tprint(name, " = ", value);
+        imgui.text(result);
+    }
+
+    switch kind in ti.variant {
+        case Type_Info_Integer: {
+            if kind.signed {
+                switch ti.size {
+                    case 8: simple_field(name, data, i64);
+                    case 4: simple_field(name, data, i32);
+                    case 2: simple_field(name, data, i16);
+                    case 1: simple_field(name, data, i8);
+                    case: assert(false, tprint(ti.size));
+                }
+            }
+            else {
+                switch ti.size {
+                    case 8: simple_field(name, data, u64);
+                    case 4: simple_field(name, data, u32);
+                    case 2: simple_field(name, data, u16);
+                    case 1: simple_field(name, data, u8);
+                    case: assert(false, tprint(ti.size));
+                }
+            }
+        }
+        case Type_Info_Float: {
+            switch ti.size {
+                case 8: simple_field(name, data, f64);
+                case 4: simple_field(name, data, f32);
+                case: assert(false, tprint(ti.size));
+            }
+        }
+        case Type_Info_String: {
+            assert(ti.size == size_of(string));
+            simple_field(name, data, string);
+        }
+        case Type_Info_Boolean: {
+            assert(ti.size == size_of(bool));
+            simple_field(name, data, bool);
+        }
+        case Type_Info_Pointer: {
+            simple_field(name, data, ^byte);
+        }
+        case Type_Info_Named: {
+            switch kind2 in ti.variant.(Type_Info_Named).base.variant {
+                case Type_Info_Struct: {
+                    if imgui_struct_block_field_start(name, kind.name) {
+                        defer imgui_struct_block_field_end(name);
+                        for name, i in kind2.names {
+                            t := kind2.types[i];
+                            offset := kind2.offsets[i];
+                            data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
+                            imgui_struct_internal(name, data, t);
+                        }
+                    }
+                }
+                case Type_Info_Enum: {
+                    for value, val_idx in kind2.values {
+                        switch kind3 in value {
+                            case i8:  if (cast(^i8)data)^ == kind3  do simple_field(name, &kind2.names[val_idx], string);
+                            case i16: if (cast(^i16)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+                            case i32: if (cast(^i32)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+                            case i64: if (cast(^i64)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+                            case int: if (cast(^int)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+                            case u8:  if (cast(^u8)data)^ == kind3  do simple_field(name, &kind2.names[val_idx], string);
+                            case u16: if (cast(^u16)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+                            case u32: if (cast(^u32)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+                            case u64: if (cast(^u64)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+
+                        }
+                    }
+                }
+                case: assert(false, tprint(kind2));
+            }
+        }
+        case Type_Info_Slice: {
+            if imgui_struct_block_field_start(name, tprint("[]", kind.elem)) {
+                defer imgui_struct_block_field_end(name);
+
+                slice := (cast(^mem.Raw_Slice)data)^;
+                for i in 0..slice.len-1 {
+                    imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
+                }
+            }
+        }
+        case Type_Info_Array: {
+            if imgui_struct_block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
+                defer imgui_struct_block_field_end(name);
+
+                for i in 0..kind.count-1 {
+                    imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
+                }
+            }
+        }
+        case Type_Info_Dynamic_Array: {
+            if imgui_struct_block_field_start(name, tprint("[dynamic]", kind.elem)) {
+                defer imgui_struct_block_field_end(name);
+
+                array := (cast(^mem.Raw_Dynamic_Array)data)^;
+                for i in 0..array.len-1 {
+                    imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
+                }
+            }
+        }
+        case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
+    }
 }

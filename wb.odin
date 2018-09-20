@@ -114,7 +114,12 @@ _update_wb_debugger :: proc() {
 
 	if debug_window_open {
 		data := WB_Debug_Data{lossy_delta_time, client_target_delta_time, client_target_framerate};
-		imgui_struct_window(&data);
+		if imgui.begin("Debug") {
+			defer imgui.end();
+
+			imgui_struct(&data, "wb_debug_data");
+			imgui.checkbox("Debug UI", &ui_debugging);
+		}
 	}
 }
 
