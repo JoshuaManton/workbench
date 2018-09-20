@@ -289,8 +289,8 @@ get_int :: inline proc(pname: u32, loc := #caller_location) -> i32 {
 	return i;
 }
 
-get_current_shader :: inline proc() -> Shader_Program {
-	id := get_int(odingl.CURRENT_PROGRAM);
+get_current_shader :: inline proc(loc := #caller_location) -> Shader_Program {
+	id := get_int(odingl.CURRENT_PROGRAM, loc);
 	return cast(Shader_Program)id;
 }
 

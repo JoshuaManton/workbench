@@ -92,7 +92,7 @@ tween_queue :: inline proc(a, b: ^Tweener) {
 	a.queued_tween = b;
 }
 
-_update_tween :: proc(dt: f32) {
+_update_tween :: proc() {
 	tweener_idx := len(tweeners)-1;
 	updating_tweens = true;
 	defer updating_tweens = false;
@@ -107,16 +107,16 @@ _update_tween :: proc(dt: f32) {
 
 		switch kind in tweener.ptr {
 			case ^f32: {
-				kind^ = _update_one_tweener(f32, tweener, dt);
+				kind^ = _update_one_tweener(f32, tweener, client_target_delta_time);
 			}
 			case ^Vec2: {
-				kind^ = _update_one_tweener(Vec2, tweener, dt);
+				kind^ = _update_one_tweener(Vec2, tweener, client_target_delta_time);
 			}
 			case ^Vec3: {
-				kind^ = _update_one_tweener(Vec3, tweener, dt);
+				kind^ = _update_one_tweener(Vec3, tweener, client_target_delta_time);
 			}
 			case ^Vec4: {
-				kind^ = _update_one_tweener(Vec4, tweener, dt);
+				kind^ = _update_one_tweener(Vec4, tweener, client_target_delta_time);
 			}
 		}
 

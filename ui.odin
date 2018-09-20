@@ -6,36 +6,70 @@ using import "core:fmt"
       import "core:mem"
 
       import odingl "shared:odin-gl"
+      import imgui "shared:odin-imgui"
 
 //
 // UI state
 //
-hot:  IMGUI_ID = -1;
-warm: IMGUI_ID = -1;
-cursor_pixel_position_on_clicked: Vec2;
 
 IMGUI_ID :: int;
-
 id_counts: map[string]int;
 
-all_imgui_mappings: [dynamic]Location_ID_Mapping;
+hot:     IMGUI_ID = -1;
+warm:    IMGUI_ID = -1;
+previously_hot:  IMGUI_ID = -1;
+previously_warm: IMGUI_ID = -1;
+cursor_pixel_position_on_clicked: Vec2;
 
-Location_ID_Mapping :: struct {
-	id: IMGUI_ID,
-	using loc: Source_Code_Location,
-	index: int,
-}
-
-_update_ui :: proc(dt: f32) {
-	if get_mouse_down(Mouse.Left) {
-		cursor_pixel_position_on_clicked = cursor_screen_position;
+_update_ui :: proc() {
+	mouse_in_rect :: inline proc(unit_rect: Rect(f32)) -> bool {
+		cursor_in_rect := cursor_unit_position.y < unit_rect.y2 &&
+		                  cursor_unit_position.y > unit_rect.y1 &&
+		                  cursor_unit_position.x < unit_rect.x2 &&
+		                  cursor_unit_position.x > unit_rect.x1;
+		return cursor_in_rect;
 	}
+
+	previously_hot = -1;
+	if get_mouse_up(Mouse.Left) {
+		if hot != -1 {
+			previously_hot = hot;
+			hot = -1;
+		}
+	}
+
+	previously_warm = -1;
+	old_warm := warm;
+	warm = -1;
+	i := len(all_ui_controls)-1;
+	for i >= 0 {
+		defer i -= 1;
+		rect := &all_ui_controls[i];
+		if warm == -1 {
+			if mouse_in_rect(rect.unit_rect) {
+				warm = rect.imgui_id;
+			}
+		}
+
+		if warm == rect.imgui_id {
+			if get_mouse_down(Mouse.Left) {
+				hot = rect.imgui_id;
+				cursor_pixel_position_on_clicked = cursor_screen_position;
+			}
+		}
+	}
+
+	if warm != old_warm {
+		previously_warm = old_warm;
+	}
+
 	// rendering_unit_space();
 	// push_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
 
 	clear(&id_counts);
 	assert(len(ui_rect_stack) == 0 || len(ui_rect_stack) == 1);
 	clear(&ui_rect_stack);
+	clear(&all_ui_controls);
 	ui_current_rect_pixels = Pixel_Rect{};
 	ui_current_rect_unit = Unit_Rect{};
 
@@ -43,7 +77,15 @@ _update_ui :: proc(dt: f32) {
 	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
 }
 
-get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
+Location_ID_Mapping :: struct {
+	id: IMGUI_ID,
+	using loc: Source_Code_Location,
+	index: int,
+}
+
+all_imgui_mappings: [dynamic]Location_ID_Mapping;
+
+get_imgui_id_from_location :: proc(loc: Source_Code_Location, loc2 := #caller_location) -> IMGUI_ID {
 	count, ok := id_counts[loc.file_path];
 	if !ok {
 		id_counts[loc.file_path] = 0;
@@ -55,9 +97,9 @@ get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
 	}
 
 	for val, idx in all_imgui_mappings {
-		if val.line != loc.line           do continue;
-		if val.column != loc.column       do continue;
-		if val.index != count             do continue;
+		if val.line      != loc.line      do continue;
+		if val.column    != loc.column    do continue;
+		if val.index     != count         do continue;
 		if val.file_path != loc.file_path do continue;
 		return val.id;
 	}
@@ -65,7 +107,7 @@ get_id_from_location :: proc(loc: Source_Code_Location) -> IMGUI_ID {
 	id := len(all_imgui_mappings);
 	mapping := Location_ID_Mapping{id, loc, count};
 	append(&all_imgui_mappings, mapping);
-	return 1;
+	return mapping.id;
 }
 
 //
@@ -80,15 +122,17 @@ Pixel_Rect :: Rect(int);
 Unit_Rect  :: Rect(f32);
 
 UI_Rect :: struct {
+	imgui_id:  IMGUI_ID,
 	pixel_rect: Pixel_Rect,
 	unit_rect: Unit_Rect,
 }
 
-ui_rect_stack: [dynamic]UI_Rect;
+ui_rect_stack:   [dynamic]UI_Rect;
+all_ui_controls: [dynamic]UI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
-ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, ui_action := UI_Action_Type.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) {
+ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, ui_action := UI_Action_Type.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> UI_Rect {
 	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
 		current_rect = Unit_Rect{0, 0, 1, 1};
@@ -113,7 +157,9 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 
 	when DEVELOPER do maybe_add_ui_debug_rect(ui_action, loc);
 
-	append(&ui_rect_stack, UI_Rect{ui_current_rect_pixels, ui_current_rect_unit});
+	rect := UI_Rect{get_imgui_id_from_location(loc), ui_current_rect_pixels, ui_current_rect_unit};
+	append(&ui_rect_stack, rect);
+	return rect;
 }
 
 ui_pop_rect :: inline proc(loc := #caller_location) -> UI_Rect {
@@ -124,10 +170,195 @@ ui_pop_rect :: inline proc(loc := #caller_location) -> UI_Rect {
 	return popped_rect;
 }
 
-mouse_in_current_rect :: inline proc() -> bool {
-	cursor_in_rect := cursor_unit_position.y < ui_current_rect_unit.y2 && cursor_unit_position.y > ui_current_rect_unit.y1 && cursor_unit_position.x < ui_current_rect_unit.x2 && cursor_unit_position.x > ui_current_rect_unit.x1;
-	return cursor_in_rect;
+//
+// Drawing
+//
+
+ui_draw_colored_quad :: proc[ui_draw_colored_quad_current, ui_draw_colored_quad_push];
+ui_draw_colored_quad_current :: inline proc(color: Colorf) {
+	rect := ui_current_rect_pixels;
+	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
 }
+ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Draw_Colored_Quad, loc);
+	ui_draw_colored_quad(color);
+	ui_pop_rect(loc);
+}
+
+ui_draw_sprite :: proc[ui_draw_sprite_current, ui_draw_sprite_push];
+ui_draw_sprite_current :: proc(sprite: Sprite, loc := #caller_location) {
+	rect := ui_current_rect_pixels;
+	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+	push_quad(pixel_to_viewport, shader_texture, to_vec3(min), to_vec3(max), sprite);
+}
+ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Draw_Sprite, loc);
+	ui_draw_sprite_current(sprite, loc);
+	ui_pop_rect(loc);
+}
+
+//
+// Text
+//
+
+Text_Data :: struct {
+	font: ^Font,
+	size: f32,
+	color: Colorf,
+
+	using shadow_params: struct {
+		shadow: int, // in pixels, 0 for none
+		shadow_color: Colorf,
+	},
+
+	center: bool,
+
+	x1, y1, x2, y2: f32,
+	top, right, bottom, left: int,
+}
+
+ui_text :: proc[ui_text_data, ui_text_args];
+ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
+	assert(font != nil, tprint(loc));
+
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
+	defer ui_pop_rect(loc);
+
+	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * current_window_height / font.size * size;
+
+	if center {
+		ww := get_string_width(font, str, height);
+		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
+		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
+
+		// text_size_to_rect := (font.size * size / (rect_height * current_window_height));
+		// logln(text_size_to_rect);
+
+		position = Vec2{ui_current_rect_unit.x1 + (rect_width  / 2) - ww/2,
+						// ui_current_rect_unit.y1 + (rect_height / 2) - (text_size_to_rect)};
+						ui_current_rect_unit.y1};
+	}
+
+	if shadow != 0 {
+		draw_string(unit_to_viewport, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	}
+
+	draw_string(unit_to_viewport, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+}
+ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	assert(font != nil);
+
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
+	defer ui_pop_rect(loc);
+
+	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
+	draw_string(unit_to_viewport, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+}
+
+//
+// Buttons
+//
+
+Button_Data :: struct {
+	x1, y1, x2, y2: f32,
+	top, right, bottom, left: int,
+
+	on_hover: proc(button: ^Button_Data),
+	on_pressed: proc(button: ^Button_Data),
+	on_released: proc(button: ^Button_Data),
+	on_clicked: proc(button: ^Button_Data),
+
+	color: Colorf,
+	clicked: u64,
+}
+
+default_button_data := Button_Data{0, 0, 1, 1, 0, 0, 0, 0, default_button_hover, default_button_pressed, default_button_released, nil, Colorf{0, 0, 0, 0}, 0};
+default_button_hover :: proc(button: ^Button_Data) {
+
+}
+default_button_pressed :: proc(button: ^Button_Data) {
+	TARGET_SIZE :: 0.8;
+	tween(&button.x1, 1-TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.y1, 1-TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.x2, TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.y2, TARGET_SIZE, 0.25, ease_out_quart);
+}
+default_button_released :: proc(button: ^Button_Data) {
+	tween(&button.x1, 0, 0.25, ease_out_back);
+	tween(&button.y1, 0, 0.25, ease_out_back);
+	tween(&button.x2, 1, 0.25, ease_out_back);
+	tween(&button.y2, 1, 0.25, ease_out_back);
+}
+
+ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text_Data = nil, loc := #caller_location) -> bool {
+	result: bool;
+
+	clicked_this_frame := button.clicked == frame_count;
+	if clicked_this_frame {
+		if button.on_clicked != nil {
+			button.on_clicked(button);
+		}
+		return true;
+	}
+
+
+	rect := ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Button, loc);
+	defer ui_pop_rect(loc);
+	append(&all_ui_controls, rect);
+
+	// Draw button stuff
+	ui_draw_colored_quad(color);
+
+	// Draw text stuff
+	if text_data != nil {
+		if str == "" {
+			panic(tprint(loc));
+		}
+		ui_text(str, text_data, loc);
+	}
+
+	if previously_hot == rect.imgui_id || (hot == rect.imgui_id && previously_warm == rect.imgui_id) {
+		if button.on_released != nil do button.on_released(button);
+	}
+
+	if previously_hot == rect.imgui_id && warm == rect.imgui_id {
+		result = true;
+		if button.on_released != nil do button.on_released(button);
+		if button.on_clicked != nil do button.on_clicked(button);
+	}
+
+	if (hot == rect.imgui_id && get_mouse_down(Mouse.Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
+		if button.on_pressed != nil do button.on_pressed(button);
+	}
+
+	//                                                  vvvvvv need this in the check above ^^^^^^
+	// if (warm == id && get_mouse_down(Mouse.Left)) || (warm != id && hot == id) { // on pressed || was pressed and cursor re-entered rect
+	// 	warm = id;
+	// 	hot = id;
+	// }
+
+	// if hot == id {
+	// 	if in_scroll_view && magnitude(cursor_screen_position - cursor_pixel_position_on_clicked) > 30 {
+	// 		hot = -1;
+	// 		if button.on_released != nil do button.on_released(button);
+	// 	}
+	// }
+
+	return result;
+}
+
+ui_click :: inline proc(using button: ^Button_Data) {
+	clicked = frame_count;
+}
+
+//
+// Aspect Ratio Fitter
+//
 
 // todo(josh): not sure if the grow_forever_on_* feature is worth the complexity
 ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_forever_on_y := false, loc := #caller_location) {
@@ -163,23 +394,6 @@ ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
 }
 
 //
-// Directional Layout Groups
-//
-
-Directional_Layout_Group :: struct {
-	x1, y1, x2, y2: f32,
-	origin: Vec2,
-	direction: Vec2,
-	using _: struct { // runtime fields
-		num_items_so_far: int,
-	},
-}
-
-direction_layout_group_next :: proc(dlg: ^Directional_Layout_Group) {
-	rect := ui_pop_rect();
-}
-
-//
 // Scroll View
 //
 
@@ -190,7 +404,6 @@ Scroll_View :: struct {
 		cur_scroll_target: f32,
 		cur_scroll_lerped: f32,
 		scroll_at_pressed_position: f32,
-		pressed_in_rect: bool,
 	}
 }
 
@@ -201,51 +414,28 @@ ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, 
 	append(&scroll_views, true);
 	in_scroll_view = true;
 
-	id := get_id_from_location(loc);
+	rect := ui_push_rect(x1, y1, x2, y2, top - cast(int)sv.cur_scroll_lerped, right, bottom + cast(int)sv.cur_scroll_lerped, left, UI_Action_Type.Scroll_View, loc);
+	append(&all_ui_controls, rect);
+	id := rect.imgui_id;
 
-	if get_mouse_up(Mouse.Left) {
-		sv.pressed_in_rect = false;
-	}
-
-	in_rect := mouse_in_current_rect();
-	if in_rect {
-		if hot == -1 {
-			warm = id;
-		}
-	}
-	else {
-		if warm == id {
-			warm = -1;
-		}
-	}
-
-	if warm == id {
+	if hot == id {
 		if get_mouse_down(Mouse.Left) {
-			sv.pressed_in_rect = true;
 			sv.scroll_at_pressed_position = sv.cur_scroll_target;
 		}
 
-		if get_mouse(Mouse.Left) && sv.pressed_in_rect {
-			if abs(cursor_screen_position.y - cursor_pixel_position_on_clicked.y) > 0.005 {
-				hot = id;
-			}
-		}
-	}
-
-	if hot == id {
-		if get_mouse_up(Mouse.Left) {
-			hot = -1;
-		}
+		// if get_mouse(Mouse.Left) {
+		// 	if abs(cursor_screen_position.y - cursor_pixel_position_on_clicked.y) > 0.005 {
+		// 		hot = id;
+		// 	}
+		// }
 		sv.cur_scroll_target = sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked.y - cursor_screen_position.y);
 	}
 
 	sv.cur_scroll_target = clamp(sv.cur_scroll_target, sv.min, sv.max);
-	if in_rect {
+	if warm == id {
 		sv.cur_scroll_target -= cursor_scroll * 10;
 	}
 	sv.cur_scroll_lerped = lerp(sv.cur_scroll_lerped, sv.cur_scroll_target, 20 * client_target_delta_time);
-
-	ui_push_rect(x1, y1, x2, y2, top - cast(int)sv.cur_scroll_lerped, right, bottom + cast(int)sv.cur_scroll_lerped, left, UI_Action_Type.Scroll_View, loc);
 }
 
 ui_end_scroll_view :: proc(loc := #caller_location) {
@@ -258,6 +448,23 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 		in_scroll_view = false;
 	}
 }
+
+//
+// Directional Layout Groups
+//
+
+// Directional_Layout_Group :: struct {
+// 	x1, y1, x2, y2: f32,
+// 	origin: Vec2,
+// 	direction: Vec2,
+// 	using _: struct { // runtime fields
+// 		num_items_so_far: int,
+// 	},
+// }
+
+// direction_layout_group_next :: proc(dlg: ^Directional_Layout_Group) {
+// 	rect := ui_pop_rect();
+// }
 
 //
 // Grids
@@ -322,204 +529,6 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 // }
 
 //
-// Drawing
-//
-
-ui_draw_colored_quad :: proc[ui_draw_colored_quad_current, ui_draw_colored_quad_push];
-ui_draw_colored_quad_current :: inline proc(color: Colorf) {
-	rect := ui_current_rect_pixels;
-	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
-	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
-}
-ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Draw_Colored_Quad, loc);
-	ui_draw_colored_quad(color);
-	ui_pop_rect(loc);
-}
-
-ui_draw_sprite :: proc[ui_draw_sprite_current, ui_draw_sprite_push];
-ui_draw_sprite_current :: proc(sprite: Sprite, loc := #caller_location) {
-	rect := ui_current_rect_pixels;
-	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
-	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	push_quad(pixel_to_viewport, shader_texture, to_vec3(min), to_vec3(max), sprite);
-}
-ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Draw_Sprite, loc);
-	ui_draw_sprite_current(sprite, loc);
-	ui_pop_rect(loc);
-}
-//
-// Buttons
-//
-
-Button_Data :: struct {
-	x1, y1, x2, y2: f32,
-	top, right, bottom, left: int,
-
-	on_hover: proc(button: ^Button_Data),
-	on_pressed: proc(button: ^Button_Data),
-	on_released: proc(button: ^Button_Data),
-	on_clicked: proc(button: ^Button_Data),
-
-	color: Colorf,
-	clicked: u64,
-}
-
-default_button_data := Button_Data{0, 0, 1, 1, 0, 0, 0, 0, default_button_hover, default_button_pressed, default_button_released, nil, Colorf{0, 0, 0, 0}, 0};
-default_button_hover :: proc(button: ^Button_Data) {
-
-}
-default_button_pressed :: proc(button: ^Button_Data) {
-	TARGET_SIZE :: 0.8;
-	tween(&button.x1, 1-TARGET_SIZE, 0.25, ease_out_quart);
-	tween(&button.y1, 1-TARGET_SIZE, 0.25, ease_out_quart);
-	tween(&button.x2, TARGET_SIZE, 0.25, ease_out_quart);
-	tween(&button.y2, TARGET_SIZE, 0.25, ease_out_quart);
-}
-default_button_released :: proc(button: ^Button_Data) {
-	tween(&button.x1, 0, 0.25, ease_out_back);
-	tween(&button.y1, 0, 0.25, ease_out_back);
-	tween(&button.x2, 1, 0.25, ease_out_back);
-	tween(&button.y2, 1, 0.25, ease_out_back);
-}
-
-ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text_Data = nil, loc := #caller_location) -> bool {
-	clicked_this_frame := button.clicked == frame_count;
-	if clicked_this_frame {
-		if button.on_clicked != nil {
-			button.on_clicked(button);
-		}
-		return true;
-	}
-
-	// todo(josh): not sure about this, since the rect ends up being _much_ larger most of the time, maybe?
-	full_button_rect_unit := ui_current_rect_unit;
-
-	in_rect := mouse_in_current_rect();
-
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Button, loc);
-	defer ui_pop_rect(loc);
-
-	// Draw button stuff
-	ui_draw_colored_quad(color);
-
-	// Draw text stuff
-	if text_data != nil {
-		if str == "" {
-			panic(tprint(loc));
-		}
-		ui_text(str, text_data, loc);
-	}
-
-	id := get_id_from_location(loc);
-	if in_rect {
-		if hot == -1 {
-			warm = id;
-		}
-	}
-	else {
-		if hot == id {
-			hot = -1;
-			if button.on_released != nil do button.on_released(button);
-		}
-		if warm == id {
-			warm = -1;
-		}
-	}
-
-	if (warm == id && get_mouse_down(Mouse.Left)) || (warm != id && hot == id) { // on pressed || was pressed and cursor re-entered rect
-		warm = id;
-		hot = id;
-		if button.on_pressed != nil do button.on_pressed(button);
-	}
-
-	if hot == id {
-		if in_scroll_view && magnitude(cursor_screen_position - cursor_pixel_position_on_clicked) > 30 {
-			hot = -1;
-			if button.on_released != nil do button.on_released(button);
-		}
-		else {
-			if !get_mouse(Mouse.Left) {
-				hot = -1;
-				if warm == id {
-					if button.on_released != nil {
-						button.on_released(button);
-					}
-					if button.on_clicked != nil {
-						button.on_clicked(button);
-					}
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
-ui_click :: inline proc(using button: ^Button_Data) {
-	clicked = frame_count;
-}
-
-Text_Data :: struct {
-	font: ^Font,
-	size: f32,
-	color: Colorf,
-
-	using shadow_params: struct {
-		shadow: int, // in pixels, 0 for none
-		shadow_color: Colorf,
-	},
-
-	center: bool,
-
-	x1, y1, x2, y2: f32,
-	top, right, bottom, left: int,
-}
-
-ui_text :: proc[ui_text_data, ui_text_args];
-ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
-	assert(font != nil, tprint(loc));
-
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
-	defer ui_pop_rect(loc);
-
-	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * current_window_height / font.size * size;
-
-	if center {
-		ww := get_string_width(font, str, height);
-		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
-		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
-
-		// text_size_to_rect := (font.size * size / (rect_height * current_window_height));
-		// logln(text_size_to_rect);
-
-		position = Vec2{ui_current_rect_unit.x1 + (rect_width  / 2) - ww/2,
-						// ui_current_rect_unit.y1 + (rect_height / 2) - (text_size_to_rect)};
-						ui_current_rect_unit.y1};
-	}
-
-	if shadow != 0 {
-		draw_string(unit_to_viewport, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
-	}
-
-	draw_string(unit_to_viewport, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
-}
-ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	assert(font != nil);
-
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
-	defer ui_pop_rect(loc);
-
-	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
-	draw_string(unit_to_viewport, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
-}
-
-//
 // UI debug information
 //
 
@@ -554,8 +563,8 @@ when DEVELOPER {
 	}
 }
 
-_ui_debug_screen_update :: proc(dt: f32) {
-	prev_layer := swap_render_layers(9999);
+_ui_debug_screen_update :: proc() {
+	prev_layer := swap_render_layers(9999); // @ProperDebugLineRenderLayer
 	defer swap_render_layers(prev_layer);
 
 	if get_key_down(Key.F5) {
@@ -563,15 +572,14 @@ _ui_debug_screen_update :: proc(dt: f32) {
 	}
 
 	if ui_debugging {
-		ui_debug_drawing_rects = true;
-		defer ui_debug_drawing_rects = false;
+		if imgui.begin("UI System") {
+			defer imgui.end();
 
-		ui_debug_cur_idx += cast(int)cursor_scroll;
-		if ui_debug_cur_idx < 0 do ui_debug_cur_idx = 0;
-		if ui_debug_cur_idx >= len(ui_debug_actions) do ui_debug_cur_idx = len(ui_debug_actions)-1;
-
-		if len(ui_debug_actions) > 0 {
 			for rect, i in ui_debug_actions {
+				if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
+					ui_debug_cur_idx = i;
+				}
+
 				if ui_debug_cur_idx == i {
 					min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 					max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};

@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 15-09-2018 19:55:05 UTC-8
+ *  @Last Time: 19-09-2018 21:01:55 UTC-8
  *
  *  @Description:
  *
@@ -405,7 +405,7 @@ imgui_render :: proc(render_to_screen : bool) {
 begin_panel :: proc(label : string, pos, size : imgui.Vec2) -> bool {
     imgui.set_next_window_pos(pos, imgui.Set_Cond.Always);
     imgui.set_next_window_size(size, imgui.Set_Cond.Always);
-    return imgui.begin(label, nil, imgui.Window_Flags.NoTitleBar            |
+    return imgui.begin(label, nil, imgui.Window_Flags.NoTitleBar      |
                              imgui.Window_Flags.NoMove                |
                              imgui.Window_Flags.NoResize              |
                              imgui.Window_Flags.NoBringToFrontOnFocus);
@@ -418,12 +418,20 @@ columns_reset :: proc() {
 imgui_struct_window :: proc(value: ^$T) {
     imgui_struct_window_field :: proc(name: string, data: rawptr, ti: ^Type_Info) {
         simple_field :: proc(name: string, data: rawptr, $T: typeid) {
+            value: string;
+
             if T == string {
-                imgui.text(tprint(name, " = ", tprint("\"", (cast(^T)data)^), "\""));
+                value = tprint("\"", (cast(^T)data)^, "\"");
+            }
+            else if T == f32 || T == f64 {
+                value = tprintf("%.8f", (cast(^T)data)^,);
             }
             else {
-                imgui.text(tprint(name, " = ", (cast(^T)data)^));
+                value = tprint((cast(^T)data)^);
             }
+
+            result := tprint(name, " = ", value);
+            imgui.text(result);
         }
 
         block_field_start :: proc(name: string, typename: string) -> bool {

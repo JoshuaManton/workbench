@@ -63,7 +63,6 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 		lossy_delta_time = time - last_time;
 		acc += lossy_delta_time;
 
-
 		for acc >= client_target_delta_time {
 			frame_count += 1;
 			acc -= client_target_delta_time;
@@ -71,14 +70,15 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			imgui_begin_new_frame();
 
 			_update_catalog();
-			_update_renderer(client_target_delta_time);
-			_update_glfw(client_target_delta_time);
-			_update_input(client_target_delta_time);
-			_update_tween(client_target_delta_time);
-			_update_ui(client_target_delta_time);
+			_update_renderer();
+			_update_glfw();
+			_update_input();
+			_update_tween();
+			_update_ui();
+			_update_wb_debugger();
 
 			if !client_update_proc(client_target_delta_time) do break game_loop;
-			_ui_debug_screen_update(client_target_delta_time);
+			_ui_debug_screen_update();
 
 			// call_coroutines();
 			if acc >= client_target_delta_time {
@@ -95,6 +95,26 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 		odingl.Finish(); // <- what?
 
 		log_gl_errors("after SwapBuffers()");
+	}
+}
+
+WB_Debug_Data :: struct {
+	lossy_delta_time: f32,
+	client_target_delta_time: f32,
+	client_target_framerate: f32,
+}
+
+debug_window_open: bool;
+last_saved_dt: f32;
+
+_update_wb_debugger :: proc() {
+	if get_key_down(Key.F1) {
+		debug_window_open = !debug_window_open;
+	}
+
+	if debug_window_open {
+		data := WB_Debug_Data{lossy_delta_time, client_target_delta_time, client_target_framerate};
+		imgui_struct_window(&data);
 	}
 }
 
