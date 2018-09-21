@@ -89,14 +89,54 @@ _update_ui :: proc() {
 	clear(&id_counts);
 	assert(len(ui_rect_stack) == 0 || len(ui_rect_stack) == 1);
 	clear(&ui_rect_stack);
-	clear(&all_imgui_rects);
+	clear(&new_imgui_rects);
 	ui_current_rect_pixels = Pixel_Rect{};
 	ui_current_rect_unit = Unit_Rect{};
 
 	ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0);
 	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
+}
 
-	logln(hot, warm);
+_late_update_ui :: proc() {
+	all_imgui_rects, new_imgui_rects = new_imgui_rects, all_imgui_rects;
+	clear(&new_imgui_rects);
+
+	prev_layer := swap_render_layers(9999); // @ProperDebugLineRenderLayer
+	defer swap_render_layers(prev_layer);
+
+	if ui_debugging {
+		if imgui.begin("UI System") {
+			defer imgui.end();
+
+			if len(all_imgui_rects) > 0 {
+				imgui_struct(&all_imgui_rects[ui_debug_cur_idx], "ui_element");
+
+				for rect, i in all_imgui_rects {
+					if ui_debug_cur_idx == i {
+						imgui.bullet();
+					}
+					if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
+						ui_debug_cur_idx = i;
+					}
+
+					text, ok := ui_debug_get_file_line(rect.location.file_path, rect.location.line);
+					if ok {
+						imgui.same_line();
+						imgui.text(trim_whitespace(text));
+					}
+
+					if ui_debug_cur_idx == i {
+						min := Vec2{cast(f32)rect.pixel_rect.x1, cast(f32)rect.pixel_rect.y1};
+						max := Vec2{cast(f32)rect.pixel_rect.x2, cast(f32)rect.pixel_rect.y2};
+						draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
+
+						ui_push_rect(0, 0.05, 1, 0.15);
+						defer ui_pop_rect();
+					}
+				}
+			}
+		}
+	}
 }
 
 Location_ID_Mapping :: struct {
@@ -164,6 +204,7 @@ IMGUI_Rect :: struct {
 
 ui_rect_stack:   [dynamic]IMGUI_Rect;
 all_imgui_rects: [dynamic]IMGUI_Rect;
+new_imgui_rects: [dynamic]IMGUI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
@@ -192,7 +233,7 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 
 	rect := IMGUI_Rect{rect_kind, ui_current_rect_pixels, ui_current_rect_unit, get_imgui_id_from_location(loc), loc};
 	append(&ui_rect_stack, rect);
-	append(&all_imgui_rects, rect);
+	append(&new_imgui_rects, rect);
 	return rect;
 }
 
@@ -590,43 +631,4 @@ ui_debug_get_file_line :: proc(file_path: string, line: int) -> (string, bool) {
 		}
 	}
 	return "", false;
-}
-
-_ui_debug_screen_update :: proc() {
-	prev_layer := swap_render_layers(9999); // @ProperDebugLineRenderLayer
-	defer swap_render_layers(prev_layer);
-
-	if ui_debugging {
-		if imgui.begin("UI System") {
-			defer imgui.end();
-
-			if len(all_imgui_rects) > 0 {
-				imgui_struct(&all_imgui_rects[ui_debug_cur_idx], "ui_element");
-
-				for rect, i in all_imgui_rects {
-					if ui_debug_cur_idx == i {
-						imgui.bullet();
-					}
-					if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
-						ui_debug_cur_idx = i;
-					}
-
-					text, ok := ui_debug_get_file_line(rect.location.file_path, rect.location.line);
-					if ok {
-						imgui.same_line();
-						imgui.text(trim_whitespace(text));
-					}
-
-					if ui_debug_cur_idx == i {
-						min := Vec2{cast(f32)rect.pixel_rect.x1, cast(f32)rect.pixel_rect.y1};
-						max := Vec2{cast(f32)rect.pixel_rect.x2, cast(f32)rect.pixel_rect.y2};
-						draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
-
-						ui_push_rect(0, 0.05, 1, 0.15);
-						defer ui_pop_rect();
-					}
-				}
-			}
-		}
-	}
 }

@@ -78,7 +78,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			_update_wb_debugger();
 
 			if !client_update_proc(client_target_delta_time) do break game_loop;
-			_ui_debug_screen_update();
+			_late_update_ui();
 
 			// call_coroutines();
 			if acc >= client_target_delta_time {
