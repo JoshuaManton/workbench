@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 20-09-2018 00:20:40 UTC-8
+ *  @Last Time: 20-09-2018 19:38:51 UTC-8
  *
  *  @Description:
  *
@@ -18,7 +18,7 @@ using import "core:fmt"
 
 import "core:mem";
 import "core:strconv"
-import "core:math";
+using import "core:math";
 import "core:os";
 import "core:sys/win32"
 

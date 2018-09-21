@@ -43,20 +43,38 @@ _update_ui :: proc() {
 	previously_warm = -1;
 	old_warm := warm;
 	warm = -1;
-	i := len(all_ui_controls)-1;
+	i := len(all_imgui_rects)-1;
 	for i >= 0 {
-		defer i -= 1;
-		rect := &all_ui_controls[i];
-		if warm == -1 {
-			if mouse_in_rect(rect.unit_rect) {
-				warm = rect.imgui_id;
+		can_be_hot_or_warm :: inline proc(kind: IMGUI_Rect_Kind) -> bool {
+			using IMGUI_Rect_Kind;
+			switch kind {
+				case Button:            return true;
+				case Scroll_View:       return true;
+				case Push_Rect:         return false;
+				case Draw_Colored_Quad: return false;
+				case Draw_Sprite:       return false;
+				case Fit_To_Aspect:     return false;
+				case Text:              return false;
+				case:                   panic(tprint("Unsupported kind: ", kind));
 			}
+			return false;
 		}
 
-		if warm == rect.imgui_id {
-			if get_mouse_down(Mouse.Left) {
-				hot = rect.imgui_id;
-				cursor_pixel_position_on_clicked = cursor_screen_position;
+		defer i -= 1;
+		rect := &all_imgui_rects[i];
+
+		if can_be_hot_or_warm(rect.kind) {
+			if warm == -1 {
+				if mouse_in_rect(rect.unit_rect) {
+					warm = rect.imgui_id;
+				}
+			}
+
+			if warm == rect.imgui_id {
+				if get_mouse_down(Mouse.Left) {
+					hot = rect.imgui_id;
+					cursor_pixel_position_on_clicked = cursor_screen_position;
+				}
 			}
 		}
 	}
@@ -71,12 +89,14 @@ _update_ui :: proc() {
 	clear(&id_counts);
 	assert(len(ui_rect_stack) == 0 || len(ui_rect_stack) == 1);
 	clear(&ui_rect_stack);
-	clear(&all_ui_controls);
+	clear(&all_imgui_rects);
 	ui_current_rect_pixels = Pixel_Rect{};
 	ui_current_rect_unit = Unit_Rect{};
 
 	ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0);
 	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
+
+	logln(hot, warm);
 }
 
 Location_ID_Mapping :: struct {
@@ -123,18 +143,31 @@ Rect :: struct(kind: typeid) {
 Pixel_Rect :: Rect(int);
 Unit_Rect  :: Rect(f32);
 
-UI_Rect :: struct {
-	imgui_id:  IMGUI_ID,
-	pixel_rect: Pixel_Rect,
-	unit_rect: Unit_Rect,
+IMGUI_Rect_Kind :: enum {
+	Push_Rect,
+	Draw_Colored_Quad,
+	Draw_Sprite,
+	Button,
+	Fit_To_Aspect,
+	Scroll_View,
+	Text,
 }
 
-ui_rect_stack:   [dynamic]UI_Rect;
-all_ui_controls: [dynamic]UI_Rect;
+IMGUI_Rect :: struct {
+	kind: IMGUI_Rect_Kind,
+
+	pixel_rect: Pixel_Rect,
+	unit_rect: Unit_Rect,
+	imgui_id:  IMGUI_ID,
+	location: Source_Code_Location,
+}
+
+ui_rect_stack:   [dynamic]IMGUI_Rect;
+all_imgui_rects: [dynamic]IMGUI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
-ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, ui_action := UI_Action_Type.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> UI_Rect {
+ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, rect_kind := IMGUI_Rect_Kind.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> IMGUI_Rect {
 	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
 		current_rect = Unit_Rect{0, 0, 1, 1};
@@ -157,14 +190,13 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 	cwh := current_window_height;
 	ui_current_rect_pixels = Pixel_Rect{cast(int)(ui_current_rect_unit.x1 * cast(f32)cww), cast(int)(ui_current_rect_unit.y1 * cast(f32)cwh), cast(int)(ui_current_rect_unit.x2 * cast(f32)cww), cast(int)(ui_current_rect_unit.y2 * cast(f32)cwh)};
 
-	when DEVELOPER do maybe_add_ui_debug_rect(ui_action, loc);
-
-	rect := UI_Rect{get_imgui_id_from_location(loc), ui_current_rect_pixels, ui_current_rect_unit};
+	rect := IMGUI_Rect{rect_kind, ui_current_rect_pixels, ui_current_rect_unit, get_imgui_id_from_location(loc), loc};
 	append(&ui_rect_stack, rect);
+	append(&all_imgui_rects, rect);
 	return rect;
 }
 
-ui_pop_rect :: inline proc(loc := #caller_location) -> UI_Rect {
+ui_pop_rect :: inline proc(loc := #caller_location) -> IMGUI_Rect {
 	popped_rect := pop(&ui_rect_stack);
 	rect := ui_rect_stack[len(ui_rect_stack)-1];
 	ui_current_rect_pixels = rect.pixel_rect;
@@ -184,7 +216,7 @@ ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Draw_Colored_Quad, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Colored_Quad, loc);
 	ui_draw_colored_quad(color);
 	ui_pop_rect(loc);
 }
@@ -197,7 +229,7 @@ ui_draw_sprite_current :: proc(sprite: Sprite, loc := #caller_location) {
 	push_quad(pixel_to_viewport, shader_texture, to_vec3(min), to_vec3(max), sprite);
 }
 ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Draw_Sprite, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Sprite, loc);
 	ui_draw_sprite_current(sprite, loc);
 	ui_pop_rect(loc);
 }
@@ -226,7 +258,7 @@ ui_text :: proc[ui_text_data, ui_text_args];
 ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
 	assert(font != nil, tprint(loc));
 
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	defer ui_pop_rect(loc);
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
@@ -254,7 +286,7 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	assert(font != nil);
 
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Text, loc);
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	defer ui_pop_rect(loc);
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
@@ -309,9 +341,8 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	}
 
 
-	rect := ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, UI_Action_Type.Button, loc);
+	rect := ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Button, loc);
 	defer ui_pop_rect(loc);
-	append(&all_ui_controls, rect);
 
 	// Draw button stuff
 	ui_draw_colored_quad(color);
@@ -337,19 +368,6 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	if (hot == rect.imgui_id && get_mouse_down(Mouse.Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
 		if button.on_pressed != nil do button.on_pressed(button);
 	}
-
-	//                                                  vvvvvv need this in the check above ^^^^^^
-	// if (warm == id && get_mouse_down(Mouse.Left)) || (warm != id && hot == id) { // on pressed || was pressed and cursor re-entered rect
-	// 	warm = id;
-	// 	hot = id;
-	// }
-
-	// if hot == id {
-	// 	if in_scroll_view && magnitude(cursor_screen_position - cursor_pixel_position_on_clicked) > 30 {
-	// 		hot = -1;
-	// 		if button.on_released != nil do button.on_released(button);
-	// 	}
-	// }
 
 	return result;
 }
@@ -388,7 +406,7 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_fo
 	h_width  := cast(int)round(current_window_height * width  / 2);
 	h_height := cast(int)round(current_window_height * height / 2);
 
-	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, UI_Action_Type.Fit_To_Aspect, loc);
+	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, IMGUI_Rect_Kind.Fit_To_Aspect, loc);
 }
 
 ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
@@ -416,8 +434,7 @@ ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, 
 	append(&scroll_views, true);
 	in_scroll_view = true;
 
-	rect := ui_push_rect(x1, y1, x2, y2, top - cast(int)sv.cur_scroll_lerped, right, bottom + cast(int)sv.cur_scroll_lerped, left, UI_Action_Type.Scroll_View, loc);
-	append(&all_ui_controls, rect);
+	rect := ui_push_rect(x1, y1, x2, y2, top - cast(int)sv.cur_scroll_lerped, right, bottom + cast(int)sv.cur_scroll_lerped, left, IMGUI_Rect_Kind.Scroll_View, loc);
 	id := rect.imgui_id;
 
 	if hot == id {
@@ -534,36 +551,9 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 // UI debug information
 //
 
-UI_Action_Type :: enum {
-	Push_Rect,
-	Draw_Colored_Quad,
-	Draw_Sprite,
-	Button,
-	Fit_To_Aspect,
-	Scroll_View,
-	Text,
-}
-
-UI_Action :: struct {
-	kind: UI_Action_Type,
-
-	using rect: Rect(int),
-	location: Source_Code_Location,
-}
 
 ui_debug_cur_idx: int;
-ui_debug_actions: [dynamic]UI_Action;
-
 ui_debugging: bool;
-ui_debug_drawing_rects: bool;
-
-when DEVELOPER {
-	maybe_add_ui_debug_rect :: proc(kind: UI_Action_Type, location: Source_Code_Location) {
-		if ui_debugging {
-			append(&ui_debug_actions, UI_Action{kind, ui_current_rect_pixels, location});
-		}
-	}
-}
 
 UI_Debug_File_Line :: struct {
 	file_path: string,
@@ -610,10 +600,10 @@ _ui_debug_screen_update :: proc() {
 		if imgui.begin("UI System") {
 			defer imgui.end();
 
-			if len(ui_debug_actions) > 0 {
-				imgui_struct(&ui_debug_actions[ui_debug_cur_idx], "ui_element");
+			if len(all_imgui_rects) > 0 {
+				imgui_struct(&all_imgui_rects[ui_debug_cur_idx], "ui_element");
 
-				for rect, i in ui_debug_actions {
+				for rect, i in all_imgui_rects {
 					if ui_debug_cur_idx == i {
 						imgui.bullet();
 					}
@@ -628,8 +618,8 @@ _ui_debug_screen_update :: proc() {
 					}
 
 					if ui_debug_cur_idx == i {
-						min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
-						max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+						min := Vec2{cast(f32)rect.pixel_rect.x1, cast(f32)rect.pixel_rect.y1};
+						max := Vec2{cast(f32)rect.pixel_rect.x2, cast(f32)rect.pixel_rect.y2};
 						draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
 
 						ui_push_rect(0, 0.05, 1, 0.15);
@@ -639,6 +629,4 @@ _ui_debug_screen_update :: proc() {
 			}
 		}
 	}
-
-	clear(&ui_debug_actions);
 }
