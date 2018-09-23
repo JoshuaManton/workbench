@@ -48,14 +48,9 @@ _update_ui :: proc() {
 		can_be_hot_or_warm :: inline proc(kind: IMGUI_Rect_Kind) -> bool {
 			using IMGUI_Rect_Kind;
 			switch kind {
-				case Button:            return true;
-				case Scroll_View:       return true;
-				case Push_Rect:         return false;
-				case Draw_Colored_Quad: return false;
-				case Draw_Sprite:       return false;
-				case Fit_To_Aspect:     return false;
-				case Text:              return false;
-				case:                   panic(tprint("Unsupported kind: ", kind));
+				case  Button, Scroll_View: return true;
+				case  Push_Rect, Text, Draw_Colored_Quad, Draw_Sprite, Fit_To_Aspect: return false;
+				case: panic(tprint("Unsupported kind: ", kind));
 			}
 			return false;
 		}
@@ -101,10 +96,7 @@ _late_update_ui :: proc() {
 	all_imgui_rects, new_imgui_rects = new_imgui_rects, all_imgui_rects;
 	clear(&new_imgui_rects);
 
-	prev_layer := swap_render_layers(9999); // @ProperDebugLineRenderLayer
-	defer swap_render_layers(prev_layer);
-
-	if ui_debugging {
+	if debugging_ui {
 		if imgui.begin("UI System") {
 			defer imgui.end();
 
@@ -343,10 +335,10 @@ Button_Data :: struct {
 	x1, y1, x2, y2: f32,
 	top, right, bottom, left: int,
 
-	on_hover: proc(button: ^Button_Data),
-	on_pressed: proc(button: ^Button_Data),
+	on_hover:    proc(button: ^Button_Data),
+	on_pressed:  proc(button: ^Button_Data),
 	on_released: proc(button: ^Button_Data),
-	on_clicked: proc(button: ^Button_Data),
+	on_clicked:  proc(button: ^Button_Data),
 
 	color: Colorf,
 	clicked: u64,
@@ -358,10 +350,10 @@ default_button_hover :: proc(button: ^Button_Data) {
 }
 default_button_pressed :: proc(button: ^Button_Data) {
 	TARGET_SIZE :: 0.8;
-	tween(&button.x1, 1-TARGET_SIZE, 0.25, ease_out_quart);
-	tween(&button.y1, 1-TARGET_SIZE, 0.25, ease_out_quart);
-	tween(&button.x2, TARGET_SIZE, 0.25, ease_out_quart);
-	tween(&button.y2, TARGET_SIZE, 0.25, ease_out_quart);
+	tween(&button.x1, 1-TARGET_SIZE, 0.1, ease_out_quart);
+	tween(&button.y1, 1-TARGET_SIZE, 0.1, ease_out_quart);
+	tween(&button.x2, TARGET_SIZE, 0.1, ease_out_quart);
+	tween(&button.y2, TARGET_SIZE, 0.1, ease_out_quart);
 }
 default_button_released :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0, 0.25, ease_out_back);
@@ -380,7 +372,6 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		}
 		return true;
 	}
-
 
 	rect := ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Button, loc);
 	defer ui_pop_rect(loc);
@@ -594,7 +585,7 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 
 
 ui_debug_cur_idx: int;
-ui_debugging: bool;
+debugging_ui: bool;
 
 UI_Debug_File_Line :: struct {
 	file_path: string,

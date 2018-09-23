@@ -23,7 +23,7 @@ Texture_Atlas :: struct {
 
 create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gen_texture();
-	set_texture(texture);
+	bind_texture2d(texture);
 	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, ATLAS_DIM, ATLAS_DIM, 0, odingl.RGBA, odingl.UNSIGNED_BYTE, nil);
 
 	data := new_clone(Texture_Atlas{texture, 0, 0, 0});
@@ -47,7 +47,7 @@ load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool)
 
 	defer stb.image_free(pixel_data);
 
-	set_texture(texture.id);
+	bind_texture2d(texture.id);
 
 	if texture.atlas_x + sprite_width > ATLAS_DIM {
 		texture.atlas_y += texture.biggest_height;
@@ -120,7 +120,7 @@ load_font :: proc(path: string, size: f32) -> (^Font, bool) {
 	}
 
 	texture := gen_texture();
-	set_texture(texture);
+	bind_texture2d(texture);
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.LINEAR);
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.LINEAR);
 	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, cast(i32)dim, cast(i32)dim, 0, odingl.RED, odingl.UNSIGNED_BYTE, &pixels[0]);

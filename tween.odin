@@ -106,18 +106,10 @@ _update_tween :: proc() {
 		if time < tweener.start_time do continue;
 
 		switch kind in tweener.ptr {
-			case ^f32: {
-				kind^ = _update_one_tweener(f32, tweener, client_target_delta_time);
-			}
-			case ^Vec2: {
-				kind^ = _update_one_tweener(Vec2, tweener, client_target_delta_time);
-			}
-			case ^Vec3: {
-				kind^ = _update_one_tweener(Vec3, tweener, client_target_delta_time);
-			}
-			case ^Vec4: {
-				kind^ = _update_one_tweener(Vec4, tweener, client_target_delta_time);
-			}
+			case ^f32:  kind^ = _update_one_tweener(f32,  tweener, client_target_delta_time);
+			case ^Vec2: kind^ = _update_one_tweener(Vec2, tweener, client_target_delta_time);
+			case ^Vec3: kind^ = _update_one_tweener(Vec3, tweener, client_target_delta_time);
+			case ^Vec4: kind^ = _update_one_tweener(Vec4, tweener, client_target_delta_time);
 		}
 
 		if !tweener.loop && tweener.cur_time >= tweener.duration {
@@ -127,18 +119,10 @@ _update_tween :: proc() {
 			if tweener.queued_tween != nil {
 				tweener.queued_tween.active = true;
 				switch kind in tweener.queued_tween.ptr {
-					case ^f32: {
-						tweener.queued_tween.start = kind^;
-					}
-					case ^Vec2: {
-						tweener.queued_tween.start = kind^;
-					}
-					case ^Vec3: {
-						tweener.queued_tween.start = kind^;
-					}
-					case ^Vec4: {
-						tweener.queued_tween.start = kind^;
-					}
+					case ^f32:  tweener.queued_tween.start = kind^;
+					case ^Vec2: tweener.queued_tween.start = kind^;
+					case ^Vec3: tweener.queued_tween.start = kind^;
+					case ^Vec4: tweener.queued_tween.start = kind^;
 				}
 			}
 			tween_destroy_index(tweener_idx);

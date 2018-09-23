@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 20-09-2018 19:38:51 UTC-8
+ *  @Last Time: 22-09-2018 00:37:11 UTC-8
  *
  *  @Description:
  *
@@ -537,12 +537,12 @@ imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
                 case Type_Info_Enum: {
                     for value, val_idx in kind2.values {
                         switch kind3 in value {
-                            case i8:  if (cast(^i8)data)^ == kind3  do simple_field(name, &kind2.names[val_idx], string);
+                            case i8:  if (cast(^i8) data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case i16: if (cast(^i16)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case i32: if (cast(^i32)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case i64: if (cast(^i64)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case int: if (cast(^int)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case u8:  if (cast(^u8)data)^ == kind3  do simple_field(name, &kind2.names[val_idx], string);
+                            case u8:  if (cast(^u8) data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case u16: if (cast(^u16)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case u32: if (cast(^u32)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
                             case u64: if (cast(^u64)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);

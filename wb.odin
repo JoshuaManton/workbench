@@ -102,6 +102,7 @@ WB_Debug_Data :: struct {
 	lossy_delta_time: f32,
 	client_target_delta_time: f32,
 	client_target_framerate: f32,
+	draw_calls: i32,
 }
 
 debug_window_open: bool;
@@ -113,12 +114,13 @@ _update_wb_debugger :: proc() {
 	}
 
 	if debug_window_open {
-		data := WB_Debug_Data{lossy_delta_time, client_target_delta_time, client_target_framerate};
+		data := WB_Debug_Data{lossy_delta_time, client_target_delta_time, client_target_framerate, num_draw_calls};
 		if imgui.begin("Debug") {
 			defer imgui.end();
 
 			imgui_struct(&data, "wb_debug_data");
-			imgui.checkbox("Debug UI", &ui_debugging);
+			imgui.checkbox("Debug Rendering", &debugging_rendering);
+			imgui.checkbox("Debug UI", &debugging_ui);
 		}
 	}
 }

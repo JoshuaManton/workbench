@@ -102,27 +102,6 @@ viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
 }
 
 //
-// Bound GPU things
-//
-
-current_shader:      Shader_Program;
-current_texture:     Texture;
-
-set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
-	_draw_flush();
-
-	current_shader = program;
-	use_program(program);
-}
-
-set_texture :: inline proc(texture: Texture, location := #caller_location) {
-	_draw_flush();
-
-	current_texture = texture;
-	bind_texture2d(texture);
-}
-
-//
 // Primitives
 //
 
@@ -437,11 +416,8 @@ _update_renderer :: proc() {
 	clear(&buffered_vertices);
 }
 
+drawing_buffered_verts: bool;
 _wb_render :: proc() {
-	if get_key_down(Key.F4) {
-		debugging_rendering = !debugging_rendering;
-	}
-
 	bind_vao(vao);
 	bind_buffer(vbo);
 
@@ -459,13 +435,33 @@ _wb_render :: proc() {
 
 	client_render_proc(client_target_delta_time);
 
+	num_draw_calls = 0;
+	drawing_buffered_verts = true;
 	draw_buffered_vertices(odingl.TRIANGLES, buffered_vertices);
-	_debug_on_after_render();
+	draw_debug_lines();
+	drawing_buffered_verts = false;
 }
 
 is_scissor: bool;
 
+current_shader:      Shader_Program;
+current_texture:     Texture;
+
 draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
+	set_shader :: inline proc(program: Shader_Program, location := #caller_location) {
+		_draw_flush();
+
+		current_shader = program;
+		use_program(program);
+	}
+
+	set_texture :: inline proc(texture: Texture, location := #caller_location) {
+		_draw_flush();
+
+		current_texture = texture;
+		bind_texture2d(texture);
+	}
+
 	sort.quick_sort_proc(verts[:], proc(a, b: Buffered_Vertex) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
@@ -501,7 +497,10 @@ draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 	_draw_flush(mode);
 }
 
+num_draw_calls: i32;
+
 _draw_flush :: proc(mode : u32 = odingl.TRIANGLES, loc := #caller_location) {
+	assert(drawing_buffered_verts, tprint("Called _draw_flush() from outside the draw_buffered_vertices loop: ", loc));
 	if len(queued_for_drawing) == 0 {
 		return;
 	}
@@ -514,6 +513,7 @@ _draw_flush :: proc(mode : u32 = odingl.TRIANGLES, loc := #caller_location) {
 	program := get_current_shader();
 	uniform(program, "atlas_texture", 0);
 
+	num_draw_calls += 1;
 	odingl.DrawArrays(mode, 0, cast(i32)len(queued_for_drawing));
 
 	clear(&queued_for_drawing);
@@ -550,10 +550,7 @@ draw_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Ve
 	draw_debug_line(rendermode, d, a, color);
 }
 
-_debug_on_after_render :: inline proc() {
-	_draw_flush();
-
-	// kinda weird, kinda neat
+draw_debug_lines :: inline proc() {
 	old_vertices := buffered_vertices;
 	buffered_vertices = debug_vertices;
 
