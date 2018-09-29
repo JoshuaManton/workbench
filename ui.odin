@@ -101,7 +101,18 @@ _late_update_ui :: proc() {
 			defer imgui.end();
 
 			if len(all_imgui_rects) > 0 {
-				imgui_struct(&all_imgui_rects[ui_debug_cur_idx], "ui_element");
+				UI_Debug_Info :: struct {
+					pushed_rects: i32,
+				}
+
+				debug := UI_Debug_Info{cast(i32)len(all_imgui_rects)};
+				imgui_struct(&debug, "ui_debug_info");
+				rect := all_imgui_rects[ui_debug_cur_idx];
+				assert(rect.code_line == "");
+				text, ok := ui_debug_get_file_line(rect.location.file_path, rect.location.line);
+				rect.code_line = trim_whitespace(text);
+
+				imgui_struct(&rect, "ui_element");
 
 				for rect, i in all_imgui_rects {
 					if ui_debug_cur_idx == i {
@@ -109,12 +120,6 @@ _late_update_ui :: proc() {
 					}
 					if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
 						ui_debug_cur_idx = i;
-					}
-
-					text, ok := ui_debug_get_file_line(rect.location.file_path, rect.location.line);
-					if ok {
-						imgui.same_line();
-						imgui.text(trim_whitespace(text));
 					}
 
 					if ui_debug_cur_idx == i {
@@ -186,12 +191,13 @@ IMGUI_Rect_Kind :: enum {
 }
 
 IMGUI_Rect :: struct {
+	imgui_id:  IMGUI_ID,
 	kind: IMGUI_Rect_Kind,
+	code_line: string, // note(josh): not set for items in the system, only set right before drawing the UI debug window
+	location: Source_Code_Location,
 
 	pixel_rect: Pixel_Rect,
 	unit_rect: Unit_Rect,
-	imgui_id:  IMGUI_ID,
-	location: Source_Code_Location,
 }
 
 ui_rect_stack:   [dynamic]IMGUI_Rect;
@@ -219,11 +225,14 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top / cast(f32)current_window_height));
 
 	ui_current_rect_unit = Unit_Rect{new_x1, new_y1, new_x2, new_y2};
+	if ui_current_rect_unit.x1 > 10000 {
+		// logln(ui_current_rect_uniloc);
+	}
 	cww := current_window_width;
 	cwh := current_window_height;
 	ui_current_rect_pixels = Pixel_Rect{cast(int)(ui_current_rect_unit.x1 * cast(f32)cww), cast(int)(ui_current_rect_unit.y1 * cast(f32)cwh), cast(int)(ui_current_rect_unit.x2 * cast(f32)cww), cast(int)(ui_current_rect_unit.y2 * cast(f32)cwh)};
 
-	rect := IMGUI_Rect{rect_kind, ui_current_rect_pixels, ui_current_rect_unit, get_imgui_id_from_location(loc), loc};
+	rect := IMGUI_Rect{get_imgui_id_from_location(loc), rect_kind, "", loc, ui_current_rect_pixels, ui_current_rect_unit};
 	append(&ui_rect_stack, rect);
 	append(&new_imgui_rects, rect);
 	return rect;
@@ -283,7 +292,7 @@ Text_Data :: struct {
 
 	center: bool,
 
-	x1, y1, x2, y2: f32,
+	// x1, y1, x2, y2: f32,
 	top, right, bottom, left: int,
 }
 
@@ -349,11 +358,11 @@ default_button_hover :: proc(button: ^Button_Data) {
 
 }
 default_button_pressed :: proc(button: ^Button_Data) {
-	TARGET_SIZE :: 0.8;
-	tween(&button.x1, 1-TARGET_SIZE, 0.1, ease_out_quart);
-	tween(&button.y1, 1-TARGET_SIZE, 0.1, ease_out_quart);
-	tween(&button.x2, TARGET_SIZE, 0.1, ease_out_quart);
-	tween(&button.y2, TARGET_SIZE, 0.1, ease_out_quart);
+	TARGET_SIZE : f32 : 0.8;
+	tween(&button.x1, (1-TARGET_SIZE)/2, 0.1, ease_out_quart);
+	tween(&button.y1, (1-TARGET_SIZE)/2, 0.1, ease_out_quart);
+	tween(&button.x2, 1-(1-TARGET_SIZE)/2, 0.1, ease_out_quart);
+	tween(&button.y2, 1-(1-TARGET_SIZE)/2, 0.1, ease_out_quart);
 }
 default_button_released :: proc(button: ^Button_Data) {
 	tween(&button.x1, 0, 0.25, ease_out_back);
@@ -394,7 +403,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	if previously_hot == rect.imgui_id && warm == rect.imgui_id {
 		result = true;
 		if button.on_released != nil do button.on_released(button);
-		if button.on_clicked != nil do button.on_clicked(button);
+		if button.on_clicked  != nil do button.on_clicked(button);
 	}
 
 	if (hot == rect.imgui_id && get_mouse_down(Mouse.Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
