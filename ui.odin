@@ -292,7 +292,7 @@ Text_Data :: struct {
 
 	center: bool,
 
-	// x1, y1, x2, y2: f32,
+	x1, y1, x2, y2: f32,
 	top, right, bottom, left: int,
 }
 
