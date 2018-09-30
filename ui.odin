@@ -48,8 +48,8 @@ _update_ui :: proc() {
 		can_be_hot_or_warm :: inline proc(kind: IMGUI_Rect_Kind) -> bool {
 			using IMGUI_Rect_Kind;
 			switch kind {
-				case  Button, Scroll_View: return true;
-				case  Push_Rect, Text, Draw_Colored_Quad, Draw_Sprite, Fit_To_Aspect: return false;
+				case Button, Scroll_View: return true;
+				case Push_Rect, Text, Draw_Colored_Quad, Draw_Sprite, Fit_To_Aspect: return false;
 				case: panic(tprint("Unsupported kind: ", kind));
 			}
 			return false;
@@ -196,8 +196,11 @@ IMGUI_Rect :: struct {
 	code_line: string, // note(josh): not set for items in the system, only set right before drawing the UI debug window
 	location: Source_Code_Location,
 
-	pixel_rect: Pixel_Rect,
 	unit_rect: Unit_Rect,
+	pixel_rect: Pixel_Rect,
+
+	unit_param_x1, unit_param_y1, unit_param_x2, unit_param_y2: f32,
+	pixel_param_top, pixel_param_right, pixel_param_bottom, pixel_param_left: int,
 }
 
 ui_rect_stack:   [dynamic]IMGUI_Rect;
@@ -225,14 +228,11 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top / cast(f32)current_window_height));
 
 	ui_current_rect_unit = Unit_Rect{new_x1, new_y1, new_x2, new_y2};
-	if ui_current_rect_unit.x1 > 10000 {
-		// logln(ui_current_rect_uniloc);
-	}
 	cww := current_window_width;
 	cwh := current_window_height;
 	ui_current_rect_pixels = Pixel_Rect{cast(int)(ui_current_rect_unit.x1 * cast(f32)cww), cast(int)(ui_current_rect_unit.y1 * cast(f32)cwh), cast(int)(ui_current_rect_unit.x2 * cast(f32)cww), cast(int)(ui_current_rect_unit.y2 * cast(f32)cwh)};
 
-	rect := IMGUI_Rect{get_imgui_id_from_location(loc), rect_kind, "", loc, ui_current_rect_pixels, ui_current_rect_unit};
+	rect := IMGUI_Rect{get_imgui_id_from_location(loc), rect_kind, "", loc, ui_current_rect_unit, ui_current_rect_pixels, x1, y1, x2, y2, top, right, bottom, left};
 	append(&ui_rect_stack, rect);
 	append(&new_imgui_rects, rect);
 	return rect;
@@ -290,7 +290,7 @@ Text_Data :: struct {
 		shadow_color: Colorf,
 	},
 
-	center: bool,
+	center: b64,
 
 	x1, y1, x2, y2: f32,
 	top, right, bottom, left: int,
