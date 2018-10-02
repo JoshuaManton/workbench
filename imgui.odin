@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 22-09-2018 00:37:11 UTC-8
+ *  @Last Time: 01-10-2018 23:25:20 UTC-8
  *
  *  @Description:
  *
@@ -275,8 +275,8 @@ imgui_begin_new_frame :: proc() {
     	posx, posy := glfw.GetCursorPos(main_window);
         io.mouse_pos.x = cast(f32)posx;
         io.mouse_pos.y = cast(f32)posy;
-        io.mouse_down[0] = get_mouse(Mouse.Left);
-        io.mouse_down[1] = get_mouse(Mouse.Right);
+        io.mouse_down[0] = glfw.GetMouseButton(main_window, Mouse.Left) == glfw.Action.Press;
+        io.mouse_down[1] = glfw.GetMouseButton(main_window, Mouse.Right) == glfw.Action.Press;
         io.mouse_wheel   = cursor_scroll;
 
         io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);

@@ -157,7 +157,3 @@ _update_glfw :: proc() {
 
 	// cursor_world_position  = screen_to_world(cursor_screen_position);
 }
-
-window_should_close :: inline proc(window: glfw.Window_Handle) -> bool {
-	return glfw.WindowShouldClose(window);
-}

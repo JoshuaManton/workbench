@@ -1,6 +1,7 @@
 package workbench
 
 import "shared:workbench/glfw"
+import imgui "shared:odin-imgui"
 
 Key    :: glfw.Key;
 Mouse  :: glfw.Mouse;
@@ -118,14 +119,30 @@ _update_input :: proc() {
 
 	// Flush new inputs into the buffers for this frame
 	{
-		for held in _held_mid_frame {
-			append(&_held, held);
-		}
-		for down in _down_mid_frame {
-			append(&_down, down);
-		}
-		for up in _up_mid_frame {
-			append(&_up, up);
+		// todo: @InputCleanup: Just request the data every frame, what we do now
+		// with the callbacks and stuff is gross
+		// if glfw.GetMouseButton(main_window, glfw.Mouse.Left) == glfw.Action.Press {
+		// 	append(&_held, Key_Press{Mouse.Left});
+		// }
+		// if glfw.GetMouseButton(main_window, glfw.Mouse.Right) == glfw.Action.Press {
+		// 	append(&_held, Key_Press{Mouse.Right});
+		// }
+		// if glfw.GetMouseButton(main_window, glfw.Mouse.Middle) == glfw.Action.Press {
+		// 	append(&_held, Key_Press{Mouse.Middle});
+		// }
+
+		io := imgui.get_io();
+
+		if !io.want_capture_mouse {
+			for held in _held_mid_frame {
+				append(&_held, held);
+			}
+			for down in _down_mid_frame {
+				append(&_down, down);
+			}
+			for up in _up_mid_frame {
+				append(&_up, up);
+			}
 		}
 	}
 

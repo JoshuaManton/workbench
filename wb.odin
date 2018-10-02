@@ -13,6 +13,7 @@ using import        "core:fmt"
 
       import stb    "shared:workbench/stb"
       import        "shared:workbench/glfw"
+using import        "shared:workbench/pool"
 
 DEVELOPER :: true;
 
@@ -20,14 +21,11 @@ DEVELOPER :: true;
 // Game loop stuff
 //
 
-Workbench_Init_Args :: struct {
-	target_delta_time: f32,
-}
-
 // Maybe '_' these?
-client_init_proc:   proc(Workbench_Init_Args);
-client_update_proc: proc(f32) -> bool;
+client_init_proc:   proc();
+client_update_proc: proc(f32);
 client_render_proc: proc(f32);
+client_end_proc: proc();
 
 client_target_framerate:  f32;
 client_target_delta_time: f32;
@@ -35,10 +33,11 @@ client_target_delta_time: f32;
 // _on_before_client_update := make_event(f32);
 // _on_after_client_update  := make_event(f32);
 f: f32;
-make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, _init: proc(Workbench_Init_Args), _update: proc(f32) -> bool, _render: proc(f32), _target_framerate: f32) {
-	client_init_proc = _init;
-	client_update_proc = _update;
-	client_render_proc = _render;
+make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, _target_framerate: f32, scene: Scene) {
+	client_init_proc = scene.init;
+	client_update_proc = scene.update;
+	client_render_proc = scene.render;
+	client_end_proc = scene.end;
 	client_target_framerate = _target_framerate;
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
@@ -49,13 +48,10 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 	acc: f32;
 	client_target_delta_time = cast(f32)1 / client_target_framerate;
 
-	if client_init_proc != nil {
-		args := Workbench_Init_Args{client_target_delta_time};
-		client_init_proc(args);
-	}
+	start_scene(scene);
 
 	game_loop:
-	for !window_should_close(main_window) {
+	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
 		frame_start := win32.time_get_time();
 
 		last_time := time;
@@ -77,7 +73,8 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			_update_ui();
 			_update_wb_debugger();
 
-			if !client_update_proc(client_target_delta_time) do break game_loop;
+			_update_scenes(); // calls client updates
+
 			_late_update_ui();
 
 			// call_coroutines();
@@ -86,6 +83,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			}
 		}
 
+		_render_scenes();
 		_wb_render();
 		imgui_render(true);
 
@@ -95,6 +93,86 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 		odingl.Finish(); // <- what?
 
 		log_gl_errors("after SwapBuffers()");
+	}
+}
+
+wb_should_close: bool;
+exit :: inline proc() {
+	wb_should_close = true;
+}
+
+Scene :: struct {
+	name: string,
+
+	init: proc(),
+	update: proc(f32),
+	render: proc(f32),
+	end: proc(),
+}
+
+_Scene_Internal :: struct {
+	using scene: Scene,
+
+	id: Scene_ID,
+}
+
+Scene_ID :: distinct int;
+cur_scene_serial: int;
+all_scenes: map[Scene_ID]_Scene_Internal;
+new_scenes: [dynamic]_Scene_Internal;
+end_scenes: [dynamic]Scene_ID;
+
+start_scene :: proc(scene: Scene) -> Scene_ID {
+	id := cast(Scene_ID)cur_scene_serial;
+	cur_scene_serial += 1;
+
+	scene_internal := _Scene_Internal{scene, id};
+	append(&new_scenes, scene_internal);
+	return id;
+}
+
+end_scene :: proc(id: Scene_ID) {
+	append(&end_scenes, id);
+}
+
+_update_scenes :: proc() {
+	// Flush new scenes
+	{
+		for scene in new_scenes {
+			if scene.init != nil {
+				scene.init();
+			}
+			all_scenes[scene.id] = scene;
+		}
+		clear(&new_scenes);
+	}
+
+	// Update scenes
+	{
+		for id, scene in all_scenes {
+			if scene.update != nil {
+				scene.update(client_target_delta_time);
+			}
+		}
+	}
+
+	// Removed ended scenes
+	{
+		for id in end_scenes {
+			delete_key(&all_scenes, id);
+		}
+		clear(&new_scenes);
+	}
+}
+
+_render_scenes :: proc() {
+	// Update scenes
+	{
+		for id, scene in all_scenes {
+			if scene.render != nil {
+				scene.render(client_target_delta_time);
+			}
+		}
 	}
 }
 
