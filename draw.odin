@@ -428,7 +428,10 @@ _wb_render :: proc() {
 	// odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
 	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
 
-	odingl.ClearColor(sin01(time), 0.5, 0.8, 1.0);
+	r := 1-sin01(time*0.9)*0.4;
+	g := 1-sin01(time*1.1)*0.4;
+	b := 1-sin01(time*1.3)*0.4;
+	odingl.ClearColor(r, g, b, 1.0);
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 	// odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
 	odingl.Clear(odingl.COLOR_BUFFER_BIT);

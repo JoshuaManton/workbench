@@ -4,7 +4,7 @@ import "core:os"
 
 Subscriber :: struct {
 	userdata: rawptr,
-	callback: Catalog_Callback,
+	callback: proc(rawptr, string),
 }
 
 Catalog_Item :: struct {
@@ -14,8 +14,6 @@ Catalog_Item :: struct {
 
 	subscribers: [dynamic]Subscriber,
 }
-
-Catalog_Callback :: proc(rawptr, string, bool);
 
 all_items: [dynamic]^Catalog_Item;
 
@@ -29,12 +27,12 @@ catalog_add :: proc(path: string) -> ^Catalog_Item {
 	return item;
 }
 
-catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: rawptr, callback: Catalog_Callback) {
-	append(&item.subscribers, Subscriber{userdata, callback});
-	callback(userdata, item.text, true);
+catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: ^$T, callback: proc(^T, string)) {
+	append(&item.subscribers, Subscriber{userdata, cast(proc(rawptr, string))callback});
+	callback(userdata, item.text);
 }
 
-catalog_unsubscribe :: inline proc(item: Catalog_Item, callback: Catalog_Callback) {
+catalog_unsubscribe :: inline proc(item: Catalog_Item, callback: proc(^$T, string)) {
 	for sub, i in item.subscribers {
 		if sub.callback == callback {
 			remove_at(&item.subscribers, i);
@@ -63,7 +61,7 @@ _update_catalog :: proc() {
 			for sub_idx >= 0 {
 				defer sub_idx -= 1;
 				sub := item.subscribers[sub_idx];
-				sub.callback(sub.userdata, item.text, false);
+				sub.callback(sub.userdata, item.text);
 			}
 
 			logln("new contents for ", item.path);

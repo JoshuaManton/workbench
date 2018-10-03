@@ -151,15 +151,20 @@ parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 // this is kind of a weird super-specific thing but we'll see
 // maybe we will end up having this kind of thing for fonts
 // and textures? :thinking:
-csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dynamic]$T) {
-	catalog_subscribe(item, list, proc(_userdata: rawptr, text: string, first: bool) {
-		list := cast(^[dynamic]T)_userdata;
+// todo(josh): csv_catalog_UNsubscribe ????
+csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dynamic]$T, callback: proc() = nil) {
+	List_And_Callback :: struct {
+		list: ^[dynamic]T,
+		callback: proc(),
+	}
+
+	catalog_subscribe(item, /* @Alloc */ new_clone(List_And_Callback{list, callback}), proc(using list_callback: ^List_And_Callback, text: string) {
 		records := parse_csv(Record, text);
-		if first {
+		if len(list) == 0 {
 			for record in records {
-				defn: T;
-				defn.wb__record = record;
-				append(list, defn);
+				t: T;
+				t.wb__record = record;
+				append(list, t);
 			}
 		}
 		else {
@@ -175,11 +180,15 @@ csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dyna
 					break;
 				}
 				if !found {
-					defn: T;
-					defn.wb__record = record;
-					append(list, defn);
+					t: T;
+					t.wb__record = record;
+					append(list, t);
 				}
 			}
+		}
+
+		if callback != nil {
+			callback();
 		}
 	});
 }
