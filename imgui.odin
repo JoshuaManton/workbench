@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 01-10-2018 23:25:20 UTC-8
+ *  @Last Time: 02-10-2018 23:29:47 UTC-8
  *
  *  @Description:
  *
@@ -37,6 +37,10 @@ imgui_attrib_color: Location;
 
 imgui_vbo_handle: VBO;
 imgui_ebo_handle: EBO;
+
+// note(josh): @Cleanup: These are probably duplicates of fonts we already use in the game
+imgui_font_default: ^imgui.Font;
+imgui_font_mono:    ^imgui.Font;
 
 _init_dear_imgui :: proc() {
     // imgui.create_context();
@@ -105,6 +109,9 @@ _init_dear_imgui :: proc() {
 
     bind_buffer(imgui_vbo_handle);
     bind_buffer(imgui_ebo_handle);
+
+    imgui_font_default = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "fonts/OpenSans-Regular.ttf", 20);
+    imgui_font_mono    = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "fonts/Inconsolata.ttf", 16);
 
 
 /*    //TODO(Hoej): Get from font catalog
@@ -426,20 +433,26 @@ columns_reset :: proc() {
 
 
 imgui_struct_window :: inline proc(value: ^$T) {
+    imgui.push_font(imgui_font_mono);
+    defer imgui.pop_font();
+
     imgui.begin(tprint(type_info_of(T)));
     defer imgui.end();
 
-    imgui_struct_internal("", value, type_info_of(T));
+    _imgui_struct_internal("", value, type_info_of(T));
 }
 
 imgui_struct :: inline proc(value: ^$T, name: string) {
-    if imgui_struct_block_field_start(name, tprint(type_info_of(T))) {
-        defer imgui_struct_block_field_end(name);
-        imgui_struct_internal("", value, type_info_of(T));
+    imgui.push_font(imgui_font_mono);
+    defer imgui.pop_font();
+
+    if _imgui_struct_block_field_start(name, tprint(type_info_of(T))) {
+        defer _imgui_struct_block_field_end(name);
+        _imgui_struct_internal("", value, type_info_of(T));
     }
 }
 
-imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
+_imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
     if name != "" {
         if imgui.collapsing_header(tprint(name, ": ", typename, " {")) {
             imgui.indent();
@@ -453,14 +466,14 @@ imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
     }
     return true;
 }
-imgui_struct_block_field_end :: proc(name: string) {
+_imgui_struct_block_field_end :: proc(name: string) {
     if name != "" {
         imgui.unindent();
         imgui.text("}");
     }
 }
 
-imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
+_imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
     simple_field :: proc(name: string, data: rawptr, $T: typeid) {
         value: string;
 
@@ -524,13 +537,13 @@ imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
         case Type_Info_Named: {
             switch kind2 in ti.variant.(Type_Info_Named).base.variant {
                 case Type_Info_Struct: {
-                    if imgui_struct_block_field_start(name, kind.name) {
-                        defer imgui_struct_block_field_end(name);
+                    if _imgui_struct_block_field_start(name, kind.name) {
+                        defer _imgui_struct_block_field_end(name);
                         for name, i in kind2.names {
                             t := kind2.types[i];
                             offset := kind2.offsets[i];
                             data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
-                            imgui_struct_internal(name, data, t);
+                            _imgui_struct_internal(name, data, t);
                         }
                     }
                 }
@@ -554,31 +567,31 @@ imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
             }
         }
         case Type_Info_Slice: {
-            if imgui_struct_block_field_start(name, tprint("[]", kind.elem)) {
-                defer imgui_struct_block_field_end(name);
+            if _imgui_struct_block_field_start(name, tprint("[]", kind.elem)) {
+                defer _imgui_struct_block_field_end(name);
 
                 slice := (cast(^mem.Raw_Slice)data)^;
                 for i in 0..slice.len-1 {
-                    imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
+                    _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
                 }
             }
         }
         case Type_Info_Array: {
-            if imgui_struct_block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
-                defer imgui_struct_block_field_end(name);
+            if _imgui_struct_block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
+                defer _imgui_struct_block_field_end(name);
 
                 for i in 0..kind.count-1 {
-                    imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
+                    _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
                 }
             }
         }
         case Type_Info_Dynamic_Array: {
-            if imgui_struct_block_field_start(name, tprint("[dynamic]", kind.elem)) {
-                defer imgui_struct_block_field_end(name);
+            if _imgui_struct_block_field_start(name, tprint("[dynamic]", kind.elem)) {
+                defer _imgui_struct_block_field_end(name);
 
                 array := (cast(^mem.Raw_Dynamic_Array)data)^;
                 for i in 0..array.len-1 {
-                    imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
+                    _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
                 }
             }
         }

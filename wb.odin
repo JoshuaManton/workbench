@@ -64,6 +64,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			acc -= client_target_delta_time;
 
 			imgui_begin_new_frame();
+    		imgui.push_font(imgui_font_default);
 
 			_update_catalog();
 			_update_renderer();
@@ -78,6 +79,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			_late_update_ui();
 
 			// call_coroutines();
+    		imgui.pop_font();
 			if acc >= client_target_delta_time {
 				imgui_render(false);
 			}
