@@ -168,6 +168,7 @@ csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dyna
 			}
 		}
 		else {
+			logln(111);
 			for record in records {
 				found := false;
 				for _, i in list {
