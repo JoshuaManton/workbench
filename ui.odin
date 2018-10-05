@@ -125,7 +125,7 @@ _late_update_ui :: proc() {
 					if ui_debug_cur_idx == i {
 						min := Vec2{cast(f32)rect.pixel_rect.x1, cast(f32)rect.pixel_rect.y1};
 						max := Vec2{cast(f32)rect.pixel_rect.x2, cast(f32)rect.pixel_rect.y2};
-						draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
+						push_debug_box(rendermode_pixel, to_vec3(min), to_vec3(max), COLOR_GREEN);
 
 						ui_push_rect(0, 0.05, 1, 0.15);
 						defer ui_pop_rect();
@@ -255,7 +255,7 @@ ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	push_quad(pixel_to_viewport, shader_rgba, to_vec3(min), to_vec3(max), color);
+	push_quad(rendermode_pixel, shader_rgba, to_vec3(min), to_vec3(max), color);
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Colored_Quad, loc);
@@ -268,7 +268,7 @@ ui_draw_sprite_current :: proc(sprite: Sprite, loc := #caller_location) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	push_quad(pixel_to_viewport, shader_texture, to_vec3(min), to_vec3(max), sprite);
+	push_quad(rendermode_pixel, shader_texture, to_vec3(min), to_vec3(max), sprite);
 }
 ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Sprite, loc);
@@ -320,10 +320,10 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	}
 
 	if shadow != 0 {
-		draw_string(unit_to_viewport, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+		draw_string(rendermode_unit, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 	}
 
-	draw_string(unit_to_viewport, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	draw_string(rendermode_unit, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
 ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	assert(font != nil);
@@ -333,7 +333,7 @@ ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := c
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
-	draw_string(unit_to_viewport, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	draw_string(rendermode_unit, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
 
 //
