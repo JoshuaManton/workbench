@@ -123,7 +123,7 @@ viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
 }
 
 //
-// Primitives
+// Immediate-mode rendering
 //
 
 camera_size: f32 = 1;
@@ -437,8 +437,8 @@ Sprite :: struct {
 	id:     Texture,
 }
 
-buffered_vertices_:   [dynamic]Buffered_Vertex;
-queued_for_drawing:  [dynamic]Vertex_Type;
+buffered_vertices_: [dynamic]Buffered_Vertex;
+queued_for_drawing: [dynamic]Vertex_Type;
 
 debugging_rendering: bool;
 
