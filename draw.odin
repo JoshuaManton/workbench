@@ -48,8 +48,10 @@ world_to_viewport :: inline proc(position: Vec3) -> Vec3 {
 	if is_perspective {
 		mvp := mul(mul(projection_matrix, view_matrix), model_matrix);
 		result := mul(mvp, Vec4{position.x, position.y, position.z, 1});
-		assert(result.w != 0);
-		new_result := Vec3{result.x, result.y, result.z} / result.w;
+		new_result := Vec3{result.x, result.y, result.z};
+		if result.w != 0 {
+			new_result /= result.w;
+		}
 		return new_result;
 	}
 
@@ -134,15 +136,6 @@ push_quad_sprite_color :: inline proc(rendermode: Rendermode_Proc, shader: Shade
 	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
 	push_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
 	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
-
-	if debugging_rendering {
-		draw_debug_line(rendermode, p0, p1, COLOR_GREEN);
-		draw_debug_line(rendermode, p1, p2, COLOR_GREEN);
-		draw_debug_line(rendermode, p2, p0, COLOR_GREEN);
-		draw_debug_line(rendermode, p2, p3, COLOR_GREEN);
-		draw_debug_line(rendermode, p3, p0, COLOR_GREEN);
-		draw_debug_line(rendermode, p0, p2, COLOR_GREEN);
-	}
 }
 push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, scale: Vec3, sprite: Sprite, color: Colorf, _pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
 	pivot := to_vec3(_pivot);
@@ -159,15 +152,6 @@ push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, 
 	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
 	push_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
 	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
-
-	if debugging_rendering {
-		draw_debug_line(rendermode, p0, p1, COLOR_GREEN);
-		draw_debug_line(rendermode, p1, p2, COLOR_GREEN);
-		draw_debug_line(rendermode, p2, p0, COLOR_GREEN);
-		draw_debug_line(rendermode, p2, p3, COLOR_GREEN);
-		draw_debug_line(rendermode, p3, p0, COLOR_GREEN);
-		draw_debug_line(rendermode, p0, p2, COLOR_GREEN);
-	}
 }
 
 push_vertex :: proc[push_vertex_color, push_vertex_color_texture];
@@ -180,6 +164,10 @@ push_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Sh
 	serial := len(buffered_vertices);
 	vertex_info := Buffered_Vertex{render_order, serial, position, tex_coord, color, rendermode, shader, texture, do_scissor, scissor_rect1};
 	append(&buffered_vertices, vertex_info);
+
+	if debugging_rendering {
+		push_debug_vertex(rendermode, position, COLOR_GREEN);
+	}
 }
 
 draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
@@ -361,16 +349,20 @@ swap_render_layers :: inline proc(auto_cast layer: int) -> int {
 do_scissor:   bool;
 scissor_rect1: [4]int;
 
-scissor :: proc(x1, y1, ww, hh: int) {
+scissor :: inline proc(x1, y1, ww, hh: int) {
 	assert(do_scissor == false, "We don't support nested scissors right now.");
 	do_scissor = true;
 	scissor_rect1 = {x1, y1, ww, hh};
 }
 
-end_scissor :: proc() {
+full_screen_scissor_rect :: inline proc() -> [4]int {
+	return {0, 0, cast(int)(current_window_width+0.5), cast(int)(current_window_height+0.5)};
+}
+
+end_scissor :: inline proc() {
 	assert(do_scissor);
 	do_scissor = false;
-	scissor_rect1 = {0, 0, cast(int)(current_window_width+0.5), cast(int)(current_window_height+0.5)};
+	scissor_rect1 = full_screen_scissor_rect();
 }
 
 //
@@ -412,7 +404,6 @@ debugging_rendering: bool;
 
 _update_renderer :: proc() {
 	clear(&debug_vertices);
-	clear(&debug_lines);
 	clear(&buffered_vertices);
 }
 
@@ -427,14 +418,18 @@ _wb_render :: proc() {
 
 	set_vertex_format(Vertex_Type);
 
-	odingl.Enable(odingl.BLEND);
-	// odingl.Enable(odingl.CULL_FACE);
-	// odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
-	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
-
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
-	// odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
-	odingl.Clear(odingl.COLOR_BUFFER_BIT);
+
+	if is_perspective {
+		// odingl.Enable(odingl.CULL_FACE);
+		odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
+		odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
+	}
+	else {
+		odingl.Enable(odingl.BLEND);
+		odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
+		odingl.Clear(odingl.COLOR_BUFFER_BIT);
+	}
 
 	client_render_proc(client_target_delta_time);
 
@@ -533,34 +528,36 @@ Line_Segment :: struct {
 }
 
 debug_vertices: [dynamic]Buffered_Vertex;
-debug_lines:    [dynamic]Line_Segment;
 
-draw_debug_line :: inline proc(rendermode: Rendermode_Proc, a, b: Vec3, color: Colorf) {
-	append(&debug_lines, Line_Segment{a, b, color, rendermode});
+push_debug_vertex :: inline proc(rendermode: Rendermode_Proc, a: Vec3, color: Colorf) {
+	v := Buffered_Vertex{0, 0, a, {}, color, rendermode, shader_rgba, {}, false, full_screen_scissor_rect()};
+	append(&debug_vertices, v);
 }
 
-draw_debug_box :: proc[draw_debug_box_min_max, draw_debug_box_points];
-draw_debug_box_min_max :: inline proc(rendermode: Rendermode_Proc, min, max: Vec3, color: Colorf) {
-	draw_debug_line(rendermode, Vec3{min.x, min.y, min.z}, Vec3{min.x, max.y, max.z}, color);
-	draw_debug_line(rendermode, Vec3{min.x, max.y, max.z}, Vec3{max.x, max.y, max.z}, color);
-	draw_debug_line(rendermode, Vec3{max.x, max.y, max.z}, Vec3{max.x, min.y, min.z}, color);
-	draw_debug_line(rendermode, Vec3{max.x, min.y, min.z}, Vec3{min.x, min.y, min.z}, color);
+push_debug_line :: inline proc(rendermode: Rendermode_Proc, a, b: Vec3, color: Colorf) {
+	push_debug_vertex(rendermode, a, color);
+	push_debug_vertex(rendermode, b, color);
 }
-draw_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Vec3, color: Colorf) {
-	draw_debug_line(rendermode, a, b, color);
-	draw_debug_line(rendermode, b, c, color);
-	draw_debug_line(rendermode, c, d, color);
-	draw_debug_line(rendermode, d, a, color);
+
+push_debug_box :: proc[push_debug_box_min_max, push_debug_box_points];
+push_debug_box_min_max :: inline proc(rendermode: Rendermode_Proc, min, max: Vec3, color: Colorf) {
+	push_debug_line(rendermode, Vec3{min.x, min.y, min.z}, Vec3{min.x, max.y, max.z}, color);
+	push_debug_line(rendermode, Vec3{min.x, max.y, max.z}, Vec3{max.x, max.y, max.z}, color);
+	push_debug_line(rendermode, Vec3{max.x, max.y, max.z}, Vec3{max.x, min.y, min.z}, color);
+	push_debug_line(rendermode, Vec3{max.x, min.y, min.z}, Vec3{min.x, min.y, min.z}, color);
+}
+push_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Vec3, color: Colorf) {
+	push_debug_line(rendermode, a, b, color);
+	push_debug_line(rendermode, b, c, color);
+	push_debug_line(rendermode, c, d, color);
+	push_debug_line(rendermode, d, a, color);
 }
 
 draw_debug_lines :: inline proc() {
+	assert(len(debug_vertices) % 2 == 0);
+
 	old_vertices := buffered_vertices;
 	buffered_vertices = debug_vertices;
-
-	for line in debug_lines {
-		push_vertex(line.rendermode, shader_rgba, 0, line.a, Vec2{}, line.color);
-		push_vertex(line.rendermode, shader_rgba, 0, line.b, Vec2{}, line.color);
-	}
 
 	draw_buffered_vertices(odingl.LINES, buffered_vertices);
 

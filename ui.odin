@@ -125,7 +125,7 @@ _late_update_ui :: proc() {
 					if ui_debug_cur_idx == i {
 						min := Vec2{cast(f32)rect.pixel_rect.x1, cast(f32)rect.pixel_rect.y1};
 						max := Vec2{cast(f32)rect.pixel_rect.x2, cast(f32)rect.pixel_rect.y2};
-						draw_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
+						push_debug_box(pixel_to_viewport, to_vec3(min), to_vec3(max), COLOR_GREEN);
 
 						ui_push_rect(0, 0.05, 1, 0.15);
 						defer ui_pop_rect();
