@@ -24,17 +24,7 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 		});
 
 	vao = gen_vao();
-	bind_vao(vao);
-
 	vbo = cast(VBO)gen_buffer();
-	bind_buffer(vbo);
-
-	set_vertex_format(Vertex_Type);
-
-	odingl.Enable(odingl.BLEND);
-	// odingl.Enable(odingl.CULL_FACE);
-	// odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
-	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
 
 	ok: bool;
 	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
