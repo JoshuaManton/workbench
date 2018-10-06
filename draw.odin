@@ -201,9 +201,9 @@ push_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Pro
 
 push_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	assert(shader != 0);
-	serial := len(buffered_vertices_);
+	serial := len(buffered_vertices);
 	vertex_info := Buffered_Vertex{render_order, serial, position, tex_coord, color, rendermode, shader, texture, do_scissor, scissor_rect1};
-	append(&buffered_vertices_, vertex_info);
+	append(&buffered_vertices, vertex_info);
 
 	if debugging_rendering {
 		push_debug_vertex(rendermode, position, COLOR_GREEN);
@@ -435,9 +435,67 @@ create_mesh :: proc(verts: [dynamic]Vertex3D) -> MeshID {
 	return id;
 }
 
+get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
+	mesh, ok := all_meshes[id];
+	assert(ok);
+	return mesh;
+}
+
+model_matrix_position :: inline proc(position: Vec3) {
+	model_matrix = translate(identity(Mat4), position);
+}
+
 draw_mesh :: proc(id: MeshID, position: Vec3) {
 	mesh, ok := all_meshes[id];
 	assert(ok);
+	rendermode_world();
+	model_matrix_position(position);
+	draw_vertex_list(mesh.verts, odingl.TRIANGLES);
+}
+
+// Mesh primitives
+
+create_cube_mesh :: proc() -> MeshID {
+	verts := [dynamic]Vertex3D {
+		{{-1.0,-1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+		{{-1.0,-1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+		{{-1.0, 1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0,-1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0,-1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0,-1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0, 1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-1.0, 1.0, 1.0}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{1.0,-1.0, 1.0},  {}, Colorf{1, 1, 1, 1}, {}},
+	};
+
+	return create_mesh(verts);
 }
 
 //
@@ -472,26 +530,22 @@ Sprite :: struct {
 	id:     Texture,
 }
 
-buffered_vertices_: [dynamic]Buffered_Vertex;
+buffered_vertices:  [dynamic]Buffered_Vertex;
 queued_for_drawing: [dynamic]Vertex2D;
 
 debugging_rendering: bool;
 
 _update_renderer :: proc() {
 	clear(&debug_vertices);
-	clear(&buffered_vertices_);
+	clear(&buffered_vertices);
 }
 
 set_clear_color :: inline proc(color: Colorf) {
 	odingl.ClearColor(color.r, color.g, color.b, 1.0);
 }
 
-drawing_buffered_verts: bool;
 _wb_render :: proc() {
-	bind_vao(vao);
-	bind_buffer(vbo);
-
-	set_vertex_format(Vertex2D);
+	log_gl_errors(#procedure);
 
 	odingl.Enable(odingl.BLEND);
 	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
@@ -510,10 +564,8 @@ _wb_render :: proc() {
 	client_render_proc(client_target_delta_time);
 
 	num_draw_calls = 0;
-	drawing_buffered_verts = true;
-	draw_buffered_vertices(odingl.TRIANGLES, buffered_vertices_);
+	draw_buffered_vertices(odingl.TRIANGLES, buffered_vertices);
 	draw_debug_lines();
-	drawing_buffered_verts = false;
 }
 
 is_scissor: bool;
@@ -552,6 +604,7 @@ draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 		rendermode_mismatch := vertex_info.rendermode != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
 			draw_vertex_list(queued_for_drawing, mode);
+			clear(&queued_for_drawing);
 		}
 
 		if shader_mismatch  do set_shader(vertex_info.shader, mode);
@@ -574,20 +627,23 @@ draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 	}
 
 	draw_vertex_list(queued_for_drawing, mode);
+	clear(&queued_for_drawing);
 }
 
 num_draw_calls: i32;
 
 draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_location) {
-	assert(drawing_buffered_verts, tprint("Called draw_vertex_list() from outside the draw_buffered_vertices loop: ", loc));
-	if len(queued_for_drawing) == 0 {
+	if len(list) == 0 {
 		return;
 	}
 
+	bind_vao(vao);
 	bind_buffer(vbo);
 
+	set_vertex_format(Vertex_Type);
+
 	// TODO: investigate STATIC_DRAW vs others
-	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex2D) * len(queued_for_drawing), &queued_for_drawing[0], odingl.STATIC_DRAW);
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(list), &list[0], odingl.STATIC_DRAW);
 
 	program := get_current_shader();
 	uniform(program, "atlas_texture", 0);
@@ -595,9 +651,7 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 
 	num_draw_calls += 1;
 
-	odingl.DrawArrays(mode, 0, cast(i32)len(queued_for_drawing));
-
-	clear(&queued_for_drawing);
+	odingl.DrawArrays(mode, 0, cast(i32)len(list));
 }
 
 //

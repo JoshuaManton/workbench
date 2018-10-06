@@ -173,6 +173,7 @@ _render_scenes :: proc() {
 		for id, scene in all_scenes {
 			if scene.render != nil {
 				scene.render(client_target_delta_time);
+				log_gl_errors(tprint("scene_name: ", scene.name));
 			}
 		}
 	}
