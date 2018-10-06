@@ -138,25 +138,25 @@ COLOR_BLUE   := Colorf{0, 0, 1, 1};
 COLOR_BLACK  := Colorf{0, 0, 0, 1};
 COLOR_YELLOW := Colorf{1, 1, 0, 1};
 
-push_quad :: proc[push_quad_color, push_quad_sprite, push_quad_sprite_color];
+im_quad :: proc[im_quad_color, im_quad_sprite, im_quad_sprite_color];
 
-push_quad_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, color: Colorf, auto_cast render_order: int = current_render_layer) {
-	push_quad_sprite_color(rendermode, shader, min, max, Sprite{}, color, render_order);
+im_quad_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, color: Colorf, auto_cast render_order: int = current_render_layer) {
+	im_quad_sprite_color(rendermode, shader, min, max, Sprite{}, color, render_order);
 }
-push_quad_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, auto_cast render_order: int = current_render_layer) {
-	push_quad_sprite_color(rendermode, shader, min, max, sprite, COLOR_WHITE, render_order);
+im_quad_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, auto_cast render_order: int = current_render_layer) {
+	im_quad_sprite_color(rendermode, shader, min, max, sprite, COLOR_WHITE, render_order);
 }
-push_quad_sprite_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, color: Colorf, auto_cast render_order: int = current_render_layer) {
+im_quad_sprite_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, sprite: Sprite, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	p0, p1, p2, p3 := min, Vec3{min.x, max.y, max.z}, max, Vec3{max.x, min.y, min.z};
 
-	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p1, sprite.uvs[1], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p1, sprite.uvs[1], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
 }
-push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, scale: Vec3, sprite: Sprite, color: Colorf, _pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
+im_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, scale: Vec3, sprite: Sprite, color: Colorf, _pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
 	pivot := to_vec3(_pivot);
 	size := (Vec3{sprite.width, sprite.height, 0} * scale);
 	min := position;
@@ -165,15 +165,15 @@ push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, 
 	max -= size * pivot;
 	p0, p1, p2, p3 := min, Vec3{min.x, max.y, max.z}, max, Vec3{max.x, min.y, min.z};
 
-	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p1, sprite.uvs[1], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
-	push_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p1, sprite.uvs[1], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p2, sprite.uvs[2], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p3, sprite.uvs[3], color, render_order);
+	im_vertex(rendermode, shader, sprite.id, p0, sprite.uvs[0], color, render_order);
 }
 
-push_cube :: inline proc(position: Vec3, scale: f32) {
+im_cube :: inline proc(position: Vec3, scale: f32) {
 	vertex_positions := [?]Vec3 {
 		{-1.0,-1.0,-1.0}, {-1.0,-1.0, 1.0}, {-1.0, 1.0, 1.0},
 	    {1.0, 1.0,-1.0}, {-1.0,-1.0,-1.0}, {-1.0, 1.0,-1.0},
@@ -190,28 +190,29 @@ push_cube :: inline proc(position: Vec3, scale: f32) {
 	};
 	for p, i in vertex_positions {
 		t := cast(f32)i / len(vertex_positions);
-		push_vertex(rendermode_world, shader_rgba_3d, position + p * scale, Colorf{t, 0, 0, 1});
+		im_vertex(rendermode_world, shader_rgba_3d, position + p * scale, Colorf{t, 0, 0, 1});
 	}
 }
 
-push_vertex :: proc[push_vertex_color, push_vertex_color_texture];
-push_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, color: Colorf, auto_cast render_order: int = current_render_layer) {
-	push_vertex_color_texture(rendermode, shader, 0, position, Vec2{}, color, render_order);
+im_vertex :: proc[im_vertex_color, im_vertex_color_texture];
+im_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, color: Colorf, auto_cast render_order: int = current_render_layer) {
+	im_vertex_color_texture(rendermode, shader, 0, position, Vec2{}, color, render_order);
 }
 
-push_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
+debugging_rendering: bool;
+im_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	assert(shader != 0);
-	serial := len(buffered_vertices);
+	serial := len(im_buffered_verts);
 	vertex_info := Buffered_Vertex{render_order, serial, position, tex_coord, color, rendermode, shader, texture, do_scissor, scissor_rect1};
-	append(&buffered_vertices, vertex_info);
+	append(&im_buffered_verts, vertex_info);
 
 	if debugging_rendering {
 		push_debug_vertex(rendermode, position, COLOR_GREEN);
 	}
 }
 
-draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
-	// todo: make draw_string() be render_mode agnostic
+im_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
+	// todo: make im_text() be render_mode agnostic
 	// old := current_render_mode;
 	// rendering_unit_space();
 	// defer old();
@@ -268,7 +269,7 @@ draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, posit
 		}
 
 		if !is_space {
-			push_quad_sprite_color(rendermode, shader_text, to_vec3(min), to_vec3(max), sprite, color, layer);
+			im_quad_sprite_color(rendermode, shader_text, to_vec3(min), to_vec3(max), sprite, color, layer);
 		}
 
 		width := max.x - min.x;
@@ -280,7 +281,7 @@ draw_string :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, posit
 }
 
 get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
-	// todo: make draw_string() be render_mode agnostic
+	// todo: make im_text() be render_mode agnostic
 	// old := current_render_mode;
 	// rendering_unit_space();
 	// defer old();
@@ -530,14 +531,12 @@ Sprite :: struct {
 	id:     Texture,
 }
 
-buffered_vertices:  [dynamic]Buffered_Vertex;
-queued_for_drawing: [dynamic]Vertex2D;
-
-debugging_rendering: bool;
+im_buffered_verts:     [dynamic]Buffered_Vertex;
+im_queued_for_drawing: [dynamic]Vertex2D;
 
 _update_renderer :: proc() {
 	clear(&debug_vertices);
-	clear(&buffered_vertices);
+	clear(&im_buffered_verts);
 }
 
 set_clear_color :: inline proc(color: Colorf) {
@@ -561,10 +560,9 @@ _wb_render :: proc() {
 
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 
-	client_render_proc(client_target_delta_time);
-
 	num_draw_calls = 0;
-	draw_buffered_vertices(odingl.TRIANGLES, buffered_vertices);
+	client_render_proc(client_target_delta_time);
+	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
 	draw_debug_lines();
 }
 
@@ -574,7 +572,7 @@ current_shader:     Shader_Program;
 current_texture:    Texture;
 current_rendermode: proc();
 
-draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
+im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 	set_shader :: inline proc(program: Shader_Program, mode: u32, location := #caller_location) {
 		current_shader = program;
 		use_program(program);
@@ -593,6 +591,8 @@ draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 			});
 	}
 
+	model_matrix = identity(Mat4);
+
 	current_shader = 0;
 	current_texture = 0;
 	current_rendermode = nil;
@@ -603,8 +603,8 @@ draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 		scissor_mismatch := vertex_info.scissor != is_scissor;
 		rendermode_mismatch := vertex_info.rendermode != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
-			draw_vertex_list(queued_for_drawing, mode);
-			clear(&queued_for_drawing);
+			draw_vertex_list(im_queued_for_drawing, mode);
+			clear(&im_queued_for_drawing);
 		}
 
 		if shader_mismatch  do set_shader(vertex_info.shader, mode);
@@ -623,15 +623,14 @@ draw_buffered_vertices :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 		}
 
 		vertex := Vertex2D{vertex_info.position, vertex_info.tex_coord, vertex_info.color};
-		append(&queued_for_drawing, vertex);
+		append(&im_queued_for_drawing, vertex);
 	}
 
-	draw_vertex_list(queued_for_drawing, mode);
-	clear(&queued_for_drawing);
+	draw_vertex_list(im_queued_for_drawing, mode);
+	clear(&im_queued_for_drawing);
 }
 
 num_draw_calls: i32;
-
 draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
@@ -692,5 +691,5 @@ push_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Ve
 
 draw_debug_lines :: inline proc() {
 	assert(len(debug_vertices) % 2 == 0);
-	draw_buffered_vertices(odingl.LINES, debug_vertices);
+	im_draw_flush(odingl.LINES, debug_vertices);
 }
