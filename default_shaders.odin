@@ -130,6 +130,7 @@ SHADER_RGBA_3D_VERT ::
 layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
+layout(location = 3) in vec4 vbo_normal;
 
 uniform mat4 mvp_matrix;
 

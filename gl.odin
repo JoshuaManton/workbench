@@ -24,7 +24,7 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 		});
 
 	vao = gen_vao();
-	vbo = cast(VBO)gen_buffer();
+	vbo = gen_vbo();
 
 	ok: bool;
 	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
