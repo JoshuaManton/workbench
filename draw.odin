@@ -49,7 +49,9 @@ perspective_camera :: inline proc(fov: f32) {
 }
 
 
-rendermode_world :: inline proc() {
+// note(josh): these rendermode_* procs cannot be marked as inline because https://i.imgur.com/ROXPLQe.png
+rendermode_world :: proc() {
+	current_rendermode = rendermode_world;
 	if is_perspective {
 		mvp_matrix = mul(mul(perspective_projection_matrix, view_matrix), model_matrix);
 	}
@@ -57,18 +59,20 @@ rendermode_world :: inline proc() {
 		mvp_matrix = orthographic_projection_matrix;
 	}
 }
-rendermode_unit :: inline proc() {
+rendermode_unit :: proc() {
+	current_rendermode = rendermode_unit;
 	mvp_matrix = unit_to_viewport_matrix;
 }
-rendermode_pixel :: inline proc() {
+rendermode_pixel :: proc() {
+	current_rendermode = rendermode_pixel;
 	mvp_matrix = pixel_to_viewport_matrix;
 }
 
 
 world_to_viewport :: inline proc(position: Vec3) -> Vec3 {
 	if is_perspective {
-		mvp := mul(mul(perspective_projection_matrix, view_matrix), model_matrix);
-		result := mul(mvp, Vec4{position.x, position.y, position.z, 1});
+		mv := mul(perspective_projection_matrix, view_matrix);
+		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
 		if result.w > 0 do result /= result.w;
 		new_result := Vec3{result.x, result.y, result.z};
 		return new_result;
@@ -199,16 +203,11 @@ im_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Progr
 	im_vertex_color_texture(rendermode, shader, 0, position, Vec2{}, color, render_order);
 }
 
-debugging_rendering: bool;
 im_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, texture: Texture, position: Vec3, tex_coord: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	assert(shader != 0);
 	serial := len(im_buffered_verts);
 	vertex_info := Buffered_Vertex{render_order, serial, position, tex_coord, color, rendermode, shader, texture, do_scissor, scissor_rect1};
 	append(&im_buffered_verts, vertex_info);
-
-	if debugging_rendering {
-		push_debug_vertex(rendermode, position, COLOR_GREEN);
-	}
 }
 
 im_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
@@ -446,12 +445,12 @@ model_matrix_position :: inline proc(position: Vec3) {
 	model_matrix = translate(identity(Mat4), position);
 }
 
-draw_mesh :: proc(id: MeshID, position: Vec3) {
+draw_mesh :: proc(id: MeshID, position: Vec3, loc := #caller_location) {
 	mesh, ok := all_meshes[id];
 	assert(ok);
-	rendermode_world();
 	model_matrix_position(position);
-	draw_vertex_list(mesh.verts, odingl.TRIANGLES);
+	rendermode_world();
+	draw_vertex_list(mesh.verts, odingl.TRIANGLES, loc);
 }
 
 // Mesh primitives
@@ -543,7 +542,7 @@ set_clear_color :: inline proc(color: Colorf) {
 	odingl.ClearColor(color.r, color.g, color.b, 1.0);
 }
 
-_wb_render :: proc() {
+render_scene :: proc(scene: Scene) {
 	log_gl_errors(#procedure);
 
 	odingl.Enable(odingl.BLEND);
@@ -561,9 +560,12 @@ _wb_render :: proc() {
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 
 	num_draw_calls = 0;
-	client_render_proc(client_target_delta_time);
+	if scene.render != nil {
+		scene.render(client_target_delta_time);
+	}
 	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
 	draw_debug_lines();
+	log_gl_errors(tprint("scene_name: ", scene.name));
 }
 
 is_scissor: bool;
@@ -609,7 +611,7 @@ im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 
 		if shader_mismatch  do set_shader(vertex_info.shader, mode);
 		if texture_mismatch do set_texture(vertex_info.texture, mode);
-		if rendermode_mismatch { vertex_info.rendermode(); current_rendermode = vertex_info.rendermode; }
+		if rendermode_mismatch { vertex_info.rendermode(); }
 		if scissor_mismatch {
 			is_scissor = vertex_info.scissor;
 			if is_scissor {
@@ -630,16 +632,42 @@ im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 	clear(&im_queued_for_drawing);
 }
 
+debugging_rendering: bool;
+
+// note(josh): i32 because my dear-imgui stuff wasn't working with int
+debugging_rendering_max_draw_calls : i32 = -1;
 num_draw_calls: i32;
+when DEVELOPER {
+	debug_will_issue_next_draw_call :: proc() -> bool {
+		return debugging_rendering_max_draw_calls == -1 || num_draw_calls < debugging_rendering_max_draw_calls;
+	}
+}
+
 draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
+	}
+
+	when DEVELOPER {
+		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
+			num_draw_calls += 1;
+			return;
+		}
 	}
 
 	bind_vao(vao);
 	bind_buffer(vbo);
 
 	set_vertex_format(Vertex_Type);
+
+	when DEVELOPER {
+		if debugging_rendering {
+			for _, i in list {
+				vert := &list[i];
+				push_debug_vertex(current_rendermode, vert.position, COLOR_GREEN);
+			}
+		}
+	}
 
 	// TODO: investigate STATIC_DRAW vs others
 	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(list), &list[0], odingl.STATIC_DRAW);

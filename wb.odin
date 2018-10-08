@@ -21,12 +21,6 @@ DEVELOPER :: true;
 // Game loop stuff
 //
 
-// Maybe '_' these?
-client_init_proc:   proc();
-client_update_proc: proc(f32);
-client_render_proc: proc(f32);
-client_end_proc: proc();
-
 client_target_framerate:  f32;
 client_target_delta_time: f32;
 
@@ -34,10 +28,6 @@ client_target_delta_time: f32;
 // _on_after_client_update  := make_event(f32);
 f: f32;
 make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, _target_framerate: f32, scene: Scene) {
-	client_init_proc = scene.init;
-	client_update_proc = scene.update;
-	client_render_proc = scene.render;
-	client_end_proc = scene.end;
 	client_target_framerate = _target_framerate;
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
@@ -86,7 +76,6 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 		}
 
 		_render_scenes();
-		_wb_render();
 		imgui_render(true);
 
 		frame_end := win32.time_get_time();
@@ -171,10 +160,7 @@ _render_scenes :: proc() {
 	// Update scenes
 	{
 		for id, scene in all_scenes {
-			if scene.render != nil {
-				scene.render(client_target_delta_time);
-				log_gl_errors(tprint("scene_name: ", scene.name));
-			}
+			render_scene(scene);
 		}
 	}
 }
@@ -202,6 +188,7 @@ _update_wb_debugger :: proc() {
 			imgui_struct(&data, "wb_debug_data");
 			imgui.checkbox("Debug Rendering", &debugging_rendering);
 			imgui.checkbox("Debug UI", &debugging_ui);
+			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 		}
 	}
 }
