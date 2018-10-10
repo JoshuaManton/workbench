@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 02-10-2018 23:29:47 UTC-8
+ *  @Last Time: 09-10-2018 22:08:31 UTC-8
  *
  *  @Description:
  *
@@ -446,10 +446,7 @@ imgui_struct :: inline proc(value: ^$T, name: string) {
     imgui.push_font(imgui_font_mono);
     defer imgui.pop_font();
 
-    if _imgui_struct_block_field_start(name, tprint(type_info_of(T))) {
-        defer _imgui_struct_block_field_end(name);
-        _imgui_struct_internal("", value, type_info_of(T));
-    }
+    _imgui_struct_internal(name, value, type_info_of(T));
 }
 
 _imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
@@ -535,35 +532,33 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
             simple_field(name, data, ^byte);
         }
         case Type_Info_Named: {
-            switch kind2 in ti.variant.(Type_Info_Named).base.variant {
-                case Type_Info_Struct: {
-                    if _imgui_struct_block_field_start(name, kind.name) {
-                        defer _imgui_struct_block_field_end(name);
-                        for name, i in kind2.names {
-                            t := kind2.types[i];
-                            offset := kind2.offsets[i];
-                            data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
-                            _imgui_struct_internal(name, data, t);
-                        }
-                    }
+            _imgui_struct_internal(kind.name, data, kind.base);
+        }
+        case Type_Info_Struct: {
+            if _imgui_struct_block_field_start(name, tprint(kind)) {
+                defer _imgui_struct_block_field_end(name);
+                for name, i in kind.names {
+                    t := kind.types[i];
+                    offset := kind.offsets[i];
+                    data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
+                    _imgui_struct_internal(name, data, t);
                 }
-                case Type_Info_Enum: {
-                    for value, val_idx in kind2.values {
-                        switch kind3 in value {
-                            case i8:  if (cast(^i8) data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case i16: if (cast(^i16)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case i32: if (cast(^i32)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case i64: if (cast(^i64)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case int: if (cast(^int)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case u8:  if (cast(^u8) data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case u16: if (cast(^u16)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case u32: if (cast(^u32)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
-                            case u64: if (cast(^u64)data)^ == kind3 do simple_field(name, &kind2.names[val_idx], string);
+            }
+        }
+        case Type_Info_Enum: {
+            for value, val_idx in kind.values {
+                switch kind3 in value {
+                    case i8:  if (cast(^i8) data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case i16: if (cast(^i16)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case i32: if (cast(^i32)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case i64: if (cast(^i64)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case int: if (cast(^int)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case u8:  if (cast(^u8) data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case u16: if (cast(^u16)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case u32: if (cast(^u32)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    case u64: if (cast(^u64)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
 
-                        }
-                    }
                 }
-                case: assert(false, tprint(kind2));
             }
         }
         case Type_Info_Slice: {

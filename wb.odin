@@ -172,6 +172,7 @@ _render_scenes :: proc() {
 }
 
 WB_Debug_Data :: struct {
+	camera_position: Vec3,
 	precise_delta_time_ms: f64,
 	client_target_delta_time: f32,
 	client_target_framerate: f32,
@@ -188,6 +189,7 @@ _update_wb_debugger :: proc() {
 
 	if debug_window_open {
 		data := WB_Debug_Data{
+			camera_position,
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			client_target_delta_time,
 			client_target_framerate,
