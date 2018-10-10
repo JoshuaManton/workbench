@@ -29,8 +29,9 @@ cursor_unit_position:   Vec2;
 
 frame_count: u64;
 time: f32;
+precise_time: f64;
 lossy_delta_time: f32;
-fps_to_draw: f32;
+precise_lossy_delta_time: f64;
 
  // set in callbacks
 _new_ortho_matrix:  Mat3;

@@ -24,6 +24,8 @@ DEVELOPER :: true;
 client_target_framerate:  f32;
 client_target_delta_time: f32;
 
+whole_frame_time_ra: Rolling_Average(f64, 100);
+
 // _on_before_client_update := make_event(f32);
 // _on_after_client_update  := make_event(f32);
 f: f32;
@@ -42,7 +44,11 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
-		frame_start := win32.time_get_time();
+		frame_start := glfw.GetTime();
+		defer {
+			frame_end := glfw.GetTime();
+			rolling_average_push_sample(&whole_frame_time_ra, frame_end - frame_start);
+		}
 
 		last_time := time;
 		time = cast(f32)glfw.GetTime();
@@ -166,7 +172,7 @@ _render_scenes :: proc() {
 }
 
 WB_Debug_Data :: struct {
-	lossy_delta_time: f32,
+	precise_delta_time_ms: f64,
 	client_target_delta_time: f32,
 	client_target_framerate: f32,
 	draw_calls: i32,
@@ -181,7 +187,13 @@ _update_wb_debugger :: proc() {
 	}
 
 	if debug_window_open {
-		data := WB_Debug_Data{lossy_delta_time, client_target_delta_time, client_target_framerate, num_draw_calls};
+		data := WB_Debug_Data{
+			rolling_average_get_value(&whole_frame_time_ra) * 1000,
+			client_target_delta_time,
+			client_target_framerate,
+			num_draw_calls,
+
+		};
 		if imgui.begin("Debug") {
 			defer imgui.end();
 
