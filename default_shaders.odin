@@ -126,7 +126,6 @@ SHADER_RGBA_3D_VERT ::
 `
 #version 330 core
 
-// from vbo
 layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;

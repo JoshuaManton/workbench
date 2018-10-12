@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 09-10-2018 22:08:31 UTC-8
+ *  @Last Time: 11-10-2018 21:51:02 UTC-8
  *
  *  @Description:
  *
@@ -535,13 +535,13 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
             _imgui_struct_internal(kind.name, data, kind.base);
         }
         case Type_Info_Struct: {
-            if _imgui_struct_block_field_start(name, tprint(kind)) {
+            if _imgui_struct_block_field_start(name, name) {
                 defer _imgui_struct_block_field_end(name);
-                for name, i in kind.names {
+                for field_name, i in kind.names {
                     t := kind.types[i];
                     offset := kind.offsets[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
-                    _imgui_struct_internal(name, data, t);
+                    _imgui_struct_internal(field_name, data, t);
                 }
             }
         }
@@ -557,7 +557,6 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
                     case u16: if (cast(^u16)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
                     case u32: if (cast(^u32)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
                     case u64: if (cast(^u64)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
-
                 }
             }
         }
