@@ -68,7 +68,7 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 			_update_input();
 			_update_tween();
 			_update_ui();
-			_update_wb_debugger();
+			_update_debug_window();
 
 			_update_scenes(); // calls client updates
 
@@ -153,7 +153,7 @@ _update_scenes :: proc() {
 		}
 	}
 
-	// Removed ended scenes
+	// Remove ended scenes
 	{
 		for id in end_scenes {
 			delete_key(&all_scenes, id);
@@ -182,7 +182,7 @@ WB_Debug_Data :: struct {
 debug_window_open: bool;
 last_saved_dt: f32;
 
-_update_wb_debugger :: proc() {
+_update_debug_window :: proc() {
 	if get_key_down(Key.F1) {
 		debug_window_open = !debug_window_open;
 	}

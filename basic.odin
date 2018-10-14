@@ -7,6 +7,21 @@ package workbench
 // Arrays
 //
 
+get_by_name :: proc(array: []$T, name: string) -> ^T {
+	for _, i in array {
+		thing := &array[i];
+		if thing.name == name do return thing;
+	}
+	return nil;
+}
+get_by_id :: proc(array: []$T, id: string) -> ^T {
+	for _, i in array {
+		thing := &array[i];
+		if thing.id == id do return thing;
+	}
+	return nil;
+}
+
 inst :: proc[inst_no_value, inst_value];
 inst_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
 	length := append(array, T{});
@@ -154,6 +169,27 @@ string_starts_with :: proc(str: string, start: string) -> bool {
 	}
 
 	return true;
+}
+
+split_by_rune :: proc(str: string, split_on: rune, buffer: ^[$N]string) -> []string {
+	cur_slice := 0;
+	start := 0;
+	for b, i in str {
+		if b == split_on {
+			assert(cur_slice < len(buffer));
+			section := str[start:i];
+			buffer[cur_slice] = section;
+			cur_slice += 1;
+			start = i + 1;
+		}
+	}
+
+	assert(cur_slice < len(buffer));
+	section := str[start:];
+	buffer[cur_slice] = section;
+	cur_slice += 1;
+
+	return buffer[:cur_slice];
 }
 
 split_by_lines :: proc(str: string) -> [dynamic]string {

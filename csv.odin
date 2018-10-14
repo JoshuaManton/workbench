@@ -85,60 +85,76 @@ parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 	records: [dynamic]Record;
 	for row in lines[1:] {
 		record: Record;
-		for field_name, column_idx in headers.values {
+		for header_name, column_idx in headers.values {
 			str_value := row.values[column_idx];
-			field_info, ok := get_struct_field_info(Record, field_name); assert(ok, aprintln("Type", type_info_of(Record), "doesn't have a field called", field_name));
+
+			selector_buffer: [10]string;
+			selectors := split_by_rune(header_name, '.', &selector_buffer);
+
+			offset: int;
+			ti := type_info_of(Record);
+			field_info: Field_Info;
+			fiok: bool;
+			for selector in selectors {
+				field_info, fiok = get_struct_field_info(ti, selector);
+				assert(fiok, tprint("Type ", ti, " doesn't have a field called ", selector));
+				ti = field_info.ti;
+				offset += field_info.offset;
+			}
+
+			ptr_to_field := mem.ptr_offset(cast(^byte)&record, offset);
+
 			a: any;
-			a.id = field_info.t.id;
+			a.id = field_info.ti.id;
 			switch kind in a {
 				case string:
-					set_struct_field(&record, field_info, str_value);
+					(cast(^string)ptr_to_field)^ = str_value;
 
 				case int:
 					value := parse_int(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^int)ptr_to_field)^ = value;
 				case i8:
 					value := parse_i8(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^i8)ptr_to_field)^ = value;
 				case i16:
 					value := parse_i16(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^i16)ptr_to_field)^ = value;
 				case i32:
 					value := parse_i32(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^i32)ptr_to_field)^ = value;
 				case i64:
 					value := parse_i64(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^i64)ptr_to_field)^ = value;
 
 				case uint:
 					value := parse_uint(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^uint)ptr_to_field)^ = value;
 				case u8:
 					value := parse_u8(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^u8)ptr_to_field)^ = value;
 				case u16:
 					value := parse_u16(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^u16)ptr_to_field)^ = value;
 				case u32:
 					value := parse_u32(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^u32)ptr_to_field)^ = value;
 				case u64:
 					value := parse_u64(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^u64)ptr_to_field)^ = value;
 
 				case f32:
 					value := parse_f32(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^f32)ptr_to_field)^ = value;
 				case f64:
 					value := parse_f64(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^f64)ptr_to_field)^ = value;
 
 				case bool:
 					value := parse_bool(str_value);
-					set_struct_field(&record, field_info, value);
+					(cast(^bool)ptr_to_field)^ = value;
 
 				case:
-					assert(false, aprintln("Unsupported record field member type:", field_info.t));
+					assert(false, aprintln("Unsupported record field member type:", field_info.ti));
 			}
 		}
 
@@ -168,12 +184,11 @@ csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dyna
 			}
 		}
 		else {
-			logln(111);
 			for record in records {
 				found := false;
 				for _, i in list {
 					defn := &list[i];
-					if defn.name != record.name {
+					if defn.id != record.id {
 						continue;
 					}
 					found = true;

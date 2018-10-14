@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 11-10-2018 21:51:02 UTC-8
+ *  @Last Time: 13-10-2018 18:20:30 UTC-8
  *
  *  @Description:
  *
@@ -470,7 +470,7 @@ _imgui_struct_block_field_end :: proc(name: string) {
     }
 }
 
-_imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
+_imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: string = "") {
     simple_field :: proc(name: string, data: rawptr, $T: typeid) {
         value: string;
 
@@ -532,10 +532,10 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
             simple_field(name, data, ^byte);
         }
         case Type_Info_Named: {
-            _imgui_struct_internal(kind.name, data, kind.base);
+            _imgui_struct_internal(name, data, kind.base, kind.name);
         }
         case Type_Info_Struct: {
-            if _imgui_struct_block_field_start(name, name) {
+            if _imgui_struct_block_field_start(name, type_name) {
                 defer _imgui_struct_block_field_end(name);
                 for field_name, i in kind.names {
                     t := kind.types[i];
@@ -566,6 +566,8 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
 
                 slice := (cast(^mem.Raw_Slice)data)^;
                 for i in 0..slice.len-1 {
+                    imgui.push_id(tprint(i));
+                    defer imgui.pop_id();
                     _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
                 }
             }
@@ -575,6 +577,8 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
                 defer _imgui_struct_block_field_end(name);
 
                 for i in 0..kind.count-1 {
+                    imgui.push_id(tprint(i));
+                    defer imgui.pop_id();
                     _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
                 }
             }
@@ -585,6 +589,8 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info) {
 
                 array := (cast(^mem.Raw_Dynamic_Array)data)^;
                 for i in 0..array.len-1 {
+                    imgui.push_id(tprint(i));
+                    defer imgui.pop_id();
                     _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
                 }
             }
