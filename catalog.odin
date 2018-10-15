@@ -17,6 +17,7 @@ Catalog_Item :: struct {
 
 all_items: [dynamic]^Catalog_Item;
 
+// todo(josh): Handle system for Catalog_Items
 catalog_add :: proc(path: string) -> ^Catalog_Item {
 	time     := os.last_write_time_by_name(path);
 	text, ok := os.read_entire_file(path);
@@ -27,7 +28,7 @@ catalog_add :: proc(path: string) -> ^Catalog_Item {
 	return item;
 }
 
-catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: ^$T, callback: proc(^T, string)) {
+catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: $T, callback: proc(T, string)) {
 	append(&item.subscribers, Subscriber{userdata, cast(proc(rawptr, string))callback});
 	callback(userdata, item.text);
 }
@@ -35,6 +36,7 @@ catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: ^$T, callback: p
 catalog_unsubscribe :: inline proc(item: Catalog_Item, callback: proc(^$T, string)) {
 	for sub, i in item.subscribers {
 		if sub.callback == callback {
+			free(sub.userdata);
 			remove_at(&item.subscribers, i);
 			return;
 		}
