@@ -35,8 +35,8 @@ get_struct_field_info_ti :: proc(_ti: ^Type_Info, field_name: string) -> (Field_
     return Field_Info{}, false;
 }
 
-
-set_struct_field :: proc(thing: ^$T, info: Field_Info, value: $S, loc := #caller_location) {
+set_struct_field :: proc[set_struct_field_poly, set_struct_field_raw];
+set_struct_field_poly :: proc(thing: ^$T, info: Field_Info, value: $S, loc := #caller_location) {
     when DEVELOPER {
         ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);
         found: bool;
@@ -52,6 +52,23 @@ set_struct_field :: proc(thing: ^$T, info: Field_Info, value: $S, loc := #caller
     field_ptr := mem.ptr_offset(cast(^byte)thing, info.offset);
     mem.copy(field_ptr, &value, size_of(S));
 }
+set_struct_field_raw :: proc(thing: rawptr, info: Field_Info, value: $S, loc := #caller_location) {
+    when DEVELOPER {
+        ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);
+        found: bool;
+        for name, i in ti.names {
+            if name == info.name {
+                assert(ti.types[i] == info.ti, tprint("Type ", type_info_of(T), " has a field ", name, " but the type is ", ti.types[i], " instead of the expected ", type_info_of(S)));
+                assert(cast(int)ti.offsets[i] == info.offset, tprint("Type ", type_info_of(T), " has a field ", name, " but the offset is ", ti.offsets[i], " instead of the expected ", info.offset));
+                found = true;
+            }
+        }
+        if !found do assert(false, tprint("Type ", type_info_of(T), " doesn't have a field called ", info.name, ". Caller: ", loc));
+    }
+    field_ptr := mem.ptr_offset(cast(^byte)thing, info.offset);
+    mem.copy(field_ptr, &value, size_of(S));
+}
+
 
 get_union_type_info :: proc(v : any) -> ^Type_Info {
     if tag := get_union_tag(v); tag > 0 {

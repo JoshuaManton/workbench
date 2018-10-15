@@ -22,17 +22,15 @@ Token_Identifier :: struct {
 }
 
 Token_Number :: struct {
+	string_value: string,
 	int_value: i64,
+	unsigned_int_value: u64,
 	float_value: f64,
 	has_a_dot: bool,
 }
 
 Token_String :: struct {
 	value: string,
-}
-
-Token_Bool :: struct {
-	value: bool,
 }
 
 Token_Symbol :: struct {
@@ -44,7 +42,6 @@ Token :: struct {
 		Token_Identifier,
 		Token_Number,
 		Token_String,
-		Token_Bool,
 		Token_Symbol,
 	},
 }
@@ -105,13 +102,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 
 	r := (cast(rune)lexer_text[lex_idx]);
 	switch r {
-		// case : { }
-
-		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
-			token = Token{Token_Symbol{r}};
-		}
-
-		case '\"': {
+		case '"': {
 			if !inc(lexer) {
 				panic(tprint("End of text from within string"));
 				return {}, false;
@@ -128,6 +119,10 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			}
 
 			token = Token{Token_String{lexer_text[start:lex_idx]}};
+		}
+
+		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
+			token = Token{Token_Symbol{r}};
 		}
 
 		case 'A'..'Z', 'a'..'z', '_': {
@@ -177,19 +172,22 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			token_text := lexer_text[start:lex_idx];
 
 			int_val: i64;
+			unsigned_int_val: u64;
 			float_val: f64;
 			if found_a_dot {
 				float_val = strconv.parse_f64(token_text);
 				int_val = cast(i64)float_val;
+				unsigned_int_val = cast(u64)float_val;
 			}
 			else {
+				unsigned_int_val = strconv.parse_u64(token_text);
 				int_val = strconv.parse_i64(token_text);
 				float_val = cast(f64)int_val;
 			}
 
 			dec(lexer);
 
-			token = Token{Token_Number{int_val, float_val, found_a_dot}};
+			token = Token{Token_Number{token_text, int_val, unsigned_int_val, float_val, found_a_dot}};
 		}
 
 		case: {

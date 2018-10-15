@@ -243,9 +243,7 @@ set_vertex_format :: proc($Type: typeid, loc := #caller_location) {
 		num_elements: i32;
 		type_of_elements: u32;
 
-		a: any;
-		a.id = ti.types[i].id;
-		switch kind in a {
+		switch ti.types[i].id {
 			case Vec2: {
 				num_elements = 2;
 				type_of_elements = odingl.FLOAT;
@@ -295,7 +293,7 @@ set_vertex_format :: proc($Type: typeid, loc := #caller_location) {
 				type_of_elements = odingl.UNSIGNED_BYTE;
 			}
 			case: {
-				panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, kind));
+				panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
 			}
 		}
 
