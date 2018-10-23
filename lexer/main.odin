@@ -2,27 +2,54 @@ package lexer
 
 using import "core:fmt"
       import "core:os"
+      import "core:strings"
       import "core:strconv"
 
 using import wb "shared:workbench"
 
+/*
+
+laas: Lexer as a Service
+
+=> API
+
+	make_lexer :: inline proc(text: string) -> Lexer // just makes a lexer, identical to `Lexer{some_text, 0, 0, 0}`
+
+	get_next_token :: proc(lexer: ^Lexer) -> (Token, bool) // advances lexer and returns a `Token` and a `bool` indicating whether this is a valid token (true) or we have reached the end of the stream (false)
+
+=> Usage
+
+import "shared:laas"
 
 main :: proc() {
-	lexer := Lexer{`foo 123 1.0 , $ true    	false, "ffffoooooooozle" blabbaaa: 123.0`, {}};
+	some_string : string = /* ... */;
+	lexer := laas.make_lexer(some_string);
 	for {
-		token, ok := get_next_token(&lexer);
+		token, ok := laas.get_next_token(&lexer);
 		if !ok do break;
 
-		fmt.println(token);
+		// ...
 	}
 }
 
+*/
+
+Lexer :: struct {
+	lexer_text: string,
+
+	lex_idx:  int,
+	lex_char: int,
+	lex_line: int,
+}
+
 Token_Identifier :: struct {
+
+	// note(josh): value is allocated
 	value: string,
+
 }
 
 Token_Number :: struct {
-	string_value: string,
 	int_value: i64,
 	unsigned_int_value: u64,
 	float_value: f64,
@@ -30,7 +57,10 @@ Token_Number :: struct {
 }
 
 Token_String :: struct {
+
+	// note(josh): value is allocated
 	value: string,
+
 }
 
 Token_Symbol :: struct {
@@ -38,6 +68,9 @@ Token_Symbol :: struct {
 }
 
 Token :: struct {
+	// note(josh): note allocated, this is a slice of the text the user passed into make_lexer(), do not free the text if you need this field to stay valid
+	slice_of_text: string,
+
 	kind: union {
 		Token_Identifier,
 		Token_Number,
@@ -46,64 +79,24 @@ Token :: struct {
 	},
 }
 
-Lexer :: struct {
-	lexer_text: string,
-
-	using runtime_values: struct {
-		lex_idx:  int,
-		lex_char: int,
-		lex_line: int,
-	},
-}
-
-is_whitespace :: proc(r: u8) -> bool {
-	switch cast(rune)r {
-		case ' ', '\n', '\r', '\t': {
-			return true;
-		}
-	}
-	return false;
-}
-
-// todo(josh): remove this
-dec :: proc(using lexer: ^Lexer) {
-	lex_idx -= 1;
-	lex_char -= 1;
-}
-
-inc :: proc(using lexer: ^Lexer) -> bool {
-	r := lexer_text[lex_idx];
-	lex_idx += 1;
-
-	if r == '\n' {
-		lex_char = 1;
-		lex_line += 1;
-	}
-	else if r == '\t' {
-		lex_char += 4;
-	}
-	else {
-		lex_char += 1;
-	}
-
-	return lex_idx < len(lexer_text);
+make_lexer :: inline proc(text: string) -> Lexer {
+	return Lexer{text, 0, 0, 0};
 }
 
 get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, bool) {
 	if lex_idx >= len(lexer_text) do return {}, false;
-	for is_whitespace(lexer_text[lex_idx]) {
-		if !inc(lexer) do return {}, false;
+	for _is_whitespace(lexer_text[lex_idx]) {
+		if !_inc(lexer) do return {}, false;
 	}
 
 	token: Token;
-
 	token_start_char := lex_char;
 	token_start_line := lex_line;
 
 	r := (cast(rune)lexer_text[lex_idx]);
 	switch r {
 		case '"': {
-			if !inc(lexer) {
+			if !_inc(lexer) {
 				panic(tprint("End of text from within string"));
 				return {}, false;
 			}
@@ -112,17 +105,18 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			for lexer_text[lex_idx] != '"' || escaped {
 				escaped = lexer_text[lex_idx] == '\\';
 
-				if !inc(lexer) {
+				if !_inc(lexer) {
 					panic(tprint("End of text from within string"));
 					return {}, false;
 				}
 			}
 
-			token = Token{Token_String{lexer_text[start:lex_idx]}};
+			token_text := lexer_text[start:lex_idx];
+			token = Token{token_text, Token_String{strings.new_string(token_text)}};
 		}
 
 		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
-			token = Token{Token_Symbol{r}};
+			token = Token{lexer_text[lex_idx:lex_idx], Token_Symbol{r}};
 		}
 
 		case 'A'..'Z', 'a'..'z', '_': {
@@ -131,7 +125,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			for {
 				switch lexer_text[lex_idx] {
 					case 'A'..'Z', 'a'..'z', '0'..'9', '_': {
-						if !inc(lexer) {
+						if !_inc(lexer) {
 							break ident_loop;
 						}
 					}
@@ -141,8 +135,8 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 				}
 			}
 			token_text := lexer_text[start:lex_idx];
-			dec(lexer);
-			token = Token{Token_Identifier{token_text}};
+			_dec(lexer);
+			token = Token{token_text, Token_Identifier{strings.new_string(token_text)}};
 		}
 
 		case '0'..'9', '.': {
@@ -159,7 +153,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 						fallthrough;
 					}
 					case '0'..'9': {
-						if !inc(lexer) {
+						if !_inc(lexer) {
 							break number_loop;
 						}
 					}
@@ -185,9 +179,9 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 				float_val = cast(f64)int_val;
 			}
 
-			dec(lexer);
+			_dec(lexer);
 
-			token = Token{Token_Number{token_text, int_val, unsigned_int_val, float_val, found_a_dot}};
+			token = Token{token_text, Token_Number{int_val, unsigned_int_val, float_val, found_a_dot}};
 		}
 
 		case: {
@@ -196,8 +190,50 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 		}
 	}
 
-	inc(lexer);
+	_inc(lexer);
 
 	assert(token.kind != nil);
 	return token, true;
+}
+
+_is_whitespace :: proc(r: u8) -> bool {
+	switch cast(rune)r {
+		case ' ', '\n', '\r', '\t': {
+			return true;
+		}
+	}
+	return false;
+}
+
+_dec :: proc(using lexer: ^Lexer) {
+	lex_idx -= 1;
+	lex_char -= 1;
+}
+
+_inc :: proc(using lexer: ^Lexer) -> bool {
+	r := lexer_text[lex_idx];
+	lex_idx += 1;
+
+	if r == '\n' {
+		lex_char = 1;
+		lex_line += 1;
+	}
+	else if r == '\t' {
+		lex_char += 4;
+	}
+	else {
+		lex_char += 1;
+	}
+
+	return lex_idx < len(lexer_text);
+}
+
+main :: proc() {
+	lexer := make_lexer(`foo 123 1.0 , $ true    	false, "ffffoooooooozle" blabbaaa: 123.0`);
+	for {
+		token, ok := get_next_token(&lexer);
+		if !ok do break;
+
+		fmt.println(token);
+	}
 }
