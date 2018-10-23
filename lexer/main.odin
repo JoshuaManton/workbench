@@ -56,6 +56,7 @@ Token_Number :: struct {
 Token_String :: struct {
 
 	// note(josh): value is allocated
+
 	value: string,
 
 }
@@ -193,7 +194,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 	return token, true;
 }
 
-_is_whitespace :: proc(r: u8) -> bool {
+_is_whitespace :: inline proc(r: u8) -> bool {
 	switch cast(rune)r {
 		case ' ', '\n', '\r', '\t': {
 			return true;
@@ -202,7 +203,7 @@ _is_whitespace :: proc(r: u8) -> bool {
 	return false;
 }
 
-_dec :: proc(using lexer: ^Lexer) {
+_dec :: inline proc(using lexer: ^Lexer) {
 	lex_idx -= 1;
 	lex_char -= 1;
 }
