@@ -65,7 +65,7 @@ Token_Symbol :: struct {
 }
 
 Token :: struct {
-	// note(josh): note allocated, this is a slice of the text the user passed into make_lexer(), do not free the text if you need this field to stay valid
+	// note(josh): not allocated, this is a slice of the text the user passed into make_lexer(), do not free the text if you need this field to stay valid
 	slice_of_text: string,
 
 	kind: union {
