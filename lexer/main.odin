@@ -1,11 +1,8 @@
 package lexer
 
-using import "core:fmt"
-      import "core:os"
-      import "core:strings"
-      import "core:strconv"
-
-using import wb "shared:workbench"
+import "core:fmt"
+import "core:strings"
+import "core:strconv"
 
 /*
 
@@ -97,7 +94,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 	switch r {
 		case '"': {
 			if !_inc(lexer) {
-				panic(tprint("End of text from within string"));
+				panic(fmt.tprint("End of text from within string"));
 				return {}, false;
 			}
 			start := lex_idx;
@@ -106,7 +103,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 				escaped = lexer_text[lex_idx] == '\\';
 
 				if !_inc(lexer) {
-					panic(tprint("End of text from within string"));
+					panic(fmt.tprint("End of text from within string"));
 					return {}, false;
 				}
 			}
