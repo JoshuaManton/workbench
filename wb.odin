@@ -29,7 +29,12 @@ whole_frame_time_ra: Rolling_Average(f64, 100);
 // _on_before_client_update := make_event(f32);
 // _on_after_client_update  := make_event(f32);
 f: f32;
-make_simple_window :: proc(window_name: string, window_width, window_height: int, opengl_version_major, opengl_version_minor: int, _target_framerate: f32, scene: Scene) {
+make_simple_window :: proc(window_name: string,
+                           window_width, window_height: int,
+                           opengl_version_major, opengl_version_minor: int,
+                           _target_framerate: f32,
+                           scene: Scene) {
+
 	client_target_framerate = _target_framerate;
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
@@ -55,31 +60,38 @@ make_simple_window :: proc(window_name: string, window_width, window_height: int
 		lossy_delta_time = time - last_time;
 		acc += lossy_delta_time;
 
-		for acc >= client_target_delta_time {
-			frame_count += 1;
-			acc -= client_target_delta_time;
+		if acc >= client_target_delta_time {
+			for {
+				frame_count += 1;
 
-			imgui_begin_new_frame();
-    		imgui.push_font(imgui_font_default);
+				imgui_begin_new_frame();
+	    		imgui.push_font(imgui_font_default);
 
-			_update_catalog();
-			_update_renderer();
-			_update_glfw();
-			_update_input();
-			_update_tween();
-			_update_ui();
-			_update_debug_window();
+				_update_catalog();
+				_update_renderer();
+				_update_glfw();
+				_update_input();
+				_update_tween();
+				_update_ui();
+				_update_debug_window();
 
-			_update_scenes(); // calls client updates
+				_update_scenes(); // calls client updates
 
-			_late_update_ui();
+				_late_update_ui();
 
-			// call_coroutines();
-    		imgui.pop_font();
-			if acc >= client_target_delta_time {
-				imgui_render(false);
+				// call_coroutines();
+	    		imgui.pop_font();
+
+				acc -= client_target_delta_time;
+				if acc >= client_target_delta_time {
+					imgui_render(false);
+				}
+				else {
+					break;
+				}
 			}
 		}
+
 
 		_render_scenes();
 		imgui_render(true);

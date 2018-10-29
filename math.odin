@@ -84,6 +84,18 @@ clamp :: inline proc(_a, min, max: f32) -> f32 {
 
 
 
+
+remap :: proc(x: $T, a, b, c, d: T) -> T {
+    return c * (cast(T)1 - (x - a)/(b - a)) + d * ((x - a)/(b - a));
+}
+
+
+
+
+
+
+
+
 sqr :: inline proc(x: $T) -> T {
 	return x * x;
 }

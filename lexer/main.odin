@@ -1,12 +1,14 @@
 package lexer
 
 import "core:fmt"
-import "core:strings"
 import "core:strconv"
 
 /*
 
-laas: Lexer as a Service
+=> laas: Lexer as a Service
+
+todo(josh): write description
+note(josh): laas never allocates, tokens are just slices of the source text
 
 => API
 
@@ -37,13 +39,12 @@ Lexer :: struct {
 	lex_idx:  int,
 	lex_char: int,
 	lex_line: int,
+
+	userdata: any,
 }
 
 Token_Identifier :: struct {
-
-	// note(josh): value is allocated
 	value: string,
-
 }
 
 Token_Number :: struct {
@@ -54,11 +55,7 @@ Token_Number :: struct {
 }
 
 Token_String :: struct {
-
-	// note(josh): value is allocated
-
 	value: string,
-
 }
 
 Token_Symbol :: struct {
@@ -66,7 +63,6 @@ Token_Symbol :: struct {
 }
 
 Token :: struct {
-	// note(josh): not allocated, this is a slice of the text the user passed into make_lexer(), do not free the text if you need this field to stay valid
 	slice_of_text: string,
 
 	kind: union {
@@ -78,12 +74,14 @@ Token :: struct {
 }
 
 make_lexer :: inline proc(text: string) -> Lexer {
-	return Lexer{text, 0, 0, 0};
+	return Lexer{text, 0, 0, 0, nil};
 }
 
 get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, bool) {
 	if lex_idx >= len(lexer_text) do return {}, false;
+	had_whitespace_before_token := false;
 	for _is_whitespace(lexer_text[lex_idx]) {
+		had_whitespace_before_token = true;
 		if !_inc(lexer) do return {}, false;
 	}
 
@@ -110,7 +108,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			}
 
 			token_text := lexer_text[start:lex_idx];
-			token = Token{token_text, Token_String{strings.new_string(token_text)}};
+			token = Token{token_text, Token_String{token_text}};
 		}
 
 		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
@@ -134,7 +132,7 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			}
 			token_text := lexer_text[start:lex_idx];
 			_dec(lexer);
-			token = Token{token_text, Token_Identifier{strings.new_string(token_text)}};
+			token = Token{token_text, Token_Identifier{token_text}};
 		}
 
 		case '0'..'9', '.': {
@@ -178,7 +176,6 @@ get_next_token :: proc(using lexer: ^Lexer, loc := #caller_location) -> (Token, 
 			}
 
 			_dec(lexer);
-
 			token = Token{token_text, Token_Number{int_val, unsigned_int_val, float_val, found_a_dot}};
 		}
 

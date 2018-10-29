@@ -535,13 +535,7 @@ im_queued_for_drawing: [dynamic]Vertex2D;
 _update_renderer :: proc() {
 	clear(&debug_vertices);
 	clear(&im_buffered_verts);
-}
 
-set_clear_color :: inline proc(color: Colorf) {
-	odingl.ClearColor(color.r, color.g, color.b, 1.0);
-}
-
-render_scene :: proc(scene: Scene) {
 	log_gl_errors(#procedure);
 
 	odingl.Enable(odingl.BLEND);
@@ -557,6 +551,14 @@ render_scene :: proc(scene: Scene) {
 	}
 
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
+}
+
+set_clear_color :: inline proc(color: Colorf) {
+	odingl.ClearColor(color.r, color.g, color.b, 1.0);
+}
+
+render_scene :: proc(scene: Scene) {
+	log_gl_errors(#procedure);
 
 	num_draw_calls = 0;
 	if scene.render != nil {
