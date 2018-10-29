@@ -18,7 +18,7 @@ alloc_callback :: proc(loc: rt.Source_Code_Location) {
 	fmt.println(loc);
 }
 
-serialize :: proc(value: ^$Type, sb: ^String_Buffer) -> string {
+serialize :: proc(value: ^$Type) -> string {
 	serialize_one_thing :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^String_Buffer, indent_level: int) {
 		print_indents :: inline proc(indent_level: int, sb: ^String_Buffer) {
 			for i in 0..indent_level-1 {
@@ -128,10 +128,11 @@ serialize :: proc(value: ^$Type, sb: ^String_Buffer) -> string {
 		print_to_buff(sb, "\n");
 	}
 
+	sb: String_Buffer;
 	ti := type_info_of(Type);
-	serialize_one_thing("", value, ti, sb, 0);
+	serialize_one_thing("", value, ti, &sb, 0);
 
-	return to_string(sb^);
+	return to_string(sb);
 }
 
 deserialize :: proc($Type: typeid, text: string) -> Type {
@@ -156,6 +157,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 			switch value_kind.value {
 				case '{': {
 					for {
+
 						token, ok := get_next_token(lexer); assert(ok);
 						if right_curly, ok2 := token.kind.(Token_Symbol); ok2 && right_curly.value == '}' {
 							break;
@@ -411,10 +413,9 @@ run_tests :: proc() {
 	assert(a.some_nested_thing.slice[1].x == 43, tprint(a.some_nested_thing.slice[1].x));
 	assert(a.some_nested_thing.slice[1].y == 21, tprint(a.some_nested_thing.slice[1].y));
 
-	sb: String_Buffer;
-	defer delete(sb);
-
-	b := deserialize(Nightmare, serialize(&a, &sb));
+	a_text := serialize(&a);
+	defer delete(a_text);
+	b := deserialize(Nightmare, a_text);
 
 	assert(a.some_int == b.some_int);
 	assert(a.some_string == b.some_string);
@@ -444,7 +445,6 @@ run_tests :: proc() {
 	assert(a.some_nested_thing.slice[0].y == b.some_nested_thing.slice[0].y);
 	assert(a.some_nested_thing.slice[1].x == b.some_nested_thing.slice[1].x);
 	assert(a.some_nested_thing.slice[1].y == b.some_nested_thing.slice[1].y);
-
 
 	println("Tests done!");
 }

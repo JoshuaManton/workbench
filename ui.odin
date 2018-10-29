@@ -1,10 +1,9 @@
 package workbench
 
-      import rt "core:runtime"
+using import "core:runtime"
 using import "core:math"
 using import "core:fmt"
       import "core:mem"
-      import "core:hash"
       import "core:strings"
       import "core:os"
 
@@ -15,8 +14,11 @@ using import "core:fmt"
 // UI state
 //
 
-hot:  IMGUI_ID = -1;
-warm: IMGUI_ID = -1;
+IMGUI_ID :: int;
+id_counts: map[string]int;
+
+hot:     IMGUI_ID = -1;
+warm:    IMGUI_ID = -1;
 previously_hot:  IMGUI_ID = -1;
 previously_warm: IMGUI_ID = -1;
 cursor_pixel_position_on_clicked: Vec2;
@@ -43,8 +45,6 @@ _update_ui :: proc() {
 	warm = -1;
 	i := len(all_imgui_rects)-1;
 	for i >= 0 {
-		defer i -= 1;
-
 		can_be_hot_or_warm :: inline proc(kind: IMGUI_Rect_Kind) -> bool {
 			using IMGUI_Rect_Kind;
 			switch kind {
@@ -55,6 +55,7 @@ _update_ui :: proc() {
 			return false;
 		}
 
+		defer i -= 1;
 		rect := &all_imgui_rects[i];
 
 		if can_be_hot_or_warm(rect.kind) {
@@ -137,20 +138,13 @@ _late_update_ui :: proc() {
 
 Location_ID_Mapping :: struct {
 	id: IMGUI_ID,
-	using loc: rt.Source_Code_Location,
+	using loc: Source_Code_Location,
 	index: int,
 }
 
-IMGUI_ID :: int;
-id_counts: map[string]int;
-all_imgui_mappings: map[u64]Location_ID_Mapping;
+all_imgui_mappings: [dynamic]Location_ID_Mapping;
 
-hash_imgui_location :: proc(loc: rt.Source_Code_Location, count: int) -> u64 {
-	str := tprint(loc.line, loc.column, loc.file_path, count);
-	return hash.fnv64(cast([]u8)str);
-}
-
-get_imgui_id_from_location :: proc(loc: rt.Source_Code_Location, loc2 := #caller_location) -> IMGUI_ID {
+get_imgui_id_from_location :: proc(loc: Source_Code_Location, loc2 := #caller_location) -> IMGUI_ID {
 	count, ok := id_counts[loc.file_path];
 	if !ok {
 		id_counts[loc.file_path] = 0;
@@ -161,13 +155,17 @@ get_imgui_id_from_location :: proc(loc: rt.Source_Code_Location, loc2 := #caller
 		id_counts[loc.file_path] = count;
 	}
 
-	location_hash := hash_imgui_location(loc, count);
-	mapping, ok2 := all_imgui_mappings[location_hash];
-	if !ok2 {
-		id := len(all_imgui_mappings);
-		mapping = Location_ID_Mapping{id, loc, count};
-		all_imgui_mappings[location_hash] = mapping;
+	for val, idx in all_imgui_mappings {
+		if val.line      != loc.line      do continue;
+		if val.column    != loc.column    do continue;
+		if val.index     != count         do continue;
+		if val.file_path != loc.file_path do continue;
+		return val.id;
 	}
+
+	id := len(all_imgui_mappings);
+	mapping := Location_ID_Mapping{id, loc, count};
+	append(&all_imgui_mappings, mapping);
 	return mapping.id;
 }
 
@@ -175,14 +173,12 @@ get_imgui_id_from_location :: proc(loc: rt.Source_Code_Location, loc2 := #caller
 // Positioning
 //
 
-Rect_Transform :: struct {
-	unit: struct {
-		x1, y1, x2, y2: f32,
-	}
-	pixel: struct {
-		x1, y1, x2, y2: int,
-	}
+Rect :: struct(kind: typeid) {
+	x1, y1, x2, y2: kind,
 }
+
+Pixel_Rect :: Rect(int);
+Unit_Rect  :: Rect(f32);
 
 IMGUI_Rect_Kind :: enum {
 	Push_Rect,
@@ -198,9 +194,10 @@ IMGUI_Rect :: struct {
 	imgui_id:  IMGUI_ID,
 	kind: IMGUI_Rect_Kind,
 	code_line: string, // note(josh): not set for items in the system, only set right before drawing the UI debug window
-	location: rt.Source_Code_Location,
+	location: Source_Code_Location,
 
-	transform: Rect_Transform,
+	unit_rect: Unit_Rect,
+	pixel_rect: Pixel_Rect,
 
 	unit_param_x1, unit_param_y1, unit_param_x2, unit_param_y2: f32,
 	pixel_param_top, pixel_param_right, pixel_param_bottom, pixel_param_left: int,
@@ -209,17 +206,16 @@ IMGUI_Rect :: struct {
 ui_rect_stack:   [dynamic]IMGUI_Rect;
 all_imgui_rects: [dynamic]IMGUI_Rect;
 new_imgui_rects: [dynamic]IMGUI_Rect;
-
-ui_current_rect_transform: Rect_Transform;
+ui_current_rect_unit:   Unit_Rect;
+ui_current_rect_pixels: Pixel_Rect;
 
 ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, rect_kind := IMGUI_Rect_Kind.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> IMGUI_Rect {
-	// c = current
-	cx1, cy1, cx2, cy2: f32;
+	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
-		cx1, cy1, cx2, cy2 = 0, 0, 1, 1;
+		current_rect = Unit_Rect{0, 0, 1, 1};
 	}
 	else {
-		cx1, cy1, cx2, cy2 = ui_current_rect_transform.unit;
+		current_rect = ui_current_rect_unit;
 	}
 
 	cur_w := current_rect.x2 - current_rect.x1;
@@ -263,8 +259,8 @@ ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Colored_Quad, loc);
-	defer ui_pop_rect(loc);
 	ui_draw_colored_quad(color);
+	ui_pop_rect(loc);
 }
 
 ui_draw_sprite :: proc[ui_draw_sprite_current, ui_draw_sprite_push];
@@ -418,7 +414,6 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 }
 
 ui_click :: inline proc(using button: ^Button_Data) {
-	logln("click");
 	clicked = frame_count;
 }
 
@@ -535,56 +530,63 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 // Grids
 //
 
-Grid_Layout :: struct {
-	using user_vars: struct {
-		element_index: int,
-		max: int,
-		progress01: f32,
-	},
+// Grid_Layout :: struct {
+// 	w, h: int,
 
-	wb_vars: struct {
-		ww, hh: int,
-		cur_x, cur_y: int,
-		total_rect: Unit_Rect,
-	}
-}
+// 	using _: struct { // runtime fields
+// 		cur_x, cur_y: int,
+// 		// pixel padding, per element
+// 		top, right, bottom, left: int,
+// 	},
+// }
 
-ui_start_grid_layout :: proc(ww, hh: int) -> Grid_Layout {
-	assert(ww > 0);
-	assert(hh > 0);
+// grid_start :: proc(ww, hh: int, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0) -> Grid_Layout {
+// 	assert(ww == -1 || hh == -1 && ww != hh, "Can only pass a width _or_ a height, since we grow forever.");
 
-	grid := Grid_Layout{{-1, ww * hh, 0.0}, {ww, hh, -1, 0, {}}};
-	ui_grid_layout_next(&grid);
-	return grid;
-}
+// 	grid := Grid_Layout{ww, hh, {}};
+// 	if grid.w == -1 {
 
-ui_grid_layout_next :: proc(using grid: ^Grid_Layout) -> bool {
-	using grid.wb_vars;
+// 	}
+// 	else {
+// 		assert(grid.h == -1, "???? We're supposed to protect against this in grid_start()");
+// 	}
+// 	return grid;
+// }
 
-	if cur_x != -1 do ui_pop_rect();
+// grid_next :: proc(grid: ^Grid_Layout) {
+// 	if grid.w == -1 {
+// 		grid.cur_h
+// 	}
+// 	else {
+// 		assert(grid.h == -1, "???? We're supposed to protect against this in grid_start()");
+// 	}
+// }
 
-	cur_x += 1;
-	if cur_x >= ww {
-		cur_x = 0;
-		cur_y += 1;
-	}
+// grid_start :: inline proc(grid: ^Grid_Layout) {
+// 	ui_push_rect(0, 0, 1, 1); // doesn't matter, gets popped immediately
 
-	www := 1.0/f32(ww);
-	hhh := 1.0/f32(hh);
-	x1 := www*f32(cur_x);
-	y1 := hhh*f32(hh - cur_y - 1);
-	ui_push_rect(x1, y1, x1 + www, y1 + hhh);
+// 	grid.cur_x = 0;
+// 	grid.cur_y = grid.h;
 
-	element_index += 1;
+// 	grid_next(grid);
+// }
 
-	progress01 = cast(f32)element_index / cast(f32)max;
+// grid_next :: inline proc(grid: ^Grid_Layout) {
+// 	grid.cur_y -= 1;
+// 	if grid.cur_y == -1 {
+// 		grid.cur_x += 1; // (grid.cur_x + 1) % grid.w;
+// 		grid.cur_y = grid.h-1;
+// 	}
 
-	return element_index < max;
-}
+// 	ui_pop_rect();
+// 	x1 := cast(f32)grid.cur_x / cast(f32)grid.w;
+// 	y1 := cast(f32)grid.cur_y / cast(f32)grid.h;
+// 	ui_push_rect(x1, y1, x1 + 1.0 / cast(f32)grid.w, y1 + 1.0 / cast(f32)grid.h, grid.top, grid.right, grid.bottom, grid.left);
+// }
 
-ui_grid_layout_end :: inline proc() {
-	ui_pop_rect();
-}
+// grid_end :: inline proc(grid: ^Grid_Layout) {
+// 	ui_pop_rect();
+// }
 
 //
 // UI debug information
