@@ -209,7 +209,14 @@ new_imgui_rects: [dynamic]IMGUI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
-ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, rect_kind := IMGUI_Rect_Kind.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> IMGUI_Rect {
+ui_push_rect :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, rect_kind := IMGUI_Rect_Kind.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> IMGUI_Rect {
+	if len(ui_rect_stack) > 0 && last(ui_rect_stack).kind == IMGUI_Rect_Kind.Scroll_View {
+		top    -= cast(int)(current_scroll_view.scroll_offset.y);
+		right  -= cast(int)(current_scroll_view.scroll_offset.x);
+		bottom += cast(int)(current_scroll_view.scroll_offset.y);
+		left   += cast(int)(current_scroll_view.scroll_offset.x);
+	}
+
 	current_rect: Unit_Rect;
 	if len(ui_rect_stack) == 0 {
 		current_rect = Unit_Rect{0, 0, 1, 1};
@@ -235,10 +242,19 @@ ui_push_rect :: inline proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom :=
 	rect := IMGUI_Rect{get_imgui_id_from_location(loc), rect_kind, "", loc, ui_current_rect_unit, ui_current_rect_pixels, x1, y1, x2, y2, top, right, bottom, left};
 	append(&ui_rect_stack, rect);
 	append(&new_imgui_rects, rect);
+
+	if current_scroll_view != nil {
+		r := &current_scroll_view.total_rect;
+		r.x1 = min(r.x1, ui_current_rect_pixels.x1);
+		r.y1 = min(r.y1, ui_current_rect_pixels.y1);
+		r.x2 = max(r.x2, ui_current_rect_pixels.x2);
+		r.y2 = max(r.y2, ui_current_rect_pixels.y2);
+	}
+
 	return rect;
 }
 
-ui_pop_rect :: inline proc(loc := #caller_location) -> IMGUI_Rect {
+ui_pop_rect :: proc(loc := #caller_location) -> IMGUI_Rect {
 	popped_rect := pop(&ui_rect_stack);
 	rect := ui_rect_stack[len(ui_rect_stack)-1];
 	ui_current_rect_pixels = rect.pixel_rect;
@@ -421,27 +437,43 @@ ui_click :: inline proc(using button: ^Button_Data) {
 // Aspect Ratio Fitter
 //
 
-// todo(josh): not sure if the grow_forever_on_* feature is worth the complexity
-ui_fit_to_aspect :: inline proc(ww, hh: f32, grow_forever_on_x := false, grow_forever_on_y := false, loc := #caller_location) {
-	assert((grow_forever_on_x == false || grow_forever_on_y == false), "Cannot have grow_forever_on_y and grow_forever_on_x both be true.");
+using Aspect_Ratio_Fit_Kind :: enum {
+	Current_Rect,
+	Height_Determines_Width,
+	Width_Determines_Height,
+}
 
-	current_rect_width_unit  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
-	current_rect_height_unit := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
+ui_fit_to_aspect :: inline proc(ww, hh: f32, fit_type: Aspect_Ratio_Fit_Kind = Current_Rect, loc := #caller_location) {
+	current_rect_width_unit  : f32 = (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
+	current_rect_height_unit : f32 = (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
 	assert(current_rect_height_unit != 0);
 	current_rect_aspect : f32 = (current_rect_height_unit * current_window_height) / (current_rect_width_unit * current_window_width);
 
-	aspect := hh / ww;
-	width:  f32;
-	height: f32;
-	if grow_forever_on_y || (!grow_forever_on_x && aspect < current_rect_aspect) {
-		width  = current_rect_width_unit;
-		height = current_rect_width_unit * aspect;
-	}
-	else if grow_forever_on_x || aspect >= current_rect_aspect {
-		aspect = ww / hh;
-		height = current_rect_height_unit;
-		width  = current_rect_height_unit * aspect;
+	aspect : f32 = hh / ww;
+	width:   f32;
+	height:  f32;
+	#complete switch fit_type {
+		case Current_Rect: {
+			if aspect < current_rect_aspect {
+				width  = current_rect_height_unit;
+				height = current_rect_height_unit * aspect;
+			}
+			else {
+				aspect = ww / hh;
+				height = current_rect_height_unit;
+				width  = current_rect_height_unit * aspect;
+			}
+		}
+		case Height_Determines_Width: {
+			aspect = ww / hh;
+			height = current_rect_height_unit;
+			width  = current_rect_height_unit * aspect;
+		}
+		case Width_Determines_Height: {
+			width  = current_rect_height_unit;
+			height = current_rect_height_unit * aspect;
+		}
 	}
 
 	h_width  := cast(int)round(current_window_height * width  / 2);
@@ -458,29 +490,50 @@ ui_end_fit_to_aspect :: inline proc(loc := #caller_location) {
 // Scroll View
 //
 
-Scroll_View :: struct {
-	min, max: f32,
-
-	using _: struct { // runtime values
-		cur_scroll_target: f32,
-		cur_scroll_lerped: f32,
-		scroll_at_pressed_position: f32,
-	}
+Scroll_View_Kind :: enum {
+	Vertical,
+	Horizontal,
+	Both,
 }
 
-scroll_views: [dynamic]bool;
-in_scroll_view: bool;
+Scroll_View :: struct {
+	total_rect: Pixel_Rect,
+	scroll_at_pressed_position: Vec2,
+	scroll_offset: Vec2,
+	scroll_offset_target: Vec2,
+}
 
-ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, y2: f32 = 1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	append(&scroll_views, true);
-	in_scroll_view = true;
+all_scroll_views: map[IMGUI_ID]Scroll_View;
+_current_scroll_view: Scroll_View;
+current_scroll_view_id: IMGUI_ID;
+current_scroll_view: ^Scroll_View;
 
-	rect := ui_push_rect(x1, y1, x2, y2, top - cast(int)sv.cur_scroll_lerped, right, bottom + cast(int)sv.cur_scroll_lerped, left, IMGUI_Rect_Kind.Scroll_View, loc);
-	id := rect.imgui_id;
+ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_location) {
+	assert(current_scroll_view == nil, "no nested scroll views!");
 
-	if hot == id {
+	// scroll view id
+	{
+		id := get_imgui_id_from_location(loc);
+		current_scroll_view_id = id;
+		ok: bool;
+		_current_scroll_view, ok = all_scroll_views[id];
+		if !ok do _current_scroll_view.total_rect = ui_current_rect_pixels;
+	}
+
+	svv := _current_scroll_view;
+
+	size := Vec2{cast(f32)svv.total_rect.x2 - cast(f32)svv.total_rect.x1, cast(f32)svv.total_rect.y2 - cast(f32)svv.total_rect.y1};
+
+	using Scroll_View_Kind;
+
+	rect := ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0, IMGUI_Rect_Kind.Scroll_View, loc);
+
+	current_scroll_view = &_current_scroll_view;
+	sv := current_scroll_view;
+
+	if hot == rect.imgui_id {
 		if get_mouse_down(Mouse.Left) {
-			sv.scroll_at_pressed_position = sv.cur_scroll_target;
+			sv.scroll_at_pressed_position = sv.scroll_offset_target;
 		}
 
 		// if get_mouse(Mouse.Left) {
@@ -488,25 +541,34 @@ ui_scroll_view :: proc(sv: ^Scroll_View, x1: f32 = 0, y1: f32 = 0, x2: f32 = 1, 
 		// 		hot = id;
 		// 	}
 		// }
-		sv.cur_scroll_target = sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked.y - cursor_screen_position.y);
+
+		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - cursor_screen_position);
+		#complete switch kind {
+			case Vertical:   sv.scroll_offset_target.y = offset.y;
+			case Horizontal: sv.scroll_offset_target.x = offset.x;
+			case Both:       sv.scroll_offset_target   = offset;
+		}
+	}
+	else {
+		clamp :: inline proc(a: ^f32, min, max: f32) {
+			if a^ < min do a^ = min;
+			if a^ > max do a^ = max;
+		}
+
+		clamp(&sv.scroll_offset_target.y, 0, cast(f32)-sv.total_rect.y1-(cast(f32)ui_current_rect_pixels.y2-cast(f32)ui_current_rect_pixels.y1));
 	}
 
-	sv.cur_scroll_target = clamp(sv.cur_scroll_target, sv.min, sv.max);
-	if warm == id {
-		sv.cur_scroll_target -= cursor_scroll * 10;
+	if warm == rect.imgui_id {
+		sv.scroll_offset_target.y -= cursor_scroll * 50;
 	}
-	sv.cur_scroll_lerped = lerp(sv.cur_scroll_lerped, sv.cur_scroll_target, 20 * client_target_delta_time);
+
+	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, 20 * client_target_delta_time);
 }
 
 ui_end_scroll_view :: proc(loc := #caller_location) {
+	all_scroll_views[current_scroll_view_id] = current_scroll_view^;
+	current_scroll_view = nil;
 	ui_pop_rect(loc);
-	pop(&scroll_views);
-	if len(scroll_views) > 0 {
-		in_scroll_view = last(scroll_views)^;
-	}
-	else {
-		in_scroll_view = false;
-	}
 }
 
 //
@@ -530,63 +592,47 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 // Grids
 //
 
-// Grid_Layout :: struct {
-// 	w, h: int,
+Grid_Layout :: struct {
+	// user vars
+	element_index: int,
+	max: int,
+	progress01: f32,
 
-// 	using _: struct { // runtime fields
-// 		cur_x, cur_y: int,
-// 		// pixel padding, per element
-// 		top, right, bottom, left: int,
-// 	},
-// }
+	// wb vars
+	ww, hh: int,
+	cur_x, cur_y: int,
+}
 
-// grid_start :: proc(ww, hh: int, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0) -> Grid_Layout {
-// 	assert(ww == -1 || hh == -1 && ww != hh, "Can only pass a width _or_ a height, since we grow forever.");
+ui_grid_layout :: proc(ww, hh: int) -> Grid_Layout {
+	assert(ww > 0);
+	assert(hh > 0);
+	grid := Grid_Layout{-1, ww * hh, 0.0, ww, hh, -1, 0};
+	return grid;
+}
 
-// 	grid := Grid_Layout{ww, hh, {}};
-// 	if grid.w == -1 {
+ui_grid_layout_next :: proc(using grid: ^Grid_Layout) -> bool {
+	if cur_x != -1 do ui_pop_rect();
 
-// 	}
-// 	else {
-// 		assert(grid.h == -1, "???? We're supposed to protect against this in grid_start()");
-// 	}
-// 	return grid;
-// }
+	cur_x += 1;
+	if cur_x >= ww {
+		cur_x = 0;
+		cur_y += 1;
+	}
 
-// grid_next :: proc(grid: ^Grid_Layout) {
-// 	if grid.w == -1 {
-// 		grid.cur_h
-// 	}
-// 	else {
-// 		assert(grid.h == -1, "???? We're supposed to protect against this in grid_start()");
-// 	}
-// }
+	www := 1.0/f32(ww);
+	hhh := 1.0/f32(hh);
+	x1 := www*f32(cur_x);
+	y1 := hhh*f32(hh - cur_y - 1);
+	ui_push_rect(x1, y1, x1 + www, y1 + hhh);
 
-// grid_start :: inline proc(grid: ^Grid_Layout) {
-// 	ui_push_rect(0, 0, 1, 1); // doesn't matter, gets popped immediately
+	element_index += 1;
+	progress01 = cast(f32)element_index / cast(f32)max;
+	return element_index < max;
+}
 
-// 	grid.cur_x = 0;
-// 	grid.cur_y = grid.h;
-
-// 	grid_next(grid);
-// }
-
-// grid_next :: inline proc(grid: ^Grid_Layout) {
-// 	grid.cur_y -= 1;
-// 	if grid.cur_y == -1 {
-// 		grid.cur_x += 1; // (grid.cur_x + 1) % grid.w;
-// 		grid.cur_y = grid.h-1;
-// 	}
-
-// 	ui_pop_rect();
-// 	x1 := cast(f32)grid.cur_x / cast(f32)grid.w;
-// 	y1 := cast(f32)grid.cur_y / cast(f32)grid.h;
-// 	ui_push_rect(x1, y1, x1 + 1.0 / cast(f32)grid.w, y1 + 1.0 / cast(f32)grid.h, grid.top, grid.right, grid.bottom, grid.left);
-// }
-
-// grid_end :: inline proc(grid: ^Grid_Layout) {
-// 	ui_pop_rect();
-// }
+ui_grid_layout_end :: inline proc() {
+	ui_pop_rect();
+}
 
 //
 // UI debug information

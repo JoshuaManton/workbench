@@ -26,6 +26,8 @@ client_target_delta_time: f32;
 
 whole_frame_time_ra: Rolling_Average(f64, 100);
 
+do_log_frame_boundaries := false;
+
 // _on_before_client_update := make_event(f32);
 // _on_after_client_update  := make_event(f32);
 f: f32;
@@ -62,6 +64,10 @@ make_simple_window :: proc(window_name: string,
 
 		if acc >= client_target_delta_time {
 			for {
+				if do_log_frame_boundaries {
+					logln("[WB] FRAME #", frame_count);
+				}
+
 				frame_count += 1;
 
 				imgui_begin_new_frame();
@@ -214,6 +220,7 @@ _update_debug_window :: proc() {
 			imgui_struct(&data, "wb_debug_data");
 			imgui.checkbox("Debug Rendering", &debugging_rendering);
 			imgui.checkbox("Debug UI", &debugging_ui);
+			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 		}
 	}
