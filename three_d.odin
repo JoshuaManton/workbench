@@ -1,3 +1,18 @@
+package workbench
+
+using import        "core:math"
+using import        "core:fmt"
+      import        "core:sort"
+      import        "core:strings"
+      import        "core:mem"
+      import        "core:os"
+
+      import odingl "shared:odin-gl"
+
+      import stb    "shared:workbench/stb"
+      import        "shared:workbench/glfw"
+      import imgui  "shared:odin-imgui"
+
 Vertex3D :: struct {
 	position: Vec3,
 	tex_coord: Vec2,
