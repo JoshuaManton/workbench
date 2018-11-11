@@ -1,7 +1,7 @@
 package workbench
 
-import "shared:workbench/glfw"
-import imgui "shared:odin-imgui"
+import "external/glfw"
+import "external/imgui"
 
 Key    :: glfw.Key;
 Mouse  :: glfw.Mouse;

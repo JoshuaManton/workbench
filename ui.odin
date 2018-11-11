@@ -7,8 +7,8 @@ using import "core:fmt"
       import "core:strings"
       import "core:os"
 
-      import odingl "shared:odin-gl"
-      import imgui "shared:odin-imgui"
+      import odingl "external/gl"
+      import imgui  "external/imgui"
 
 //
 // UI state

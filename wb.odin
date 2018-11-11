@@ -8,12 +8,11 @@ using import        "core:fmt"
       import        "core:os"
       import        "core:sys/win32"
 
-      import odingl "shared:odin-gl"
-      import imgui "shared:odin-imgui"
+      import odingl "external/gl"
+      import imgui  "external/imgui"
 
-      import stb    "shared:workbench/stb"
-      import        "shared:workbench/glfw"
-using import        "shared:workbench/pool"
+      import stb    "external/stb"
+      import        "external/glfw"
 
 DEVELOPER :: true;
 

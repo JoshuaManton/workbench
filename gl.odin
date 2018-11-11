@@ -5,8 +5,8 @@ using import "core:runtime"
       import "core:os"
 using import "core:math"
 
-      import        "shared:workbench/glfw"
-      import odingl "shared:odin-gl"
+      import        "external/glfw"
+      import odingl "external/gl"
 
 vao: VAO;
 vbo: VBO;

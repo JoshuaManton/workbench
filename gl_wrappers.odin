@@ -5,7 +5,7 @@ using import "core:runtime"
       import "core:os"
 using import "core:math"
 
-      import odingl "shared:odin-gl"
+      import odingl "external/gl"
 
 Shader_Program  :: distinct u32;
 Graphics_Buffer :: distinct u32;
