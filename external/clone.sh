@@ -10,3 +10,4 @@ git submodule add https://github.com/ThisDrunkDane/odin-imgui.git
 cd odin-imgui
 git checkout c55f6f11ee7c1226eca22d5affc743bebe857616
 # git submodule update --init --recursive
+https://github.com/shwaDev/odin-glfw
