@@ -1,0 +1,18 @@
+[submodule "external/odin-assimp"]
+	path = external/odin-assimp
+	url = https://github.com/DrProfesor/odin-assimp.git
+[submodule "external/odin-gl"]
+	path = external/odin-gl
+	url = https://github.com/vassvik/odin-gl.git
+[submodule "external/odin-gl_font"]
+	path = external/odin-gl_font
+	url = https://github.com/vassvik/odin-gl_font.git
+[submodule "external/odin-glfw"]
+	path = external/odin-glfw
+	url = https://github.com/vassvik/odin-glfw.git
+[submodule "external/odin-stb"]
+	path = external/odin-stb
+	url = https://github.com/vassvik/odin-stb.git
+[submodule "external/odin-imgui"]
+	path = external/odin-imgui
+	url = https://github.com/ThisDrunkDane/odin-imgui.git
