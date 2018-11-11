@@ -9,9 +9,9 @@ using import        "core:fmt"
 
       import odingl "external/gl"
 
-      import stb    "external/stb"
+      import        "external/stb"
       import        "external/glfw"
-      import imgui  "external/imgui"
+      import        "external/imgui"
 
 //
 // Rendermodes

@@ -1,15 +1,12 @@
-[submodule "external/odin-stb"]
-	path = external/odin-stb
-	url = https://github.com/vassvik/odin-stb.git
 [submodule "external/odin-imgui"]
-	path = external/odin-imgui
+	path = external/imgui
 	url = https://github.com/ThisDrunkDane/odin-imgui.git
 [submodule "external/odin-assimp"]
-	path = external/odin-assimp
+	path = external/assimp
 	url = https://github.com/DrProfesor/odin-assimp.git
 [submodule "external/odin-gl"]
-	path = external/odin-gl
+	path = external/gl
 	url = https://github.com/shwaDev/odin-gl.git
 [submodule "external/odin-glfw"]
-	path = external/odin-glfw
+	path = external/glfw
 	url = https://github.com/shwaDev/odin-glfw.git
