@@ -10,3 +10,6 @@
 [submodule "external/odin-gl"]
 	path = external/odin-gl
 	url = https://github.com/shwaDev/odin-gl.git
+[submodule "external/odin-glfw"]
+	path = external/odin-glfw
+	url = https://github.com/shwaDev/odin-glfw.git
