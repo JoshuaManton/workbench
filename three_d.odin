@@ -7,12 +7,12 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
 
-      import odingl "shared:odin-gl"
+      import odingl "external/gl"
 
-      import stb    "shared:workbench/stb"
-      import        "shared:workbench/glfw"
-      import imgui  "shared:odin-imgui"
-      import ai     "shared:odin-assimp"
+      import stb    "external/stb"
+      import        "external/glfw"
+      import imgui  "external/imgui"
+      import ai     "external/assimp"
 
 Vertex3D :: struct {
 	position: Vec3,

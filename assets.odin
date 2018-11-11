@@ -4,8 +4,8 @@ using import        "core:math"
 using import        "core:fmt"
       import        "core:os"
 
-      import odingl "shared:odin-gl"
-      import stb    "shared:workbench/stb"
+      import odingl "external/gl"
+      import stb    "external/stb"
 
 //
 // Textures and sprites

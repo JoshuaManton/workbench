@@ -6,7 +6,7 @@
  *  @Creation: 10-06-2017 18:33:45
  *
  *  @Last By:   Joshua Manton
- *  @Last Time: 13-10-2018 18:20:30 UTC-8
+ *  @Last Time: 11-11-2018 15:00:36 UTC-8
  *
  *  @Description:
  *
@@ -22,9 +22,9 @@ using import "core:math";
 import "core:os";
 import "core:sys/win32"
 
-import    "shared:workbench/glfw"
-import    "shared:odin-imgui"
-import gl "shared:odin-gl"
+import    "external/glfw"
+import    "external/imgui"
+import gl "external/gl"
 
 imgui_program: Shader_Program;
 

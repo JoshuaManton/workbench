@@ -3,7 +3,7 @@ package workbench
 import "core:mem"
 import "core:fmt"
 
-import "shared:workbench/stb"
+import "shared:workbench/external/stb"
 
 load_wrapper :: inline proc(filename: cstring) -> ([]Colori, i32, i32) {
 	stb.set_flip_vertically_on_load(0);
