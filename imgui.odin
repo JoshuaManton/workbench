@@ -1,16 +1,3 @@
-/*
- *  @Name:     imgui
- *
- *  @Author:   Mikkel Hjortshoej
- *  @Email:    hjortshoej@handmade.network
- *  @Creation: 10-06-2017 18:33:45
- *
- *  @Last By:   Joshua Manton
- *  @Last Time: 11-11-2018 15:00:36 UTC-8
- *
- *  @Description:
- *
- */
 package workbench
 
 using import "core:runtime"
@@ -110,8 +97,8 @@ _init_dear_imgui :: proc() {
     bind_buffer(imgui_vbo_handle);
     bind_buffer(imgui_ebo_handle);
 
-    imgui_font_default = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "fonts/OpenSans-Regular.ttf", 20);
-    imgui_font_mono    = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "fonts/Inconsolata.ttf", 16);
+    imgui_font_default = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/OpenSans-Regular.ttf", 20);
+    imgui_font_mono    = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/Inconsolata.ttf", 16);
 
 
 /*    //TODO(Hoej): Get from font catalog
