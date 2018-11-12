@@ -9,4 +9,4 @@
 	url = https://github.com/shwaDev/odin-glfw.git
 [submodule "external/odin-imgui"]
 	path = external/imgui
-	url = https://github.com/ThisDrunkDane/odin-imgui.git
+	url = https://github.com/shwaDev/odin-imgui.git
