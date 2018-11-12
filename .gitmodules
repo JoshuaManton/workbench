@@ -1,9 +1,6 @@
 [submodule "external/odin-assimp"]
 	path = external/assimp
 	url = https://github.com/DrProfesor/odin-assimp.git
-[submodule "external/odin-gl"]
-	path = external/gl
-	url = https://github.com/shwaDev/odin-gl.git
 [submodule "external/odin-glfw"]
 	path = external/glfw
 	url = https://github.com/shwaDev/odin-glfw.git
