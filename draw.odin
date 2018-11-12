@@ -589,6 +589,22 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 	odingl.DrawArrays(mode, 0, cast(i32)len(list));
 }
 
+draw_mesh_raw :: proc(mesh: Mesh)
+{
+	bind_vao(mesh.vertex_array);
+	bind_buffer(mesh.vertex_buffer);
+	bind_buffer(mesh.index_buffer);
+
+	program := get_current_shader();
+	uniform(program, "atlas_texture", 0);
+	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+
+	num_draw_calls += 1;
+
+	//odingl.DrawArrays(odingl.TRIANGLES, 0, i32(mesh.vertex_count));
+	odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+}
+
 //
 // Debug
 //

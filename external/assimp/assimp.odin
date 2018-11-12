@@ -257,6 +257,13 @@ aiLight :: struct {
 // 	UserData : aiUserData,
 // }
 
+AI_MAX_FACE_INDICES :: 0x7fff;
+AI_MAX_BONE_WEIGHTS :: 0x7fffffff;
+AI_MAX_VERTICES :: 0x7fffffff;
+AI_MAX_FACES :: 0x7fffffff;
+AI_MAX_NUMBER_OF_COLOR_SETS :: 0x8;
+AI_MAX_NUMBER_OF_TEXTURECOORDS :: 0x8;
+
 aiFace :: struct {
 	mNumIndices : u32,
 	mIndices : ^u32,
@@ -286,8 +293,8 @@ aiAnimMesh :: struct {
 	mNormals : ^aiVector3D,
 	mTangents : ^aiVector3D,
 	mBitangents : ^aiVector3D,
-	mColors : [0x4]^aiColor4D,
-	mTextureCoords : [0x4]^aiVector3D,
+	mColors : [AI_MAX_NUMBER_OF_COLOR_SETS]^aiColor4D,
+	mTextureCoords : [AI_MAX_NUMBER_OF_TEXTURECOORDS]^aiVector3D,
 	mNumVertices : u32,
 }
 
@@ -299,17 +306,17 @@ aiMesh :: struct {
 	mNormals : ^aiVector3D,
 	mTangents : ^aiVector3D,
 	mBitangents : ^aiVector3D,
-	mColors : [0x4]^aiColor4D,
-	mTextureCoords : [0x4]^aiVector3D,
-	mNumUVComponents : [0x4]u32,
+	mColors : [AI_MAX_NUMBER_OF_COLOR_SETS]^aiColor4D,
+	mTextureCoords : [AI_MAX_NUMBER_OF_TEXTURECOORDS]^aiVector3D,
+	mNumUVComponents : [AI_MAX_NUMBER_OF_TEXTURECOORDS]u32,
 	mFaces : ^aiFace,
 	mNumBones : u32,
 	mBones : ^^aiBone,
 	mMaterialIndex : u32,
 	mName : aiString,
-//	NOT : ///,
 	mNumAnimMeshes : u32,
 	mAnimMeshes : ^^aiAnimMesh,
+	mMethod : u32,
 }
 
 aiVector2D :: struct {

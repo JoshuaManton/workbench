@@ -24,7 +24,6 @@ gen_vao :: inline proc(loc := #caller_location) -> VAO {
 
 bind_vao :: inline proc(vao: VAO, loc := #caller_location) {
 	odingl.BindVertexArray(cast(u32)vao);
-	log_gl_errors(#procedure, loc);
 }
 
 delete_vao :: inline proc(vao: VAO, loc := #caller_location) {
@@ -37,11 +36,16 @@ gen_vbo :: inline proc(loc := #caller_location) -> VBO {
 	return vbo;
 }
 
+gen_ebo :: inline proc(loc := #caller_location) -> EBO {
+	ebo := cast(EBO)gen_buffer(loc);
+	return ebo;
+}
+
 gen_buffer :: inline proc(loc := #caller_location) -> Graphics_Buffer {
-	vbo: u32;
-	odingl.GenBuffers(1, &vbo);
+	buffer: u32;
+	odingl.GenBuffers(1, &buffer);
 	log_gl_errors(#procedure, loc);
-	return cast(Graphics_Buffer)vbo;
+	return cast(Graphics_Buffer)buffer;
 }
 
 bind_buffer :: proc[bind_buffer_vbo, bind_buffer_ebo];
@@ -64,7 +68,15 @@ delete_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 	log_gl_errors(#procedure, loc);
 }
 
-
+buffer_data :: proc[buffer_data_ebo, buffer_data_vbo];
+buffer_data_vbo :: inline proc(vertices: [dynamic]Vertex3D, loc := #caller_location) {
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex3D) * len(vertices), &vertices[0], odingl.STATIC_DRAW);
+	log_gl_errors(#procedure, loc);
+}
+buffer_data_ebo :: inline proc(elements: [dynamic]u32, loc := #caller_location) {
+	odingl.BufferData(odingl.ELEMENT_ARRAY_BUFFER, size_of(u32) * len(elements), &elements[0], odingl.STATIC_DRAW);
+	log_gl_errors(#procedure, loc);
+}
 
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	vs_code, ok1 := os.read_entire_file(vs);
@@ -298,9 +310,9 @@ set_vertex_format :: proc($Type: typeid, loc := #caller_location) {
 		}
 
 		log_gl_errors(#procedure, loc);
-		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, size_of(Type), offset_in_struct);
-		log_gl_errors(#procedure, loc);
 		odingl.EnableVertexAttribArray(i);
+		log_gl_errors(#procedure, loc);
+		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, size_of(Type), offset_in_struct);
 		log_gl_errors(#procedure, loc);
 	}
 }
