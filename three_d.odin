@@ -51,7 +51,7 @@ create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32) -> Mesh
 	// enabledAttribArray 0->3
 	// attrib pointer -> pos, tex_coord, color, normal
 
-	bind_vao(VAO(0)); // release vertext array
+	bind_vao(VAO(0)); // release vertex array
 
 	id := cast(MeshID)cur_mesh_id;
 	cur_mesh_id += 1;

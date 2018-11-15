@@ -123,14 +123,24 @@ _update_glfw :: proc() {
 	orthographic_projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	perspective_projection_matrix  = perspective(to_radians(camera_size), current_aspect_ratio, 0.001, 1000);
 
-	view_matrix  = translate(identity(Mat4), Vec3{camera_position.x, -camera_position.y, camera_position.z});
+	qx := axis_angle(Vec3{1.0,0.0,0.0}, to_radians(camera_rotation.x));
+	qy := axis_angle(Vec3{0.0,1.0,0.0}, to_radians(camera_rotation.y));
+	orientation := quat_mul(qx, qy);
+	orientation = quat_norm(orientation);
+
+	rotation_matrix := quat_to_mat4(orientation);
+
+	view_matrix = identity(Mat4);
+	view_matrix  = translate(view_matrix, Vec3{camera_position.x, -camera_position.y, camera_position.z});
+
+	view_matrix = mul(rotation_matrix, view_matrix);
+
 	model_matrix = identity(Mat4);
 
 	// Unit space
 	{
 		unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-1, -1, 0});
 		unit_to_viewport_matrix = scale(unit_to_viewport_matrix, 2);
-
 		unit_to_pixel_matrix = scale(identity(Mat4), Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
 	}
 
