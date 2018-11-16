@@ -128,24 +128,12 @@ degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
 	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
 	qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
-	orientation := quat_mul(qx, quat_norm(quat_mul(qy, qz)));
+	orientation := quat_mul(qx, quat_mul(qy, qz));
 	orientation = quat_norm(orientation);
 	return orientation;
 }
 
-rotate_vec3_quaternion :: proc(v: Vec3, q: Quat) -> Vec3 {
-    // Extract the vector part of the quaternion
-    u := Vec3{q.x, q.y, q.z};
-
-    // Extract the scalar part of the quaternion
-    s := q.w;
-
-    // Do the math
-    return 2 * dot(u, v) * u
-          + (s*s - dot(u, u)) * v
-          + 2 * s * cross(u, v);
-}
-
+// rotates the vector by the quaternion
 quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
 	num := quat.x * 2;
 	num2 := quat.y * 2;
