@@ -38,7 +38,7 @@ create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32) -> Mesh
 	vertex_array := gen_vao(); // genVertexArrays
 	vertex_buffer := gen_vbo(); //genVertexBuffers
 	index_buffer := gen_ebo(); // genIndexBuffers
-	
+
 	bind_vao(vertex_array); // bindVertexArrays
 
 	bind_buffer(vertex_buffer); // bindVertexBuffer
@@ -47,7 +47,7 @@ create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32) -> Mesh
 	bind_buffer(index_buffer); // bindIndexBuffer
 	buffer_data(indicies); // bufferData to GPU
 
-	set_vertex_format(Vertex3D); 
+	set_vertex_format(Vertex3D);
 	// enabledAttribArray 0->3
 	// attrib pointer -> pos, tex_coord, color, normal
 
@@ -85,7 +85,7 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 
 		// process vertices into Vertex3D struct
 		// TODO (jake): support vertex colours and texture coords
-		for i in 0 .. mesh.mNumVertices - 1 
+		for i in 0 .. mesh.mNumVertices - 1
 		{
 			normal := norms[i];
 			position := verts[i];
@@ -132,14 +132,15 @@ get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
 	return mesh;
 }
 
-model_matrix_position :: inline proc(position: Vec3) {
+model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3) {
 	model_matrix = translate(identity(Mat4), position);
+	model_matrix = math.scale(model_matrix, scale);
 }
 
-draw_mesh :: proc(id: MeshID, position: Vec3, loc := #caller_location) {
+draw_mesh :: proc(id: MeshID, position: Vec3, scale: Vec3, loc := #caller_location) {
 	mesh, ok := all_meshes[id];
 	assert(ok);
-	model_matrix_position(position);
+	model_matrix_from_elements(position, scale);
 	rendermode_world();
 	draw_mesh_raw(mesh);
 }
