@@ -132,15 +132,24 @@ get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
 	return mesh;
 }
 
-model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3) {
+model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
 	model_matrix = translate(identity(Mat4), position);
 	model_matrix = math.scale(model_matrix, scale);
+
+	qx := axis_angle(Vec3{1.0,0.0,0.0}, to_radians(rotation.x));
+	qy := axis_angle(Vec3{0.0,1.0,0.0}, to_radians(rotation.y));
+	qz := axis_angle(Vec3{0.0,0.0,1.0}, to_radians(rotation.z));
+	orientation := quat_mul(qx, quat_mul(qy, qz));
+	orientation = quat_norm(orientation);
+
+	rotation_matrix := quat_to_mat4(orientation);
+	model_matrix = math.mul(model_matrix, rotation_matrix);
 }
 
-draw_mesh :: proc(id: MeshID, position: Vec3, scale: Vec3, loc := #caller_location) {
+draw_mesh :: proc(id: MeshID, position: Vec3, scale: Vec3, rotation: Vec3, loc := #caller_location) {
 	mesh, ok := all_meshes[id];
 	assert(ok);
-	model_matrix_from_elements(position, scale);
+	model_matrix_from_elements(position, scale, rotation);
 	rendermode_world();
 	draw_mesh_raw(mesh);
 }

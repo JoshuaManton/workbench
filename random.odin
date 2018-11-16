@@ -26,6 +26,14 @@ random_u64 :: inline proc() -> u64 {
 	return value;
 }
 
+random_vec3 :: inline proc() -> Vec3 {
+	return Vec3{random01(), random01(), random01()};
+}
+
+random_color :: inline proc() -> Colorf {
+	return Colorf{random01(), random01(), random01(), 1};
+}
+
 random_unit_vector :: inline proc() -> Vec3 {
 	v := Vec3{random_range(-1, 1), random_range(-1, 1), random_range(-1, 1)};
 	return v;
