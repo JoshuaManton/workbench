@@ -105,17 +105,23 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
 }
 
-quaternion_forward :: proc(quat: Quat) -> Vec3 {
+quaternion_forward :: inline proc(quat: Quat) -> Vec3 {
 	return quat_mul_vec3(quat, {0, 0, 1});
 }
-quaternion_back :: proc(quat: Quat) -> Vec3 {
+quaternion_back :: inline proc(quat: Quat) -> Vec3 {
 	return -quaternion_forward(quat);
 }
-quaternion_right :: proc(quat: Quat) -> Vec3 {
+quaternion_right :: inline proc(quat: Quat) -> Vec3 {
 	return quat_mul_vec3(quat, {1, 0, 0});
 }
-quaternion_left :: proc(quat: Quat) -> Vec3 {
+quaternion_left :: inline proc(quat: Quat) -> Vec3 {
 	return -quaternion_right(quat);
+}
+quaternion_up :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 1, 0});
+}
+quaternion_down :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_up(quat);
 }
 
 degrees_to_quaternion :: proc(v: Vec3) -> Quat {
