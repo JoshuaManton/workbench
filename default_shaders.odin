@@ -16,7 +16,7 @@ out vec4 desired_color;
 void main() {
     vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
     if (result.w > 0) { result /= result.w; }
-    gl_Position = vec4(result.xyz, 1);
+    gl_Position = vec4(result.xyz, 1); // todo(josh): is this 1 correct or should this just be "gl_Position = result" ???? we dont do this in 3D
     desired_color = vbo_color;
 }
 `;
@@ -51,7 +51,7 @@ out vec4 desired_color;
 void main() {
     vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
     if (result.w > 0) { result /= result.w; }
-    gl_Position = vec4(result.xyz, 1);
+    gl_Position = vec4(result.xyz, 1); // todo(josh): is this 1 correct or should this just be "gl_Position = result" ???? we dont do this in 3D
     tex_coord = vbo_tex_coord;
     desired_color = vbo_color;
 }
@@ -90,7 +90,7 @@ out vec4 desired_color;
 void main() {
     vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
     if (result.w > 0) { result /= result.w; }
-    gl_Position = vec4(result.xyz, 1);
+    gl_Position = vec4(result.xyz, 1); // todo(josh): is this 1 correct or should this just be "gl_Position = result" ???? we dont do this in 3D
     tex_coord = vbo_tex_coord;
     desired_color = vbo_color;
 }
@@ -138,7 +138,7 @@ out vec4 desired_color;
 void main() {
     vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
     if (result.w > 0) { result /= result.w; }
-    gl_Position = vec4(result.xyz, 1);
+    gl_Position = result;
     desired_color = vbo_color;
 }
 `;
