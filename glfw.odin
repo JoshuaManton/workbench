@@ -121,7 +121,7 @@ _update_glfw :: proc() {
 	left   : f32 = -1 * current_aspect_ratio * camera_size + camera_position.x;
 	right  : f32 =  1 * current_aspect_ratio * camera_size + camera_position.x;
 	orthographic_projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
-	perspective_projection_matrix  = perspective(to_radians(camera_size), current_aspect_ratio, 0.001, 1000);
+	perspective_projection_matrix  = perspective(to_radians(camera_size), current_aspect_ratio, 0.1, 1000);
 
 	qx := axis_angle(Vec3{1.0,0.0,0.0}, to_radians(camera_rotation.x));
 	qy := axis_angle(Vec3{0.0,1.0,0.0}, to_radians(camera_rotation.y));

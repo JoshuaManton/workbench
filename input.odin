@@ -179,37 +179,34 @@ _update_input :: proc() {
 // 	}
 // }
 
+wb_button_press :: proc(button: $Input_Type) {
+	append(&_held_mid_frame, Key_Press{button});
+	append(&_down_mid_frame, Key_Press{button});
+}
+wb_button_release :: proc(button: $Input_Type) {
+	idx := -1;
+	for held, i in _held_mid_frame {
+		if held_button, ok := held.input.(Input_Type); ok && held_button == button {
+			idx = i;
+			break;
+		}
+	}
+	// idx being -1 means that we got a release but no press, which sometimes happens
+	if idx != -1 {
+		remove_at(&_held_mid_frame, idx);
+	}
+	append(&_up_mid_frame, Key_Press{button});
+}
+
 // this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
 // so we need to save presses in a separate buffer and copy them over to have consistent behaviour
 _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: Key, scancode: i32, action: glfw.Action, mods: i32) {
-	when false
-	{
-		fmt.println("------------------------------");
-		fmt.println("len of held", len(_held), len(_held_mid_frame));
-		fmt.println("len of up",   len(_up),   len(_up_mid_frame));
-		fmt.println("len of down", len(_down), len(_down_mid_frame));
-
-		fmt.println("cap of held", cap(_held), cap(_held_mid_frame));
-		fmt.println("cap of up",   cap(_up),   cap(_up_mid_frame));
-		fmt.println("cap of down", cap(_down), cap(_down_mid_frame));
-	}
-
 	switch action {
 		case glfw.Action.Press: {
-			append(&_held_mid_frame, Key_Press{key});
-			append(&_down_mid_frame, Key_Press{key});
+			wb_button_press(key);
 		}
 		case glfw.Action.Release: {
-			idx := -1;
-			for held, i in _held_mid_frame {
-				if held.input.(Key) == key {
-					idx = i;
-					break;
-				}
-			}
-			assert(idx != -1);
-			remove_at(&_held_mid_frame, idx);
-			append(&_up_mid_frame, Key_Press{key});
+			wb_button_release(key);
 		}
 	}
 }
@@ -217,20 +214,10 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: Key, scancode: i3
 _glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: Mouse, action: glfw.Action, mods: i32) {
 	switch action {
 		case glfw.Action.Press: {
-			append(&_held_mid_frame, Key_Press{button});
-			append(&_down_mid_frame, Key_Press{button});
+			wb_button_press(button);
 		}
 		case glfw.Action.Release: {
-			idx := -1;
-			for held, i in _held_mid_frame {
-				if held.input.(Mouse) == button {
-					idx = i;
-					break;
-				}
-			}
-			assert(idx != -1);
-			remove_at(&_held_mid_frame, idx);
-			append(&_up_mid_frame, Key_Press{button});
+			wb_button_release(button);
 		}
 	}
 }
