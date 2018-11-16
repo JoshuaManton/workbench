@@ -46,7 +46,7 @@ move_towards_f32 :: proc(a, b: f32, step: f32) -> f32 {
 }
 
 
-rotate_vector :: proc(vec: Vec2, degrees: f32) -> Vec2 {
+rotate_vec2_degrees :: proc(vec: Vec2, degrees: f32) -> Vec2 {
 	s := sin(to_radians(degrees));
 	c := cos(to_radians(degrees));
 

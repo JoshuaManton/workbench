@@ -136,12 +136,7 @@ model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation:
 	model_matrix = translate(identity(Mat4), position);
 	model_matrix = math.scale(model_matrix, scale);
 
-	qx := axis_angle(Vec3{1.0,0.0,0.0}, to_radians(rotation.x));
-	qy := axis_angle(Vec3{0.0,1.0,0.0}, to_radians(rotation.y));
-	qz := axis_angle(Vec3{0.0,0.0,1.0}, to_radians(rotation.z));
-	orientation := quat_mul(qx, quat_mul(qy, qz));
-	orientation = quat_norm(orientation);
-
+	orientation := degrees_to_quaternion(rotation);
 	rotation_matrix := quat_to_mat4(orientation);
 	model_matrix = math.mul(model_matrix, rotation_matrix);
 }
