@@ -127,6 +127,7 @@ quaternion_down :: inline proc(quat: Quat) -> Vec3 {
 degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
 	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
+	// todo(josh): z axis
 	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
 	orientation := quat_mul(qy, qx);
 	orientation = quat_norm(orientation);
@@ -181,12 +182,13 @@ _update_glfw :: proc() {
 	perspective_projection_matrix  = perspective(to_radians(camera_size), current_aspect_ratio, 0.01, 1000);
 
 	view_matrix = identity(Mat4);
-	view_matrix  = translate(view_matrix, Vec3{-camera_position.x, -camera_position.y, camera_position.z});
+	view_matrix = translate(view_matrix, Vec3{-camera_position.x, -camera_position.y, camera_position.z});
 
 	normalize_camera_rotation();
 
 	qx := axis_angle(Vec3{1,0,0}, to_radians(camera_rotation.x));
 	qy := axis_angle(Vec3{0,1,0}, to_radians(camera_rotation.y));
+	// todo(josh): z axis
 	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
 	orientation := quat_mul(qx, qy);
 	orientation = quat_norm(orientation);

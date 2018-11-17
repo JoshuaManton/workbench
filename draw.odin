@@ -125,21 +125,14 @@ viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
 	return a;
 }
 
-//
-// Immediate-mode rendering
-//
-
 camera_size: f32 = 1;
 camera_position: Vec3;
 camera_rotation: Vec3;
 camera_target: Vec3;
 
-COLOR_WHITE  := Colorf{1, 1, 1, 1};
-COLOR_RED    := Colorf{1, 0, 0, 1};
-COLOR_GREEN  := Colorf{0, 1, 0, 1};
-COLOR_BLUE   := Colorf{0, 0, 1, 1};
-COLOR_BLACK  := Colorf{0, 0, 0, 1};
-COLOR_YELLOW := Colorf{1, 1, 0, 1};
+//
+// Immediate-mode rendering
+//
 
 im_quad :: proc[im_quad_color, im_quad_sprite, im_quad_sprite_color];
 

@@ -190,7 +190,8 @@ _render_scenes :: proc() {
 
 WB_Debug_Data :: struct {
 	camera_position: Vec3,
-	camera_rotation: Vec3,
+	camera_rotation_euler: Vec3,
+	camera_rotation_quat: Quat,
 	precise_delta_time_ms: f64,
 	client_target_delta_time: f32,
 	client_target_framerate: f32,
@@ -209,6 +210,7 @@ _update_debug_window :: proc() {
 		data := WB_Debug_Data{
 			camera_position,
 			camera_rotation,
+			degrees_to_quaternion(camera_rotation),
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			client_target_delta_time,
 			client_target_framerate,
