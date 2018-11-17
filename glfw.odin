@@ -127,8 +127,8 @@ quaternion_down :: inline proc(quat: Quat) -> Vec3 {
 degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
 	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
-	qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
-	orientation := quat_mul(qx, quat_mul(qy, qz));
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
+	orientation := quat_mul(qy, qx);
 	orientation = quat_norm(orientation);
 	return orientation;
 }
@@ -154,6 +154,14 @@ quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
 	return result;
 }
 
+normalize_camera_rotation :: proc() {
+	for _, i in camera_rotation {
+		element := &camera_rotation[i];
+		for element^ < 0   do element^ += 360;
+		for element^ > 360 do element^ -= 360;
+	}
+}
+
 _update_glfw :: proc() {
 	// Update vars from callbacks
 	current_window_width   = _new_window_width;
@@ -174,7 +182,14 @@ _update_glfw :: proc() {
 
 	view_matrix = identity(Mat4);
 	view_matrix  = translate(view_matrix, Vec3{-camera_position.x, -camera_position.y, camera_position.z});
-	orientation := degrees_to_quaternion(camera_rotation);
+
+	normalize_camera_rotation();
+
+	qx := axis_angle(Vec3{1,0,0}, to_radians(camera_rotation.x));
+	qy := axis_angle(Vec3{0,1,0}, to_radians(camera_rotation.y));
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
+	orientation := quat_mul(qx, qy);
+	orientation = quat_norm(orientation);
 	rotation_matrix := quat_to_mat4(orientation);
 	view_matrix = mul(rotation_matrix, view_matrix);
 
