@@ -14,6 +14,8 @@ using import        "core:fmt"
       import stb    "external/stb"
       import        "external/glfw"
 
+	  import 		"console"
+
 DEVELOPER :: true;
 
 //
@@ -224,6 +226,8 @@ _update_debug_window :: proc() {
 			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 		}
+
+		console.update_console_window();
 	}
 }
 
