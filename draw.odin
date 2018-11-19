@@ -594,7 +594,6 @@ draw_mesh_raw :: proc(mesh: Mesh, texture: Texture)
 	bind_vao(mesh.vertex_array);
 	bind_buffer(mesh.vertex_buffer);
 	bind_buffer(mesh.index_buffer);
-	logln("Rendering: ", texture);
 	bind_texture2d(texture);
 
 	program := get_current_shader();

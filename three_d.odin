@@ -115,7 +115,7 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 
 			vert := Vertex3D{
 				Vec3{position.x, position.y, position.z},
-				Vec2{0,0},
+				texture_coord,
 				colour,
 				Vec3{normal.x, normal.y, normal.z}};
 

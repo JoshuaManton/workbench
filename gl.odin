@@ -31,8 +31,8 @@ _init_opengl :: proc(opengl_version_major, opengl_version_minor: int) {
 	assert(ok);
 	shader_texture, ok = load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
 	assert(ok);
-	shader_text, ok    = load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
-	assert(ok);
+	//shader_text, ok    = load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
+	//assert(ok);
 	shader_rgba_3d, ok = load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
 	assert(ok);
 }

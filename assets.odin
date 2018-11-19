@@ -97,8 +97,6 @@ load_texture :: proc(filepath: string) -> Texture
 	
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_T, odingl.CLAMP_TO_EDGE);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_S, odingl.CLAMP_TO_EDGE);
 
 	return tex;
 }
