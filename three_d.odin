@@ -80,6 +80,14 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 		verts := mem.slice_ptr(mesh.mVertices, cast(int) mesh.mNumVertices);
 		norms := mem.slice_ptr(mesh.mNormals, cast(int) mesh.mNumVertices);
 
+		colours : []ai.aiColor4D;
+		if mesh.mColors[0] != nil do
+			colours = mem.slice_ptr(mesh.mColors[0], cast(int) mesh.mNumVertices);
+
+		texture_coords : []ai.aiVector3D;
+		if mesh.mTextureCoords[0] != nil do
+			texture_coords = mem.slice_ptr(mesh.mTextureCoords[0], cast(int) mesh.mNumVertices);
+
 		processedVerts := make([dynamic]Vertex3D, 0, mesh.mNumVertices);
 		defer delete(processedVerts);
 
@@ -90,14 +98,25 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 			normal := norms[i];
 			position := verts[i];
 
-			r : f32 = (cast(f32)i / cast(f32)len(verts)) * 0.75 + 0.25;
-			g : f32 = 0;
-			b : f32 = 0;
+			colour: Colorf;
+			if mesh.mColors[0] != nil do
+				colour = Colorf(colours[i]); 
+			else
+			{
+				rnd := (cast(f32)i / cast(f32)len(verts)) * 0.75 + 0.25;
+				colour = Colorf{rnd, 0, rnd, 1};
+			}
+
+			texture_coord: Vec2;
+			if mesh.mTextureCoords[0] != nil do
+				texture_coord = Vec2{texture_coords[i].x, texture_coords[i].y};
+			else do
+				texture_coord = Vec2{0,0};
 
 			vert := Vertex3D{
 				Vec3{position.x, position.y, position.z},
 				Vec2{0,0},
-				Colorf{r, g, b, 1},
+				colour,
 				Vec3{normal.x, normal.y, normal.z}};
 
 			append(&processedVerts, vert);
@@ -141,12 +160,12 @@ model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation:
 	model_matrix = math.mul(model_matrix, rotation_matrix);
 }
 
-draw_mesh :: proc(id: MeshID, position: Vec3, scale: Vec3, rotation: Vec3, loc := #caller_location) {
+draw_mesh :: proc(id: MeshID, position: Vec3, scale: Vec3, rotation: Vec3, texture: Texture, loc := #caller_location) {
 	mesh, ok := all_meshes[id];
 	assert(ok);
 	model_matrix_from_elements(position, scale, rotation);
 	rendermode_world();
-	draw_mesh_raw(mesh);
+	draw_mesh_raw(mesh, texture);
 }
 
 // Mesh primitives

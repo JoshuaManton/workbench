@@ -80,6 +80,29 @@ load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool)
 	return sprite, true;
 }
 
+load_texture :: proc(filepath: string) -> Texture
+{
+	width, height, channels: i32;
+	pixel_data := stb.load(&filepath[0], &width, &height, &channels, 0);
+	if pixel_data == nil {
+		logln("Couldn't load texture: ", filepath);
+		return 0;
+	}
+	defer stb.image_free(pixel_data);
+
+	tex := gen_texture();
+	bind_texture2d(tex);
+
+	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGB, width, height, 0, odingl.RGB, odingl.UNSIGNED_BYTE, pixel_data);
+	
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_T, odingl.CLAMP_TO_EDGE);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_WRAP_S, odingl.CLAMP_TO_EDGE);
+
+	return tex;
+}
+
 //
 // Fonts
 //

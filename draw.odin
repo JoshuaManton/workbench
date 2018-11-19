@@ -582,7 +582,7 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 	odingl.DrawArrays(mode, 0, cast(i32)len(list));
 }
 
-draw_mesh_raw :: proc(mesh: Mesh)
+draw_mesh_raw :: proc(mesh: Mesh, texture: Texture)
 {
 	when DEVELOPER {
 		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
@@ -594,9 +594,11 @@ draw_mesh_raw :: proc(mesh: Mesh)
 	bind_vao(mesh.vertex_array);
 	bind_buffer(mesh.vertex_buffer);
 	bind_buffer(mesh.index_buffer);
+	logln("Rendering: ", texture);
+	bind_texture2d(texture);
 
 	program := get_current_shader();
-	uniform(program, "atlas_texture", 0);
+	//uniform(program, "atlas_texture", i32(texture));
 	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
 	num_draw_calls += 1;
