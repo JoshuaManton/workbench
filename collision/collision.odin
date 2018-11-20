@@ -7,6 +7,10 @@ main :: proc() {
 
 }
 
+//
+// Collision Scene API
+//
+
 Handle :: int;
 
 Box :: struct {
@@ -52,12 +56,31 @@ remove_collider :: proc(using scene: ^Collision_Scene, handle: Handle) {
 	delete_key(&colliders, handle);
 }
 
+destroy_collision_scene :: proc(using scene: ^Collision_Scene) {
+	delete(colliders);
+}
+
+// todo(josh): these *cast functions should probably sort their outputs
 linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
 	for handle, collider in colliders {
 		switch kind in collider.kind {
 			case Box: {
 				info, ok := cast_line_box(origin, velocity, collider.position, kind.size);
+				if ok do append(out_hits, info);
+			}
+			case: panic(tprint(kind));
+		}
+	}
+}
+
+// todo(josh): test this, not sure if it works
+boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, other_position, other_size: Vec3, out_hits: ^[dynamic]Hit_Info) {
+	clear(out_hits);
+	for handle, collider in colliders {
+		switch kind in collider.kind {
+			case Box: {
+				info, ok := cast_box_box(origin, size, velocity, collider.position, kind.size);
 				if ok do append(out_hits, info);
 			}
 			case: panic(tprint(kind));
@@ -137,11 +160,52 @@ cast_line_box :: proc(line_origin, line_velocity: Vec3, boxpos, boxsize: Vec3) -
 	return info, true;
 }
 
+@(deprecated="Not yet implemented")
+cast_box_circle :: proc(box_min, box_max: Vec3, box_direction: Vec3, circle_position: Vec3, circle_radius: f32) -> (Hit_Info, bool) {
+	// todo(josh): this sounds like a nightmare
+	assert(false);
+	return Hit_Info{}, false;
+}
+
+// todo(josh): test this, not sure if it works
+cast_line_circle :: proc(line_origin, line_velocity: Vec3, circle_center: Vec3, circle_radius: f32) -> (Hit_Info, bool) {
+	direction := line_origin - circle_center;
+	a := dot(line_velocity, line_velocity);
+	b := dot(direction, line_velocity);
+	c := dot(direction, direction) - circle_radius * circle_radius;
+
+	disc := b * b - a * c;
+	if (disc < 0) {
+		return Hit_Info{}, false;
+	}
+
+	sqrt_disc := sqrt(disc);
+	invA: f32 = 1.0 / a;
+
+	tmin := (-b - sqrt_disc) * invA;
+	tmax := (-b + sqrt_disc) * invA;
+	tmax = min(tmax, 1);
+
+	inv_radius: f32 = 1.0 / circle_radius;
+
+	pmin := line_origin + tmin * line_velocity;
+	// normal := (pmin - circle_center) * inv_radius;
+
+	pmax := line_origin + tmax * line_velocity;
+	// normal[i] = (point[i] - circle_center) * invRadius;
+
+	info := Hit_Info{tmin, tmax, pmin, pmax};
+
+	return info, true;
+}
+
 overlap_point_box :: inline proc(origin: Vec3, box_min, box_max: Vec3) -> bool {
 	return origin.x < box_max.x
 		&& origin.x > box_min.x
 		&& origin.y < box_max.y
-		&& origin.y > box_min.y;
+		&& origin.y > box_min.y
+		&& origin.z < box_max.z
+		&& origin.z > box_min.z;
 }
 
 overlap_point_circle :: inline proc(origin: Vec3, circle_position: Vec3, circle_radius: f32) -> bool {
@@ -152,12 +216,6 @@ overlap_point_circle :: inline proc(origin: Vec3, circle_position: Vec3, circle_
 
 
 // todo(josh): the rest of these
-
-// cast_box_circle :: proc(box_min, box_max: Vec3, box_direction: Vec3, circle_position: Vec3, circle_radius: f32) -> (Hit_Info, bool) {
-// 	// todo(josh): this sounds like a nightmare
-// 	assert(false);
-// 	return Hit_Info{}, false;
-// }
 
 // cast_circle_box :: proc(circle_origin, circle_direction: Vec3, circle_radius: f32, boxpos, boxsize: Vec3) -> (Hit_Info, bool) {
 // 	compare_hits :: proc(source: ^Hit_Info, other: Hit_Info) {
@@ -219,35 +277,4 @@ overlap_point_circle :: inline proc(origin: Vec3, circle_position: Vec3, circle_
 // 	}
 
 // 	return final_hit_info, did_hit;
-// }
-
-// cast_line_circle :: proc(line_origin, line_direction: Vec3, circle_center: Vec3, circle_radius: f32) -> (Hit_Info, bool) {
-// 	direction := line_origin - circle_center;
-// 	a := dot(line_direction, line_direction);
-// 	b := dot(direction, line_direction);
-// 	c := dot(direction, direction) - circle_radius * circle_radius;
-
-// 	disc := b * b - a * c;
-// 	if (disc < 0) {
-// 		return Hit_Info{}, false;
-// 	}
-
-// 	sqrt_disc := sqrt(disc);
-// 	invA: f32 = 1.0 / a;
-
-// 	tmin := (-b - sqrt_disc) * invA;
-// 	tmax := (-b + sqrt_disc) * invA;
-// 	tmax = _min(tmax, 1);
-
-// 	inv_radius: f32 = 1.0 / circle_radius;
-
-// 	pmin := line_origin + tmin * line_direction;
-// 	// normal := (pmin - circle_center) * inv_radius;
-
-// 	pmax := line_origin + tmax * line_direction;
-// 	// normal[i] = (point[i] - circle_center) * invRadius;
-
-// 	info := Hit_Info{tmin, tmax, pmin, pmax};
-
-// 	return info, true;
 // }
