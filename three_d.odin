@@ -16,7 +16,7 @@ using import        "core:fmt"
 
 Vertex3D :: struct {
 	position: Vec3,
-	tex_coord: Vec2,
+	tex_coord: Vec3,
 	color: Colorf,
 	normal: Vec3,
 }
@@ -68,7 +68,8 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 		cast(u32) ai.aiPostProcessSteps.Triangulate |
 		cast(u32) ai.aiPostProcessSteps.JoinIdenticalVertices |
 		cast(u32) ai.aiPostProcessSteps.SortByPType |
-		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder);
+		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder| 
+		cast(u32) ai.aiPostProcessSteps.FlipUVs);
 	defer ai.release_import(scene);
 
 	mesh_count := cast(int) scene.mNumMeshes;
@@ -107,11 +108,11 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 				colour = Colorf{rnd, 0, rnd, 1};
 			}
 
-			texture_coord: Vec2;
+			texture_coord: Vec3;
 			if mesh.mTextureCoords[0] != nil do
-				texture_coord = Vec2{texture_coords[i].x, texture_coords[i].y};
+				texture_coord = Vec3{texture_coords[i].x, texture_coords[i].y, texture_coords[i].z};
 			else do
-				texture_coord = Vec2{0,0};
+				texture_coord = Vec3{0, 0, 0};
 
 			vert := Vertex3D{
 				Vec3{position.x, position.y, position.z},
