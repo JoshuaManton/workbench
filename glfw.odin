@@ -118,28 +118,16 @@ _update_glfw :: proc() {
 
 	// ortho
 	{
-		top    : f32 =  1 * camera_size + camera_position.y;
-		bottom : f32 = -1 * camera_size + camera_position.y;
-		left   : f32 = -1 * current_aspect_ratio * camera_size + camera_position.x;
-		right  : f32 =  1 * current_aspect_ratio * camera_size + camera_position.x;
+		top    : f32 =  1 * current_camera.size + current_camera.position.y;
+		bottom : f32 = -1 * current_camera.size + current_camera.position.y;
+		left   : f32 = -1 * current_aspect_ratio * current_camera.size + current_camera.position.x;
+		right  : f32 =  1 * current_aspect_ratio * current_camera.size + current_camera.position.x;
 		orthographic_projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	}
 
-	perspective_projection_matrix  = perspective(to_radians(camera_size), current_aspect_ratio, 0.01, 1000);
+	perspective_projection_matrix  = perspective(to_radians(current_camera.size), current_aspect_ratio, 0.01, 1000);
 
-	view_matrix = identity(Mat4);
-	view_matrix = translate(view_matrix, Vec3{-camera_position.x, -camera_position.y, -camera_position.z});
-
-	normalize_camera_rotation();
-
-	qx := axis_angle(Vec3{1,0,0}, to_radians(360 - camera_rotation.x));
-	qy := axis_angle(Vec3{0,1,0}, to_radians(360 - camera_rotation.y));
-	// todo(josh): z axis
-	// qz := axis_angle(Vec3{0,0,1}, to_radians(360 - camera_rotation.z));
-	orientation := quat_mul(qx, qy);
-	orientation = quat_norm(orientation);
-	rotation_matrix := quat_to_mat4(orientation);
-	view_matrix = mul(rotation_matrix, view_matrix);
+	update_view_matrix(current_camera);
 
 	model_matrix = identity(Mat4);
 

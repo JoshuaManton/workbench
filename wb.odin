@@ -34,7 +34,10 @@ make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
                            _target_framerate: f32,
-                           scene: Scene) {
+                           scene: Scene,
+                           camera: ^Camera) {
+
+	current_camera = camera;
 
 	client_target_framerate = _target_framerate;
 
@@ -208,9 +211,9 @@ _update_debug_window :: proc() {
 
 	if debug_window_open {
 		data := WB_Debug_Data{
-			camera_position,
-			camera_rotation,
-			degrees_to_quaternion(camera_rotation),
+			current_camera.position,
+			current_camera.rotation,
+			degrees_to_quaternion(current_camera.rotation),
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 			client_target_framerate,

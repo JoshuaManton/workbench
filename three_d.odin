@@ -68,7 +68,7 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 		cast(u32) ai.aiPostProcessSteps.Triangulate |
 		cast(u32) ai.aiPostProcessSteps.JoinIdenticalVertices |
 		cast(u32) ai.aiPostProcessSteps.SortByPType |
-		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder| 
+		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder|
 		cast(u32) ai.aiPostProcessSteps.FlipUVs);
 	defer ai.release_import(scene);
 
@@ -101,7 +101,7 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 
 			colour: Colorf;
 			if mesh.mColors[0] != nil do
-				colour = Colorf(colours[i]); 
+				colour = Colorf(colours[i]);
 			else
 			{
 				rnd := (cast(f32)i / cast(f32)len(verts)) * 0.75 + 0.25;
