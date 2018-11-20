@@ -319,6 +319,42 @@ aiMesh :: struct {
 	mMethod : u32,
 }
 
+has_positions :: proc(using mesh : ^aiMesh) -> bool
+{
+	return mVertices != nil && mNumVertices > 0;
+}
+
+has_faces :: proc(using mesh : ^aiMesh) -> bool
+{
+	return mFaces != nil && mNumFaces > 0;
+}
+
+has_normals :: proc(using mesh : ^aiMesh) -> bool
+{
+	return mNormals != nil && mNumVertices > 0;
+}
+
+has_tangent_and_bitangents :: proc(using mesh : ^aiMesh) -> bool
+{
+	return mTangents != nil && mBitangents != nil && mNumVertices > 0;
+}
+
+has_vertex_colors :: proc(using mesh : ^aiMesh, pIndex : u32) -> bool
+{
+	if pIndex >= AI_MAX_NUMBER_OF_COLOR_SETS do
+        return false;
+    else do
+        return mColors[pIndex] != nil && mNumVertices > 0;
+}
+
+has_texture_coords :: proc(using mesh : ^aiMesh, pIndex : u32) -> bool
+{
+	if pIndex >= AI_MAX_NUMBER_OF_TEXTURECOORDS do
+        return false;
+    else do
+        return mTextureCoords[pIndex] != nil && mNumVertices > 0;
+}
+
 aiVector2D :: struct {
 	x : f32,
 	y : f32,
