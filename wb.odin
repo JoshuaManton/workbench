@@ -21,7 +21,7 @@ DEVELOPER :: true;
 //
 
 client_target_framerate:  f32;
-client_target_delta_time: f32;
+fixed_delta_time: f32;
 
 whole_frame_time_ra: Rolling_Average(f64, 100);
 
@@ -44,7 +44,7 @@ make_simple_window :: proc(window_name: string,
 	_init_dear_imgui();
 
 	acc: f32;
-	client_target_delta_time = cast(f32)1 / client_target_framerate;
+	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
 	start_scene(scene);
 
@@ -61,7 +61,7 @@ make_simple_window :: proc(window_name: string,
 		lossy_delta_time = time - last_time;
 		acc += lossy_delta_time;
 
-		if acc >= client_target_delta_time {
+		if acc >= fixed_delta_time {
 			for {
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
@@ -87,8 +87,8 @@ make_simple_window :: proc(window_name: string,
 				// call_coroutines();
 	    		imgui.pop_font();
 
-				acc -= client_target_delta_time;
-				if acc >= client_target_delta_time {
+				acc -= fixed_delta_time;
+				if acc >= fixed_delta_time {
 					imgui_render(false);
 				}
 				else {
@@ -165,7 +165,7 @@ _update_scenes :: proc() {
 	{
 		for id, scene in all_scenes {
 			if scene.update != nil {
-				scene.update(client_target_delta_time);
+				scene.update(fixed_delta_time);
 			}
 		}
 	}
@@ -192,8 +192,8 @@ WB_Debug_Data :: struct {
 	camera_position: Vec3,
 	camera_rotation_euler: Vec3,
 	camera_rotation_quat: Quat,
-	precise_delta_time_ms: f64,
-	client_target_delta_time: f32,
+	precise_lossy_delta_time_ms: f64,
+	fixed_delta_time: f32,
 	client_target_framerate: f32,
 	draw_calls: i32,
 }
@@ -212,7 +212,7 @@ _update_debug_window :: proc() {
 			camera_rotation,
 			degrees_to_quaternion(camera_rotation),
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
-			client_target_delta_time,
+			fixed_delta_time,
 			client_target_framerate,
 			num_draw_calls,
 

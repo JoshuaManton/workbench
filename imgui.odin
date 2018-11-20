@@ -298,7 +298,7 @@ imgui_begin_new_frame :: proc() {
     }
 
     // ctx.imgui_state.mouse_wheel_delta = 0;
-    io.delta_time = client_target_delta_time;
+    io.delta_time = fixed_delta_time;
     imgui.new_frame();
 }
 

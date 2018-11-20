@@ -106,10 +106,10 @@ _update_tween :: proc() {
 		if time < tweener.start_time do continue;
 
 		switch kind in tweener.ptr {
-			case ^f32:  kind^ = _update_one_tweener(f32,  tweener, client_target_delta_time);
-			case ^Vec2: kind^ = _update_one_tweener(Vec2, tweener, client_target_delta_time);
-			case ^Vec3: kind^ = _update_one_tweener(Vec3, tweener, client_target_delta_time);
-			case ^Vec4: kind^ = _update_one_tweener(Vec4, tweener, client_target_delta_time);
+			case ^f32:  kind^ = _update_one_tweener(f32,  tweener, fixed_delta_time);
+			case ^Vec2: kind^ = _update_one_tweener(Vec2, tweener, fixed_delta_time);
+			case ^Vec3: kind^ = _update_one_tweener(Vec3, tweener, fixed_delta_time);
+			case ^Vec4: kind^ = _update_one_tweener(Vec4, tweener, fixed_delta_time);
 		}
 
 		if !tweener.loop && tweener.cur_time >= tweener.duration {

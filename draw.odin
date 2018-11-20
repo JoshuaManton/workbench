@@ -92,23 +92,21 @@ world_to_unit :: inline proc(a: Vec3) -> Vec3 {
 }
 
 unit_to_pixel :: inline proc(a: Vec3) -> Vec3 {
-	result := mul(unit_to_pixel_matrix, Vec4{a.x, a.y, 0, 1});
-	return Vec3{result.x, result.y, 0};
+	result := a * Vec3{current_window_width, current_window_height, 1};
+	return result;
 }
 unit_to_viewport :: inline proc(a: Vec3) -> Vec3 {
-	result := mul(unit_to_viewport_matrix, Vec4{a.x, a.y, 0, 1});
-	return Vec3{result.x, result.y, 0};
+	result := (a * 2) - Vec3{1, 1, 0};
+	return result;
 }
 
 pixel_to_viewport :: inline proc(a: Vec3) -> Vec3 {
-	a /= Vec3{current_window_width/2, current_window_height/2, 0};
+	a /= Vec3{current_window_width/2, current_window_height/2, 1};
 	a -= Vec3{1, 1, 0};
-	a.z = 0;
 	return a;
 }
 pixel_to_unit :: inline proc(a: Vec3) -> Vec3 {
-	a /= Vec3{current_window_width, current_window_height, 0};
-	a.z = 0;
+	a /= Vec3{current_window_width, current_window_height, 1};
 	return a;
 }
 
@@ -129,6 +127,78 @@ camera_size: f32 = 1;
 camera_position: Vec3;
 camera_rotation: Vec3;
 camera_target: Vec3;
+
+get_cursor_direction_from_camera :: proc() -> Vec3 {
+	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
+	cursor_viewport_position.w = 1;
+	cursor_viewport_position.z = 0.5; // just some way down the frustum
+
+	inv := inverse(mul(perspective_projection_matrix, view_matrix));
+	cursor_world_position4 := mul(inv, cursor_viewport_position);
+	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
+	cursor_world_position := to_vec3(cursor_world_position4) - camera_position;
+	cursor_direction := norm(cursor_world_position);
+
+	return cursor_direction;
+}
+
+quaternion_forward :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 0, -1});
+}
+quaternion_back :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_forward(quat);
+}
+quaternion_right :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {1, 0, 0});
+}
+quaternion_left :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_right(quat);
+}
+quaternion_up :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 1, 0});
+}
+quaternion_down :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_up(quat);
+}
+
+degrees_to_quaternion :: proc(v: Vec3) -> Quat {
+	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
+	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
+	// todo(josh): z axis
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
+	orientation := quat_mul(qy, qx);
+	orientation = quat_norm(orientation);
+	return orientation;
+}
+
+// note(josh): rotates the vector by the quaternion
+quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
+	num := quat.x * 2;
+	num2 := quat.y * 2;
+	num3 := quat.z * 2;
+	num4 := quat.x * num;
+	num5 := quat.y * num2;
+	num6 := quat.z * num3;
+	num7 := quat.x * num2;
+	num8 := quat.x * num3;
+	num9 := quat.y * num3;
+	num10 := quat.w * num;
+	num11 := quat.w * num2;
+	num12 := quat.w * num3;
+	result: Vec3;
+	result.x = (1 - (num5 + num6)) * vec.x + (num7 - num12) * vec.y + (num8 + num11) * vec.z;
+	result.y = (num7 + num12) * vec.x + (1 - (num4 + num6)) * vec.y + (num9 - num10) * vec.z;
+	result.z = (num8 - num11) * vec.x + (num9 + num10) * vec.y + (1 - (num4 + num5)) * vec.z;
+	return result;
+}
+
+normalize_camera_rotation :: proc() {
+	for _, i in camera_rotation {
+		element := &camera_rotation[i];
+		for element^ < 0   do element^ += 360;
+		for element^ > 360 do element^ -= 360;
+	}
+}
 
 //
 // Immediate-mode rendering
@@ -462,7 +532,7 @@ render_scene :: proc(scene: Scene) {
 
 	num_draw_calls = 0;
 	if scene.render != nil {
-		scene.render(client_target_delta_time);
+		scene.render(fixed_delta_time);
 	}
 	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
 	draw_debug_lines();

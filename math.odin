@@ -11,8 +11,8 @@ Vec2i :: distinct [2]int;
 Vec3i :: distinct [3]int;
 Vec4i :: distinct [4]int;
 
-sqr_magnitude :: inline proc(a: Vec2) -> f32 do return dot(a, a);
-magnitude :: inline proc(a: Vec2) -> f32 do return sqrt(dot(a, a));
+sqr_magnitude :: inline proc(a: $T/[$N]$E) -> f32 do return dot(a, a);
+magnitude :: inline proc(a: $T/[$N]$E) -> f32 do return sqrt(dot(a, a));
 
 move_towards :: proc[move_towards_vec2, move_towards_f32];
 
@@ -56,6 +56,13 @@ rotate_vec2_degrees :: proc(vec: Vec2, degrees: f32) -> Vec2 {
 	y := (s * tx) + (c * ty);
 
 	return Vec2{x, y};
+}
+rotate_vector :: proc(v: Vec3, k: Vec3, theta: f32) -> Vec3 {
+	theta = to_radians(theta);
+    cos_theta := cos(theta);
+    sin_theta := sin(theta);
+    rotated := (v * cos_theta) + (cross(k, v) * sin_theta) + (k * dot(k, v)) * (1 - cos_theta);
+    return rotated;
 }
 
 
