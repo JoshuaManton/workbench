@@ -93,7 +93,7 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 		defer delete(processedVerts);
 
 		// process vertices into Vertex3D struct
-		// TODO (jake): support vertex colours and texture coords
+		// TODO (jake): support vertex colours
 		for i in 0 .. mesh.mNumVertices - 1
 		{
 			normal := norms[i];
