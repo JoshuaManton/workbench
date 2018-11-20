@@ -133,7 +133,7 @@ get_cursor_direction_from_camera :: proc() -> Vec3 {
 	cursor_viewport_position.w = 1;
 	cursor_viewport_position.z = 0.5; // just some way down the frustum
 
-	inv := mat4_inverse(mul(perspective_projection_matrix, view_matrix));
+	inv := _mat4_inverse(mul(perspective_projection_matrix, view_matrix));
 	cursor_world_position4 := mul(inv, cursor_viewport_position);
 	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
 	cursor_world_position := to_vec3(cursor_world_position4) - camera_position;
@@ -200,7 +200,7 @@ normalize_camera_rotation :: proc() {
 	}
 }
 
-mat4_inverse :: proc(m: Mat4) -> Mat4 {
+_mat4_inverse :: proc(m: Mat4) -> Mat4 {
 	o: Mat4;
 
 	sf00 := m[2][2] * m[3][3] - m[3][2] * m[2][3];
