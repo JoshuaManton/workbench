@@ -69,7 +69,7 @@ uniform sampler2D atlas_texture;
 out vec4 color;
 
 void main() {
-    color = texture(atlas_texture, tex_coord) * desired_color;
+    color = texture(atlas_texture, tex_coord);// * desired_color;
 }
 `;
 

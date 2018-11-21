@@ -105,63 +105,6 @@ _init_glfw :: proc(window_name: string, _window_width, _window_height: int, _ope
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
 }
 
-quaternion_forward :: inline proc(quat: Quat) -> Vec3 {
-	return quat_mul_vec3(quat, {0, 0, 1});
-}
-quaternion_back :: inline proc(quat: Quat) -> Vec3 {
-	return -quaternion_forward(quat);
-}
-quaternion_right :: inline proc(quat: Quat) -> Vec3 {
-	return quat_mul_vec3(quat, {1, 0, 0});
-}
-quaternion_left :: inline proc(quat: Quat) -> Vec3 {
-	return -quaternion_right(quat);
-}
-quaternion_up :: inline proc(quat: Quat) -> Vec3 {
-	return quat_mul_vec3(quat, {0, 1, 0});
-}
-quaternion_down :: inline proc(quat: Quat) -> Vec3 {
-	return -quaternion_up(quat);
-}
-
-degrees_to_quaternion :: proc(v: Vec3) -> Quat {
-	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
-	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
-	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
-	orientation := quat_mul(qy, qx);
-	orientation = quat_norm(orientation);
-	return orientation;
-}
-
-// rotates the vector by the quaternion
-quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
-	num := quat.x * 2;
-	num2 := quat.y * 2;
-	num3 := quat.z * 2;
-	num4 := quat.x * num;
-	num5 := quat.y * num2;
-	num6 := quat.z * num3;
-	num7 := quat.x * num2;
-	num8 := quat.x * num3;
-	num9 := quat.y * num3;
-	num10 := quat.w * num;
-	num11 := quat.w * num2;
-	num12 := quat.w * num3;
-	result: Vec3;
-	result.x = (1 - (num5 + num6)) * vec.x + (num7 - num12) * vec.y + (num8 + num11) * vec.z;
-	result.y = (num7 + num12) * vec.x + (1 - (num4 + num6)) * vec.y + (num9 - num10) * vec.z;
-	result.z = (num8 - num11) * vec.x + (num9 + num10) * vec.y + (1 - (num4 + num5)) * vec.z;
-	return result;
-}
-
-normalize_camera_rotation :: proc() {
-	for _, i in camera_rotation {
-		element := &camera_rotation[i];
-		for element^ < 0   do element^ += 360;
-		for element^ > 360 do element^ -= 360;
-	}
-}
-
 _update_glfw :: proc() {
 	// Update vars from callbacks
 	current_window_width   = _new_window_width;
@@ -173,25 +116,18 @@ _update_glfw :: proc() {
 	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
 	window_is_focused = _new_window_is_focused;
 
-	top    : f32 =  1 * camera_size + camera_position.y;
-	bottom : f32 = -1 * camera_size + camera_position.y;
-	left   : f32 = -1 * current_aspect_ratio * camera_size + camera_position.x;
-	right  : f32 =  1 * current_aspect_ratio * camera_size + camera_position.x;
-	orthographic_projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
-	perspective_projection_matrix  = perspective(to_radians(camera_size), current_aspect_ratio, 0.01, 1000);
+	// ortho
+	{
+		top    : f32 =  1 * current_camera.size + current_camera.position.y;
+		bottom : f32 = -1 * current_camera.size + current_camera.position.y;
+		left   : f32 = -1 * current_aspect_ratio * current_camera.size + current_camera.position.x;
+		right  : f32 =  1 * current_aspect_ratio * current_camera.size + current_camera.position.x;
+		orthographic_projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
+	}
 
-	view_matrix = identity(Mat4);
-	view_matrix  = translate(view_matrix, Vec3{-camera_position.x, -camera_position.y, camera_position.z});
+	perspective_projection_matrix  = perspective(to_radians(current_camera.size), current_aspect_ratio, 0.01, 1000);
 
-	normalize_camera_rotation();
-
-	qx := axis_angle(Vec3{1,0,0}, to_radians(camera_rotation.x));
-	qy := axis_angle(Vec3{0,1,0}, to_radians(camera_rotation.y));
-	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
-	orientation := quat_mul(qx, qy);
-	orientation = quat_norm(orientation);
-	rotation_matrix := quat_to_mat4(orientation);
-	view_matrix = mul(rotation_matrix, view_matrix);
+	update_view_matrix(current_camera);
 
 	model_matrix = identity(Mat4);
 

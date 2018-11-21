@@ -21,7 +21,6 @@ Rendermode_Proc :: #type proc();
 
 mvp_matrix: Mat4;
 
-view_matrix: Mat4;
 model_matrix: Mat4;
 
 perspective_projection_matrix: Mat4;
@@ -36,23 +35,11 @@ pixel_to_viewport_matrix: Mat4;
 viewport_to_pixel_matrix: Mat4;
 viewport_to_unit_matrix:  Mat4;
 
-is_perspective: bool;
-
-orthographic_camera :: inline proc(size: f32) {
-	is_perspective = false;
-	camera_size = size;
-}
-perspective_camera :: inline proc(fov: f32) {
-	is_perspective = true;
-	camera_size = fov;
-}
-
-
 // note(josh): these rendermode_* procs cannot be marked as inline because https://i.imgur.com/ROXPLQe.png
 rendermode_world :: proc() {
 	current_rendermode = rendermode_world;
-	if is_perspective {
-		mvp_matrix = mul(mul(perspective_projection_matrix, view_matrix), model_matrix);
+	if current_camera.is_perspective {
+		mvp_matrix = mul(mul(perspective_projection_matrix, current_camera.view_matrix), model_matrix);
 	}
 	else {
 		mvp_matrix = orthographic_projection_matrix;
@@ -69,8 +56,8 @@ rendermode_pixel :: proc() {
 
 
 world_to_viewport :: inline proc(position: Vec3) -> Vec3 {
-	if is_perspective {
-		mv := mul(perspective_projection_matrix, view_matrix);
+	if current_camera.is_perspective {
+		mv := mul(perspective_projection_matrix, current_camera.view_matrix);
 		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
 		if result.w > 0 do result /= result.w;
 		new_result := Vec3{result.x, result.y, result.z};
@@ -92,23 +79,21 @@ world_to_unit :: inline proc(a: Vec3) -> Vec3 {
 }
 
 unit_to_pixel :: inline proc(a: Vec3) -> Vec3 {
-	result := mul(unit_to_pixel_matrix, Vec4{a.x, a.y, 0, 1});
-	return Vec3{result.x, result.y, 0};
+	result := a * Vec3{current_window_width, current_window_height, 1};
+	return result;
 }
 unit_to_viewport :: inline proc(a: Vec3) -> Vec3 {
-	result := mul(unit_to_viewport_matrix, Vec4{a.x, a.y, 0, 1});
-	return Vec3{result.x, result.y, 0};
+	result := (a * 2) - Vec3{1, 1, 0};
+	return result;
 }
 
 pixel_to_viewport :: inline proc(a: Vec3) -> Vec3 {
-	a /= Vec3{current_window_width/2, current_window_height/2, 0};
+	a /= Vec3{current_window_width/2, current_window_height/2, 1};
 	a -= Vec3{1, 1, 0};
-	a.z = 0;
 	return a;
 }
 pixel_to_unit :: inline proc(a: Vec3) -> Vec3 {
-	a /= Vec3{current_window_width, current_window_height, 0};
-	a.z = 0;
+	a /= Vec3{current_window_width, current_window_height, 1};
 	return a;
 }
 
@@ -125,21 +110,193 @@ viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
 	return a;
 }
 
+Camera :: struct {
+	is_perspective: bool,
+	// orthographic -> size in world units from center of screen to top of screen
+	// perspective  -> fov
+	size: f32,
+
+	position: Vec3,
+	rotation: Vec3,
+
+	view_matrix: Mat4,
+}
+
+current_camera: ^Camera; //= &default_camera;
+
+set_current_camera :: proc(camera: ^Camera) {
+	current_camera = camera;
+}
+
+
+update_view_matrix :: proc(using camera: ^Camera) {
+	normalize_camera_rotation(camera);
+
+	view_matrix = identity(Mat4);
+	view_matrix = translate(view_matrix, Vec3{-position.x, -position.y, -position.z});
+
+	qx := axis_angle(Vec3{1,0,0}, to_radians(360 - rotation.x));
+	qy := axis_angle(Vec3{0,1,0}, to_radians(360 - rotation.y));
+	// todo(josh): z axis
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(360 - rotation.z));
+	orientation := quat_mul(qx, qy);
+	orientation = quat_norm(orientation);
+	rotation_matrix := quat_to_mat4(orientation);
+	view_matrix = mul(rotation_matrix, view_matrix);
+}
+
+camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (degrees_to_quaternion(rotation));
+camera_down    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_down   (degrees_to_quaternion(rotation));
+camera_left    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_left   (degrees_to_quaternion(rotation));
+camera_right   :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_right  (degrees_to_quaternion(rotation));
+camera_forward :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_forward(degrees_to_quaternion(rotation));
+camera_back    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_back   (degrees_to_quaternion(rotation));
+
+get_cursor_direction_from_camera :: proc(camera: ^Camera) -> Vec3 {
+	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
+	cursor_viewport_position.w = 1;
+	cursor_viewport_position.z = 0.5; // just some way down the frustum
+
+	inv := _mat4_inverse(mul(perspective_projection_matrix, current_camera.view_matrix));
+	cursor_world_position4 := mul(inv, cursor_viewport_position);
+	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
+	cursor_world_position := to_vec3(cursor_world_position4) - camera.position;
+	cursor_direction := norm(cursor_world_position);
+
+	return cursor_direction;
+}
+
+quaternion_forward :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 0, -1});
+}
+quaternion_back :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_forward(quat);
+}
+quaternion_right :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {1, 0, 0});
+}
+quaternion_left :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_right(quat);
+}
+quaternion_up :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 1, 0});
+}
+quaternion_down :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_up(quat);
+}
+
+degrees_to_quaternion :: proc(v: Vec3) -> Quat {
+	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
+	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
+	// todo(josh): z axis
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
+	orientation := quat_mul(qy, qx);
+	orientation = quat_norm(orientation);
+	return orientation;
+}
+
+// note(josh): rotates the vector by the quaternion
+quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
+	num := quat.x * 2;
+	num2 := quat.y * 2;
+	num3 := quat.z * 2;
+	num4 := quat.x * num;
+	num5 := quat.y * num2;
+	num6 := quat.z * num3;
+	num7 := quat.x * num2;
+	num8 := quat.x * num3;
+	num9 := quat.y * num3;
+	num10 := quat.w * num;
+	num11 := quat.w * num2;
+	num12 := quat.w * num3;
+	result: Vec3;
+	result.x = (1 - (num5 + num6)) * vec.x + (num7 - num12) * vec.y + (num8 + num11) * vec.z;
+	result.y = (num7 + num12) * vec.x + (1 - (num4 + num6)) * vec.y + (num9 - num10) * vec.z;
+	result.z = (num8 - num11) * vec.x + (num9 + num10) * vec.y + (1 - (num4 + num5)) * vec.z;
+	return result;
+}
+
+normalize_camera_rotation :: proc(using camera: ^Camera) {
+	for _, i in rotation {
+		element := &rotation[i];
+		for element^ < 0   do element^ += 360;
+		for element^ > 360 do element^ -= 360;
+	}
+}
+
+_mat4_inverse :: proc(m: Mat4) -> Mat4 {
+	o: Mat4;
+
+	sf00 := m[2][2] * m[3][3] - m[3][2] * m[2][3];
+	sf01 := m[2][1] * m[3][3] - m[3][1] * m[2][3];
+	sf02 := m[2][1] * m[3][2] - m[3][1] * m[2][2];
+	sf03 := m[2][0] * m[3][3] - m[3][0] * m[2][3];
+	sf04 := m[2][0] * m[3][2] - m[3][0] * m[2][2];
+	sf05 := m[2][0] * m[3][1] - m[3][0] * m[2][1];
+	sf06 := m[1][2] * m[3][3] - m[3][2] * m[1][3];
+	sf07 := m[1][1] * m[3][3] - m[3][1] * m[1][3];
+	sf08 := m[1][1] * m[3][2] - m[3][1] * m[1][2];
+	sf09 := m[1][0] * m[3][3] - m[3][0] * m[1][3];
+	sf10 := m[1][0] * m[3][2] - m[3][0] * m[1][2];
+	sf11 := m[1][1] * m[3][3] - m[3][1] * m[1][3];
+	sf12 := m[1][0] * m[3][1] - m[3][0] * m[1][1];
+	sf13 := m[1][2] * m[2][3] - m[2][2] * m[1][3];
+	sf14 := m[1][1] * m[2][3] - m[2][1] * m[1][3];
+	sf15 := m[1][1] * m[2][2] - m[2][1] * m[1][2];
+	sf16 := m[1][0] * m[2][3] - m[2][0] * m[1][3];
+	sf17 := m[1][0] * m[2][2] - m[2][0] * m[1][2];
+	sf18 := m[1][0] * m[2][1] - m[2][0] * m[1][1];
+
+
+	o[0][0] = +(m[1][1] * sf00 - m[1][2] * sf01 + m[1][3] * sf02);
+	o[0][1] = -(m[0][1] * sf00 - m[0][2] * sf01 + m[0][3] * sf02);
+	o[0][2] = +(m[0][1] * sf06 - m[0][2] * sf07 + m[0][3] * sf08);
+	o[0][3] = -(m[0][1] * sf13 - m[0][2] * sf14 + m[0][3] * sf15);
+
+	o[1][0] = -(m[1][0] * sf00 - m[1][2] * sf03 + m[1][3] * sf04);
+	o[1][1] = +(m[0][0] * sf00 - m[0][2] * sf03 + m[0][3] * sf04);
+	o[1][2] = -(m[0][0] * sf06 - m[0][2] * sf09 + m[0][3] * sf10);
+	o[1][3] = +(m[0][0] * sf13 - m[0][2] * sf16 + m[0][3] * sf17);
+
+	o[2][0] = +(m[1][0] * sf01 - m[1][1] * sf03 + m[1][3] * sf05);
+	o[2][1] = -(m[0][0] * sf01 - m[0][1] * sf03 + m[0][3] * sf05);
+	o[2][2] = +(m[0][0] * sf11 - m[0][1] * sf09 + m[0][3] * sf12);
+	o[2][3] = -(m[0][0] * sf14 - m[0][1] * sf16 + m[0][3] * sf18);
+
+	o[3][0] = -(m[1][0] * sf02 - m[1][1] * sf04 + m[1][2] * sf05);
+	o[3][1] = +(m[0][0] * sf02 - m[0][1] * sf04 + m[0][2] * sf05);
+	o[3][2] = -(m[0][0] * sf08 - m[0][1] * sf10 + m[0][2] * sf12);
+	o[3][3] = +(m[0][0] * sf15 - m[0][1] * sf17 + m[0][2] * sf18);
+
+
+	ood := 1.0 / (m[0][0] * o[0][0] +
+	              m[0][1] * o[1][0] +
+	              m[0][2] * o[2][0] +
+	              m[0][3] * o[3][0]);
+
+	o[0][0] *= ood;
+	o[0][1] *= ood;
+	o[0][2] *= ood;
+	o[0][3] *= ood;
+	o[1][0] *= ood;
+	o[1][1] *= ood;
+	o[1][2] *= ood;
+	o[1][3] *= ood;
+	o[2][0] *= ood;
+	o[2][1] *= ood;
+	o[2][2] *= ood;
+	o[2][3] *= ood;
+	o[3][0] *= ood;
+	o[3][1] *= ood;
+	o[3][2] *= ood;
+	o[3][3] *= ood;
+
+	return o;
+}
+
 //
 // Immediate-mode rendering
 //
-
-camera_size: f32 = 1;
-camera_position: Vec3;
-camera_rotation: Vec3;
-camera_target: Vec3;
-
-COLOR_WHITE  := Colorf{1, 1, 1, 1};
-COLOR_RED    := Colorf{1, 0, 0, 1};
-COLOR_GREEN  := Colorf{0, 1, 0, 1};
-COLOR_BLUE   := Colorf{0, 0, 1, 1};
-COLOR_BLACK  := Colorf{0, 0, 0, 1};
-COLOR_YELLOW := Colorf{1, 1, 0, 1};
 
 im_quad :: proc[im_quad_color, im_quad_sprite, im_quad_sprite_color];
 
@@ -447,7 +604,7 @@ _update_renderer :: proc() {
 
 	odingl.Enable(odingl.BLEND);
 	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
-	if is_perspective {
+	if current_camera.is_perspective {
 		// odingl.Enable(odingl.CULL_FACE);
 		odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
 		odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
@@ -469,7 +626,7 @@ render_scene :: proc(scene: Scene) {
 
 	num_draw_calls = 0;
 	if scene.render != nil {
-		scene.render(client_target_delta_time);
+		scene.render(fixed_delta_time);
 	}
 	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
 	draw_debug_lines();
@@ -493,7 +650,7 @@ im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 		bind_texture2d(texture);
 	}
 
-	if !is_perspective {
+	if !current_camera.is_perspective {
 		sort.quick_sort_proc(verts[:], proc(a, b: Buffered_Vertex) -> int {
 				diff := a.render_order - b.render_order;
 				if diff != 0 do return diff;
@@ -589,7 +746,7 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 	odingl.DrawArrays(mode, 0, cast(i32)len(list));
 }
 
-draw_mesh_raw :: proc(mesh: Mesh)
+draw_mesh_raw :: proc(mesh: Mesh, texture: Texture)
 {
 	when DEVELOPER {
 		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
@@ -601,14 +758,12 @@ draw_mesh_raw :: proc(mesh: Mesh)
 	bind_vao(mesh.vertex_array);
 	bind_buffer(mesh.vertex_buffer);
 	bind_buffer(mesh.index_buffer);
+	bind_texture2d(texture);
 
 	program := get_current_shader();
-	uniform(program, "atlas_texture", 0);
 	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
 	num_draw_calls += 1;
-
-	//odingl.DrawArrays(odingl.TRIANGLES, 0, i32(mesh.vertex_count));
 
 	if debugging_rendering {
 		odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);

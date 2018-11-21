@@ -562,7 +562,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 		sv.scroll_offset_target.y -= cursor_scroll * 50;
 	}
 
-	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, 20 * client_target_delta_time);
+	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, 20 * fixed_delta_time);
 }
 
 ui_end_scroll_view :: proc(loc := #caller_location) {
