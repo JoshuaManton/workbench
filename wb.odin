@@ -34,7 +34,7 @@ make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
                            _target_framerate: f32,
-                           scene: Scene,
+                           stage: Stage,
                            camera: ^Camera) {
 
 	current_camera = camera;
@@ -49,7 +49,7 @@ make_simple_window :: proc(window_name: string,
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
-	start_scene(scene);
+	start_stage(stage);
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
@@ -83,7 +83,7 @@ make_simple_window :: proc(window_name: string,
 				_update_ui();
 				_update_debug_window();
 
-				_update_scenes(); // calls client updates
+				_update_stages(); // calls client updates
 
 				_late_update_ui();
 
@@ -101,7 +101,7 @@ make_simple_window :: proc(window_name: string,
 		}
 
 
-		_render_scenes();
+		_render_stages();
 		imgui_render(true);
 
 		frame_end := win32.time_get_time();
@@ -118,7 +118,7 @@ exit :: inline proc() {
 	wb_should_close = true;
 }
 
-Scene :: struct {
+Stage :: struct {
 	name: string,
 
 	init: proc(),
@@ -127,66 +127,66 @@ Scene :: struct {
 	end: proc(),
 }
 
-_Scene_Internal :: struct {
-	using scene: Scene,
+_Stage_Internal :: struct {
+	using stage: Stage,
 
-	id: Scene_ID,
+	id: Stage_ID,
 }
 
-Scene_ID :: distinct int;
-cur_scene_serial: int;
-all_scenes: map[Scene_ID]_Scene_Internal;
-new_scenes: [dynamic]_Scene_Internal;
-end_scenes: [dynamic]Scene_ID;
+Stage_ID :: distinct int;
+cur_stage_serial: int;
+all_stages: map[Stage_ID]_Stage_Internal;
+new_stages: [dynamic]_Stage_Internal;
+end_stages: [dynamic]Stage_ID;
 
-start_scene :: proc(scene: Scene) -> Scene_ID {
-	id := cast(Scene_ID)cur_scene_serial;
-	cur_scene_serial += 1;
+start_stage :: proc(stage: Stage) -> Stage_ID {
+	id := cast(Stage_ID)cur_stage_serial;
+	cur_stage_serial += 1;
 
-	scene_internal := _Scene_Internal{scene, id};
-	append(&new_scenes, scene_internal);
+	stage_internal := _Stage_Internal{stage, id};
+	append(&new_stages, stage_internal);
 	return id;
 }
 
-end_scene :: proc(id: Scene_ID) {
-	append(&end_scenes, id);
+end_stage :: proc(id: Stage_ID) {
+	append(&end_stages, id);
 }
 
-_update_scenes :: proc() {
-	// Flush new scenes
+_update_stages :: proc() {
+	// Flush new stages
 	{
-		for scene in new_scenes {
-			if scene.init != nil {
-				scene.init();
+		for stage in new_stages {
+			if stage.init != nil {
+				stage.init();
 			}
-			all_scenes[scene.id] = scene;
+			all_stages[stage.id] = stage;
 		}
-		clear(&new_scenes);
+		clear(&new_stages);
 	}
 
-	// Update scenes
+	// Update stages
 	{
-		for id, scene in all_scenes {
-			if scene.update != nil {
-				scene.update(fixed_delta_time);
+		for id, stage in all_stages {
+			if stage.update != nil {
+				stage.update(fixed_delta_time);
 			}
 		}
 	}
 
-	// Remove ended scenes
+	// Remove ended stages
 	{
-		for id in end_scenes {
-			delete_key(&all_scenes, id);
+		for id in end_stages {
+			delete_key(&all_stages, id);
 		}
-		clear(&new_scenes);
+		clear(&new_stages);
 	}
 }
 
-_render_scenes :: proc() {
-	// Update scenes
+_render_stages :: proc() {
+	// Update stages
 	{
-		for id, scene in all_scenes {
-			render_scene(scene);
+		for id, stage in all_stages {
+			render_stage(stage);
 		}
 	}
 }

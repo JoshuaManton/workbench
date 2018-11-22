@@ -122,7 +122,7 @@ Camera :: struct {
 	view_matrix: Mat4,
 }
 
-current_camera: ^Camera; //= &default_camera;
+current_camera: ^Camera;
 
 set_current_camera :: proc(camera: ^Camera) {
 	current_camera = camera;
@@ -621,16 +621,16 @@ set_clear_color :: inline proc(color: Colorf) {
 	odingl.ClearColor(color.r, color.g, color.b, 1.0);
 }
 
-render_scene :: proc(scene: Scene) {
+render_stage :: proc(stage: Stage) {
 	log_gl_errors(#procedure);
 
 	num_draw_calls = 0;
-	if scene.render != nil {
-		scene.render(fixed_delta_time);
+	if stage.render != nil {
+		stage.render(fixed_delta_time);
 	}
 	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
 	draw_debug_lines();
-	log_gl_errors(tprint("scene_name: ", scene.name));
+	log_gl_errors(tprint("stage_name: ", stage.name));
 }
 
 is_scissor: bool;
