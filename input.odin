@@ -3,8 +3,77 @@ package workbench
 import "external/glfw"
 import "external/imgui"
 
-Key    :: glfw.Key;
-Mouse  :: glfw.Mouse;
+/*
+
+INPUT API
+
+get_input      :: proc(input: Input) -> bool
+get_input_down :: proc(input: Input) -> bool
+get_input_up   :: proc(input: Input) -> bool
+
+get_button      :: proc(controller_index: int, button: Button) -> bool
+get_button_down :: proc(controller_index: int, button: Button) -> bool
+get_button_up   :: proc(controller_index: int, button: Button) -> bool
+
+get_axis :: proc(controller_index: int, axis: Axis) -> f32
+
+*/
+
+get_input :: inline proc(input: Input) -> bool {
+	for held in _held {
+		if held == input {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_input_down :: inline proc(input: Input) -> bool {
+	for down in _down {
+		if down == input {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_input_up :: inline proc(input: Input) -> bool {
+	for up in _up {
+		if up == input {
+			return true;
+		}
+	}
+	return false;
+}
+
+get_button :: inline proc(controller_index: int, button: Button) -> bool {
+	controller := controllers[controller_index];
+	if !controller.connected do return false;
+
+	return controller.held[cast(int)button] == 1;
+}
+
+get_button_down :: inline proc(controller_index: int, button: Button) -> bool {
+	controller := controllers[controller_index];
+	if !controller.connected do return false;
+
+	return controller.down[cast(int)button] == 1;
+}
+
+get_button_up :: inline proc(controller_index: int, button: Button) -> bool {
+	controller := controllers[controller_index];
+	if !controller.connected do return false;
+
+	return controller.up[cast(int)button] == 1;
+}
+
+get_axis :: inline proc(controller_index: int, axis: Axis) -> f32 {
+	controller := controllers[controller_index];
+	if !controller.connected do return 0;
+
+	return controller.axes[cast(int)axis];
+}
+
 Button :: enum {
 	A = 0,
 	B,
@@ -31,13 +100,180 @@ Axis :: enum {
 	R2,
 }
 
+// copypasted from glfw, Key and Mouse combined
+Input :: enum i32 {
+
+    /* The unknown key */
+    Unknown = -1,
+
+    /* Mouse buttons */
+    Mouse_Button_1 = 0,
+    Mouse_Button_2 = 1,
+    Mouse_Button_3 = 2,
+    Mouse_Button_4 = 3,
+    Mouse_Button_5 = 4,
+    Mouse_Button_6 = 5,
+    Mouse_Button_7 = 6,
+    Mouse_Button_8 = 7,
+
+    /* Mousebutton aliases */
+    Mouse_Last   = Mouse_Button_8,
+    Mouse_Left   = Mouse_Button_1,
+    Mouse_Right  = Mouse_Button_2,
+    Mouse_Middle = Mouse_Button_3,
+
+/** Printable keys **/
+
+/* Named printable keys */
+    Space         = 32,
+    Apostrophe    = 39,  /* ' */
+    Comma         = 44,  /* , */
+    Minus         = 45,  /* - */
+    Period        = 46,  /* . */
+    Slash         = 47,  /* / */
+    Semicolon     = 59,  /* ; */
+    Equal         = 61,  /* :: */
+    Left_Bracket  = 91,  /* [ */
+    BACKSLASH     = 92,  /* \ */
+    Right_Bracket = 93,  /* ] */
+    Grave_Accent  = 96,  /* ` */
+    World_1       = 161, /* non-US #1 */
+    World_2       = 162, /* non-US #2 */
+
+/* Alphanumeric characters */
+    NR_0 = 48,
+    NR_1 = 49,
+    NR_2 = 50,
+    NR_3 = 51,
+    NR_4 = 52,
+    NR_5 = 53,
+    NR_6 = 54,
+    NR_7 = 55,
+    NR_8 = 56,
+    NR_9 = 57,
+
+    A = 65,
+    B = 66,
+    C = 67,
+    D = 68,
+    E = 69,
+    F = 70,
+    G = 71,
+    H = 72,
+    I = 73,
+    J = 74,
+    K = 75,
+    L = 76,
+    M = 77,
+    N = 78,
+    O = 79,
+    P = 80,
+    Q = 81,
+    R = 82,
+    S = 83,
+    T = 84,
+    U = 85,
+    V = 86,
+    W = 87,
+    X = 88,
+    Y = 89,
+    Z = 90,
+
+
+/** Function keys **/
+
+/* Named non-printable keys */
+    Escape       = 256,
+    Enter        = 257,
+    Tab          = 258,
+    Backspace    = 259,
+    Insert       = 260,
+    Delete       = 261,
+    Right        = 262,
+    Left         = 263,
+    Down         = 264,
+    Up           = 265,
+    Page_Up      = 266,
+    Page_Down    = 267,
+    Home         = 268,
+    End          = 269,
+    Caps_Lock    = 280,
+    Scroll_Lock  = 281,
+    Num_Lock     = 282,
+    Print_Screen = 283,
+    Pause        = 284,
+
+/* Function keys */
+    F1  = 290,
+    F2  = 291,
+    F3  = 292,
+    F4  = 293,
+    F5  = 294,
+    F6  = 295,
+    F7  = 296,
+    F8  = 297,
+    F9  = 298,
+    F10 = 299,
+    F11 = 300,
+    F12 = 301,
+    F13 = 302,
+    F14 = 303,
+    F15 = 304,
+    F16 = 305,
+    F17 = 306,
+    F18 = 307,
+    F19 = 308,
+    F20 = 309,
+    F21 = 310,
+    F22 = 311,
+    F23 = 312,
+    F24 = 313,
+    F25 = 314,
+
+/* Keypad numbers */
+    KP_0 = 320,
+    KP_1 = 321,
+    KP_2 = 322,
+    KP_3 = 323,
+    KP_4 = 324,
+    KP_5 = 325,
+    KP_6 = 326,
+    KP_7 = 327,
+    KP_8 = 328,
+    KP_9 = 329,
+
+/* Keypad named function keys */
+    KP_Decimal  = 330,
+    KP_Divide   = 331,
+    KP_Multiply = 332,
+    KP_Subtract = 333,
+    KP_Add      = 334,
+    KP_Enter    = 335,
+    KP_Equal    = 336,
+
+/* Modifier keys */
+    Left_Shift    = 340,
+    Left_Control  = 341,
+    Left_Alt      = 342,
+    Left_Super    = 343,
+    Right_Shift   = 344,
+    Right_Control = 345,
+    Right_Alt     = 346,
+    Right_Super   = 347,
+    Key_Menu      = 348,
+
+    Last = Key_Menu,
+}
+
+//
+// Internal
+//
+
+Controller_ID :: int;
+
 Axis_State :: struct {
 	axis: Axis,
 	value: f32,
-}
-
-Key_Press :: struct {
-	input: union { Key, Mouse },
 }
 
 Controller_State :: struct {
@@ -49,13 +285,13 @@ Controller_State :: struct {
 	axes: []f32,
 }
 
-_held := make([dynamic]Key_Press, 0, 5);
-_down := make([dynamic]Key_Press, 0, 5);
-_up   := make([dynamic]Key_Press, 0, 5);
+_held := make([dynamic]Input, 0, 5);
+_down := make([dynamic]Input, 0, 5);
+_up   := make([dynamic]Input, 0, 5);
 
-_held_mid_frame := make([dynamic]Key_Press, 0, 5);
-_down_mid_frame := make([dynamic]Key_Press, 0, 5);
-_up_mid_frame   := make([dynamic]Key_Press, 0, 5);
+_held_mid_frame := make([dynamic]Input, 0, 5);
+_down_mid_frame := make([dynamic]Input, 0, 5);
+_up_mid_frame   := make([dynamic]Input, 0, 5);
 
 controllers: [glfw.JOYSTICK_LAST+1]Controller_State;
 
@@ -98,7 +334,7 @@ _update_input :: proc() {
 					button := cast(Button)button_idx;
 
 					is_held_now := value == 1;
-					was_held_last_frame := get_button(cast(i32)controller_idx, button);
+					was_held_last_frame := get_button(_controller_idx, button);
 
 					// Important that this is after the `get_button()` call above because us adding
 					// it to `held` would affect the call to `get_button()`
@@ -180,13 +416,13 @@ _update_input :: proc() {
 // }
 
 wb_button_press :: proc(button: $Input_Type) {
-	append(&_held_mid_frame, Key_Press{button});
-	append(&_down_mid_frame, Key_Press{button});
+	append(&_held_mid_frame, cast(Input)button);
+	append(&_down_mid_frame, cast(Input)button);
 }
 wb_button_release :: proc(button: $Input_Type) {
 	idx := -1;
 	for held, i in _held_mid_frame {
-		if held_button, ok := held.input.(Input_Type); ok && held_button == button {
+		if held == cast(Input)button {
 			idx = i;
 			break;
 		}
@@ -195,23 +431,23 @@ wb_button_release :: proc(button: $Input_Type) {
 	if idx != -1 {
 		remove_at(&_held_mid_frame, idx);
 	}
-	append(&_up_mid_frame, Key_Press{button});
+	append(&_up_mid_frame, cast(Input)button);
 }
 
 // this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
 // so we need to save presses in a separate buffer and copy them over to have consistent behaviour
-_glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: Key, scancode: i32, action: glfw.Action, mods: i32) {
+_glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
 	switch action {
 		case glfw.Action.Press: {
-			wb_button_press(key);
+			wb_button_press(cast(Input)key);
 		}
 		case glfw.Action.Release: {
-			wb_button_release(key);
+			wb_button_release(cast(Input)key);
 		}
 	}
 }
 
-_glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: Mouse, action: glfw.Action, mods: i32) {
+_glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.Mouse, action: glfw.Action, mods: i32) {
 	switch action {
 		case glfw.Action.Press: {
 			wb_button_press(button);
@@ -222,84 +458,3 @@ _glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: Mouse
 	}
 }
 
-get_mouse :: inline proc(mouse: Mouse) -> bool {
-	for held in _held {
-		if mouse_held, ok := held.input.(Mouse); ok && mouse_held == mouse {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_mouse_down :: inline proc(mouse: Mouse) -> bool {
-	for down in _down {
-		if mouse_down, ok := down.input.(Mouse); ok && mouse_down == mouse {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_mouse_up :: inline proc(mouse: Mouse) -> bool {
-	for up in _up {
-		if mouse_up, ok := up.input.(Mouse); ok && mouse_up == mouse {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_key :: inline proc(key: Key) -> bool {
-	for held in _held {
-		if key_held, ok := held.input.(Key); ok && key_held == key {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_key_down :: inline proc(key: Key) -> bool {
-	for down in _down {
-		if key_down, ok := down.input.(Key); ok && key_down == key {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_key_up :: inline proc(key: Key) -> bool {
-	for up in _up {
-		if key_up, ok := up.input.(Key); ok && key_up == key {
-			return true;
-		}
-	}
-	return false;
-}
-
-get_button :: inline proc(id: i32, button: Button) -> bool {
-	controller := controllers[id];
-	if !controller.connected do return false;
-
-	return controller.held[cast(int)button] == 1;
-}
-
-get_button_down :: inline proc(id: i32, button: Button) -> bool {
-	controller := controllers[id];
-	if !controller.connected do return false;
-
-	return controller.down[cast(int)button] == 1;
-}
-
-get_button_up :: inline proc(id: i32, button: Button) -> bool {
-	controller := controllers[id];
-	if !controller.connected do return false;
-
-	return controller.up[cast(int)button] == 1;
-}
-
-get_axis :: inline proc(id: i32, axis: Axis) -> f32 {
-	controller := controllers[id];
-	if !controller.connected do return 0;
-
-	return controller.axes[cast(int)axis];
-}

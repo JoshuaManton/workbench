@@ -205,7 +205,7 @@ debug_window_open: bool;
 last_saved_dt: f32;
 
 _update_debug_window :: proc() {
-	if get_key_down(Key.F1) {
+	if get_input_down(Input.F1) {
 		debug_window_open = !debug_window_open;
 	}
 
