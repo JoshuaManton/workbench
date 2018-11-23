@@ -35,6 +35,37 @@ pixel_to_viewport_matrix: Mat4;
 viewport_to_pixel_matrix: Mat4;
 viewport_to_unit_matrix:  Mat4;
 
+scene_frame_buffer : u32;
+screen_texture: u32;
+
+_init_draw :: proc(loc := #caller_location) {
+    odingl.GenTextures(1, &screen_texture);
+    odingl.BindTexture(odingl.TEXTURE_2D, screen_texture);
+    odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
+    odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
+    odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA32F, i32(1920), i32(1024), 0, odingl.RGBA, odingl.UNSIGNED_BYTE, nil);
+
+    odingl.GenFramebuffers(1, &scene_frame_buffer);
+    odingl.BindFramebuffer(odingl.FRAMEBUFFER, scene_frame_buffer);
+    odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, odingl.COLOR_ATTACHMENT0, odingl.TEXTURE_2D, screen_texture, 0);
+
+    buffers : [2]u32 = { odingl.COLOR_ATTACHMENT0, odingl.COLOR_ATTACHMENT1 };
+    odingl.DrawBuffers(2, &buffers[0]);
+
+    depthrenderbuffer: u32;
+    odingl.GenRenderbuffers(1, &depthrenderbuffer);
+    odingl.BindRenderbuffer(odingl.RENDERBUFFER, depthrenderbuffer);
+    odingl.RenderbufferStorage(odingl.RENDERBUFFER, odingl.DEPTH_COMPONENT, i32(1920), i32(1024));
+    odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, odingl.DEPTH_ATTACHMENT, odingl.RENDERBUFFER, depthrenderbuffer);
+    
+    if odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE do fmt.printf("Error setting up framebuffer\n");
+
+	log_gl_errors(#procedure, loc);
+
+	odingl.BindFramebuffer(odingl.FRAMEBUFFER, 0);
+}
+
+
 // note(josh): these rendermode_* procs cannot be marked as inline because https://i.imgur.com/ROXPLQe.png
 rendermode_world :: proc() {
 	current_rendermode = rendermode_world;
@@ -746,7 +777,9 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 	odingl.DrawArrays(mode, 0, cast(i32)len(list));
 }
 
-draw_mesh_raw :: proc(mesh: Mesh, texture: Texture)
+im_raw_buffered_meshes: [dynamic]Mesh;
+
+draw_mesh :: proc(mesh: Mesh)
 {
 	when DEVELOPER {
 		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
@@ -758,7 +791,6 @@ draw_mesh_raw :: proc(mesh: Mesh, texture: Texture)
 	bind_vao(mesh.vertex_array);
 	bind_buffer(mesh.vertex_buffer);
 	bind_buffer(mesh.index_buffer);
-	bind_texture2d(texture);
 
 	program := get_current_shader();
 	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);

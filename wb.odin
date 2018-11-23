@@ -44,6 +44,7 @@ make_simple_window :: proc(window_name: string,
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_opengl(opengl_version_major, opengl_version_minor);
 	_init_random_number_generator();
+	_init_draw();
 	_init_dear_imgui();
 
 	acc: f32;

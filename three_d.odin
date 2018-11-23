@@ -27,13 +27,18 @@ Mesh :: struct {
 	index_buffer: EBO,
 	index_count : int,
 	vertex_count : int,
+	name : string,
+}
+
+Model :: struct {
+	meshes: [dynamic]MeshID
 }
 
 MeshID :: int;
 all_meshes: map[MeshID]Mesh;
 
 cur_mesh_id: int;
-create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32) -> MeshID {
+create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32, name: string) -> MeshID {
 
 	vertex_array := gen_vao(); // genVertexArrays
 	vertex_buffer := gen_vbo(); //genVertexBuffers
@@ -56,13 +61,13 @@ create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32) -> Mesh
 	id := cast(MeshID)cur_mesh_id;
 	cur_mesh_id += 1;
 
-	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices)};
+	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), name};
 	all_meshes[id] = mesh;
 
 	return id;
 }
 
-load_asset :: proc(path: cstring) -> [dynamic]MeshID {
+load_asset :: proc(path: cstring) -> Model {
 	scene := ai.import_file(path,
 		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
 		cast(u32) ai.aiPostProcessSteps.Triangulate |
@@ -139,11 +144,16 @@ load_asset :: proc(path: cstring) -> [dynamic]MeshID {
 		}
 
 		// create mesh
-		append(&mesh_ids, create_mesh(processedVerts, indicies));
+		// TODO(jake): Why the fuck can't I take a pointer to mesh.mName.data
+		append(&mesh_ids, create_mesh(
+			processedVerts, 
+			indicies, 
+			""//cast(string)mem.slice_ptr(&mesh.mName.data, mesh.mName.length)
+			));
 	}
 
 	// return all created meshIds
-	return mesh_ids;
+	return Model{mesh_ids};
 }
 
 get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
@@ -161,12 +171,95 @@ model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation:
 	model_matrix = math.mul(model_matrix, rotation_matrix);
 }
 
-draw_mesh :: proc(id: MeshID, position: Vec3, scale: Vec3, rotation: Vec3, texture: Texture, loc := #caller_location) {
-	mesh, ok := all_meshes[id];
-	assert(ok);
-	model_matrix_from_elements(position, scale, rotation);
-	rendermode_world();
-	draw_mesh_raw(mesh, texture);
+im_buffered_meshes: [dynamic]Buffered_Mesh;
+im_queued_meshes: [dynamic]Buffered_Mesh;
+
+Buffered_Mesh :: struct {
+	id       : MeshID,
+	position : Vec3,
+	scale    : Vec3,
+	rotation : Vec3,
+	texture  : Texture,
+	shader   : Shader_Program,
+}
+
+push_mesh :: proc(id: MeshID, 
+				  position: Vec3, 
+				  scale: Vec3, 
+				  rotation: Vec3, 
+		          texture: Texture, 
+		          shader: Shader_Program) 
+{
+	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader});
+}
+
+im_flush_3d :: proc() {
+
+	set_shader :: inline proc(program: Shader_Program) {
+		current_shader = program;
+		use_program(program);
+	}
+
+	set_texture :: inline proc(texture: Texture) {
+		current_texture = texture;
+		bind_texture2d(texture);
+	}
+
+	flush_queue :: inline proc() {
+		for queued_mesh in im_queued_meshes {
+			mesh, ok := all_meshes[queued_mesh.id];
+			assert(ok);
+
+			model_matrix_from_elements(queued_mesh.position, queued_mesh.scale, queued_mesh.rotation);
+			rendermode_world();
+			
+			draw_mesh(mesh);
+		}
+		clear(&im_queued_meshes);
+	}
+
+	odingl.BindFramebuffer(odingl.FRAMEBUFFER, scene_frame_buffer);
+    odingl.Clear(odingl.COLOR_BUFFER_BIT);
+
+	current_shader = 0;
+	current_texture = 0;
+
+	sort.quick_sort_proc(im_buffered_meshes[:], proc(a, b: Buffered_Mesh) -> int {
+			if a.texture == b.texture && a.shader == b.shader do return 0;
+			return int(a.texture - b.texture);
+		});
+
+	for buffered_mesh in im_buffered_meshes {
+		using buffered_mesh;
+
+		shader_mismatch  := shader != current_shader;
+		texture_mismatch := texture != current_texture;
+		
+		if shader_mismatch || texture_mismatch {
+			flush_queue();
+		}
+
+		if shader_mismatch  do set_shader(shader);
+		if texture_mismatch do set_texture(texture);
+		
+		append(&im_queued_meshes, buffered_mesh);
+	}
+
+	flush_queue();
+	clear(&im_buffered_meshes);
+
+	if imgui.begin("Scene View") {
+		defer imgui.end();
+
+		imgui.image(&screen_texture, imgui.Vec2{960, 512});
+	}
+
+	odingl.BindFramebuffer(odingl.FRAMEBUFFER, 0 );
+    odingl.Clear(odingl.COLOR_BUFFER_BIT);
+
+    // odingl.BindTexture(odingl.TEXTURE_2D, screen_texture);
+    // //gl.Uniform1i(get_uniform_location(program, "mode\x00"), 1);
+    // odingl.DrawArraysInstanced(odingl.TRIANGLE_STRIP, 0, 4, 1);
 }
 
 // Mesh primitives
@@ -211,5 +304,5 @@ create_cube_mesh :: proc() -> MeshID {
 	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
 	};
 
-	return create_mesh(verts, {});
+	return create_mesh(verts, {}, "");
 }
