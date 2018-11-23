@@ -34,7 +34,7 @@ make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
                            _target_framerate: f32,
-                           update_loop: Update_Loop,
+                           workspace: Workspace,
                            camera: ^Camera) {
 
 	current_camera = camera;
@@ -49,10 +49,10 @@ make_simple_window :: proc(window_name: string,
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
-	start_update_loop(update_loop);
+	start_workspace(workspace);
 
 	game_loop:
-	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_update_loops) > 0 || len(new_update_loops) > 0) {
+	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
 		frame_start := glfw.GetTime();
 		defer {
 			frame_end := glfw.GetTime();
@@ -83,7 +83,7 @@ make_simple_window :: proc(window_name: string,
 				_update_ui();
 				_update_debug_window();
 
-				_update_update_loops(); // calls client updates
+				_update_workspaces(); // calls client updates
 
 				_late_update_ui();
 
@@ -100,7 +100,7 @@ make_simple_window :: proc(window_name: string,
 			}
 		}
 
-		_render_update_loops();
+		_render_workspaces();
 		imgui_render(true);
 
 		frame_end := win32.time_get_time();
@@ -117,7 +117,7 @@ exit :: inline proc() {
 	wb_should_close = true;
 }
 
-Update_Loop :: struct {
+Workspace :: struct {
 	name: string,
 
 	init: proc(),
@@ -126,85 +126,85 @@ Update_Loop :: struct {
 	end: proc(),
 }
 
-_Update_Loop_Internal :: struct {
-	using loop: Update_Loop,
+_Workspace_Internal :: struct {
+	using workspace: Workspace,
 
-	id: Update_Loop_ID,
+	id: Workspace_ID,
 }
 
-Update_Loop_ID :: distinct int;
-cur_update_loop_serial: int;
-all_update_loops: map[Update_Loop_ID]_Update_Loop_Internal;
-new_update_loops: [dynamic]_Update_Loop_Internal;
-end_update_loops: [dynamic]Update_Loop_ID;
+Workspace_ID :: distinct int;
+cur_workspace_serial: int;
+all_workspaces: map[Workspace_ID]_Workspace_Internal;
+new_workspaces: [dynamic]_Workspace_Internal;
+end_workspaces: [dynamic]Workspace_ID;
 
-start_update_loop :: proc(update_loop: Update_Loop) -> Update_Loop_ID {
-	id := cast(Update_Loop_ID)cur_update_loop_serial;
-	cur_update_loop_serial += 1;
+start_workspace :: proc(workspace: Workspace) -> Workspace_ID {
+	id := cast(Workspace_ID)cur_workspace_serial;
+	cur_workspace_serial += 1;
 
-	update_loop_internal := _Update_Loop_Internal{update_loop, id};
-	append(&new_update_loops, update_loop_internal);
+	workspace_internal := _Workspace_Internal{workspace, id};
+	append(&new_workspaces, workspace_internal);
 	return id;
 }
 
-end_update_loop :: proc(id: Update_Loop_ID) {
-	append(&end_update_loops, id);
+end_workspace :: proc(id: Workspace_ID) {
+	append(&end_workspaces, id);
 }
 
-current_update_loop: Update_Loop_ID;
+current_workspace: Workspace_ID;
 
-_update_update_loops :: proc() {
-	// Flush new update_loops
+_update_workspaces :: proc() {
+	// Flush new workspaces
 	{
-		for update_loop in new_update_loops {
-			current_update_loop = update_loop.id;
-			if update_loop.init != nil {
-				update_loop.init();
+		for workspace in new_workspaces {
+			current_workspace = workspace.id;
+			if workspace.init != nil {
+				workspace.init();
 			}
-			all_update_loops[update_loop.id] = update_loop;
+			all_workspaces[workspace.id] = workspace;
 		}
-		current_update_loop = -1;
-		clear(&new_update_loops);
+		current_workspace = -1;
+		clear(&new_workspaces);
 	}
 
-	// Update update_loops
+	// Update workspaces
 	{
-		for id, update_loop in all_update_loops {
-			current_update_loop = update_loop.id;
-			if update_loop.update != nil {
-				update_loop.update(fixed_delta_time);
+		for id, workspace in all_workspaces {
+			current_workspace = workspace.id;
+			if workspace.update != nil {
+				workspace.update(fixed_delta_time);
 			}
 		}
-		current_update_loop = -1;
+		current_workspace = -1;
 	}
 
-	// Remove ended update_loops
+	// Remove ended workspaces
 	{
-		for id in end_update_loops {
-			update_loop, ok := all_update_loops[id];
+		for id in end_workspaces {
+			workspace, ok := all_workspaces[id];
 			assert(ok);
 
-			current_update_loop = update_loop.id;
+			current_workspace = workspace.id;
 
-			if update_loop.end != nil {
-				update_loop.end();
+			if workspace.end != nil {
+				workspace.end();
 			}
 
-			delete_key(&all_update_loops, id);
+			delete_key(&all_workspaces, id);
 		}
-		current_update_loop = -1;
-		clear(&end_update_loops);
+		current_workspace = -1;
+		clear(&end_workspaces);
 	}
 }
 
-_render_update_loops :: proc() {
-	// Update update_loops
+_render_workspaces :: proc() {
+	// Update workspaces
 	{
-		for id, update_loop in all_update_loops {
-			current_update_loop = update_loop.id;
-			render_update_loop(update_loop);
+		for id, workspace in all_workspaces {
+			current_workspace = workspace.id;
+			render_workspace(workspace);
 		}
-		current_update_loop = -1;
+		current_workspace = -1;
 	}
 }
 

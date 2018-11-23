@@ -621,7 +621,7 @@ set_clear_color :: inline proc(color: Colorf) {
 	odingl.ClearColor(color.r, color.g, color.b, 1.0);
 }
 
-render_update_loop :: proc(stage: Update_Loop) {
+render_workspace :: proc(stage: Workspace) {
 	log_gl_errors(#procedure);
 
 	num_draw_calls = 0;
