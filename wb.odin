@@ -34,7 +34,7 @@ make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
                            _target_framerate: f32,
-                           stage: Stage,
+                           update_loop: Update_Loop,
                            camera: ^Camera) {
 
 	current_camera = camera;
@@ -49,10 +49,10 @@ make_simple_window :: proc(window_name: string,
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
-	start_stage(stage);
+	start_update_loop(update_loop);
 
 	game_loop:
-	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
+	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_update_loops) > 0 || len(new_update_loops) > 0) {
 		frame_start := glfw.GetTime();
 		defer {
 			frame_end := glfw.GetTime();
@@ -83,7 +83,7 @@ make_simple_window :: proc(window_name: string,
 				_update_ui();
 				_update_debug_window();
 
-				_update_stages(); // calls client updates
+				_update_update_loops(); // calls client updates
 
 				_late_update_ui();
 
@@ -100,8 +100,7 @@ make_simple_window :: proc(window_name: string,
 			}
 		}
 
-
-		_render_stages();
+		_render_update_loops();
 		imgui_render(true);
 
 		frame_end := win32.time_get_time();
@@ -118,7 +117,7 @@ exit :: inline proc() {
 	wb_should_close = true;
 }
 
-Stage :: struct {
+Update_Loop :: struct {
 	name: string,
 
 	init: proc(),
@@ -127,67 +126,85 @@ Stage :: struct {
 	end: proc(),
 }
 
-_Stage_Internal :: struct {
-	using stage: Stage,
+_Update_Loop_Internal :: struct {
+	using loop: Update_Loop,
 
-	id: Stage_ID,
+	id: Update_Loop_ID,
 }
 
-Stage_ID :: distinct int;
-cur_stage_serial: int;
-all_stages: map[Stage_ID]_Stage_Internal;
-new_stages: [dynamic]_Stage_Internal;
-end_stages: [dynamic]Stage_ID;
+Update_Loop_ID :: distinct int;
+cur_update_loop_serial: int;
+all_update_loops: map[Update_Loop_ID]_Update_Loop_Internal;
+new_update_loops: [dynamic]_Update_Loop_Internal;
+end_update_loops: [dynamic]Update_Loop_ID;
 
-start_stage :: proc(stage: Stage) -> Stage_ID {
-	id := cast(Stage_ID)cur_stage_serial;
-	cur_stage_serial += 1;
+start_update_loop :: proc(update_loop: Update_Loop) -> Update_Loop_ID {
+	id := cast(Update_Loop_ID)cur_update_loop_serial;
+	cur_update_loop_serial += 1;
 
-	stage_internal := _Stage_Internal{stage, id};
-	append(&new_stages, stage_internal);
+	update_loop_internal := _Update_Loop_Internal{update_loop, id};
+	append(&new_update_loops, update_loop_internal);
 	return id;
 }
 
-end_stage :: proc(id: Stage_ID) {
-	append(&end_stages, id);
+end_update_loop :: proc(id: Update_Loop_ID) {
+	append(&end_update_loops, id);
 }
 
-_update_stages :: proc() {
-	// Flush new stages
+current_update_loop: Update_Loop_ID;
+
+_update_update_loops :: proc() {
+	// Flush new update_loops
 	{
-		for stage in new_stages {
-			if stage.init != nil {
-				stage.init();
+		for update_loop in new_update_loops {
+			current_update_loop = update_loop.id;
+			if update_loop.init != nil {
+				update_loop.init();
 			}
-			all_stages[stage.id] = stage;
+			all_update_loops[update_loop.id] = update_loop;
 		}
-		clear(&new_stages);
+		current_update_loop = -1;
+		clear(&new_update_loops);
 	}
 
-	// Update stages
+	// Update update_loops
 	{
-		for id, stage in all_stages {
-			if stage.update != nil {
-				stage.update(fixed_delta_time);
+		for id, update_loop in all_update_loops {
+			current_update_loop = update_loop.id;
+			if update_loop.update != nil {
+				update_loop.update(fixed_delta_time);
 			}
 		}
+		current_update_loop = -1;
 	}
 
-	// Remove ended stages
+	// Remove ended update_loops
 	{
-		for id in end_stages {
-			delete_key(&all_stages, id);
+		for id in end_update_loops {
+			update_loop, ok := all_update_loops[id];
+			assert(ok);
+
+			current_update_loop = update_loop.id;
+
+			if update_loop.end != nil {
+				update_loop.end();
+			}
+
+			delete_key(&all_update_loops, id);
 		}
-		clear(&new_stages);
+		current_update_loop = -1;
+		clear(&end_update_loops);
 	}
 }
 
-_render_stages :: proc() {
-	// Update stages
+_render_update_loops :: proc() {
+	// Update update_loops
 	{
-		for id, stage in all_stages {
-			render_stage(stage);
+		for id, update_loop in all_update_loops {
+			current_update_loop = update_loop.id;
+			render_update_loop(update_loop);
 		}
+		current_update_loop = -1;
 	}
 }
 
