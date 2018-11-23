@@ -94,7 +94,7 @@ load_texture :: proc(filepath: string) -> Texture
 	bind_texture2d(tex);
 
 	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGB, width, height, 0, odingl.RGB, odingl.UNSIGNED_BYTE, pixel_data);
-	
+
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
 

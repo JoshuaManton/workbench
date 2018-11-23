@@ -3,6 +3,7 @@ package wbml
 import rt "core:runtime"
 import "core:mem"
 import "core:strings"
+import "core:types"
 
 using import "core:fmt"
 using import "../lexer"
@@ -34,6 +35,7 @@ serialize :: proc(value: ^$Type) -> string {
 			print_to_buff(sb, name, " ");
 		}
 
+		do_newline := true;
 		switch kind in ti.variant {
 			case rt.Type_Info_Integer: {
 				if kind.signed {
@@ -64,6 +66,45 @@ serialize :: proc(value: ^$Type) -> string {
 				}
 			}
 
+			case rt.Type_Info_Enum: {
+				do_newline = false;
+
+				get_str :: proc(i: $T, e: rt.Type_Info_Enum) -> (string, bool) {
+					if types.is_string(e.base) {
+						for val, idx in e.values {
+							if v, ok := val.(T); ok && v == i {
+								return e.names[idx], true;
+							}
+						}
+					} else if len(e.values) == 0 {
+						return "", true;
+					} else {
+						for val, idx in e.values {
+							if v, ok := val.(T); ok && v == i {
+								return e.names[idx], true;
+							}
+						}
+					}
+					return "", false;
+				}
+
+				a := any{value, rt.type_info_base(kind.base).id};
+				switch v in a {
+				case rune:    str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case i8:      str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case i16:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case i32:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case i64:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case int:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case u8:      str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case u16:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case u32:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case u64:     str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case uint:    str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				case uintptr: str, ok := get_str(v, kind); assert(ok); print_to_buff(sb, str);
+				}
+			}
+
 			case rt.Type_Info_Boolean: {
 				print_to_buff(sb, (cast(^bool)value)^);
 			}
@@ -73,7 +114,7 @@ serialize :: proc(value: ^$Type) -> string {
 			}
 
 			case rt.Type_Info_Named: {
-				serialize_one_thing(name, value, kind.base, sb, indent_level);
+				serialize_one_thing("", value, kind.base, sb, indent_level);
 			}
 
 			case rt.Type_Info_Struct: {
@@ -125,7 +166,10 @@ serialize :: proc(value: ^$Type) -> string {
 
 			case: panic(tprint(kind));
 		}
-		print_to_buff(sb, "\n");
+
+		if do_newline {
+			print_to_buff(sb, "\n");
+		}
 	}
 
 	sb: String_Buffer;
@@ -135,20 +179,24 @@ serialize :: proc(value: ^$Type) -> string {
 	return to_string(sb);
 }
 
-deserialize :: proc($Type: typeid, text: string) -> Type {
+deserialize :: proc[deserialize_to_value, deserialize_into_pointer];
+
+deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
+	t: Type;
+	deserialize_into_pointer(text, &t);
+	return t;
+}
+
+deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
+	ti := type_info_of(Type);
+
 	_lexer := lexer.Lexer{text, 0, 0, 0, nil};
 	lexer := &_lexer;
-
-	ti := type_info_of(Type);
-	t: Type;
-	data : rawptr = &t;
 
 	token, ok := get_next_token(lexer);
 	if !ok do panic("empty text");
 
-	parse_value(lexer, token, data, ti);
-
-	return t;
+	parse_value(lexer, token, ptr, ti);
 }
 
 parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Type_Info) {
@@ -157,7 +205,6 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 			switch value_kind.value {
 				case '{': {
 					for {
-
 						token, ok := get_next_token(lexer); assert(ok);
 						if right_curly, ok2 := token.kind.(Token_Symbol); ok2 && right_curly.value == '}' {
 							break;
@@ -284,11 +331,50 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 		}
 
 		case Token_Identifier: {
-			switch value_kind.value {
-				case "true", "True", "TRUE":    (cast(^bool)data)^ = true;
-				case "false", "False", "FALSE": (cast(^bool)data)^ = false;
+			switch kind in ti.variant {
+				case rt.Type_Info_Boolean: {
+					switch value_kind.value {
+						case "true", "True", "TRUE":    (cast(^bool)data)^ = true;
+						case "false", "False", "FALSE": (cast(^bool)data)^ = false;
+						case: {
+							assert(false, value_kind.value);
+						}
+					}
+				}
+
+				case rt.Type_Info_Named: {
+					parse_value(lexer, parent_token, data, kind.base);
+				}
+
+				case rt.Type_Info_Enum: {
+					get_val_for_name :: proc(name: string, $Type: typeid, e: rt.Type_Info_Enum) -> (Type, bool) {
+						for enum_member_name, idx in e.names {
+							if enum_member_name == name {
+								return e.values[idx].(Type), true;
+							}
+						}
+						return Type{}, false;
+					}
+
+					a := any{data, rt.type_info_base(kind.base).id};
+					switch v in a {
+					case rune:    val, ok := get_val_for_name(value_kind.value, rune,    kind); assert(ok); (cast(^rune)   data)^ = val;
+					case i8:      val, ok := get_val_for_name(value_kind.value, i8,      kind); assert(ok); (cast(^i8)     data)^ = val;
+					case i16:     val, ok := get_val_for_name(value_kind.value, i16,     kind); assert(ok); (cast(^i16)    data)^ = val;
+					case i32:     val, ok := get_val_for_name(value_kind.value, i32,     kind); assert(ok); (cast(^i32)    data)^ = val;
+					case i64:     val, ok := get_val_for_name(value_kind.value, i64,     kind); assert(ok); (cast(^i64)    data)^ = val;
+					case int:     val, ok := get_val_for_name(value_kind.value, int,     kind); assert(ok); (cast(^int)    data)^ = val;
+					case u8:      val, ok := get_val_for_name(value_kind.value, u8,      kind); assert(ok); (cast(^u8)     data)^ = val;
+					case u16:     val, ok := get_val_for_name(value_kind.value, u16,     kind); assert(ok); (cast(^u16)    data)^ = val;
+					case u32:     val, ok := get_val_for_name(value_kind.value, u32,     kind); assert(ok); (cast(^u32)    data)^ = val;
+					case u64:     val, ok := get_val_for_name(value_kind.value, u64,     kind); assert(ok); (cast(^u64)    data)^ = val;
+					case uint:    val, ok := get_val_for_name(value_kind.value, uint,    kind); assert(ok); (cast(^uint)   data)^ = val;
+					case uintptr: val, ok := get_val_for_name(value_kind.value, uintptr, kind); assert(ok); (cast(^uintptr)data)^ = val;
+					}
+				}
+
 				case: {
-					assert(false, value_kind.value);
+					assert(false, tprint(kind));
 				}
 			}
 		}
@@ -331,11 +417,25 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 }
 
 run_tests :: proc() {
+	Int_Enum :: enum int {
+		Foo,
+		Bar,
+		Baz,
+	}
+
+	Byte_Enum :: enum u8 {
+		Qwe,
+		Asd,
+		Zxc,
+	}
+
 	Nightmare :: struct {
 		some_int: int,
 		some_string: string,
 		some_float: f64,
 		some_bool: bool,
+		enum1: Int_Enum,
+		enum2: Byte_Enum,
 		some_nested_thing: struct {
 			asd: f32,
 			super_nested: struct {
@@ -355,6 +455,8 @@ run_tests :: proc() {
 	some_string "henlo lizer"
 	some_float 123.400
 	some_bool true
+	enum1 Baz
+	enum2 Asd
 	some_nested_thing {
 		asd 432.500
 		super_nested {
@@ -415,6 +517,7 @@ run_tests :: proc() {
 
 	a_text := serialize(&a);
 	defer delete(a_text);
+	println(a_text);
 	b := deserialize(Nightmare, a_text);
 
 	assert(a.some_int == b.some_int);

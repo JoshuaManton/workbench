@@ -33,7 +33,7 @@ _update_ui :: proc() {
 	}
 
 	previously_hot = -1;
-	if get_mouse_up(Mouse.Left) {
+	if get_input_up(Input.Left) {
 		if hot != -1 {
 			previously_hot = hot;
 			hot = -1;
@@ -66,7 +66,7 @@ _update_ui :: proc() {
 			}
 
 			if warm == rect.imgui_id {
-				if get_mouse_down(Mouse.Left) {
+				if get_input_down(Input.Mouse_Left) {
 					hot = rect.imgui_id;
 					cursor_pixel_position_on_clicked = cursor_screen_position;
 				}
@@ -422,7 +422,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		if button.on_clicked  != nil do button.on_clicked(button);
 	}
 
-	if (hot == rect.imgui_id && get_mouse_down(Mouse.Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
+	if (hot == rect.imgui_id && get_input_down(Input.Mouse_Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
 		if button.on_pressed != nil do button.on_pressed(button);
 	}
 
@@ -532,7 +532,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 	sv := current_scroll_view;
 
 	if hot == rect.imgui_id {
-		if get_mouse_down(Mouse.Left) {
+		if get_input_down(Input.Mouse_Left) {
 			sv.scroll_at_pressed_position = sv.scroll_offset_target;
 		}
 

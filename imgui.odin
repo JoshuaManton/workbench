@@ -34,25 +34,25 @@ _init_dear_imgui :: proc() {
     io := imgui.get_io();
     io.ime_window_handle = win32.get_desktop_window();
 
-    io.key_map[imgui.Key.Tab]        = i32(Key.Tab);
-    io.key_map[imgui.Key.LeftArrow]  = i32(Key.Left);
-    io.key_map[imgui.Key.RightArrow] = i32(Key.Right);
-    io.key_map[imgui.Key.UpArrow]    = i32(Key.Up);
-    io.key_map[imgui.Key.DownArrow]  = i32(Key.Down);
-    io.key_map[imgui.Key.PageUp]     = i32(Key.Page_Up);
-    io.key_map[imgui.Key.PageDown]   = i32(Key.Page_Down);
-    io.key_map[imgui.Key.Home]       = i32(Key.Home);
-    io.key_map[imgui.Key.End]        = i32(Key.End);
-    io.key_map[imgui.Key.Delete]     = i32(Key.Delete);
-    io.key_map[imgui.Key.Backspace]  = i32(Key.Backspace);
-    io.key_map[imgui.Key.Enter]      = i32(Key.Enter);
-    io.key_map[imgui.Key.Escape]     = i32(Key.Escape);
-    io.key_map[imgui.Key.A]          = i32(Key.A);
-    io.key_map[imgui.Key.C]          = i32(Key.C);
-    io.key_map[imgui.Key.V]          = i32(Key.V);
-    io.key_map[imgui.Key.X]          = i32(Key.X);
-    io.key_map[imgui.Key.Y]          = i32(Key.Y);
-    io.key_map[imgui.Key.Z]          = i32(Key.Z);
+    io.key_map[imgui.Key.Tab]        = i32(Input.Tab);
+    io.key_map[imgui.Key.LeftArrow]  = i32(Input.Left);
+    io.key_map[imgui.Key.RightArrow] = i32(Input.Right);
+    io.key_map[imgui.Key.UpArrow]    = i32(Input.Up);
+    io.key_map[imgui.Key.DownArrow]  = i32(Input.Down);
+    io.key_map[imgui.Key.PageUp]     = i32(Input.Page_Up);
+    io.key_map[imgui.Key.PageDown]   = i32(Input.Page_Down);
+    io.key_map[imgui.Key.Home]       = i32(Input.Home);
+    io.key_map[imgui.Key.End]        = i32(Input.End);
+    io.key_map[imgui.Key.Delete]     = i32(Input.Delete);
+    io.key_map[imgui.Key.Backspace]  = i32(Input.Backspace);
+    io.key_map[imgui.Key.Enter]      = i32(Input.Enter);
+    io.key_map[imgui.Key.Escape]     = i32(Input.Escape);
+    io.key_map[imgui.Key.A]          = i32(Input.A);
+    io.key_map[imgui.Key.C]          = i32(Input.C);
+    io.key_map[imgui.Key.V]          = i32(Input.V);
+    io.key_map[imgui.Key.X]          = i32(Input.X);
+    io.key_map[imgui.Key.Y]          = i32(Input.Y);
+    io.key_map[imgui.Key.Z]          = i32(Input.Z);
 
     vs ::
         `#version 330
@@ -269,8 +269,8 @@ imgui_begin_new_frame :: proc() {
     	posx, posy := glfw.GetCursorPos(main_window);
         io.mouse_pos.x = cast(f32)posx;
         io.mouse_pos.y = cast(f32)posy;
-        io.mouse_down[0] = glfw.GetMouseButton(main_window, Mouse.Left) == glfw.Action.Press;
-        io.mouse_down[1] = glfw.GetMouseButton(main_window, Mouse.Right) == glfw.Action.Press;
+        io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Left) == glfw.Action.Press;
+        io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Right) == glfw.Action.Press;
         io.mouse_wheel   = cursor_scroll;
 
         io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);

@@ -36,7 +36,7 @@ make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
                            _target_framerate: f32,
-                           scene: Scene,
+                           workspace: Workspace,
                            camera: ^Camera) {
 
 	current_camera = camera;
@@ -51,10 +51,10 @@ make_simple_window :: proc(window_name: string,
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
-	start_scene(scene);
+	start_workspace(workspace);
 
 	game_loop:
-	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
+	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
 		frame_start := glfw.GetTime();
 		defer {
 			frame_end := glfw.GetTime();
@@ -85,7 +85,7 @@ make_simple_window :: proc(window_name: string,
 				_update_ui();
 				_update_debug_window();
 
-				_update_scenes(); // calls client updates
+				_update_workspaces(); // calls client updates
 
 				_late_update_ui();
 
@@ -102,8 +102,7 @@ make_simple_window :: proc(window_name: string,
 			}
 		}
 
-
-		_render_scenes();
+		_render_workspaces();
 		imgui_render(true);
 
 		frame_end := win32.time_get_time();
@@ -120,7 +119,7 @@ exit :: inline proc() {
 	wb_should_close = true;
 }
 
-Scene :: struct {
+Workspace :: struct {
 	name: string,
 
 	init: proc(),
@@ -129,67 +128,85 @@ Scene :: struct {
 	end: proc(),
 }
 
-_Scene_Internal :: struct {
-	using scene: Scene,
+_Workspace_Internal :: struct {
+	using workspace: Workspace,
 
-	id: Scene_ID,
+	id: Workspace_ID,
 }
 
-Scene_ID :: distinct int;
-cur_scene_serial: int;
-all_scenes: map[Scene_ID]_Scene_Internal;
-new_scenes: [dynamic]_Scene_Internal;
-end_scenes: [dynamic]Scene_ID;
+Workspace_ID :: distinct int;
+cur_workspace_serial: int;
+all_workspaces: map[Workspace_ID]_Workspace_Internal;
+new_workspaces: [dynamic]_Workspace_Internal;
+end_workspaces: [dynamic]Workspace_ID;
 
-start_scene :: proc(scene: Scene) -> Scene_ID {
-	id := cast(Scene_ID)cur_scene_serial;
-	cur_scene_serial += 1;
+start_workspace :: proc(workspace: Workspace) -> Workspace_ID {
+	id := cast(Workspace_ID)cur_workspace_serial;
+	cur_workspace_serial += 1;
 
-	scene_internal := _Scene_Internal{scene, id};
-	append(&new_scenes, scene_internal);
+	workspace_internal := _Workspace_Internal{workspace, id};
+	append(&new_workspaces, workspace_internal);
 	return id;
 }
 
-end_scene :: proc(id: Scene_ID) {
-	append(&end_scenes, id);
+end_workspace :: proc(id: Workspace_ID) {
+	append(&end_workspaces, id);
 }
 
-_update_scenes :: proc() {
-	// Flush new scenes
+current_workspace: Workspace_ID;
+
+_update_workspaces :: proc() {
+	// Flush new workspaces
 	{
-		for scene in new_scenes {
-			if scene.init != nil {
-				scene.init();
+		for workspace in new_workspaces {
+			current_workspace = workspace.id;
+			if workspace.init != nil {
+				workspace.init();
 			}
-			all_scenes[scene.id] = scene;
+			all_workspaces[workspace.id] = workspace;
 		}
-		clear(&new_scenes);
+		current_workspace = -1;
+		clear(&new_workspaces);
 	}
 
-	// Update scenes
+	// Update workspaces
 	{
-		for id, scene in all_scenes {
-			if scene.update != nil {
-				scene.update(fixed_delta_time);
+		for id, workspace in all_workspaces {
+			current_workspace = workspace.id;
+			if workspace.update != nil {
+				workspace.update(fixed_delta_time);
 			}
 		}
+		current_workspace = -1;
 	}
 
-	// Remove ended scenes
+	// Remove ended workspaces
 	{
-		for id in end_scenes {
-			delete_key(&all_scenes, id);
+		for id in end_workspaces {
+			workspace, ok := all_workspaces[id];
+			assert(ok);
+
+			current_workspace = workspace.id;
+
+			if workspace.end != nil {
+				workspace.end();
+			}
+
+			delete_key(&all_workspaces, id);
 		}
-		clear(&new_scenes);
+		current_workspace = -1;
+		clear(&end_workspaces);
 	}
 }
 
-_render_scenes :: proc() {
-	// Update scenes
+_render_workspaces :: proc() {
+	// Update workspaces
 	{
-		for id, scene in all_scenes {
-			render_scene(scene);
+		for id, workspace in all_workspaces {
+			current_workspace = workspace.id;
+			render_workspace(workspace);
 		}
+		current_workspace = -1;
 	}
 }
 
@@ -207,7 +224,7 @@ debug_window_open: bool;
 last_saved_dt: f32;
 
 _update_debug_window :: proc() {
-	if get_key_down(Key.F1) {
+	if get_input_down(Input.F1) {
 		debug_window_open = !debug_window_open;
 	}
 
