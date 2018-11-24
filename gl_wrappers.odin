@@ -90,6 +90,14 @@ buffer_data_ebo :: inline proc(elements: [dynamic]u32, loc := #caller_location) 
 	log_gl_errors(#procedure, loc);
 }
 
+
+
+set_clear_color :: inline proc(color: Colorf) {
+	odingl.ClearColor(color.r, color.g, color.b, color.a);
+}
+
+
+
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	vs_code, ok1 := os.read_entire_file(vs);
 	if !ok1 {

@@ -596,10 +596,12 @@ Sprite :: struct {
 im_buffered_verts:     [dynamic]Buffered_Vertex;
 im_queued_for_drawing: [dynamic]Vertex2D;
 
-_update_renderer :: proc() {
+_clear_render_buffers :: proc() {
 	clear(&debug_vertices);
 	clear(&im_buffered_verts);
+}
 
+_prerender :: proc() {
 	log_gl_errors(#procedure);
 
 	odingl.Enable(odingl.BLEND);
@@ -615,10 +617,8 @@ _update_renderer :: proc() {
 	}
 
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
-}
 
-set_clear_color :: inline proc(color: Colorf) {
-	odingl.ClearColor(color.r, color.g, color.b, 1.0);
+	log_gl_errors(#procedure);
 }
 
 render_workspace :: proc(stage: Workspace) {
@@ -628,8 +628,14 @@ render_workspace :: proc(stage: Workspace) {
 	if stage.render != nil {
 		stage.render(fixed_delta_time);
 	}
+
+	_prerender();
+
+	im_flush_3d();
 	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
 	draw_debug_lines();
+	imgui_render(true);
+
 	log_gl_errors(tprint("stage_name: ", stage.name));
 }
 
