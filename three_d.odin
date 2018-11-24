@@ -218,10 +218,6 @@ im_flush_3d :: proc() {
 		clear(&im_queued_meshes);
 	}
 
-	// odingl.BindFramebuffer(odingl.FRAMEBUFFER, scene_frame_buffer);
-	// odingl.Viewport(0,0,cast(i32)current_window_width, cast(i32)current_window_height);
- //    odingl.Clear(odingl.COLOR_BUFFER_BIT);
-
 	current_shader = 0;
 	current_texture = 0;
 
@@ -249,7 +245,6 @@ im_flush_3d :: proc() {
 	flush_queue();
 	clear(&im_buffered_meshes);
 
-	//odingl.BindFramebuffer(odingl.FRAMEBUFFER, 0 );
 }
 
 // Mesh primitives
