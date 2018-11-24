@@ -44,7 +44,7 @@ make_simple_window :: proc(window_name: string,
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_opengl(opengl_version_major, opengl_version_minor);
 	_init_random_number_generator();
-	_init_draw();
+	//_init_draw();
 	_init_dear_imgui();
 
 	acc: f32;
@@ -85,7 +85,11 @@ make_simple_window :: proc(window_name: string,
 				_update_debug_window();
 
 				_update_workspaces(); // calls client updates
+				// if imgui.begin("Scene View") {
+				// 	defer imgui.end();
 
+				// 	imgui.image(rawptr(uintptr(screen_texture)), imgui.Vec2{960, 512});
+				// }
 				_late_update_ui();
 
 				// call_coroutines();
@@ -101,6 +105,7 @@ make_simple_window :: proc(window_name: string,
 			}
 		}
 
+		im_flush_3d();
 		_render_workspaces();
 		imgui_render(true);
 

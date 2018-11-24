@@ -218,8 +218,9 @@ im_flush_3d :: proc() {
 		clear(&im_queued_meshes);
 	}
 
-	odingl.BindFramebuffer(odingl.FRAMEBUFFER, scene_frame_buffer);
-    odingl.Clear(odingl.COLOR_BUFFER_BIT);
+	// odingl.BindFramebuffer(odingl.FRAMEBUFFER, scene_frame_buffer);
+	// odingl.Viewport(0,0,cast(i32)current_window_width, cast(i32)current_window_height);
+ //    odingl.Clear(odingl.COLOR_BUFFER_BIT);
 
 	current_shader = 0;
 	current_texture = 0;
@@ -248,18 +249,7 @@ im_flush_3d :: proc() {
 	flush_queue();
 	clear(&im_buffered_meshes);
 
-	if imgui.begin("Scene View") {
-		defer imgui.end();
-
-		imgui.image(&screen_texture, imgui.Vec2{960, 512});
-	}
-
-	odingl.BindFramebuffer(odingl.FRAMEBUFFER, 0 );
-    odingl.Clear(odingl.COLOR_BUFFER_BIT);
-
-    // odingl.BindTexture(odingl.TEXTURE_2D, screen_texture);
-    // //gl.Uniform1i(get_uniform_location(program, "mode\x00"), 1);
-    // odingl.DrawArraysInstanced(odingl.TRIANGLE_STRIP, 0, 4, 1);
+	//odingl.BindFramebuffer(odingl.FRAMEBUFFER, 0 );
 }
 
 // Mesh primitives
