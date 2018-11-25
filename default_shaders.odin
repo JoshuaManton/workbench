@@ -131,6 +131,7 @@ layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
 layout(location = 3) in vec4 vbo_normal;
 
+uniform vec4 mesh_color;
 uniform mat4 mvp_matrix;
 
 out vec4 desired_color;
@@ -139,7 +140,7 @@ void main() {
     vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
     if (result.w > 0) { result /= result.w; }
     gl_Position = result;
-    desired_color = vbo_color;
+    desired_color = vbo_color * mesh_color;
 }
 `;
 
