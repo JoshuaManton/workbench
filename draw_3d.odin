@@ -37,8 +37,18 @@ Model :: struct {
 MeshID :: int;
 all_meshes: map[MeshID]Mesh;
 
+buffer_model :: proc(data: Model_Data) -> Model {
+	meshes := make([dynamic]MeshID, 0, len(data.meshes));
+
+	for mesh in data.meshes {
+		append(&meshes, buffer_mesh(mesh.vertices, mesh.indicies, mesh.name));
+	}
+
+	return Model{meshes[:]};
+}
+
 cur_mesh_id: int;
-create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> MeshID {
+buffer_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> MeshID {
 
 	vertex_array := gen_vao(); // genVertexArrays
 	vertex_buffer := gen_vbo(); //genVertexBuffers
@@ -47,10 +57,10 @@ create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 	bind_vao(vertex_array); // bindVertexArrays
 
 	bind_buffer(vertex_buffer); // bindVertexBuffer
-	buffer_vertices(vertices[:]); // bufferData to GPU
+	buffer_vertices(vertices); // bufferData to GPU
 
 	bind_buffer(index_buffer); // bindIndexBuffer
-	buffer_elements(indicies[:]); // bufferData to GPU
+	buffer_elements(indicies); // bufferData to GPU
 
 	set_vertex_format(Vertex3D);
 	// enabledAttribArray 0->3
@@ -67,94 +77,8 @@ create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 	return id;
 }
 
-// TODO (jake): split up assimp model loading and pushing stuff to the gpu
-load_asset_to_gpu :: proc(path: cstring) -> Model {
-	scene := ai.import_file(path,
-		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
-		cast(u32) ai.aiPostProcessSteps.Triangulate |
-		cast(u32) ai.aiPostProcessSteps.JoinIdenticalVertices |
-		cast(u32) ai.aiPostProcessSteps.SortByPType |
-		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder|
-		cast(u32) ai.aiPostProcessSteps.FlipUVs);
-	defer ai.release_import(scene);
-
-	mesh_count := cast(int) scene.mNumMeshes;
-	mesh_ids := make([dynamic]MeshID, 0, mesh_count);
-
-	meshes := mem.slice_ptr(scene^.mMeshes, cast(int) scene.mNumMeshes);
-	for mesh in meshes // iterate meshes in scene
-	{
-		verts := mem.slice_ptr(mesh.mVertices, cast(int) mesh.mNumVertices);
-		norms := mem.slice_ptr(mesh.mNormals, cast(int) mesh.mNumVertices);
-
-		colours : []ai.aiColor4D;
-		if mesh.mColors[0] != nil do
-			colours = mem.slice_ptr(mesh.mColors[0], cast(int) mesh.mNumVertices);
-
-		texture_coords : []ai.aiVector3D;
-		if mesh.mTextureCoords[0] != nil do
-			texture_coords = mem.slice_ptr(mesh.mTextureCoords[0], cast(int) mesh.mNumVertices);
-
-		processedVerts := make([dynamic]Vertex3D, 0, mesh.mNumVertices);
-		defer delete(processedVerts);
-
-		// process vertices into Vertex3D struct
-		// TODO (jake): support vertex colours
-		for i in 0 .. mesh.mNumVertices - 1
-		{
-			normal := norms[i];
-			position := verts[i];
-
-			colour: Colorf;
-			if mesh.mColors[0] != nil do
-				colour = Colorf(colours[i]);
-			else
-			{
-				rnd := (cast(f32)i / cast(f32)len(verts)) * 0.75 + 0.25;
-				colour = Colorf{rnd, 0, rnd, 1};
-			}
-
-			texture_coord: Vec3;
-			if mesh.mTextureCoords[0] != nil do
-				texture_coord = Vec3{texture_coords[i].x, texture_coords[i].y, texture_coords[i].z};
-			else do
-				texture_coord = Vec3{0, 0, 0};
-
-			vert := Vertex3D{
-				Vec3{position.x, position.y, position.z},
-				texture_coord,
-				colour,
-				Vec3{normal.x, normal.y, normal.z}};
-
-			append(&processedVerts, vert);
-		}
-
-		indicies := make([dynamic]u32, 0, mesh.mNumVertices);
-		defer delete(indicies);
-
-		faces := mem.slice_ptr(mesh.mFaces, cast(int) mesh.mNumFaces);
-		// iterate all faces, build Index array
-		for i in 0 .. mesh.mNumFaces-1
-		{
-			face := faces[i];
-			faceIndicies := mem.slice_ptr(face.mIndices, cast(int) face.mNumIndices);
-			for j in 0 .. face.mNumIndices-1
-			{
-				append(&indicies, faceIndicies[j]);
-			}
-		}
-
-		// create mesh
-		// TODO(jake): Why the fuck can't I take a pointer to mesh.mName.data
-		append(&mesh_ids, create_mesh(
-			processedVerts[:],
-			indicies[:],
-			""//cast(string)mem.slice_ptr(&mesh.mName.data, mesh.mName.length)
-			));
-	}
-
-	// return all created meshIds
-	return Model{mesh_ids[:]};
+release_mesh :: proc(mesh_id: MeshID) {
+	// TODO (jake): make this
 }
 
 get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
@@ -207,8 +131,7 @@ flush_3d :: proc() {
 		bind_texture2d(texture);
 	}
 
-	draw_mesh :: inline proc(mesh: Mesh)
-	{
+	draw_mesh :: inline proc(mesh: Mesh) {
 		when DEVELOPER {
 			if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
 				num_draw_calls += 1;
@@ -316,5 +239,5 @@ create_cube_mesh :: proc() -> MeshID {
 	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
 	};
 
-	return create_mesh(verts[:], {}, "");
+	return buffer_mesh(verts[:], {}, "");
 }

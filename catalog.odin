@@ -4,12 +4,12 @@ import "core:os"
 
 Subscriber :: struct {
 	userdata: rawptr,
-	callback: proc(rawptr, string),
+	callback: proc(rawptr, []u8),
 }
 
 Catalog_Item :: struct {
 	path: string,
-	text: string,
+	data: []u8,
 	last_write_time: os.File_Time,
 
 	subscribers: [dynamic]Subscriber,
@@ -20,17 +20,17 @@ all_items: [dynamic]^Catalog_Item;
 // todo(josh): Handle system for Catalog_Items
 catalog_add :: proc(path: string) -> ^Catalog_Item {
 	time     := os.last_write_time_by_name(path);
-	text, ok := os.read_entire_file(path);
+	data, ok := os.read_entire_file(path);
 	if !ok do return nil;
 
-	item := new_clone(Catalog_Item{path, cast(string)text, time, nil}); // @Alloc
+	item := new_clone(Catalog_Item{path, data, time, nil}); // @Alloc
 	append(&all_items, item);
 	return item;
 }
 
-catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: $T, callback: proc(T, string)) {
+catalog_subscribe :: inline proc(item: ^Catalog_Item, userdata: $T, callback: proc(T, []u8)) {
 	append(&item.subscribers, Subscriber{userdata, cast(proc(rawptr, string))callback});
-	callback(userdata, item.text);
+	callback(userdata, item.data);
 }
 
 catalog_unsubscribe :: inline proc(item: Catalog_Item, callback: proc(^$T, string)) {
@@ -54,8 +54,8 @@ _update_catalog :: proc() {
 			data, ok := os.read_entire_file(item.path);
 			assert(ok);
 
-			delete(item.text);
-			item.text = cast(string)data;
+			delete(item.data);
+			item.data = data;
 			item.last_write_time = new_write_time;
 
 			// todo(josh): should add checks to make sure we dont modify the list while calling subscribers
@@ -63,7 +63,7 @@ _update_catalog :: proc() {
 			for sub_idx >= 0 {
 				defer sub_idx -= 1;
 				sub := item.subscribers[sub_idx];
-				sub.callback(sub.userdata, item.text);
+				sub.callback(sub.userdata, item.data);
 			}
 
 			logln("new contents for ", item.path);
