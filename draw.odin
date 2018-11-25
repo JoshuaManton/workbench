@@ -621,12 +621,12 @@ _prerender :: proc() {
 	log_gl_errors(#procedure);
 }
 
-render_workspace :: proc(stage: Workspace) {
+render_workspace :: proc(workspace: Workspace) {
 	log_gl_errors(#procedure);
 
 	num_draw_calls = 0;
-	if stage.render != nil {
-		stage.render(fixed_delta_time);
+	if workspace.render != nil {
+		workspace.render(fixed_delta_time);
 	}
 
 	_prerender();
@@ -636,7 +636,7 @@ render_workspace :: proc(stage: Workspace) {
 	draw_debug_lines();
 	imgui_render(true);
 
-	log_gl_errors(tprint("stage_name: ", stage.name));
+	log_gl_errors(tprint("workspace_name: ", workspace.name));
 }
 
 is_scissor: bool;
