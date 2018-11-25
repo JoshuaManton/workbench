@@ -190,6 +190,27 @@ translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
 
 
 
+
+
+quaternion_forward :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 0, -1});
+}
+quaternion_back :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_forward(quat);
+}
+quaternion_right :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {1, 0, 0});
+}
+quaternion_left :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_right(quat);
+}
+quaternion_up :: inline proc(quat: Quat) -> Vec3 {
+	return quat_mul_vec3(quat, {0, 1, 0});
+}
+quaternion_down :: inline proc(quat: Quat) -> Vec3 {
+	return -quaternion_up(quat);
+}
+
 degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
 	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
