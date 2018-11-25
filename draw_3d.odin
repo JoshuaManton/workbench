@@ -67,7 +67,7 @@ create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 	return id;
 }
 
-load_asset :: proc(path: cstring) -> Model {
+load_asset_to_gpu :: proc(path: cstring) -> Model {
 	scene := ai.import_file(path,
 		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
 		cast(u32) ai.aiPostProcessSteps.Triangulate |

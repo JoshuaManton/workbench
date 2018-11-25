@@ -43,14 +43,11 @@ destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
 	free(atlas);
 }
 
-load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool) {
+load_sprite :: proc(texture: ^Texture_Atlas, data: []byte) -> (Sprite, bool) {
 	stb.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
-	pixel_data := stb.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
-	if pixel_data == nil {
-		logln("Couldn't load sprite: ", filepath);
-		return Sprite{}, false;
-	}
+	pixel_data := stb.load_from_memory(&data[0], cast(i32)len(data), &sprite_width, &sprite_height, &channels, 0);
+	assert(pixel_data != nil);
 
 	defer stb.image_free(pixel_data);
 
@@ -87,14 +84,10 @@ load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool)
 	return sprite, true;
 }
 
-load_texture :: proc(filepath: string) -> Texture
-{
+load_texture :: proc(data: []byte) -> Texture {
 	width, height, channels: i32;
-	pixel_data := stb.load(&filepath[0], &width, &height, &channels, 0);
-	if pixel_data == nil {
-		logln("Couldn't load texture: ", filepath);
-		return 0;
-	}
+	pixel_data := stb.load_from_memory(&data[0], cast(i32)len(data), &width, &height, &channels, 0);
+	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
 	tex := gen_texture();
@@ -121,14 +114,7 @@ Font :: struct {
 
 font_default: ^Font;
 
-load_font :: proc(path: string, size: f32) -> (^Font, bool) {
-	data, ok := os.read_entire_file(path);
-	if !ok {
-		logln("Couldn't open font: ", path);
-		return nil, false;
-	}
-	defer delete(data);
-
+load_font :: proc(data: []byte, size: f32) -> (^Font, bool) {
 	pixels: []u8;
 	chars:  []stb.Baked_Char;
 	dim := 128;
