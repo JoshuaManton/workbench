@@ -7,7 +7,7 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
 
-      import odingl "external/gl"
+      // import odingl "external/gl"
 
       import        "external/stb"
       import        "external/glfw"
@@ -319,42 +319,6 @@ get_string_width :: inline proc(rendermode: Rendermode_Proc, font: ^Font, str: s
 	return im_text(rendermode, font, str, {}, {}, size, 0, false);
 }
 
-// get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
-// 	size_ratio := _get_size_ratio_for_font(font, size);
-// 	// return size * size_ratio / 2;
-// 	assert(current_render_mode == rendering_unit_space);
-
-// 	biggest_height: f32;
-// 	for c in font.chars {
-// 		height := cast(f32)c.y1 - cast(f32)c.y0;
-// 		if height > biggest_height {
-// 			biggest_height = height;
-// 		}
-// 	}
-
-// 	biggest_height /= cast(f32)current_window_height * size_ratio;
-
-// 	return biggest_height * size;
-// }
-
-// get_centered_baseline :: inline proc(font: ^Font, text: string, size: f32, min, max: Vec2) -> Vec2 {
-// 	string_width  := get_string_width(font, text, size);
-// 	string_height := get_font_height(font, size);
-// 	box_width     := max.x - min.x;
-// 	box_height    := max.y - min.y;
-
-// 	leftover_x := box_width - string_width;
-// 	xx := leftover_x - (leftover_x / 2);
-
-// 	leftover_y := box_height - string_height;
-// 	// todo
-// 	yy := string_height;// - (leftover_y / 2);
-
-// 	result := min + Vec2{xx, yy};
-
-// 	return result;
-// }
-
 //
 // Render layers
 //
@@ -371,7 +335,7 @@ swap_render_layers :: inline proc(auto_cast layer: int) -> int {
 // Scissor
 //
 
-do_scissor:   bool;
+do_scissor: bool;
 scissor_rect1: [4]int;
 
 scissor :: proc(x1, y1, ww, hh: int) {
