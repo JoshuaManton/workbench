@@ -100,6 +100,10 @@ Axis :: enum {
 	R2,
 }
 
+is_mouse_input :: inline proc(input: Input) -> bool {
+	return input >= Input.Mouse_Button_1 && input <= Input.Mouse_Button_8;
+}
+
 // copypasted from glfw, Key and Mouse combined
 Input :: enum i32 {
 
@@ -369,16 +373,23 @@ _update_input :: proc() {
 
 		io := imgui.get_io();
 
-		if !io.want_capture_mouse {
-			for held in _held_mid_frame {
-				append(&_held, held);
-			}
-			for down in _down_mid_frame {
-				append(&_down, down);
-			}
-			for up in _up_mid_frame {
-				append(&_up, up);
-			}
+		for held in _held_mid_frame {
+			is_mouse := is_mouse_input(held);
+			if is_mouse && io.want_capture_mouse do continue;
+			if !is_mouse && io.want_capture_keyboard do continue;
+			append(&_held, held);
+		}
+		for down in _down_mid_frame {
+			is_mouse := is_mouse_input(down);
+			if is_mouse && io.want_capture_mouse do continue;
+			if !is_mouse && io.want_capture_keyboard do continue;
+			append(&_down, down);
+		}
+		for up in _up_mid_frame {
+			is_mouse := is_mouse_input(up);
+			if is_mouse && io.want_capture_mouse do continue;
+			if !is_mouse && io.want_capture_keyboard do continue;
+			append(&_up, up);
 		}
 	}
 

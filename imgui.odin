@@ -278,9 +278,10 @@ imgui_begin_new_frame :: proc() {
         io.key_alt   = win32.is_key_down(win32.Key_Code.Lmenu)    || win32.is_key_down(win32.Key_Code.Rmenu);
         io.key_super = win32.is_key_down(win32.Key_Code.Lwin)     || win32.is_key_down(win32.Key_Code.Rwin);
 
-        for i in 0..256 {
-            io.keys_down[i] = win32.is_key_down(win32.Key_Code(i));
+        for i in 0..511 {
+            io.keys_down[i] = get_input(cast(Input)i);
         }
+        
     } else {
         io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
 
@@ -292,7 +293,7 @@ imgui_begin_new_frame :: proc() {
         io.key_alt   = false;
         io.key_super = false;
 
-        for i in 0..256 {
+        for i in 0..511 {
             io.keys_down[i] = false;
         }
     }

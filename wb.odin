@@ -52,6 +52,7 @@ make_simple_window :: proc(window_name: string,
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
 	start_workspace(workspace);
+	_init_new_workspaces();
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
@@ -74,22 +75,23 @@ make_simple_window :: proc(window_name: string,
 
 				frame_count += 1;
 
+				_clear_render_buffers();
+
+				_update_input();
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
 
 				_update_catalog();
-				_update_renderer();
 				_update_glfw();
-				_update_input();
 				_update_tween();
 				_update_ui();
 				_update_debug_window();
 
+				_init_new_workspaces();
 				_update_workspaces(); // calls client updates
 
 				_late_update_ui();
 
-				// call_coroutines();
 	    		imgui.pop_font();
 
 				acc -= fixed_delta_time;
@@ -103,14 +105,12 @@ make_simple_window :: proc(window_name: string,
 		}
 
 		_render_workspaces();
-		imgui_render(true);
 
-		frame_end := win32.time_get_time();
 		glfw.SwapBuffers(main_window);
 
-		odingl.Finish(); // <- what?
-
 		log_gl_errors("after SwapBuffers()");
+
+		_remove_ended_workspaces();
 	}
 }
 
@@ -155,59 +155,51 @@ end_workspace :: proc(id: Workspace_ID) {
 
 current_workspace: Workspace_ID;
 
+_init_new_workspaces :: proc() {
+	for workspace in new_workspaces {
+		current_workspace = workspace.id;
+		if workspace.init != nil {
+			workspace.init();
+		}
+		all_workspaces[workspace.id] = workspace;
+	}
+	current_workspace = -1;
+	clear(&new_workspaces);
+}
+
 _update_workspaces :: proc() {
-	// Flush new workspaces
-	{
-		for workspace in new_workspaces {
-			current_workspace = workspace.id;
-			if workspace.init != nil {
-				workspace.init();
-			}
-			all_workspaces[workspace.id] = workspace;
+	for id, workspace in all_workspaces {
+		current_workspace = workspace.id;
+		if workspace.update != nil {
+			workspace.update(fixed_delta_time);
 		}
-		current_workspace = -1;
-		clear(&new_workspaces);
 	}
-
-	// Update workspaces
-	{
-		for id, workspace in all_workspaces {
-			current_workspace = workspace.id;
-			if workspace.update != nil {
-				workspace.update(fixed_delta_time);
-			}
-		}
-		current_workspace = -1;
-	}
-
-	// Remove ended workspaces
-	{
-		for id in end_workspaces {
-			workspace, ok := all_workspaces[id];
-			assert(ok);
-
-			current_workspace = workspace.id;
-
-			if workspace.end != nil {
-				workspace.end();
-			}
-
-			delete_key(&all_workspaces, id);
-		}
-		current_workspace = -1;
-		clear(&end_workspaces);
-	}
+	current_workspace = -1;
 }
 
 _render_workspaces :: proc() {
-	// Update workspaces
-	{
-		for id, workspace in all_workspaces {
-			current_workspace = workspace.id;
-			render_workspace(workspace);
-		}
-		current_workspace = -1;
+	for id, workspace in all_workspaces {
+		current_workspace = workspace.id;
+		render_workspace(workspace);
 	}
+	current_workspace = -1;
+}
+
+_remove_ended_workspaces :: proc() {
+	for id in end_workspaces {
+		workspace, ok := all_workspaces[id];
+		assert(ok);
+
+		current_workspace = workspace.id;
+
+		if workspace.end != nil {
+			workspace.end();
+		}
+
+		delete_key(&all_workspaces, id);
+	}
+	current_workspace = -1;
+	clear(&end_workspaces);
 }
 
 WB_Debug_Data :: struct {
@@ -252,35 +244,6 @@ _update_debug_window :: proc() {
 		console.update_console_window();
 	}
 }
-
-// Coroutine :: struct {
-// 	callback: proc(rawptr, int),
-// 	userdata: rawptr,
-
-// 	state: int,
-// }
-
-// coroutines: [dynamic]Coroutine;
-
-// start_coroutine :: proc(callback: proc(rawptr, int), userdata: rawptr, loc := #caller_location) -> bool {
-// 	if callback == nil {
-// 		logln("Nil callback passed to start_coroutine() from: ", loc);
-// 		return false;
-// 	}
-
-// 	coroutine := Coroutine{callback, userdata, 0};
-// 	append(&coroutines, coroutine);
-// 	return true;
-// }
-
-// call_coroutines :: proc() {
-// 	for _, i in coroutines {
-// 		coroutine := &coroutines[i];
-// 		assert(coroutine.callback != nil);
-
-// 		continue_calling := coroutine.callback(coroutine.userdata, coroutine.state);
-// 	}
-// }
 
 main :: proc() {
 	when DEVELOPER {

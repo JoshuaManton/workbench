@@ -9,6 +9,7 @@ using import "core:math"
 
 Shader_Program  :: distinct u32;
 Graphics_Buffer :: distinct u32;
+Frame_Buffer    :: distinct u32;
 VAO             :: distinct u32;
 VBO             :: distinct u32;
 EBO             :: distinct u32;
@@ -48,13 +49,24 @@ gen_buffer :: inline proc(loc := #caller_location) -> Graphics_Buffer {
 	return cast(Graphics_Buffer)buffer;
 }
 
-bind_buffer :: proc[bind_buffer_vbo, bind_buffer_ebo];
+gen_frame_buffer :: inline proc(loc := #caller_location) -> Frame_Buffer {
+	buffer: u32;
+	odingl.GenFramebuffers(1, &buffer);
+	log_gl_errors(#procedure, loc);
+	return cast(Frame_Buffer)buffer;
+}
+
+bind_buffer :: proc[bind_buffer_vbo, bind_buffer_ebo, bind_frame_buffer];
 bind_buffer_vbo :: inline proc(vbo: VBO, loc := #caller_location) {
 	odingl.BindBuffer(odingl.ARRAY_BUFFER, cast(u32)vbo);
 	log_gl_errors(#procedure, loc);
 }
 bind_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 	odingl.BindBuffer(odingl.ELEMENT_ARRAY_BUFFER, cast(u32)ebo);
+	log_gl_errors(#procedure, loc);
+}
+bind_frame_buffer :: inline proc(frame_buffer: Frame_Buffer, loc := #caller_location) {
+	odingl.BindFramebuffer(odingl.FRAMEBUFFER, u32(frame_buffer));
 	log_gl_errors(#procedure, loc);
 }
 
@@ -68,15 +80,22 @@ delete_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 	log_gl_errors(#procedure, loc);
 }
 
-buffer_data :: proc[buffer_data_ebo, buffer_data_vbo];
-buffer_data_vbo :: inline proc(vertices: [dynamic]Vertex3D, loc := #caller_location) {
-	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex3D) * len(vertices), &vertices[0], odingl.STATIC_DRAW);
+buffer_vertices :: inline proc(vertices: []$Vertex_Type, loc := #caller_location) {
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(vertices), &vertices[0], odingl.STATIC_DRAW);
 	log_gl_errors(#procedure, loc);
 }
-buffer_data_ebo :: inline proc(elements: [dynamic]u32, loc := #caller_location) {
+buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
 	odingl.BufferData(odingl.ELEMENT_ARRAY_BUFFER, size_of(u32) * len(elements), &elements[0], odingl.STATIC_DRAW);
 	log_gl_errors(#procedure, loc);
 }
+
+
+
+set_clear_color :: inline proc(color: Colorf) {
+	odingl.ClearColor(color.r, color.g, color.b, color.a);
+}
+
+
 
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	vs_code, ok1 := os.read_entire_file(vs);
