@@ -3,9 +3,11 @@ package workbench
 using import        "core:math"
 using import        "core:fmt"
       import        "core:os"
+      import        "core:mem"
 
       import odingl "external/gl"
       import stb    "external/stb"
+      import ai     "external/assimp"
 
 //
 // Textures and sprites
@@ -19,6 +21,23 @@ Texture_Atlas :: struct {
 	atlas_x: i32,
 	atlas_y: i32,
 	biggest_height: i32,
+}
+
+Sprite :: struct {
+	uvs:    [4]Vec2,
+	width:  f32,
+	height: f32,
+	id:     Texture,
+}
+
+Mesh_Data :: struct {
+	vertices: []Vertex3D,
+	indicies: []u32,
+	name: string,
+}
+
+Model_Data :: struct {
+	meshes: []Mesh_Data,
 }
 
 create_atlas :: inline proc() -> ^Texture_Atlas {
@@ -36,14 +55,11 @@ destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
 	free(atlas);
 }
 
-load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool) {
+load_sprite :: proc(texture: ^Texture_Atlas, data: []byte) -> (Sprite, bool) {
 	stb.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
-	pixel_data := stb.load(&filepath[0], &sprite_width, &sprite_height, &channels, 0);
-	if pixel_data == nil {
-		logln("Couldn't load sprite: ", filepath);
-		return Sprite{}, false;
-	}
+	pixel_data := stb.load_from_memory(&data[0], cast(i32)len(data), &sprite_width, &sprite_height, &channels, 0);
+	assert(pixel_data != nil);
 
 	defer stb.image_free(pixel_data);
 
@@ -80,14 +96,10 @@ load_sprite :: proc(texture: ^Texture_Atlas, filepath: string) -> (Sprite, bool)
 	return sprite, true;
 }
 
-load_texture :: proc(filepath: string) -> Texture
-{
+load_texture :: proc(data: []byte) -> Texture {
 	width, height, channels: i32;
-	pixel_data := stb.load(&filepath[0], &width, &height, &channels, 0);
-	if pixel_data == nil {
-		logln("Couldn't load texture: ", filepath);
-		return 0;
-	}
+	pixel_data := stb.load_from_memory(&data[0], cast(i32)len(data), &width, &height, &channels, 0);
+	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
 	tex := gen_texture();
@@ -99,6 +111,93 @@ load_texture :: proc(filepath: string) -> Texture
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
 
 	return tex;
+}
+
+load_model_from_file :: proc(path: cstring) -> Model_Data {
+	scene := ai.import_file(path,
+		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
+		cast(u32) ai.aiPostProcessSteps.Triangulate |
+		cast(u32) ai.aiPostProcessSteps.JoinIdenticalVertices |
+		cast(u32) ai.aiPostProcessSteps.SortByPType |
+		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder|
+		cast(u32) ai.aiPostProcessSteps.FlipUVs);
+	defer ai.release_import(scene);
+
+	mesh_count := cast(int) scene.mNumMeshes;
+	meshes_processed := make([dynamic]Mesh_Data, 0, mesh_count);
+
+	meshes := mem.slice_ptr(scene^.mMeshes, cast(int) scene.mNumMeshes);
+	for mesh in meshes // iterate meshes in scene
+	{
+		verts := mem.slice_ptr(mesh.mVertices, cast(int) mesh.mNumVertices);
+		norms := mem.slice_ptr(mesh.mNormals, cast(int) mesh.mNumVertices);
+
+		colours : []ai.aiColor4D;
+		if mesh.mColors[0] != nil do
+			colours = mem.slice_ptr(mesh.mColors[0], cast(int) mesh.mNumVertices);
+
+		texture_coords : []ai.aiVector3D;
+		if mesh.mTextureCoords[0] != nil do
+			texture_coords = mem.slice_ptr(mesh.mTextureCoords[0], cast(int) mesh.mNumVertices);
+
+		processedVerts := make([dynamic]Vertex3D, 0, mesh.mNumVertices);
+
+		// process vertices into Vertex3D struct
+		// TODO (jake): support vertex colours
+		for i in 0 .. mesh.mNumVertices - 1
+		{
+			normal := norms[i];
+			position := verts[i];
+
+			colour: Colorf;
+			if mesh.mColors[0] != nil do
+				colour = Colorf(colours[i]);
+			else
+			{
+				rnd := (cast(f32)i / cast(f32)len(verts)) * 0.75 + 0.25;
+				colour = Colorf{rnd, 0, rnd, 1};
+			}
+
+			texture_coord: Vec3;
+			if mesh.mTextureCoords[0] != nil do
+				texture_coord = Vec3{texture_coords[i].x, texture_coords[i].y, texture_coords[i].z};
+			else do
+				texture_coord = Vec3{0, 0, 0};
+
+			vert := Vertex3D{
+				Vec3{position.x, position.y, position.z},
+				texture_coord,
+				colour,
+				Vec3{normal.x, normal.y, normal.z}};
+
+			append(&processedVerts, vert);
+		}
+
+		indicies := make([dynamic]u32, 0, mesh.mNumVertices);
+
+		faces := mem.slice_ptr(mesh.mFaces, cast(int) mesh.mNumFaces);
+		// iterate all faces, build Index array
+		for i in 0 .. mesh.mNumFaces-1
+		{
+			face := faces[i];
+			faceIndicies := mem.slice_ptr(face.mIndices, cast(int) face.mNumIndices);
+			for j in 0 .. face.mNumIndices-1
+			{
+				append(&indicies, faceIndicies[j]);
+			}
+		}
+
+		// create mesh
+		// TODO(jake): Why the fuck can't I take a pointer to mesh.mName.data
+		append(&meshes_processed, Mesh_Data{
+			processedVerts[:],
+			indicies[:],
+			""//cast(string)mem.slice_ptr(&mesh.mName.data, mesh.mName.length)
+			});
+	}
+
+	// return all created meshIds
+	return Model_Data{meshes_processed[:]};
 }
 
 //
@@ -114,14 +213,7 @@ Font :: struct {
 
 font_default: ^Font;
 
-load_font :: proc(path: string, size: f32) -> (^Font, bool) {
-	data, ok := os.read_entire_file(path);
-	if !ok {
-		logln("Couldn't open font: ", path);
-		return nil, false;
-	}
-	defer delete(data);
-
+load_font :: proc(data: []byte, size: f32) -> (^Font, bool) {
 	pixels: []u8;
 	chars:  []stb.Baked_Char;
 	dim := 128;

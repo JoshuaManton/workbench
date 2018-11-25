@@ -323,7 +323,7 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * current_window_height / font.size * size;
 
 	if center {
-		ww := get_string_width(font, str, height);
+		ww := get_string_width(rendermode_unit, font, str, height);
 		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
 		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
