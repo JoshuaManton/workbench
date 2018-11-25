@@ -58,7 +58,7 @@ create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 
 	bind_vao(VAO(0)); // release vertex array
 
-	id := cast(MeshID)cur_mesh_id;
+	id := MeshID(cur_mesh_id);
 	cur_mesh_id += 1;
 
 	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), name};
@@ -67,6 +67,7 @@ create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 	return id;
 }
 
+// TODO (jake): split up assimp model loading and pushing stuff to the gpu
 load_asset_to_gpu :: proc(path: cstring) -> Model {
 	scene := ai.import_file(path,
 		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
@@ -171,6 +172,8 @@ model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation:
 	model_matrix = math.mul(model_matrix, rotation_matrix);
 }
 
+// Rendering
+
 im_buffered_meshes: [dynamic]Buffered_Mesh;
 im_queued_meshes: [dynamic]Buffered_Mesh;
 
@@ -183,9 +186,7 @@ Buffered_Mesh :: struct {
 	shader   : Shader_Program,
 }
 
-im_raw_buffered_meshes: [dynamic]Mesh;
-
-push_mesh :: proc(id: MeshID,
+push_mesh :: inline proc(id: MeshID,
 				  position: Vec3,
 				  scale: Vec3,
 				  rotation: Vec3,
@@ -193,32 +194,6 @@ push_mesh :: proc(id: MeshID,
 		          shader: Shader_Program)
 {
 	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader});
-}
-
-draw_mesh :: proc(mesh: Mesh)
-{
-	when DEVELOPER {
-		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
-			num_draw_calls += 1;
-			return;
-		}
-	}
-
-	bind_vao(mesh.vertex_array);
-	bind_buffer(mesh.vertex_buffer);
-	bind_buffer(mesh.index_buffer);
-
-	program := get_current_shader();
-	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
-
-	num_draw_calls += 1;
-
-	if debugging_rendering {
-		odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
-	}
-	else {
-		odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
-	}
 }
 
 flush_3d :: proc() {
@@ -230,6 +205,32 @@ flush_3d :: proc() {
 	set_texture :: inline proc(texture: Texture) {
 		current_texture = texture;
 		bind_texture2d(texture);
+	}
+
+	draw_mesh :: inline proc(mesh: Mesh)
+	{
+		when DEVELOPER {
+			if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
+				num_draw_calls += 1;
+				return;
+			}
+		}
+
+		bind_vao(mesh.vertex_array);
+		bind_buffer(mesh.vertex_buffer);
+		bind_buffer(mesh.index_buffer);
+
+		program := get_current_shader();
+		uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+
+		num_draw_calls += 1;
+
+		if debugging_rendering {
+			odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+		}
+		else {
+			odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+		}
 	}
 
 	flush_queue :: inline proc() {
@@ -271,7 +272,6 @@ flush_3d :: proc() {
 
 	flush_queue();
 	clear(&im_buffered_meshes);
-
 }
 
 // Mesh primitives
