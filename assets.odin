@@ -113,6 +113,20 @@ load_texture :: proc(data: []byte) -> Texture {
 	return tex;
 }
 
+load_model_from_memory :: proc(data: []byte) -> Model_Data {
+	pHint : byte;
+	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
+		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
+		cast(u32) ai.aiPostProcessSteps.Triangulate |
+		cast(u32) ai.aiPostProcessSteps.JoinIdenticalVertices |
+		cast(u32) ai.aiPostProcessSteps.SortByPType |
+		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder|
+		cast(u32) ai.aiPostProcessSteps.FlipUVs, &pHint);
+	defer ai.release_import(scene);
+
+	return _load_model_internal(scene);
+}
+
 load_model_from_file :: proc(path: cstring) -> Model_Data {
 	scene := ai.import_file(path,
 		cast(u32) ai.aiPostProcessSteps.CalcTangentSpace |
@@ -123,6 +137,10 @@ load_model_from_file :: proc(path: cstring) -> Model_Data {
 		cast(u32) ai.aiPostProcessSteps.FlipUVs);
 	defer ai.release_import(scene);
 
+	return _load_model_internal(scene);
+}
+
+_load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {
 	mesh_count := cast(int) scene.mNumMeshes;
 	meshes_processed := make([dynamic]Mesh_Data, 0, mesh_count);
 

@@ -6,6 +6,7 @@ foreign import lib "assimp-vc140-mt.lib";
 foreign lib {
 	@(link_name="aiImportFile")                import_file :: proc(pFile1:cstring, pFile2: u32) -> ^aiScene ---;
 	@(link_name="aiReleaseImport")             release_import :: proc(pScene: ^aiScene) ---;
+	@(link_name="aiImportFileFromMemory")      import_file_from_memory :: proc(pBuffer: ^byte, pLength: i32, pFlags: u32, pHint: ^byte) -> ^aiScene ---;
 	//@(link_name="aiImportFileEx")              import_fileex :: proc(pFile:cstring,pFlags: u32,pFS: ^aiFileIO) -> ^aiScene ---;
 	//@(link_name="aiGetPredefinedLogStream")    get_predefined_log_stream :: proc(pStreams: aiDefaultLogStream,file:cstring) -> aiLogStream ---;
 	//@(link_name="aiAttachLogStream")           attach_log_stream :: proc(stream: ^aiLogStream) ---;
