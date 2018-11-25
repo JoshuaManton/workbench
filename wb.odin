@@ -72,13 +72,13 @@ make_simple_window :: proc(window_name: string,
 
 				frame_count += 1;
 
+				_update_input();
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
 
 				_update_catalog();
 				_update_renderer();
 				_update_glfw();
-				_update_input();
 				_update_tween();
 				_update_ui();
 				_update_debug_window();
