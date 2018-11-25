@@ -246,7 +246,7 @@ im_vertex_color_texture :: inline proc(rendermode: Rendermode_Proc, shader: Shad
 	append(&im_buffered_verts, vertex_info);
 }
 
-im_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int) -> f32 {
+im_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int, actually_draw: bool = true) -> f32 {
 	// todo: make im_text() be render_mode agnostic
 	// old := current_render_mode;
 	// rendering_unit_space();
@@ -303,7 +303,7 @@ im_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position:
 			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
 		}
 
-		if !is_space {
+		if !is_space && actually_draw {
 			im_quad_sprite_color(rendermode, shader_text, to_vec3(min), to_vec3(max), sprite, color, layer);
 		}
 
@@ -315,59 +315,8 @@ im_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position:
 	return width;
 }
 
-get_string_width :: proc(font: ^Font, str: string, size: f32) -> f32 {
-	// todo: make im_text() be render_mode agnostic
-	// old := current_render_mode;
-	// rendering_unit_space();
-	// defer old();
-
-	start: Vec2;
-	position := start;
-	for _, i in str {
-		c := str[i];
-		is_space := c == ' ';
-		if is_space do c = 'l'; // @DrawStringSpaces: @Hack:
-
-		min, max: Vec2;
-		whitespace_ratio: f32;
-		quad: stb.Aligned_Quad;
-		{
-			//
-			size_pixels: Vec2;
-			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
-			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
-			size_pixels.y = abs(quad.y1 - quad.y0);
-			size_pixels *= size;
-
-			ww := cast(f32)current_window_width;
-			hh := cast(f32)current_window_height;
-			// min = position + (Vec2{quad.x0, -quad.y1} * size);
-			// max = position + (Vec2{quad.x1, -quad.y0} * size);
-			min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
-			max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
-			// Padding
-			{
-				// todo(josh): @DrawStringSpaces: Currently dont handle spaces properly :/
-				abs_hh := abs(quad.t1 - quad.t0);
-				char_aspect: f32;
-				if abs_hh == 0 {
-					char_aspect = 1;
-				}
-				else {
-					char_aspect = abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
-				}
-				full_width := size_pixels.x;
-				char_width := size_pixels.y * char_aspect;
-				whitespace_ratio = 1 - (char_width / full_width);
-			}
-		}
-
-		width := max.x - min.x;
-		position.x += width + (width * whitespace_ratio);
-	}
-
-	width := position.x - start.x;
-	return width;
+get_string_width :: inline proc(rendermode: Rendermode_Proc, font: ^Font, str: string, size: f32) -> f32 {
+	return im_text(rendermode, font, str, {}, {}, size, 0, false);
 }
 
 // get_font_height :: inline proc(font: ^Font, size: f32) -> f32 {
