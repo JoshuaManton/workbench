@@ -121,7 +121,7 @@ trim_whitespace :: proc(text: string) -> string {
 	start := 0;
 	for is_whitespace(text[start]) do start += 1;
 	end := len(text);
-	for is_whitespace(text[start]) do end -= 1;
+	for is_whitespace(text[end - 1]) do end -= 1;
 
 	new_str := text[start:end];
 	return new_str;
