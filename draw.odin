@@ -7,7 +7,7 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
 
-      // import odingl "external/gl"
+      import odingl "external/gl"
 
       import        "external/stb"
       import        "external/glfw"
@@ -424,8 +424,8 @@ render_workspace :: proc(workspace: Workspace) {
 
 	_prerender();
 
-	im_flush_3d();
-	im_draw_flush(odingl.TRIANGLES, im_buffered_verts);
+	flush_3d();
+	im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
 	draw_debug_lines();
 	imgui_render(true);
 
@@ -438,15 +438,13 @@ current_shader:     Shader_Program;
 current_texture:    Texture;
 current_rendermode: proc();
 
-im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
+im_draw_flush :: proc(mode: u32, verts: []Buffered_Vertex) {
 	set_shader :: inline proc(program: Shader_Program, mode: u32, location := #caller_location) {
 		current_shader = program;
-		use_program(program);
 	}
 
 	set_texture :: inline proc(texture: Texture, mode: u32, location := #caller_location) {
 		current_texture = texture;
-		bind_texture2d(texture);
 	}
 
 	if !current_camera.is_perspective {
@@ -469,7 +467,7 @@ im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 		scissor_mismatch := vertex_info.scissor != is_scissor;
 		rendermode_mismatch := vertex_info.rendermode != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
-			draw_vertex_list(im_queued_for_drawing, mode);
+			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture, mode);
 			clear(&im_queued_for_drawing);
 		}
 
@@ -492,7 +490,7 @@ im_draw_flush :: proc(mode: u32, verts: [dynamic]Buffered_Vertex) {
 		append(&im_queued_for_drawing, vertex);
 	}
 
-	draw_vertex_list(im_queued_for_drawing, mode);
+	draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture, mode);
 	clear(&im_queued_for_drawing);
 }
 
@@ -507,7 +505,7 @@ when DEVELOPER {
 	}
 }
 
-draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_location) {
+draw_vertex_list :: proc(list: []$Vertex_Type, shader: Shader_Program, texture: Texture, mode: u32, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -518,6 +516,9 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 			return;
 		}
 	}
+
+	use_program(shader);
+	bind_texture2d(texture);
 
 	bind_vao(vao);
 	bind_buffer(vbo);
@@ -534,10 +535,10 @@ draw_vertex_list :: proc(list: [dynamic]$Vertex_Type, mode: u32, loc := #caller_
 	}
 
 	// TODO: investigate STATIC_DRAW vs others
+	buffer_vertices(list);
 	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(list), &list[0], odingl.STATIC_DRAW);
 
 	program := get_current_shader();
-	uniform(program, "atlas_texture", 0);
 	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
 	num_draw_calls += 1;
@@ -611,5 +612,5 @@ push_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Ve
 
 draw_debug_lines :: inline proc() {
 	assert(len(debug_vertices) % 2 == 0);
-	im_draw_flush(odingl.LINES, debug_vertices);
+	im_draw_flush(odingl.LINES, debug_vertices[:]);
 }

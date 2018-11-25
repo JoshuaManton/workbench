@@ -31,14 +31,14 @@ Mesh :: struct {
 }
 
 Model :: struct {
-	meshes: [dynamic]MeshID
+	meshes: []MeshID
 }
 
 MeshID :: int;
 all_meshes: map[MeshID]Mesh;
 
 cur_mesh_id: int;
-create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32, name: string) -> MeshID {
+create_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> MeshID {
 
 	vertex_array := gen_vao(); // genVertexArrays
 	vertex_buffer := gen_vbo(); //genVertexBuffers
@@ -47,10 +47,10 @@ create_mesh :: proc(vertices: [dynamic]Vertex3D, indicies: [dynamic]u32, name: s
 	bind_vao(vertex_array); // bindVertexArrays
 
 	bind_buffer(vertex_buffer); // bindVertexBuffer
-	buffer_data(vertices); // bufferData to GPU
+	buffer_vertices(vertices[:]); // bufferData to GPU
 
 	bind_buffer(index_buffer); // bindIndexBuffer
-	buffer_data(indicies); // bufferData to GPU
+	buffer_elements(indicies[:]); // bufferData to GPU
 
 	set_vertex_format(Vertex3D);
 	// enabledAttribArray 0->3
@@ -146,14 +146,14 @@ load_asset :: proc(path: cstring) -> Model {
 		// create mesh
 		// TODO(jake): Why the fuck can't I take a pointer to mesh.mName.data
 		append(&mesh_ids, create_mesh(
-			processedVerts, 
-			indicies, 
+			processedVerts[:],
+			indicies[:],
 			""//cast(string)mem.slice_ptr(&mesh.mName.data, mesh.mName.length)
 			));
 	}
 
 	// return all created meshIds
-	return Model{mesh_ids};
+	return Model{mesh_ids[:]};
 }
 
 get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
@@ -183,18 +183,17 @@ Buffered_Mesh :: struct {
 	shader   : Shader_Program,
 }
 
-push_mesh :: proc(id: MeshID, 
-				  position: Vec3, 
-				  scale: Vec3, 
-				  rotation: Vec3, 
-		          texture: Texture, 
-		          shader: Shader_Program) 
+push_mesh :: proc(id: MeshID,
+				  position: Vec3,
+				  scale: Vec3,
+				  rotation: Vec3,
+		          texture: Texture,
+		          shader: Shader_Program)
 {
 	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader});
 }
 
-im_flush_3d :: proc() {
-
+flush_3d :: proc() {
 	set_shader :: inline proc(program: Shader_Program) {
 		current_shader = program;
 		use_program(program);
@@ -212,7 +211,7 @@ im_flush_3d :: proc() {
 
 			model_matrix_from_elements(queued_mesh.position, queued_mesh.scale, queued_mesh.rotation);
 			rendermode_world();
-			
+
 			draw_mesh(mesh);
 		}
 		clear(&im_queued_meshes);
@@ -231,14 +230,14 @@ im_flush_3d :: proc() {
 
 		shader_mismatch  := shader != current_shader;
 		texture_mismatch := texture != current_texture;
-		
+
 		if shader_mismatch || texture_mismatch {
 			flush_queue();
 		}
 
 		if shader_mismatch  do set_shader(shader);
 		if texture_mismatch do set_texture(texture);
-		
+
 		append(&im_queued_meshes, buffered_mesh);
 	}
 
@@ -289,5 +288,5 @@ create_cube_mesh :: proc() -> MeshID {
 	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
 	};
 
-	return create_mesh(verts, {}, "");
+	return create_mesh(verts[:], {}, "");
 }

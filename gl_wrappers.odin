@@ -80,12 +80,11 @@ delete_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 	log_gl_errors(#procedure, loc);
 }
 
-buffer_data :: proc[buffer_data_ebo, buffer_data_vbo];
-buffer_data_vbo :: inline proc(vertices: [dynamic]Vertex3D, loc := #caller_location) {
-	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex3D) * len(vertices), &vertices[0], odingl.STATIC_DRAW);
+buffer_vertices :: inline proc(vertices: []$Vertex_Type, loc := #caller_location) {
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(vertices), &vertices[0], odingl.STATIC_DRAW);
 	log_gl_errors(#procedure, loc);
 }
-buffer_data_ebo :: inline proc(elements: [dynamic]u32, loc := #caller_location) {
+buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
 	odingl.BufferData(odingl.ELEMENT_ARRAY_BUFFER, size_of(u32) * len(elements), &elements[0], odingl.STATIC_DRAW);
 	log_gl_errors(#procedure, loc);
 }
