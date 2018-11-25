@@ -21,6 +21,13 @@ Texture_Atlas :: struct {
 	biggest_height: i32,
 }
 
+Sprite :: struct {
+	uvs:    [4]Vec2,
+	width:  f32,
+	height: f32,
+	id:     Texture,
+}
+
 create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gen_texture();
 	bind_texture2d(texture);

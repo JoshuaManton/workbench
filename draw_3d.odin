@@ -183,6 +183,8 @@ Buffered_Mesh :: struct {
 	shader   : Shader_Program,
 }
 
+im_raw_buffered_meshes: [dynamic]Mesh;
+
 push_mesh :: proc(id: MeshID,
 				  position: Vec3,
 				  scale: Vec3,
@@ -191,6 +193,32 @@ push_mesh :: proc(id: MeshID,
 		          shader: Shader_Program)
 {
 	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader});
+}
+
+draw_mesh :: proc(mesh: Mesh)
+{
+	when DEVELOPER {
+		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
+			num_draw_calls += 1;
+			return;
+		}
+	}
+
+	bind_vao(mesh.vertex_array);
+	bind_buffer(mesh.vertex_buffer);
+	bind_buffer(mesh.index_buffer);
+
+	program := get_current_shader();
+	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+
+	num_draw_calls += 1;
+
+	if debugging_rendering {
+		odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+	}
+	else {
+		odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+	}
 }
 
 flush_3d :: proc() {
