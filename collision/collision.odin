@@ -3,6 +3,8 @@ package collision
 using import "core:fmt"
 using import "core:math"
 
+import "core:sort"
+
 main :: proc() {
 
 }
@@ -11,38 +13,34 @@ main :: proc() {
 // Collision Scene API
 //
 
-Handle :: int;
-
 Box :: struct {
 	size: Vec3,
 }
 
 Collider :: struct {
 	position: Vec3,
-	kind: union {
-		Box,
-	},
+	box: Box,
+
 }
 
 Collision_Scene :: struct {
-	last_handle: Handle,
-	colliders: map[Handle]Collider,
+	colliders: map[i32]Collider,
 }
 
-add_collider_to_scene :: proc(using scene: ^Collision_Scene, collider: Collider) -> Handle {
-	last_handle += 1;
-	colliders[last_handle] = collider;
-	return last_handle;
+add_collider_to_scene :: proc(using scene: ^Collision_Scene, collider: Collider, auto_cast handle: i32) {
+	_, ok := colliders[handle];
+	assert(!ok);
+	colliders[handle] = collider;
 }
 
-get_collider :: proc(using scene: ^Collision_Scene, handle: Handle) -> (Collider, bool) {
+get_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32) -> (Collider, bool) {
 	assert(handle != 0);
 
 	coll, ok := colliders[handle];
 	return coll, ok;
 }
 
-update_collider :: proc(using scene: ^Collision_Scene, handle: Handle, collider: Collider) {
+update_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, collider: Collider) {
 	assert(handle != 0);
 
 	_, ok := colliders[handle];
@@ -51,7 +49,7 @@ update_collider :: proc(using scene: ^Collision_Scene, handle: Handle, collider:
 	colliders[handle] = collider;
 }
 
-remove_collider :: proc(using scene: ^Collision_Scene, handle: Handle) {
+remove_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32) {
 	assert(handle != 0);
 	delete_key(&colliders, handle);
 }
@@ -64,28 +62,26 @@ destroy_collision_scene :: proc(using scene: ^Collision_Scene) {
 linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
 	for handle, collider in colliders {
-		switch kind in collider.kind {
-			case Box: {
-				info, ok := cast_line_box(origin, velocity, collider.position, kind.size);
-				if ok do append(out_hits, info);
-			}
-			case: panic(tprint(kind));
-		}
+		info, ok := cast_line_box(origin, velocity, collider.position, collider.box.size, handle);
+		if ok do append(out_hits, info);
 	}
+	sort.quick_sort_proc(out_hits[:], proc(a, b: Hit_Info) -> int {
+		if a.fraction0 < b.fraction0 do return -1;
+		return 1;
+	});
 }
 
 // todo(josh): test this, not sure if it works
 boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, other_position, other_size: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
 	for handle, collider in colliders {
-		switch kind in collider.kind {
-			case Box: {
-				info, ok := cast_box_box(origin, size, velocity, collider.position, kind.size);
-				if ok do append(out_hits, info);
-			}
-			case: panic(tprint(kind));
-		}
+		info, ok := cast_box_box(origin, size, velocity, collider.position, collider.box.size, handle);
+		if ok do append(out_hits, info);
 	}
+	sort.quick_sort_proc(out_hits[:], proc(a, b: Hit_Info) -> int {
+		if a.fraction0 < b.fraction0 do return -1;
+		return 1;
+	});
 }
 
 //
@@ -110,6 +106,8 @@ closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 }
 
 Hit_Info :: struct {
+	handle: i32, // users data to identify this collider as an entity in their code or something like that
+
 	// Fraction (0..1) of the distance that the ray started intersecting
 	fraction0: f32,
 	// Fraction (0..1) of the distance that the ray stopped intersecting
@@ -125,12 +123,12 @@ Hit_Info :: struct {
 	// normal1: Vec3,
 }
 
-cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, b2size: Vec3) -> (Hit_Info, bool) {
+cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, b2size: Vec3, b2_handle : i32 = 0) -> (Hit_Info, bool) {
 	b2size += b1size;
-	return cast_line_box(b1pos, box_direction, b2pos, b2size);
+	return cast_line_box(b1pos, box_direction, b2pos, b2size, b2_handle);
 }
 
-cast_line_box :: proc(line_origin, line_velocity: Vec3, boxpos, boxsize: Vec3) -> (Hit_Info, bool) {
+cast_line_box :: proc(line_origin, line_velocity: Vec3, boxpos, boxsize: Vec3, box_handle : i32 = 0) -> (Hit_Info, bool) {
 	inverse := Vec3{
 		1/line_velocity.x,
 		1/line_velocity.y,
@@ -156,7 +154,7 @@ cast_line_box :: proc(line_origin, line_velocity: Vec3, boxpos, boxsize: Vec3) -
 	// if tmin > tmax, ray doesn't intersect AABB
 	if tmin > tmax do return {}, false;
 
-	info := Hit_Info{tmin, tmax, line_origin + (line_velocity * tmin), line_origin + (line_velocity * tmax)};
+	info := Hit_Info{box_handle, tmin, tmax, line_origin + (line_velocity * tmin), line_origin + (line_velocity * tmax)};
 	return info, true;
 }
 
@@ -168,7 +166,7 @@ cast_box_circle :: proc(box_min, box_max: Vec3, box_direction: Vec3, circle_posi
 }
 
 // todo(josh): test this, not sure if it works
-cast_line_circle :: proc(line_origin, line_velocity: Vec3, circle_center: Vec3, circle_radius: f32) -> (Hit_Info, bool) {
+cast_line_circle :: proc(line_origin, line_velocity: Vec3, circle_center: Vec3, circle_radius: f32, circle_handle : i32 = 0) -> (Hit_Info, bool) {
 	direction := line_origin - circle_center;
 	a := dot(line_velocity, line_velocity);
 	b := dot(direction, line_velocity);
@@ -194,7 +192,7 @@ cast_line_circle :: proc(line_origin, line_velocity: Vec3, circle_center: Vec3, 
 	pmax := line_origin + tmax * line_velocity;
 	// normal[i] = (point[i] - circle_center) * invRadius;
 
-	info := Hit_Info{tmin, tmax, pmin, pmax};
+	info := Hit_Info{circle_handle, tmin, tmax, pmin, pmax};
 
 	return info, true;
 }
