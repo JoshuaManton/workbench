@@ -81,7 +81,8 @@ buffer_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 }
 
 release_mesh :: proc(mesh_id: MeshID) {
-	mesh := all_meshes[mesh_id];
+	mesh, ok := all_meshes[mesh_id];
+	assert(ok);
 	delete_vao(mesh.vertex_array);
 	delete_buffer(mesh.vertex_buffer);
 	delete_buffer(mesh.index_buffer);
