@@ -110,6 +110,8 @@ make_simple_window :: proc(window_name: string,
 
 		_remove_ended_workspaces();
 	}
+
+	_end_all_workspaces();
 	logln("workbench succesfully shutdown.");
 }
 
@@ -201,6 +203,13 @@ _remove_ended_workspaces :: proc() {
 	clear(&end_workspaces);
 }
 
+_end_all_workspaces :: proc() {
+	for id, workspace in all_workspaces {
+		end_workspace(id);
+	}
+	_remove_ended_workspaces();
+}
+
 WB_Debug_Data :: struct {
 	camera_position: Vec3,
 	camera_rotation_euler: Vec3,
@@ -213,6 +222,8 @@ WB_Debug_Data :: struct {
 
 debug_window_open: bool;
 last_saved_dt: f32;
+
+client_debug_window_proc: proc();
 
 _update_debug_window :: proc() {
 	if get_input_down(Input.F1) {
@@ -238,6 +249,8 @@ _update_debug_window :: proc() {
 			imgui.checkbox("Debug UI", &debugging_ui);
 			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
+
+			if client_debug_window_proc != nil do client_debug_window_proc();
 		}
 	}
 }
