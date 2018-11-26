@@ -112,7 +112,7 @@ make_simple_window :: proc(window_name: string,
 	}
 
 	_end_all_workspaces();
-	logln("workbench succesfully shutdown.");
+	logln("workbench successfully shutdown.");
 }
 
 wb_should_close: bool;
