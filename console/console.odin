@@ -6,11 +6,38 @@ using import "../external/imgui"
 	import "core:math"
 	import "../lexer"
 
+Console :: struct {
+	buffer		: ^TextBuffer,
+	input		: []u8,
+	commands	: Commands,
+}
+
+Commands :: struct {
+	mapping	: map[string]proc(),
+	history	: []string,
+}
+
+
 buffer := text_buffer_create();
 
 _console_input := make([]u8, 256);
 
 _commands := make(map[string]proc());
+
+new_console :: proc(input_size: int = 256, history_length: int = 64, default_commands: bool = true) -> ^Console {
+	console := Console{
+		text_buffer_create(),
+		make([]u8, input_size),
+		Commands{
+			make(map[string]proc()),
+			make([]string, history_length),
+		},
+	};
+
+	if default_commands do setup_default_commands(&console);
+
+	return &console;
+}
 
 bind_command :: proc(cmd: string, callback: proc()) {
 
@@ -19,9 +46,11 @@ bind_command :: proc(cmd: string, callback: proc()) {
 	_commands[cmd] = callback;
 }
 
-setup_default_commands :: proc() {
+setup_default_commands :: proc(console: ^Console) {
 
-	_commands["clear"] = proc() {
+	using console.commands;
+
+	mapping["clear"] = proc() {
 		text_buffer_clear(buffer);
 	};
 }
@@ -35,7 +64,14 @@ append_log :: proc(args : ..any) {
 }
 
 _on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
-	fmt.println("Callback Invoked");
+
+	switch data.event_flag {
+	case Input_Text_Flags.CallbackCompletion:
+		fmt.println("CallbackCompletion Invoked");
+	case Input_Text_Flags.CallbackHistory:
+		fmt.println("CallbackHistory Invoked");
+	}
+
 	return 0;
 }
 
