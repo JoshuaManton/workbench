@@ -75,11 +75,17 @@ buffer_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), Colorf{1, 1, 1, 1}, name};
 	all_meshes[id] = mesh;
 
+	//logln(all_meshes);
+
 	return id;
 }
 
 release_mesh :: proc(mesh_id: MeshID) {
-	// TODO (jake): make this
+	mesh := all_meshes[mesh_id];
+	delete_vao(mesh.vertex_array);
+	delete_buffer(mesh.vertex_buffer);
+	delete_buffer(mesh.index_buffer);
+	delete_key(&all_meshes, mesh_id);
 }
 
 get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
@@ -168,13 +174,15 @@ flush_3d :: proc() {
 		// on a per-mesh-instance-in-the-world basis
 		for queued_mesh in im_queued_meshes {
 			mesh, ok := all_meshes[queued_mesh.id];
-			assert(ok);
+			if !ok {
+				clear(&im_queued_meshes);
+				return;
+			}
 
 			mesh.color = queued_mesh.color;
 
 			model_matrix_from_elements(queued_mesh.position, queued_mesh.scale, queued_mesh.rotation);
 			rendermode_world();
-
 			draw_mesh(mesh);
 		}
 		clear(&im_queued_meshes);

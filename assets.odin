@@ -113,6 +113,20 @@ load_texture :: proc(data: []byte) -> Texture {
 	return tex;
 }
 
+rebuffer_texture :: proc(texture: Texture, new_data: []byte) {
+	width, height, channels: i32;
+	pixel_data := stb.load_from_memory(&new_data[0], cast(i32)len(new_data), &width, &height, &channels, 0);
+	assert(pixel_data != nil);
+	defer stb.image_free(pixel_data);
+
+	bind_texture2d(texture);
+	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGB, width, height, 0, odingl.RGB, odingl.UNSIGNED_BYTE, pixel_data);
+}
+
+release_texture :: proc(texture: Texture) {
+	delete_texture(texture);
+}
+
 load_model_from_memory :: proc(data: []byte) -> Model_Data {
 	pHint : byte;
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
@@ -122,6 +136,7 @@ load_model_from_memory :: proc(data: []byte) -> Model_Data {
 		cast(u32) ai.aiPostProcessSteps.SortByPType |
 		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder|
 		cast(u32) ai.aiPostProcessSteps.FlipUVs, &pHint);
+	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
 	return _load_model_internal(scene);
@@ -135,6 +150,7 @@ load_model_from_file :: proc(path: cstring) -> Model_Data {
 		cast(u32) ai.aiPostProcessSteps.SortByPType |
 		cast(u32) ai.aiPostProcessSteps.FlipWindingOrder|
 		cast(u32) ai.aiPostProcessSteps.FlipUVs);
+	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
 	return _load_model_internal(scene);
@@ -216,6 +232,12 @@ _load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {
 
 	// return all created meshIds
 	return Model_Data{meshes_processed[:]};
+}
+
+release_model :: proc(model: Model) {
+	for mesh in model.meshes {
+		release_mesh(mesh);
+	}
 }
 
 //
