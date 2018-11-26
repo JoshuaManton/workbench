@@ -10,10 +10,26 @@ buffer := text_buffer_create();
 
 _console_input := make([]u8, 256);
 
+_commands := make(map[string]proc());
+
+bind_command :: proc(cmd: string, callback: proc()) {
+
+	if cmd in _commands do fmt.println("Duplicate command:", cmd);
+
+	_commands[cmd] = callback;
+}
+
+setup_default_commands :: proc() {
+
+	_commands["clear"] = proc() {
+		text_buffer_clear(buffer);
+	};
+}
+
 append_log :: proc(args : ..any) {
 
 	// TODO - no alloc plz
-	as_c_string := strings.new_cstring(fmt.tprintln(args));
+	as_c_string := strings.new_cstring(fmt.tprintln(..args));
 
 	im_text_buffer_append(buffer, as_c_string);
 }
@@ -28,12 +44,12 @@ update_console_window :: proc() {
 	set_next_window_size(Vec2{520, 600}, Set_Cond.FirstUseEver);
 
 	if begin("Console") {
+		defer end();
 
-		// Reads the buffer into a string, then writes it into the widget unformatted
 		{
 			footer_height := get_style().item_spacing.y + get_frame_height_with_spacing();
 			begin_child("ScrollingLog", Vec2{0, -footer_height}, true, Window_Flags.HorizontalScrollbar);
-			
+
 			str := text_buffer_c_str(buffer);
 			im_text_unformatted(str);
 
@@ -47,38 +63,55 @@ update_console_window :: proc() {
 			using Input_Text_Flags;
 
 			if input_text("Input", _console_input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
-
-				c_input := cast(cstring) &_console_input[0];
-
-				if c_input != "" {
-					lex := lexer.make_lexer(cast(string) c_input);
-					input := trim_whitespace(cast(string) c_input);
-
-					fake_buffer: [32]string;
-
-					for {
-						token, ok := lexer.get_next_token(&lex);
-
-						if !ok do break;
-
-						fmt.println(token);
-					}
-
-					buffer := split_by_rune(input, ' ', &fake_buffer);
-					
-					_execute_command(buffer[0], buffer[1:]);
-
-					// Reset the cstring, by setting the first character back to zero
-					_console_input[0] = '\x00';
-				}
+				_process_input();
 			}
 		}
 	}
-	end();
 }
 
-_execute_command :: proc(cmd: string, args: []string) {
-	fmt.println("Executing command:", cmd, "args:", args);
+_process_input :: proc() {
+	c_input := cast(cstring) &_console_input[0];
+
+	if c_input != "" {
+
+		append_log(">", cast(string) c_input);
+
+		// Lex the input, the first token should be the command name
+		// All other tokens should be passed into the command proc
+		lex := lexer.make_lexer(cast(string) c_input);
+
+		cmd_token, ok := lexer.get_next_token(&lex);
+
+		if !ok {
+			fmt.println("That's not ok then");
+			return;
+		}
+		
+		_execute_command(cmd_token.slice_of_text);
+
+		for {
+			token, ok := lexer.get_next_token(&lex);
+
+			if !ok do break;
+
+			fmt.println(token);
+		}
+
+		// Reset the cstring, by setting the first character back to zero
+		_console_input[0] = '\x00';
+	}
+}
+
+_execute_command :: proc(cmd: string, args: ..string) {
+
+	callback, ok := _commands[cmd];
+
+	if !ok {
+		append_log("Unrecognized command:", cmd);
+		return;
+	}
+
+	callback();
 }
 
 is_whitespace :: inline proc(c: byte) -> bool {
