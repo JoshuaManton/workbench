@@ -27,8 +27,6 @@ whole_frame_time_ra: Rolling_Average(f64, 100);
 
 do_log_frame_boundaries := false;
 
-// _on_before_client_update := make_event(f32);
-// _on_after_client_update  := make_event(f32);
 f: f32;
 make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
