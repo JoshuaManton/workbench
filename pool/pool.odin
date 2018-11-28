@@ -1,15 +1,14 @@
 package pool
 
+using import "core:fmt"
 using import "core:math"
-
-EMPTY_BUCKET :: 0b1111111111111111111111111111111111111111111111111111111111111111;
 
 Pool :: struct(T: typeid, POOL_BATCH_SIZE: int) {
 	batches: [dynamic]Pool_Batch(T, POOL_BATCH_SIZE),
 }
 
 Pool_Batch :: struct(T: typeid, POOL_BATCH_SIZE: int) {
-	empties: u64,
+	empties: [POOL_BATCH_SIZE]bool,
 	list:    ^[POOL_BATCH_SIZE]T,
 }
 
@@ -23,25 +22,24 @@ taken_elements_map: map[rawptr]Pool_Element_Entry;
 pool_get :: proc(using pool: ^$P/Pool) -> ^P.T {
 	for _, batch_idx in batches {
 		batch := &batches[batch_idx];
-		if batch.empties == EMPTY_BUCKET {
-			continue;
-		}
-		for elem_idx in 0..64 { // 64 is the number of bits
-			is_empty := (batch.empties & (1 << cast(u64)elem_idx)) > 0;
+		for item, idx in batch.list {
+			is_empty := batch.empties[idx] == true;
 			if !is_empty {
-				ptr := &batch.list[elem_idx];
-				batch.empties |= (1 << cast(u64)elem_idx);
-				taken_elements_map[ptr] = Pool_Element_Entry{batch_idx, elem_idx};
+				ptr := &batch.list[idx];
+				batch.empties[idx] = true;
+				taken_elements_map[ptr] = Pool_Element_Entry{batch_idx, idx};
+				assert(ptr != nil);
 				return ptr;
 			}
 		}
 	}
-	append(&batches, Pool_Batch(P.T, P.POOL_BATCH_SIZE){0, new([P.POOL_BATCH_SIZE]P.T)});
+	append(&batches, Pool_Batch(P.T, P.POOL_BATCH_SIZE){{}, new([P.POOL_BATCH_SIZE]P.T)});
 	batch_idx := len(batches)-1;
 	batch := &batches[batch_idx];
 	ptr := &batch.list[0];
+	batch.empties[0] = true;
 	taken_elements_map[ptr] = Pool_Element_Entry{batch_idx, 0};
-	batch.empties |= 1;
+	assert(ptr != nil);
 	return ptr;
 }
 
@@ -52,69 +50,68 @@ pool_return :: proc(using pool: ^$P/Pool, thing: ^P.T) {
 	}
 
 	batches[entry.batch_idx].list[entry.elem_idx] = {};
-	batches[entry.batch_idx].empties &= ~(1 << cast(u64)entry.elem_idx);
+	batches[entry.batch_idx].empties[entry.elem_idx] = false;
 }
 
 pool_delete :: proc(using pool: $P/Pool) {
 	for _, batch_idx in batches {
 		batch := &batches[batch_idx];
-		free(batch.list);
+		free(batch);
 	}
 	delete(batches);
 }
 
-// todo(josh) these tests only work with N__ == 3 but we can't do that because of an odin bug related to constant named polymorphic parameters
-_test_pool :: proc() {
-// 	{
-// 		pool: Pool(int, N__);
-// 		defer pool_delete(pool);
+main :: proc() {
+	{
+		pool: Pool(int, 64);
+		defer pool_delete(pool);
 
-// 		assert(len(pool.batches) == 0);
-// 		value1 := pool_get(&pool);
-// 		assert(len(pool.batches) == 1);
-// 		value2 := pool_get(&pool);
-// 		value3 := pool_get(&pool);
+		assert(len(pool.batches) == 0);
+		value1 := pool_get(&pool);
+		assert(len(pool.batches) == 1);
+		value2 := pool_get(&pool);
+		value3 := pool_get(&pool);
 
-// 		value1^ = 1;
-// 		value2^ = 2;
-// 		value3^ = 3;
+		value1^ = 1;
+		value2^ = 2;
+		value3^ = 3;
 
-// 		pool_return(&pool, value2);
+		pool_return(&pool, value2);
 
-// 		assert(value1^ == 1);
-// 		assert(value2^ == 0); // since we returned it
-// 		assert(value3^ == 3);
+		assert(value1^ == 1);
+		assert(value2^ == 0); // since we returned it
+		assert(value3^ == 3);
 
-// 		pool_return(&pool, value1);
-// 		pool_return(&pool, value3);
-// 	}
+		pool_return(&pool, value1);
+		pool_return(&pool, value3);
+	}
 
-// 	{
-// 		pool: Pool(int, N__);
-// 		defer pool_delete(pool);
+	{
+		pool: Pool(int, 64);
+		defer pool_delete(pool);
 
-// 		values: [dynamic]^int;
-// 		defer delete(values);
+		values: [dynamic]^int;
+		defer delete(values);
 
-// 		for i in 0..(N__*2)-1 {
-// 			value := pool_get(&pool);
-// 			value^ = i;
-// 			append(&values, value);
-// 		}
+		for i in 0..(64*2)-1 {
+			value := pool_get(&pool);
+			value^ = i;
+			append(&values, value);
+		}
 
-// 		assert(len(values) == 6);
-// 		assert(len(pool.batches) == 2);
+		assert(len(values) == 6);
+		assert(len(pool.batches) == 2);
 
-// 		assert(pool.batches[0].list[0] == 0);
-// 		assert(pool.batches[0].list[2] == 2);
-// 		assert(pool.batches[1].list[1] == 4);
+		assert(pool.batches[0].list[0] == 0);
+		assert(pool.batches[0].list[2] == 2);
+		assert(pool.batches[1].list[1] == 4);
 
-// 		pool_return(&pool, values[0]);
-// 		pool_return(&pool, values[2]);
-// 		pool_return(&pool, values[4]);
+		pool_return(&pool, values[0]);
+		pool_return(&pool, values[2]);
+		pool_return(&pool, values[4]);
 
-// 		assert(pool.batches[0].list[0] == 0);
-// 		assert(pool.batches[0].list[2] == 0);
-// 		assert(pool.batches[1].list[1] == 0);
-// 	}
+		assert(pool.batches[0].list[0] == 0);
+		assert(pool.batches[0].list[2] == 0);
+		assert(pool.batches[1].list[1] == 0);
+	}
 }

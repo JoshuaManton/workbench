@@ -33,8 +33,8 @@ add_collider_to_scene :: proc(using scene: ^Collision_Scene, collider: Collider,
 	colliders[handle] = collider;
 }
 
-get_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32) -> (Collider, bool) {
-	assert(handle != 0);
+get_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, loc := #caller_location) -> (Collider, bool) {
+	assert(handle != 0, tprint(loc));
 
 	coll, ok := colliders[handle];
 	return coll, ok;
