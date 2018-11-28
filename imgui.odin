@@ -271,6 +271,7 @@ imgui_begin_new_frame :: proc() {
         io.mouse_pos.y = cast(f32)posy;
         io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Left) == glfw.Action.Press;
         io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Right) == glfw.Action.Press;
+        io.mouse_down[2] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Middle) == glfw.Action.Press;
         io.mouse_wheel   = cursor_scroll;
 
         io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);
@@ -287,6 +288,7 @@ imgui_begin_new_frame :: proc() {
 
         io.mouse_down[0] = false;
         io.mouse_down[1] = false;
+        io.mouse_down[2] = false;
         io.mouse_wheel   = 0;
         io.key_ctrl  = false;
         io.key_shift = false;
@@ -584,5 +586,409 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
             }
         }
         case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
+    }
+}
+
+Node_Editor_Data :: struct {
+    show_grid : bool,
+    node_selected : int,
+    scrolling : Vec2,
+    open_context_menu : bool,
+    node_hovered_in_list : int,
+    node_hovered_in_scene : int
+}
+
+MAX_CONNECTIONS :: 5;
+Node :: struct {
+    id      : int,
+    name    : string,
+    pos     : Vec2,
+    size    : Vec2,
+    inputs  : [5]int,
+    outputs : [5]int,
+
+    derived : any,
+}
+
+get_input_slot_pos :: inline proc(using node : Node, slot_num : int) -> Vec2 {
+    return Vec2{
+        pos.x, 
+        pos.y + size.y * (f32(slot_num) + 1) / (f32(len(inputs)) + 1)};
+}
+
+get_output_slot_pos :: inline proc(using node : Node, slot_num : int) -> Vec2 {
+    return Vec2{
+        pos.x + size.x, 
+        pos.y + size.y * (f32(slot_num) + 1) / (f32(len(outputs)) + 1)};
+}
+
+NODE_SLOT_RADIUS : f32 = 4.0;
+NODE_WINDOW_PADDING := Vec2{8.0, 8.0};
+all_node_editor_data : map[string]Node_Editor_Data;
+imgui_node_editor :: proc(name : string, nodes : map[int]Node) {
+
+    simple_field :: proc(name: string, data: rawptr, $T: typeid) {
+        value: string;
+
+        _, is_pointer := type_info_of(T).variant.(Type_Info_Pointer);
+
+        if T == string {
+            value = tprint("\"", (cast(^T)data)^, "\"");
+        }
+        else if T == f32 || T == f64 {
+            value = tprintf("%.2f", (cast(^T)data)^,);
+        }
+        else if is_pointer && (cast(^^byte)data)^ == nil {
+            value = "nil";
+        }
+        else {
+            value = tprint((cast(^T)data)^);
+        }
+
+        result := tprint(name, " = ", value);
+        logln(result);
+        imgui.text(result);
+    }
+
+    draw_node_recursive :: proc(name : string, any_data : any) {
+        data := any_data.data;
+        ti := type_info_of(any_data.id);
+        switch kind in ti.variant {
+            case Type_Info_Integer: {
+                if kind.signed {
+                    switch ti.size {
+                        case 8: simple_field(name, data, i64);
+                        case 4: simple_field(name, data, i32);
+                        case 2: simple_field(name, data, i16);
+                        case 1: simple_field(name, data, i8);
+                        case: assert(false, tprint(ti.size));
+                    }
+                }
+                else {
+                    switch ti.size {
+                        case 8: simple_field(name, data, u64);
+                        case 4: simple_field(name, data, u32);
+                        case 2: simple_field(name, data, u16);
+                        case 1: simple_field(name, data, u8);
+                        case: assert(false, tprint(ti.size));
+                    }
+                }
+            }
+            case Type_Info_Float: {
+                switch ti.size {
+                    case 8: simple_field(name, data, f64);
+                    case 4: simple_field(name, data, f32);
+                    case: assert(false, tprint(ti.size));
+                }
+            }
+            case Type_Info_String: {
+                assert(ti.size == size_of(string));
+                simple_field(name, data, string);
+            }
+            case Type_Info_Boolean: {
+                assert(ti.size == size_of(bool));
+                simple_field(name, data, bool);
+            }
+            case Type_Info_Pointer: {
+                simple_field(name, data, ^byte);
+            }
+            case Type_Info_Named: {
+                draw_node_recursive(name, any{data, kind.base.id});
+            }
+            case Type_Info_Struct: {
+                imgui.indent(); {
+                    defer imgui.unindent();
+                    for field_name, i in kind.names {
+                        t := kind.types[i];
+                        offset := kind.offsets[i];
+                        data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
+                        draw_node_recursive(field_name, any{data, t.id});
+                    }
+                }
+            }
+            case Type_Info_Enum: {
+                for value, val_idx in kind.values {
+                    switch kind3 in value {
+                        case i8:  if (cast(^i8) data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case i16: if (cast(^i16)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case i32: if (cast(^i32)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case i64: if (cast(^i64)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case int: if (cast(^int)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case u8:  if (cast(^u8) data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case u16: if (cast(^u16)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case u32: if (cast(^u32)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                        case u64: if (cast(^u64)data)^ == kind3 do simple_field(name, &kind.names[val_idx], string);
+                    }
+                }
+            }
+            case Type_Info_Slice: {
+                {//if _imgui_struct_block_field_start(name, tprint("[]", kind.elem)) {
+                   // defer _imgui_struct_block_field_end(name);
+
+                    slice := (cast(^mem.Raw_Slice)data)^;
+                    for i in 0..slice.len-1 {
+                        imgui.push_id(tprint(i));
+                        defer imgui.pop_id();
+                        draw_node_recursive(tprint("[", i, "]"), any{mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem.id});
+                    }
+                }
+            }
+            case Type_Info_Array: {
+                {//if _imgui_struct_block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
+                  //  defer _imgui_struct_block_field_end(name);
+
+                    for i in 0..kind.count-1 {
+                        imgui.push_id(tprint(i));
+                        defer imgui.pop_id();
+                        draw_node_recursive(tprint("[", i, "]"), any{mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem.id});
+                    }
+                }
+            }
+            case Type_Info_Dynamic_Array: {
+                {//if _imgui_struct_block_field_start(name, tprint("[dynamic]", kind.elem)) {
+                   // defer _imgui_struct_block_field_end(name);
+
+                    array := (cast(^mem.Raw_Dynamic_Array)data)^;
+                    for i in 0..array.len-1 {
+                        imgui.push_id(tprint(i));
+                        defer imgui.pop_id();
+                        draw_node_recursive(tprint("[", i, "]"), any{mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem.id});
+                    }
+                }
+            }
+            case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
+        }
+    }
+
+    draw_node :: proc(node : Node) {
+        draw_node_recursive(node.name, node.derived);
+    }
+
+    node_editor_data, ok := all_node_editor_data[name];
+    defer all_node_editor_data[name] = node_editor_data;
+    if !ok {
+        node_editor_data = Node_Editor_Data{false, -1, {0,0}, false, -1, -1};
+    }
+
+    using node_editor_data;
+
+    if imgui.begin(name) {
+        defer imgui.end();
+
+        imgui.begin_child("NodeList", {100,0}); {
+            defer imgui.end_child();
+            
+            imgui.text("Nodes");
+            imgui.separator();
+            for _, node in nodes {
+                imgui.push_id(node.id);
+                defer imgui.pop_id();
+
+                if imgui.selectable(node.name, node.id == node_selected) do
+                    node_selected = node.id;
+
+                if imgui.is_item_hovered() {
+                    node_hovered_in_list = node.id;
+                    open_context_menu |= imgui.is_mouse_clicked(1, false);
+                }
+            }
+        }
+
+        imgui.same_line();
+        imgui.begin_group(); {
+            defer imgui.end_group();
+
+            imgui.text("Hold right mouse to scroll (%.2f, %.2f)", scrolling.x, scrolling.y);
+            imgui.same_line(imgui.get_window_width() - 100);
+            imgui.checkbox("Show Grid", &show_grid);
+            
+            imgui.push_style_var(imgui.Style_Var.FramePadding, imgui.Vec2{1,1});
+            defer imgui.pop_style_var();
+            
+            imgui.push_style_var(imgui.Style_Var.WindowPadding, imgui.Vec2{0,0});
+            defer imgui.pop_style_var();
+            
+            imgui.push_style_color(imgui.Color.ChildWindowBg, imgui.Vec4{0.1,0.1,0.12,0.9});
+            defer imgui.pop_style_color();
+
+            imgui.begin_child("Scrolling Region", {0,0}, true, imgui.Window_Flags.NoScrollbar | imgui.Window_Flags.NoMove); {
+                defer imgui.end_child();
+                
+                imgui.push_item_width(120);
+                defer imgui.pop_item_width();
+
+                cursor_pos := imgui.get_cursor_screen_pos();
+                offset := Vec2{cursor_pos.x, cursor_pos.y};
+                offset.x = offset.x + scrolling.x;
+                offset.y = offset.y + scrolling.y;
+
+                draw_list := imgui.get_window_draw_list();
+                if show_grid {
+                    colr := imgui.Vec4{0.6,0.6,0.6,0.3};
+                    grid_color := imgui.color_convert_float4_to_u32(colr);
+                    grid_size : f32 = 64.0;
+                    win_pos := cursor_pos;
+                    canvas_size := imgui.get_window_size();
+
+                    for x := mod_f32(scrolling.x, grid_size); x < canvas_size.x; x += grid_size{
+                        imgui.draw_list_add_line(draw_list, 
+                            {win_pos.x + x, win_pos.y}, 
+                            {x + win_pos.x, canvas_size.y + win_pos.y}, 
+                            grid_color, 
+                            0.5);
+                    }
+
+                    for y := mod_f32(scrolling.y, grid_size); y < canvas_size.y; y += grid_size{
+                        imgui.draw_list_add_line(draw_list, 
+                            {win_pos.x, win_pos.y + y}, 
+                            {canvas_size.x + win_pos.x, y + win_pos.y}, 
+                            grid_color, 
+                            0.5);
+                    }
+                }
+
+                imgui.draw_list_channels_split(draw_list, 2);
+                imgui.draw_list_channels_set_current(draw_list, 0);
+
+                for id, _ in nodes {
+                    node := nodes[id];
+                    defer nodes[id] = node;
+
+
+                    for target, link_slot in node.inputs {
+                        if target < 0 do break;
+                        input_node := nodes[target];
+                        output_node := node;
+
+                        input_slot := 0;
+                        for t,s in input_node.outputs {
+                            if t == node.id {
+                                input_slot = s;
+                                break;
+                            }
+                        }
+
+                        _p1 := offset + get_output_slot_pos(input_node, input_slot);
+                        _p2 := offset + get_input_slot_pos(output_node, link_slot);
+                        
+                        p1a : imgui.Vec2 = imgui.Vec2{_p1.x, _p1.y};
+                        p1b : imgui.Vec2 = imgui.Vec2{p1a.x + 50, p1a.y};
+                        p2a : imgui.Vec2 = imgui.Vec2{_p2.x, _p2.y};
+                        p2b : imgui.Vec2 = imgui.Vec2{p2a.x - 50, p2a.y};
+
+                        colr := imgui.Vec4{0.7,0.5,0.0,1};
+
+                        imgui.draw_list_add_bezier_curve(
+                            draw_list, p1a, p1b, p2b, p2a, imgui.color_convert_float4_to_u32(colr), 2.0, 20);
+                    }
+
+                    imgui.push_id(node.id);
+                    defer imgui.pop_id();
+
+                    node_rect_min := offset + node.pos;
+                    imgui.draw_list_channels_set_current(draw_list, 1);
+                    old_any_active := imgui.is_any_item_active();
+                    imgui.set_cursor_screen_pos({node_rect_min.x + NODE_WINDOW_PADDING.x, node_rect_min.y + NODE_WINDOW_PADDING.y});
+
+                    imgui.begin_group(); {
+                        defer imgui.end_group();
+                        imgui.text("%s", node.name);
+                        draw_node(node);
+                    }
+
+                    node_widgets_active := !old_any_active && imgui.is_any_item_active();
+                    rect_size : imgui.Vec2;
+                    imgui.get_item_rect_size(&rect_size);
+                    node.size = Vec2{rect_size.x + (NODE_WINDOW_PADDING.x * 2), rect_size.y + (NODE_WINDOW_PADDING.y * 2)};
+                    node_rect_max := node_rect_min + node.size;
+
+                    imgui.draw_list_channels_set_current(draw_list, 0);
+                    imgui.set_cursor_screen_pos(imgui.Vec2{node_rect_min.x, node_rect_min.y});
+                    imgui.invisible_button("node", imgui.Vec2{node.size.x, node.size.y});
+                    if imgui.is_item_hovered() {
+                        node_hovered_in_scene = node.id;
+                        open_context_menu |= imgui.is_mouse_clicked(1, false);
+                    }
+
+                    node_moving_active := imgui.is_item_active();
+                    if node_widgets_active || node_moving_active do
+                        node_selected = node.id;
+                    if node_moving_active && imgui.is_mouse_dragging()
+                    {
+                        mouse_delta := imgui.get_io().mouse_delta;
+                        node.pos = node.pos + Vec2{mouse_delta.x, mouse_delta.y};
+                    }
+
+                    node_bg_color : u32;
+                    col1 := imgui.Vec4{0.4,0.4,0.4,1};
+                    col2 := imgui.Vec4{0.35,0.35,0.35,1};
+                    if (node_hovered_in_list == node.id || 
+                        node_hovered_in_scene == node.id || 
+                        (node_hovered_in_list == -1 && node_selected == node.id)) do node_bg_color = imgui.color_convert_float4_to_u32(col1); 
+                    else do node_bg_color = imgui.color_convert_float4_to_u32(col2);
+
+                    col3 := imgui.Vec4{0.5,0.5,0.5,1};
+                    imgui.draw_list_add_rect_filled(draw_list, {node_rect_min.x, node_rect_min.y}, {node_rect_max.x, node_rect_max.y}, node_bg_color, 4.0, 2.0);
+                    imgui.draw_list_add_rect(draw_list, {node_rect_min.x, node_rect_min.y}, {node_rect_max.x, node_rect_max.y}, imgui.color_convert_float4_to_u32(col3), 4.0, 2.0, 2.0);
+                    
+                    for slot_idx in 0 .. len(node.inputs)-1 {
+                        col := imgui.Vec4{0.6,0.6,0.6,1};
+                        p := offset + get_input_slot_pos(node, slot_idx);
+                        imgui.draw_list_add_circle_filled(draw_list, imgui.Vec2{p.x, p.y}, NODE_SLOT_RADIUS, imgui.color_convert_float4_to_u32(col), 10);
+                    }
+
+                    for slot_idx in 0 .. len(node.outputs)-1 {
+                        col := imgui.Vec4{0.6,0.6,0.6,1};
+                        p := offset + get_output_slot_pos(node, slot_idx);
+                        imgui.draw_list_add_circle_filled(draw_list, imgui.Vec2{p.x, p.y}, NODE_SLOT_RADIUS, imgui.color_convert_float4_to_u32(col), 10);
+                    }
+                }
+
+                imgui.draw_list_channels_merge(draw_list);
+
+                // if !imgui.is_any_item_hovered() && imgui.is_mouse_clicked(1, false) {
+                //  node_selected = -1; 
+                //  node_hovered_in_list = -1;
+                //  node_hovered_in_scene = -1;
+                //  open_context_menu = true;
+                // }
+
+                // if open_context_menu {
+                //  imgui.open_popup("context_menu");
+                //  if node_hovered_in_list != -1 do node_selected = node_hovered_in_list;
+                //  if node_hovered_in_scene != -1 do node_selected = node_hovered_in_scene;
+                // }
+
+                // imgui.push_style_var(imgui.Style_Var.WindowPadding, imgui.Vec2{8,8});
+                // defer imgui.pop_style_var();
+
+                // if imgui.begin_popup("context_menu") {
+                //  defer imgui.end_popup();
+
+                //  node, ok := nodes[node_selected];
+                //  _scene_pos : imgui.Vec2;
+                //  imgui.get_mouse_pos_on_opening_current_popup(&_scene_pos);
+                //  scene_pos := Vec2{_scene_pos.x - offset.x, _scene_pos.y - offset.y};
+                //  if ok {
+                //      imgui.text("Node '%s", node.name);
+                //      imgui.separator();
+                //      if imgui.menu_item("Rename..", "", nil, false) {}
+                //      if imgui.menu_item("Delete", "", nil, false) {}
+                //      if imgui.menu_item("Copy", "", nil, false) {}
+                //  } else {
+                //      if imgui.menu_item("Add") {
+                //          current_node_num += 1;
+                //          nodes[current_node_num] = Node{current_node_num, "New Node", scene_pos, Vec2{50,50}, 0.5, {0.5,0.5,0.5}, 0,0};
+                //      }
+                //      if imgui.menu_item("Paste", "", nil, false) {}
+                //  }
+                // }
+
+                if imgui.is_window_hovered() && !imgui.is_any_item_active() && imgui.is_mouse_dragging(2, 0.1) {
+                    mouse_delta := imgui.get_io().mouse_delta;
+                    scrolling = scrolling + Vec2{mouse_delta.x,mouse_delta.y};
+                }
+            }
+        }
     }
 }
