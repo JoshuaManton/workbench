@@ -4,63 +4,92 @@ using import "../external/imgui"
 	import "core:fmt"
 	import "core:strings"
 	import "core:math"
+	import "core:runtime"
 	import "../lexer"
+
+
+when ODIN_DEBUG {
+    foreign import cimgui "../external/imgui/external/cimgui_debug.lib";
+} else {
+    foreign import "../external/imgui/external/cimgui.lib";
+} 
 
 Console :: struct {
 	buffer		: ^TextBuffer,
-	input		: []u8,
 	commands	: Commands,
 }
 
 Commands :: struct {
-	mapping	: map[string]proc(),
+	input	: []u8,
+	mapping	: map[string]proc(rawptr),
 	history	: []string,
 }
-
-
-buffer := text_buffer_create();
-
-_console_input := make([]u8, 256);
-
-_commands := make(map[string]proc());
 
 new_console :: proc(input_size: int = 256, history_length: int = 64, default_commands: bool = true) -> ^Console {
 	console := Console{
 		text_buffer_create(),
-		make([]u8, input_size),
 		Commands{
-			make(map[string]proc()),
+			make([]u8, input_size),
+			make(map[string]proc(rawptr)),
 			make([]string, history_length),
-		},
+		}
 	};
 
 	if default_commands do setup_default_commands(&console);
 
-	return &console;
+	return new_clone(console);
 }
 
-bind_command :: proc(cmd: string, callback: proc()) {
+bind_command :: proc(using console: ^Console, cmd: string, callback: proc($T)) {
 
-	if cmd in _commands do fmt.println("Duplicate command:", cmd);
+	if cmd in commands.mapping do fmt.println("Duplicate command:", cmd);
 
-	_commands[cmd] = callback;
+	commands.mapping[cmd] = callback;
 }
+
+Command_Env :: struct {
+
+	sub_type: typeid,
+
+	derived: any,
+}
+
+/*
+
+Bind a command:
+	When a user invokes a command called 'x'
+		Call this function with this object, and these arg objects
+
+*/
 
 setup_default_commands :: proc(console: ^Console) {
+	assert(console != nil);
 
-	using console.commands;
+	console.commands.mapping["clear"] = proc(rawptr) {
+		fmt.println("Trying to clear console");
 
-	mapping["clear"] = proc() {
-		text_buffer_clear(buffer);
+		c := context;
+
+		console := cast(^Console) c.user_data.data;
+
+		text_buffer_clear(console.buffer);
 	};
 }
 
-append_log :: proc(args : ..any) {
+//append_log :: proc(using console: ^Console, args : ..any) {
+append_log :: proc(args: ..any) {
 
-	// TODO - no alloc plz
-	as_c_string := strings.new_cstring(fmt.tprintln(..args));
+	
+	//as_c_string := strings.new_cstring(fmt.tprintln(..args));
 
-	im_text_buffer_append(buffer, as_c_string);
+	//im_text_buffer_appendf(buffer, as_c_string);
+}
+
+_internal_append :: proc(console: ^Console, args: ..any) {
+
+	c_string := strings.new_cstring(fmt.tprintln(..args));
+
+	im_text_buffer_appendf(console.buffer, c_string);
 }
 
 _on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
@@ -75,7 +104,8 @@ _on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
 	return 0;
 }
 
-update_console_window :: proc() {
+update_console_window :: proc(using console: ^Console) {
+	assert(console != nil);
 
 	set_next_window_size(Vec2{520, 600}, Set_Cond.FirstUseEver);
 
@@ -92,25 +122,29 @@ update_console_window :: proc() {
 			set_scroll_here(1);
 			end_child();
 		}
-
+		
 		separator();
 
 		{
 			using Input_Text_Flags;
 
-			if input_text("Input", _console_input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
-				_process_input();
+			// TODO - OnSubmit needs to know which console invoked it.
+			if input_text("Input", commands.input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
+				_process_input(console);
 			}
 		}
 	}
 }
 
-_process_input :: proc() {
-	c_input := cast(cstring) &_console_input[0];
+_process_input :: proc(using console: ^Console) {
+
+	assert(console != nil);
+
+	c_input := cast(cstring) &commands.input[0];
 
 	if c_input != "" {
 
-		append_log(">", cast(string) c_input);
+		_internal_append(console, ">", cast(string) c_input);
 
 		// Lex the input, the first token should be the command name
 		// All other tokens should be passed into the command proc
@@ -123,7 +157,7 @@ _process_input :: proc() {
 			return;
 		}
 		
-		_execute_command(cmd_token.slice_of_text);
+		_execute_command(console, cmd_token.slice_of_text);
 
 		for {
 			token, ok := lexer.get_next_token(&lex);
@@ -134,63 +168,30 @@ _process_input :: proc() {
 		}
 
 		// Reset the cstring, by setting the first character back to zero
-		_console_input[0] = '\x00';
+		commands.input[0] = '\x00';
 	}
 }
 
-_execute_command :: proc(cmd: string, args: ..string) {
+_command_callback	:: proc(data: rawptr, args: rawptr);
 
-	callback, ok := _commands[cmd];
+// A command being executed has 3 components
+//	The calling data, which could just be a pointer the class that binds it.
+
+_execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
+
+	callback, ok := commands.mapping[cmd];
 
 	if !ok {
-		append_log("Unrecognized command:", cmd);
+		_internal_append(console, "Unrecognized command:", cmd);
 		return;
 	}
 
-	callback();
+	context.user_data = any{rawptr(console), typeid_of(Console)};
+	
+	callback(nil);
 }
 
-is_whitespace :: inline proc(c: byte) -> bool {
-	switch c {
-		case ' ':  return true;
-		case '\r': return true;
-		case '\n': return true;
-		case '\t': return true;
-	}
-
-	return false;
-} 
-
-trim_whitespace :: proc(text: string) -> string {
-
-	if len(text) == 0 do return text;
-	start := 0;
-	for is_whitespace(text[start]) do start += 1;
-	end := len(text);
-	for is_whitespace(text[end - 1]) do end -= 1;
-
-	new_str := text[start:end];
-
-	return new_str;
-}
-
-split_by_rune :: proc(str: string, split_on: rune, buffer: ^[$N]string) -> []string {
-	cur_slice := 0;
-	start := 0;
-	for b, i in str {
-		if b == split_on {
-			assert(cur_slice < len(buffer));
-			section := str[start:i];
-			buffer[cur_slice] = section;
-			cur_slice += 1;
-			start = i + 1;
-		}
-	}
-
-	assert(cur_slice < len(buffer));
-	section := str[start:];
-	buffer[cur_slice] = section;
-	cur_slice += 1;
-
-	return buffer[:cur_slice];
+@(default_calling_convention="c")
+foreign cimgui {
+	@(link_name = "ImGuiTextBuffer_appendf")  im_text_buffer_appendf :: proc(buffer : ^TextBuffer, fmt_ : cstring) ---;
 }

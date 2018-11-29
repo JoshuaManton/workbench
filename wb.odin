@@ -29,6 +29,8 @@ whole_frame_time_ra: Rolling_Average(f64, 100);
 
 do_log_frame_boundaries := false;
 
+debug_console := console.new_console();
+
 // _on_before_client_update := make_event(f32);
 // _on_after_client_update  := make_event(f32);
 f: f32;
@@ -241,7 +243,7 @@ _update_debug_window :: proc() {
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 		}
 
-		console.update_console_window();
+		console.update_console_window(debug_console);
 	}
 }
 
