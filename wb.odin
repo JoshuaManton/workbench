@@ -53,6 +53,8 @@ make_simple_window :: proc(window_name: string,
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
+	log_back = _log_back;
+
 	start_workspace(workspace);
 	_init_new_workspaces();
 
@@ -202,6 +204,10 @@ _remove_ended_workspaces :: proc() {
 	}
 	current_workspace = -1;
 	clear(&end_workspaces);
+}
+
+_log_back :: proc(log: string) {
+	console.append_log(debug_console, log);
 }
 
 WB_Debug_Data :: struct {

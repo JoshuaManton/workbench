@@ -77,12 +77,12 @@ setup_default_commands :: proc(console: ^Console) {
 }
 
 //append_log :: proc(using console: ^Console, args : ..any) {
-append_log :: proc(args: ..any) {
+append_log :: proc(using console: ^Console, log: string) {
+	assert(console != nil);
 
-	
-	//as_c_string := strings.new_cstring(fmt.tprintln(..args));
+	as_c_string := strings.new_cstring(log);
 
-	//im_text_buffer_appendf(buffer, as_c_string);
+	im_text_buffer_appendf(buffer, as_c_string);
 }
 
 _internal_append :: proc(console: ^Console, args: ..any) {
