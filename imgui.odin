@@ -604,8 +604,8 @@ Node :: struct {
     name    : string,
     pos     : Vec2,
     size    : Vec2,
-    inputs  : [5]int,
-    outputs : [5]int,
+    inputs  : [MAX_CONNECTIONS]int,
+    outputs : [MAX_CONNECTIONS]int,
 
     derived : any,
 }
