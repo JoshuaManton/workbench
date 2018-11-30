@@ -17,6 +17,7 @@ when ODIN_DEBUG {
 Console :: struct {
 	buffer		: ^TextBuffer,
 	commands	: Commands,
+	scroll_lock : bool
 }
 
 Commands :: struct {
@@ -32,7 +33,8 @@ new_console :: proc(input_size: int = 256, history_length: int = 64, default_com
 			make([]u8, input_size),
 			make(map[string]proc()),
 			make([]string, history_length),
-		}
+		},
+		true
 	};
 
 	if default_commands do setup_default_commands(&console);
@@ -103,7 +105,10 @@ update_console_window :: proc(using console: ^Console) {
 			str := text_buffer_c_str(buffer);
 			im_text_unformatted(str);
 
-			set_scroll_here(1);
+			if console.scroll_lock {
+				set_scroll_here(1);
+			}
+
 			end_child();
 		}
 		
@@ -116,6 +121,10 @@ update_console_window :: proc(using console: ^Console) {
 			if input_text("Input", commands.input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
 				_process_input(console);
 			}
+
+			same_line();
+			
+			checkbox("ScrollLock", &console.scroll_lock);
 		}
 	}
 }
