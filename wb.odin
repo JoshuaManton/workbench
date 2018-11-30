@@ -7,6 +7,7 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
       import        "core:sys/win32"
+	  import		"core:runtime"
 
       import odingl "external/gl"
       import imgui  "external/imgui"
@@ -17,6 +18,10 @@ using import        "core:fmt"
 	  import 		"console"
 
 DEVELOPER :: true;
+
+WB_Context :: struct {
+	logger_proc		: proc(log: string)
+}
 
 //
 // Game loop stuff
@@ -41,6 +46,10 @@ make_simple_window :: proc(window_name: string,
                            workspace: Workspace,
                            camera: ^Camera) {
 
+	context.derived = WB_Context{
+		 _log_back
+	};
+
 	current_camera = camera;
 
 	client_target_framerate = _target_framerate;
@@ -52,8 +61,6 @@ make_simple_window :: proc(window_name: string,
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
-
-	log_back = _log_back;
 
 	start_workspace(workspace);
 	_init_new_workspaces();

@@ -21,7 +21,7 @@ Console :: struct {
 
 Commands :: struct {
 	input	: []u8,
-	mapping	: map[string]proc(rawptr),
+	mapping	: map[string]proc(),
 	history	: []string,
 }
 
@@ -30,7 +30,7 @@ new_console :: proc(input_size: int = 256, history_length: int = 64, default_com
 		text_buffer_create(),
 		Commands{
 			make([]u8, input_size),
-			make(map[string]proc(rawptr)),
+			make(map[string]proc()),
 			make([]string, history_length),
 		}
 	};
@@ -40,32 +40,10 @@ new_console :: proc(input_size: int = 256, history_length: int = 64, default_com
 	return new_clone(console);
 }
 
-bind_command :: proc(using console: ^Console, cmd: string, callback: proc($T)) {
-
-	if cmd in commands.mapping do fmt.println("Duplicate command:", cmd);
-
-	commands.mapping[cmd] = callback;
-}
-
-Command_Env :: struct {
-
-	sub_type: typeid,
-
-	derived: any,
-}
-
-/*
-
-Bind a command:
-	When a user invokes a command called 'x'
-		Call this function with this object, and these arg objects
-
-*/
-
 setup_default_commands :: proc(console: ^Console) {
 	assert(console != nil);
 
-	console.commands.mapping["clear"] = proc(rawptr) {
+	console.commands.mapping["clear"] = proc() {
 		fmt.println("Trying to clear console");
 
 		c := context;
@@ -76,7 +54,13 @@ setup_default_commands :: proc(console: ^Console) {
 	};
 }
 
-//append_log :: proc(using console: ^Console, args : ..any) {
+bind_command :: proc(using console: ^Console, cmd: string, callback: proc()) {
+
+	if cmd in commands.mapping do fmt.println("Duplicate command:", cmd);
+
+	commands.mapping[cmd] = callback;
+}
+
 append_log :: proc(using console: ^Console, log: string) {
 	assert(console != nil);
 
@@ -85,7 +69,7 @@ append_log :: proc(using console: ^Console, log: string) {
 	im_text_buffer_appendf(buffer, as_c_string);
 }
 
-_internal_append :: proc(console: ^Console, args: ..any) {
+_internal_append :: inline  proc(console: ^Console, args: ..any) {
 
 	c_string := strings.new_cstring(fmt.tprintln(..args));
 
@@ -172,11 +156,6 @@ _process_input :: proc(using console: ^Console) {
 	}
 }
 
-_command_callback	:: proc(data: rawptr, args: rawptr);
-
-// A command being executed has 3 components
-//	The calling data, which could just be a pointer the class that binds it.
-
 _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 
 	callback, ok := commands.mapping[cmd];
@@ -188,7 +167,7 @@ _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 
 	context.user_data = any{rawptr(console), typeid_of(Console)};
 	
-	callback(nil);
+	callback();
 }
 
 @(default_calling_convention="c")
