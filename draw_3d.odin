@@ -27,6 +27,7 @@ Mesh :: struct {
 	index_buffer: EBO,
 	index_count : int,
 	vertex_count : int,
+	color: Colorf,
 	name : string,
 }
 
@@ -71,14 +72,21 @@ buffer_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 	id := MeshID(cur_mesh_id);
 	cur_mesh_id += 1;
 
-	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), name};
+	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), Colorf{1, 1, 1, 1}, name};
 	all_meshes[id] = mesh;
+
+	//logln(all_meshes);
 
 	return id;
 }
 
 release_mesh :: proc(mesh_id: MeshID) {
-	// TODO (jake): make this
+	mesh, ok := all_meshes[mesh_id];
+	assert(ok);
+	delete_vao(mesh.vertex_array);
+	delete_buffer(mesh.vertex_buffer);
+	delete_buffer(mesh.index_buffer);
+	delete_key(&all_meshes, mesh_id);
 }
 
 get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
@@ -108,6 +116,7 @@ Buffered_Mesh :: struct {
 	rotation : Vec3,
 	texture  : Texture,
 	shader   : Shader_Program,
+	color    : Colorf,
 }
 
 push_mesh :: inline proc(id: MeshID,
@@ -115,9 +124,10 @@ push_mesh :: inline proc(id: MeshID,
 				  scale: Vec3,
 				  rotation: Vec3,
 		          texture: Texture,
-		          shader: Shader_Program)
+		          shader: Shader_Program,
+		          color: Colorf)
 {
-	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader});
+	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader, color});
 }
 
 flush_3d :: proc() {
@@ -144,6 +154,9 @@ flush_3d :: proc() {
 		bind_buffer(mesh.index_buffer);
 
 		program := get_current_shader();
+
+		// :MeshColor
+		uniform4f(program, "mesh_color", mesh.color.r, mesh.color.g, mesh.color.b, mesh.color.a);
 		uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
 		num_draw_calls += 1;
@@ -157,13 +170,20 @@ flush_3d :: proc() {
 	}
 
 	flush_queue :: inline proc() {
+		// note(josh): once we have instancing that will break the current way we
+		// do mesh colors at :MeshColor because that depends on setting the color
+		// on a per-mesh-instance-in-the-world basis
 		for queued_mesh in im_queued_meshes {
 			mesh, ok := all_meshes[queued_mesh.id];
-			assert(ok);
+			if !ok {
+				clear(&im_queued_meshes);
+				return;
+			}
+
+			mesh.color = queued_mesh.color;
 
 			model_matrix_from_elements(queued_mesh.position, queued_mesh.scale, queued_mesh.rotation);
 			rendermode_world();
-
 			draw_mesh(mesh);
 		}
 		clear(&im_queued_meshes);

@@ -189,7 +189,12 @@ push_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Ve
 
 draw_debug_lines :: inline proc() {
 	assert(len(debug_vertices) % 2 == 0);
+	depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
+	odingl.Disable(odingl.DEPTH_TEST);
 	im_draw_flush(odingl.LINES, debug_vertices[:]);
+	if depth_test == odingl.TRUE {
+		odingl.Enable(odingl.DEPTH_TEST);
+	}
 }
 
 

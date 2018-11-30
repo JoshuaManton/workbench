@@ -6,7 +6,7 @@ import "core:strings"
 import "core:types"
 
 using import "core:fmt"
-using import "../lexer"
+using import "../laas"
 
 main :: proc() {
 	// mem.alloc_callback = alloc_callback;
@@ -190,10 +190,11 @@ deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
 deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	ti := type_info_of(Type);
 
-	_lexer := lexer.Lexer{text, 0, 0, 0, nil};
+	_lexer := laas.Lexer{text, 0, 0, 0, nil};
 	lexer := &_lexer;
 
-	token, ok := get_next_token(lexer);
+	token: Token;
+	ok := get_next_token(lexer, &token);
 	if !ok do panic("empty text");
 
 	parse_value(lexer, token, ptr, ti);
@@ -204,8 +205,8 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 		case Token_Symbol: {
 			switch value_kind.value {
 				case '{': {
-					for {
-						token, ok := get_next_token(lexer); assert(ok);
+					token: Token;
+					for get_next_token(lexer, &token) {
 						if right_curly, ok2 := token.kind.(Token_Symbol); ok2 && right_curly.value == '}' {
 							break;
 						}
@@ -230,7 +231,8 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						}
 						assert(field_ptr != nil, tprint("couldn't find name ", variable_name.value));
 
-						value_token, ok3 := get_next_token(lexer); assert(ok3);
+						value_token: Token;
+						ok3 := get_next_token(lexer, &value_token); assert(ok3);
 						parse_value(lexer, value_token, field_ptr, field_ti);
 					}
 				}
@@ -244,7 +246,8 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 									assert(false, "Too many array elements");
 								}
 
-								array_value_token, ok := get_next_token(lexer);
+								array_value_token: Token;
+								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
 
 								if symbol, is_symbol := array_value_token.kind.(Token_Symbol); is_symbol {
@@ -265,7 +268,8 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 							for {
 								defer i += 1;
 
-								array_value_token, ok := get_next_token(lexer);
+								array_value_token: Token;
+								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
 
 								if symbol, is_symbol := array_value_token.kind.(Token_Symbol); is_symbol {
@@ -296,7 +300,8 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 							for {
 								defer i += 1;
 
-								array_value_token, ok := get_next_token(lexer);
+								array_value_token: Token;
+								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
 
 								if symbol, is_symbol := array_value_token.kind.(Token_Symbol); is_symbol {
