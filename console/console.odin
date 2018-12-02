@@ -5,7 +5,7 @@ using import "../external/imgui"
 	import "core:strings"
 	import "core:math"
 	import "core:runtime"
-	import "../lexer"
+	import "../laas"
 
 
 when ODIN_DEBUG {
@@ -123,7 +123,7 @@ update_console_window :: proc(using console: ^Console) {
 			}
 
 			same_line();
-			
+
 			checkbox("ScrollLock", &console.scroll_lock);
 		}
 	}
@@ -141,21 +141,19 @@ _process_input :: proc(using console: ^Console) {
 
 		// Lex the input, the first token should be the command name
 		// All other tokens should be passed into the command proc
-		lex := lexer.make_lexer(cast(string) c_input);
+		lex := laas.make_lexer(cast(string) c_input);
 
-		cmd_token, ok := lexer.get_next_token(&lex);
+		token: laas.Token;
 
-		if !ok {
+		if !laas.get_next_token(&lex, &token) {
 			fmt.println("That's not ok then");
 			return;
 		}
 		
-		_execute_command(console, cmd_token.slice_of_text);
+		_execute_command(console, token.slice_of_text);
 
 		for {
-			token, ok := lexer.get_next_token(&lex);
-
-			if !ok do break;
+			if !laas.get_next_token(&lex, &token) do break;
 
 			fmt.println(token);
 		}
