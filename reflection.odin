@@ -11,7 +11,7 @@ Field_Info :: struct {
     offset: int,
 }
 
-get_struct_field_info :: proc[get_struct_field_info_poly, get_struct_field_info_ti];
+get_struct_field_info :: proc{get_struct_field_info_poly, get_struct_field_info_ti};
 get_struct_field_info_poly :: proc($T: typeid, field_name: string) -> (Field_Info, bool) {
     ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);
     for name, i in ti.names {
@@ -35,7 +35,7 @@ get_struct_field_info_ti :: proc(_ti: ^Type_Info, field_name: string) -> (Field_
     return Field_Info{}, false;
 }
 
-set_struct_field :: proc[set_struct_field_poly, set_struct_field_raw];
+set_struct_field :: proc{set_struct_field_poly, set_struct_field_raw};
 set_struct_field_poly :: proc(thing: ^$T, info: Field_Info, value: $S, loc := #caller_location) {
     when DEVELOPER {
         ti := &type_info_base(type_info_of(T)).variant.(Type_Info_Struct);

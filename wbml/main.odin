@@ -9,14 +9,13 @@ using import "core:fmt"
 using import "../laas"
 
 main :: proc() {
+	// alloc_callback :: proc(loc: rt.Source_Code_Location) {
+	// 	fmt.println(loc);
+	// }
 	// mem.alloc_callback = alloc_callback;
 	// defer mem.alloc_callback = nil;
 
 	run_tests();
-}
-
-alloc_callback :: proc(loc: rt.Source_Code_Location) {
-	fmt.println(loc);
 }
 
 serialize :: proc(value: ^$Type) -> string {
@@ -179,7 +178,7 @@ serialize :: proc(value: ^$Type) -> string {
 	return to_string(sb);
 }
 
-deserialize :: proc[deserialize_to_value, deserialize_into_pointer];
+deserialize :: proc{deserialize_to_value, deserialize_into_pointer};
 
 deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
 	t: Type;
