@@ -21,18 +21,22 @@ Console :: struct {
 }
 
 Commands :: struct {
-	input	: []u8,
-	mapping	: map[string]proc(),
-	history	: []string,
+	input			: []u8,
+	mapping			: map[string]proc(),
+	history			: [dynamic]string,
+	history_index 	: int,
+	history_count	: int,
 }
 
-new_console :: proc(input_size: int = 256, history_length: int = 64, default_commands: bool = true) -> ^Console {
+new_console :: proc(input_size: int = 256, history_length: int = 32, default_commands: bool = true) -> ^Console {
 	console := Console{
 		text_buffer_create(),
 		Commands{
 			make([]u8, input_size),
 			make(map[string]proc()),
-			make([]string, history_length),
+			make([dynamic]string, history_length, history_length * 2),
+			0,
+			0
 		},
 		true
 	};
@@ -80,18 +84,87 @@ _internal_append :: inline  proc(console: ^Console, args: ..any) {
 
 _on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
 
+	assert(_active_console != nil);
+
 	switch data.event_flag {
 	case Input_Text_Flags.CallbackCompletion:
 		fmt.println("CallbackCompletion Invoked");
 	case Input_Text_Flags.CallbackHistory:
 		fmt.println("CallbackHistory Invoked");
+
+		using _active_console.commands;
+
+		prev_index := history_index;
+
+		_internal_append(_active_console, "History Length:", history_count);
+
+		switch data.event_key {
+			case Key.UpArrow:
+				// Move `cursor` up if possible
+				if history_index >= history_count do break;
+
+				history_index += 1;
+				_internal_append(_active_console, "Bumping index up:", prev_index, "->", history_index);
+			case Key.DownArrow:
+				// Move `cursor` down if possible
+				if prev_index <= 0 do break;
+
+				history_index -= 1;
+				_internal_append(_active_console, "Bumping index down:", prev_index, "->", history_index);
+		}
+
+		if prev_index != history_index {
+	/*
+			hist := history[history_index];
+
+			c_hist := strings.new_cstring(hist);
+
+			hist_len := cast(i32)len(hist);
+
+			data.cursor_pos = hist_len;
+			data.selection_start = hist_len;
+			data.selection_end = hist_len;
+			data.buf = c_hist;
+			data.buf_size = hist_len;
+			data.buf_text_len = hist_len;
+			data.cursor_pos = hist_len;
+
+			data.buf_dirty = true;
+	*/
+		}
 	}
 
 	return 0;
 }
 
+/*
+TextEditCallbackData :: struct {
+    event_flag      : Input_Text_Flags,
+    flags           : Input_Text_Flags,
+    user_data       : rawptr,
+    read_only       : bool,
+    event_char      : Wchar,
+    event_key       : Key,
+    buf             : ^u8,
+    buf_text_len    : i32,
+    buf_size        : i32,
+    buf_dirty       : bool,
+    cursor_pos      : i32,
+    selection_start : i32,
+    selection_end   : i32,
+}
+*/
+
+// Todo(Ben) - Make thread safe
+// This exists so that we can interact with the console during the input_text callback
+_active_console: ^Console;
+
 update_console_window :: proc(using console: ^Console) {
 	assert(console != nil);
+	assert(_active_console == nil, "Active console is non-nil, probably a threading issue in the console update.");
+
+	_active_console = console;
+	defer _active_console = nil;
 
 	set_next_window_size(Vec2{520, 600}, Set_Cond.FirstUseEver);
 
@@ -166,6 +239,9 @@ _process_input :: proc(using console: ^Console) {
 _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 
 	callback, ok := commands.mapping[cmd];
+
+	append(&commands.history, cmd);
+	commands.history_count += 1;
 
 	if !ok {
 		_internal_append(console, "Unrecognized command:", cmd);
