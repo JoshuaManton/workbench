@@ -30,13 +30,13 @@ WB_Context :: struct {
 client_target_framerate:  f32;
 fixed_delta_time: f32;
 
+update_loop_ra: Rolling_Average(f64, 100);
 whole_frame_time_ra: Rolling_Average(f64, 100);
 
 do_log_frame_boundaries := false;
 
 debug_console := console.new_console();
 
-f: f32;
 make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
@@ -65,11 +65,7 @@ make_simple_window :: proc(window_name: string,
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
-		frame_start := glfw.GetTime();
-		defer {
-			frame_end := glfw.GetTime();
-			rolling_average_push_sample(&whole_frame_time_ra, frame_end - frame_start);
-		}
+		update_loop_start := glfw.GetTime();
 
 		last_time := time;
 		time = cast(f32)glfw.GetTime();
@@ -112,6 +108,9 @@ make_simple_window :: proc(window_name: string,
 				}
 			}
 		}
+
+		update_loop_end := glfw.GetTime();
+		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end - update_loop_start);
 
 		_render_workspaces();
 

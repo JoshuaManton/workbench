@@ -14,7 +14,7 @@ Vec4i :: distinct [4]int;
 sqr_magnitude :: inline proc(a: $T/[$N]$E) -> f32 do return dot(a, a);
 magnitude :: inline proc(a: $T/[$N]$E) -> f32 do return sqrt(dot(a, a));
 
-move_towards :: proc[move_towards_vec2, move_towards_f32];
+move_towards :: proc{move_towards_vec2, move_towards_f32};
 
 move_towards_vec2 :: proc(a, b: Vec2, step: f32) -> Vec2 {
 	direction := b - a;

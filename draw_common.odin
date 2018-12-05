@@ -173,7 +173,7 @@ push_debug_line :: inline proc(rendermode: Rendermode_Proc, a, b: Vec3, color: C
 	push_debug_vertex(rendermode, b, color);
 }
 
-push_debug_box :: proc[push_debug_box_min_max, push_debug_box_points];
+push_debug_box :: proc{push_debug_box_min_max, push_debug_box_points};
 push_debug_box_min_max :: inline proc(rendermode: Rendermode_Proc, min, max: Vec3, color: Colorf) {
 	push_debug_line(rendermode, Vec3{min.x, min.y, min.z}, Vec3{min.x, max.y, max.z}, color);
 	push_debug_line(rendermode, Vec3{min.x, max.y, max.z}, Vec3{max.x, max.y, max.z}, color);

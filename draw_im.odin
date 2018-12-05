@@ -42,7 +42,7 @@ rendermode_pixel :: proc() {
 // Immediate-mode rendering
 //
 
-im_quad :: proc[im_quad_color, im_quad_sprite, im_quad_sprite_color];
+im_quad :: proc{im_quad_color, im_quad_sprite, im_quad_sprite_color};
 
 im_quad_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec3, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	im_quad_sprite_color(rendermode, shader, min, max, Sprite{}, color, render_order);
@@ -98,7 +98,7 @@ im_cube :: inline proc(position: Vec3, scale: f32) {
 	}
 }
 
-im_vertex :: proc[im_vertex_color, im_vertex_color_texture];
+im_vertex :: proc{im_vertex_color, im_vertex_color_texture};
 im_vertex_color :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position: Vec3, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	im_vertex_color_texture(rendermode, shader, 0, position, Vec2{}, color, render_order);
 }

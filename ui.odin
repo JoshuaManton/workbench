@@ -266,7 +266,7 @@ ui_pop_rect :: proc(loc := #caller_location) -> IMGUI_Rect {
 // Drawing
 //
 
-ui_draw_colored_quad :: proc[ui_draw_colored_quad_current, ui_draw_colored_quad_push];
+ui_draw_colored_quad :: proc{ui_draw_colored_quad_current, ui_draw_colored_quad_push};
 ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
@@ -279,7 +279,7 @@ ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top
 	ui_pop_rect(loc);
 }
 
-ui_draw_sprite :: proc[ui_draw_sprite_current, ui_draw_sprite_push];
+ui_draw_sprite :: proc{ui_draw_sprite_current, ui_draw_sprite_push};
 ui_draw_sprite_current :: proc(sprite: Sprite, loc := #caller_location) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
@@ -312,7 +312,7 @@ Text_Data :: struct {
 	top, right, bottom, left: int,
 }
 
-ui_text :: proc[ui_text_data, ui_text_args];
+ui_text :: proc{ui_text_data, ui_text_args};
 ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
 	assert(font != nil, tprint(loc));
 

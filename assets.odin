@@ -161,8 +161,10 @@ _load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {
 	meshes_processed := make([dynamic]Mesh_Data, 0, mesh_count);
 
 	meshes := mem.slice_ptr(scene^.mMeshes, cast(int) scene.mNumMeshes);
-	for mesh in meshes // iterate meshes in scene
+	for _, i in meshes // iterate meshes in scene
 	{
+		mesh := meshes[i];
+
 		verts := mem.slice_ptr(mesh.mVertices, cast(int) mesh.mNumVertices);
 		norms := mem.slice_ptr(mesh.mNormals, cast(int) mesh.mNumVertices);
 
@@ -222,12 +224,11 @@ _load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {
 		}
 
 		// create mesh
-		// TODO(jake): Why the fuck can't I take a pointer to mesh.mName.data
 		append(&meshes_processed, Mesh_Data{
 			processedVerts[:],
 			indicies[:],
-			""//cast(string)mem.slice_ptr(&mesh.mName.data, mesh.mName.length)
-			});
+			string(mesh.mName.data[:mesh.mName.length])
+		});
 	}
 
 	// return all created meshIds

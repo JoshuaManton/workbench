@@ -22,7 +22,7 @@ get_by_id :: proc(array: []$T, id: string) -> ^T {
 	return nil;
 }
 
-inst :: proc[inst_no_value, inst_value];
+inst :: proc{inst_no_value, inst_value};
 inst_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
 	length := append(array, T{});
 	return &array[length-1];
@@ -32,7 +32,7 @@ inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 	return &array[length-1];
 }
 
-remove :: proc[remove_value, remove_ptr];
+remove :: proc{remove_value, remove_ptr};
 remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
 	for _, i in array {
 		item := &array[i];
@@ -68,7 +68,7 @@ remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
 	}
 }
 
-last :: proc[last_dyn, last_slice, last_array];
+last :: proc{last_dyn, last_slice, last_array};
 last_dyn   :: inline proc(list: [dynamic]$T) -> ^T do return &list[len(list)-1];
 last_slice :: inline proc(list: []$T)        -> ^T do return &list[len(list)-1];
 last_array :: inline proc(list: [$N]$T)      -> ^T do return &list[N-1];
@@ -77,7 +77,7 @@ last_array :: inline proc(list: [$N]$T)      -> ^T do return &list[N-1];
 // Equals
 //
 
-equals :: proc[equals_vec2i, equals_colori];
+equals :: proc{equals_vec2i, equals_colori};
 
 equals_vec2i :: inline proc(a, b: Vec2i) -> bool {
 	return a.x == b.x && a.y == b.y;
@@ -127,7 +127,7 @@ trim_whitespace :: proc(text: string) -> string {
 	return new_str;
 }
 
-is_digit :: proc[is_digit_u8, is_digit_rune];
+is_digit :: proc{is_digit_u8, is_digit_rune};
 is_digit_u8 :: inline proc(r: u8) -> bool { return '0' <= r && r <= '9' }
 is_digit_rune :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
 

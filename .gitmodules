@@ -1,3 +1,0 @@
-[submodule "external/odin-imgui"]
-	path = external/imgui
-	url = https://github.com/shwaDev/odin-imgui.git
