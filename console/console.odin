@@ -5,6 +5,7 @@ using import "../external/imgui"
 	import "core:strings"
 	import "core:math"
 	import "core:runtime"
+	import "core:mem"
 	import "../laas"
 
 
@@ -34,7 +35,7 @@ new_console :: proc(input_size: int = 256, history_length: int = 32, default_com
 		Commands{
 			make([]u8, input_size),
 			make(map[string]proc()),
-			make([dynamic]string, history_length, history_length * 2),
+			make([dynamic]string, 0, history_length * 2),
 			0,
 			0
 		},
@@ -96,64 +97,45 @@ _on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
 
 		prev_index := history_index;
 
-		_internal_append(_active_console, "History Length:", history_count);
-
 		switch data.event_key {
 			case Key.UpArrow:
 				// Move `cursor` up if possible
 				if history_index >= history_count do break;
 
 				history_index += 1;
-				_internal_append(_active_console, "Bumping index up:", prev_index, "->", history_index);
 			case Key.DownArrow:
 				// Move `cursor` down if possible
 				if prev_index <= 0 do break;
 
 				history_index -= 1;
-				_internal_append(_active_console, "Bumping index down:", prev_index, "->", history_index);
 		}
 
 		if prev_index != history_index {
-	/*
-			hist := history[history_index];
 
-			c_hist := strings.new_cstring(hist);
+			hist := history_index == 0 ? "" :history[history_count - history_index];
 
-			hist_len := cast(i32)len(hist);
+			arr := cast([]u8)hist;
+
+			slice := mem.slice_ptr(data.buf, cast(int)data.buf_size);
+
+			copy(slice, arr);
+
+			slice[len(arr)] = 0;
+
+			hist_len := cast(i32)len(arr);
 
 			data.cursor_pos = hist_len;
 			data.selection_start = hist_len;
 			data.selection_end = hist_len;
-			data.buf = c_hist;
-			data.buf_size = hist_len;
+
 			data.buf_text_len = hist_len;
-			data.cursor_pos = hist_len;
 
 			data.buf_dirty = true;
-	*/
 		}
 	}
 
 	return 0;
 }
-
-/*
-TextEditCallbackData :: struct {
-    event_flag      : Input_Text_Flags,
-    flags           : Input_Text_Flags,
-    user_data       : rawptr,
-    read_only       : bool,
-    event_char      : Wchar,
-    event_key       : Key,
-    buf             : ^u8,
-    buf_text_len    : i32,
-    buf_size        : i32,
-    buf_dirty       : bool,
-    cursor_pos      : i32,
-    selection_start : i32,
-    selection_end   : i32,
-}
-*/
 
 // Todo(Ben) - Make thread safe
 // This exists so that we can interact with the console during the input_text callback
@@ -190,7 +172,7 @@ update_console_window :: proc(using console: ^Console) {
 		{
 			using Input_Text_Flags;
 
-			// TODO - OnSubmit needs to know which console invoked it.
+			// OnSubmit uses the _active_console
 			if input_text("Input", commands.input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
 				_process_input(console);
 			}
@@ -240,8 +222,9 @@ _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 
 	callback, ok := commands.mapping[cmd];
 
-	append(&commands.history, cmd);
+	append(&commands.history, strings.new_string(cmd));
 	commands.history_count += 1;
+	commands.history_index = 0;
 
 	if !ok {
 		_internal_append(console, "Unrecognized command:", cmd);
