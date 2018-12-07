@@ -150,6 +150,8 @@ update_console_window :: proc(using console: ^Console) {
 
 	set_next_window_size(Vec2{520, 600}, Set_Cond.FirstUseEver);
 
+	io := get_io();
+
 	if begin("Console") {
 		defer end();
 
@@ -159,6 +161,10 @@ update_console_window :: proc(using console: ^Console) {
 
 			str := text_buffer_c_str(buffer);
 			im_text_unformatted(str);
+
+			if io.mouse_wheel > 0 && is_window_hovered() {
+				console.scroll_lock = false;
+			}
 
 			if console.scroll_lock {
 				set_scroll_here(1);
