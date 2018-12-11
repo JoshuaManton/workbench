@@ -279,7 +279,7 @@ imgui_begin_new_frame :: proc() {
         io.key_super = win32.is_key_down(win32.Key_Code.Lwin)     || win32.is_key_down(win32.Key_Code.Rwin);
 
         for i in 0..511 {
-            io.keys_down[i] = get_input(cast(Input)i);
+            io.keys_down[i] = get_input_imgui(cast(Input)i);
         }
         
     } else {
