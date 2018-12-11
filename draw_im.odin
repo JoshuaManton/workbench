@@ -348,6 +348,12 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: Shader_Program, texture: 
 		}
 	}
 
+	depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
+	odingl.Disable(odingl.DEPTH_TEST);
+	defer if depth_test == odingl.TRUE {
+		odingl.Enable(odingl.DEPTH_TEST);
+	}
+
 	// TODO: investigate STATIC_DRAW vs others
 	buffer_vertices(list);
 	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(list), &list[0], odingl.STATIC_DRAW);

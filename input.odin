@@ -138,7 +138,7 @@ Input :: enum i32 {
     Semicolon     = 59,  /* ; */
     Equal         = 61,  /* :: */
     Left_Bracket  = 91,  /* [ */
-    BACKSLASH     = 92,  /* \ */
+    Backslash     = 92,  /* \ */
     Right_Bracket = 93,  /* ] */
     Grave_Accent  = 96,  /* ` */
     World_1       = 161, /* non-US #1 */

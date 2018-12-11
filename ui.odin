@@ -228,11 +228,11 @@ ui_push_rect :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, lef
 	cur_w := current_rect.x2 - current_rect.x1;
 	cur_h := current_rect.y2 - current_rect.y1;
 
-	new_x1 := current_rect.x1 + (cur_w * x1) + ((cast(f32)left / cast(f32)current_window_width));
+	new_x1 := current_rect.x1 + (cur_w * x1) + ((cast(f32)left   / cast(f32)current_window_width));
 	new_y1 := current_rect.y1 + (cur_h * y1) + ((cast(f32)bottom / cast(f32)current_window_height));
 
 	new_x2 := current_rect.x2 - cast(f32)cur_w * (1-x2) - ((cast(f32)right / cast(f32)current_window_width));
-	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top / cast(f32)current_window_height));
+	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top   / cast(f32)current_window_height));
 
 	ui_current_rect_unit = Unit_Rect{new_x1, new_y1, new_x2, new_y2};
 	cww := current_window_width;
@@ -594,19 +594,20 @@ ui_end_scroll_view :: proc(loc := #caller_location) {
 
 Grid_Layout :: struct {
 	// user vars
-	element_index: int,
-	max: int,
+	element_index: i32, // had to make all these i32s because of the odin bug :(
+	max: i32,
 	progress01: f32,
 
 	// wb vars
-	ww, hh: int,
-	cur_x, cur_y: int,
+	ww, hh: i32,
+	cur_x, cur_y: i32,
 }
 
-ui_grid_layout :: proc(ww, hh: int) -> Grid_Layout {
+ui_grid_layout :: proc(ww, hh: i32) -> Grid_Layout {
 	assert(ww > 0);
 	assert(hh > 0);
 	grid := Grid_Layout{-1, ww * hh, 0.0, ww, hh, -1, 0};
+	ui_grid_layout_next(&grid);
 	return grid;
 }
 
@@ -623,6 +624,7 @@ ui_grid_layout_next :: proc(using grid: ^Grid_Layout) -> bool {
 	hhh := 1.0/f32(hh);
 	x1 := www*f32(cur_x);
 	y1 := hhh*f32(hh - cur_y - 1);
+
 	ui_push_rect(x1, y1, x1 + www, y1 + hhh);
 
 	element_index += 1;
