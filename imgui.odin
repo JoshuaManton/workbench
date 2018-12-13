@@ -281,7 +281,7 @@ imgui_begin_new_frame :: proc() {
         for i in 0..511 {
             io.keys_down[i] = get_input_imgui(cast(Input)i);
         }
-        
+
     } else {
         io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
 
@@ -459,25 +459,58 @@ _imgui_struct_block_field_end :: proc(name: string) {
 }
 
 _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: string = "") {
+    imgui.push_id(name);
+    defer imgui.pop_id();
+
     simple_field :: proc(name: string, data: rawptr, $T: typeid) {
+        data_value := (cast(^T)data)^;
         value: string;
 
+        when T == string {
+            // todo(josh): support editing of strings
+            result := tprint(name, " = ", "\"", data_value, "\"");
+            imgui.text(result);
+        }
+        else when T == f32 || T == f64 {
+            value = tprintf("%.8f", data_value);
+
+            new_data := cast(f32)data_value;
+            if imgui.input_float(name, &new_data) && (get_input_imgui(Input.Enter) || get_input_imgui(Input.KP_Enter)) {
+                (cast(^T)data)^ = cast(T)new_data;
+            }
+        }
+        else when T == i8 || T == i16 || T == i32 || T == i64 {
+            new_data := cast(i32)data_value;
+            if imgui.input_int(name, &new_data) && (get_input_imgui(Input.Enter) || get_input_imgui(Input.KP_Enter)) {
+                (cast(^T)data)^ = cast(T)new_data;
+            }
+        }
+        else when T == u8 || T == u16 || T == u32 || T == u64 {
+            new_data := cast(i32)data_value;
+            if imgui.input_int(name, &new_data) && (get_input_imgui(Input.Enter) || get_input_imgui(Input.KP_Enter)) {
+                (cast(^T)data)^ = cast(T)cast(u64)new_data;
+            }
+        }
+        else when T == bool {
+            imgui.checkbox(name, cast(^bool)data);
+        }
+        else when T == ^byte {
+            result := tprint(name, " = ", "\"", data_value, "\"");
+            imgui.text(result);
+        }
+        else {
+            #assert(false); // unhandled type
+        }
+
         _, is_pointer := type_info_of(T).variant.(Type_Info_Pointer);
-        if T == string {
-            value = tprint("\"", (cast(^T)data)^, "\"");
-        }
-        else if T == f32 || T == f64 {
-            value = tprintf("%.8f", (cast(^T)data)^,);
-        }
-        else if is_pointer && (cast(^^byte)data)^ == nil {
+        if is_pointer && (cast(^^byte)data)^ == nil {
             value = "nil";
         }
         else {
-            value = tprint((cast(^T)data)^);
+            value = tprint(data_value);
         }
 
-        result := tprint(name, " = ", value);
-        imgui.text(result);
+        // result := tprint(name, " = ", value);
     }
 
     switch kind in ti.variant {
