@@ -152,8 +152,8 @@ update_console_window :: proc(using console: ^Console) {
 
 	io := get_io();
 
+	defer end();
 	if begin("Console") {
-		defer end();
 
 		{
 			footer_height := get_style().item_spacing.y + get_frame_height_with_spacing();
