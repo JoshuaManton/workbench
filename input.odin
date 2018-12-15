@@ -28,6 +28,15 @@ get_input :: inline proc(input: Input) -> bool {
 	return false;
 }
 
+get_input_imgui :: inline proc(input: Input) -> bool {
+	for held in _held_imgui {
+		if held == input {
+			return true;
+		}
+	}
+	return false;
+}
+
 get_input_down :: inline proc(input: Input) -> bool {
 	for down in _down {
 		if down == input {
@@ -138,7 +147,7 @@ Input :: enum i32 {
     Semicolon     = 59,  /* ; */
     Equal         = 61,  /* :: */
     Left_Bracket  = 91,  /* [ */
-    BACKSLASH     = 92,  /* \ */
+    Backslash     = 92,  /* \ */
     Right_Bracket = 93,  /* ] */
     Grave_Accent  = 96,  /* ` */
     World_1       = 161, /* non-US #1 */
@@ -293,6 +302,10 @@ _held := make([dynamic]Input, 0, 5);
 _down := make([dynamic]Input, 0, 5);
 _up   := make([dynamic]Input, 0, 5);
 
+_held_imgui := make([dynamic]Input, 0, 5);
+_down_imgui := make([dynamic]Input, 0, 5);
+_up_imgui   := make([dynamic]Input, 0, 5);
+
 _held_mid_frame := make([dynamic]Input, 0, 5);
 _down_mid_frame := make([dynamic]Input, 0, 5);
 _up_mid_frame   := make([dynamic]Input, 0, 5);
@@ -307,6 +320,10 @@ _update_input :: proc() {
 		clear(&_held);
 		clear(&_down);
 		clear(&_up);
+
+		clear(&_held_imgui);
+		clear(&_down_imgui);
+		clear(&_up_imgui);
 	}
 
 	// Add joystick inputs
@@ -375,21 +392,34 @@ _update_input :: proc() {
 
 		for held in _held_mid_frame {
 			is_mouse := is_mouse_input(held);
-			if is_mouse && io.want_capture_mouse do continue;
-			if !is_mouse && io.want_capture_keyboard do continue;
-			append(&_held, held);
+
+			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+				append(&_held_imgui, held);
+			}
+			else {
+				append(&_held, held);
+			}
 		}
 		for down in _down_mid_frame {
 			is_mouse := is_mouse_input(down);
-			if is_mouse && io.want_capture_mouse do continue;
-			if !is_mouse && io.want_capture_keyboard do continue;
-			append(&_down, down);
+
+			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+				append(&_down_imgui, down);
+			}
+			else {
+				append(&_down, down);
+			}
 		}
 		for up in _up_mid_frame {
 			is_mouse := is_mouse_input(up);
-			if is_mouse && io.want_capture_mouse do continue;
-			if !is_mouse && io.want_capture_keyboard do continue;
-			append(&_up, up);
+
+			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+				append(&_up_imgui, up);
+			}
+			else {
+				append(&_up, up);
+			}
+			
 		}
 	}
 
