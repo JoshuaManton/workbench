@@ -29,13 +29,13 @@ Commands :: struct {
 	history_count	: int,
 }
 
-new_console :: proc(input_size: int = 256, history_length: int = 32, default_commands: bool = true) -> ^Console {
+new_console :: proc(input_size: int = 256, default_commands: bool = true) -> ^Console {
 	console := Console{
 		text_buffer_create(),
 		Commands{
 			make([]u8, input_size),
 			make(map[string]proc()),
-			make([dynamic]string, 0, history_length * 2),
+			make([dynamic]string, 0, 32),
 			0,
 			0
 		},
@@ -202,6 +202,7 @@ _process_input :: proc(using console: ^Console) {
 
 		// Lex the input, the first token should be the command name
 		// All other tokens should be passed into the command proc
+		// Todo(Ben) Acutally lex input into structs, to pass as args to the commands.
 		lex := laas.make_lexer(cast(string) c_input);
 
 		token: laas.Token;
