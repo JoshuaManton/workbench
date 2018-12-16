@@ -13,7 +13,7 @@ when ODIN_DEBUG {
     foreign import cimgui "../external/imgui/external/cimgui_debug.lib";
 } else {
     foreign import "../external/imgui/external/cimgui.lib";
-} 
+}
 
 Console :: struct {
 	buffer		: ^TextBuffer,
@@ -171,7 +171,7 @@ update_console_window :: proc(using console: ^Console) {
 
 			end_child();
 		}
-		
+
 		separator();
 
 		{
@@ -211,7 +211,7 @@ _process_input :: proc(using console: ^Console) {
 			fmt.println("That's not ok then");
 			return;
 		}
-		
+
 		_execute_command(console, token.slice_of_text);
 
 		for {
@@ -239,7 +239,7 @@ _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 	}
 
 	context.user_data = any{rawptr(console), typeid_of(Console)};
-	
+
 	callback();
 }
 

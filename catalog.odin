@@ -51,7 +51,7 @@ _update_catalog :: proc() {
 
 		if new_write_time > item.last_write_time {
 			data, ok := os.read_entire_file(item.path);
-			assert(ok);
+			assert(ok, tprint("Couldn't read file: ", item.path));
 
 			new_item := item;
 			new_item.last_write_time = new_write_time;

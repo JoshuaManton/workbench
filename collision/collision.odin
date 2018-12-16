@@ -1,5 +1,7 @@
 package collision
 
+import rt "core:runtime"
+
 using import "core:fmt"
 using import "core:math"
 
@@ -82,6 +84,25 @@ boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, oth
 		if a.fraction0 < b.fraction0 do return -1;
 		return 1;
 	});
+}
+
+
+
+_temp_hit_buffer: [dynamic]Hit_Info;
+_temp_hit_buffer_in_use: bool;
+_temp_hit_buffer_user: rt.Source_Code_Location;
+get_temp_hits_buffer :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
+	if _temp_hit_buffer_in_use {
+		panic(tprint("temp_hit_buffer is already in use by ", pretty_location(_temp_hit_buffer_user), ". Caller: ", pretty_location(loc)));
+	}
+	_temp_hit_buffer_in_use = true;
+	_temp_hit_buffer_user = loc;
+	return &_temp_hit_buffer;
+}
+
+return_temp_hits_buffer :: proc() {
+	_temp_hit_buffer_in_use = false;
+	_temp_hit_buffer_user = {};
 }
 
 //
@@ -276,3 +297,46 @@ overlap_point_circle :: inline proc(origin: Vec3, circle_position: Vec3, circle_
 
 // 	return final_hit_info, did_hit;
 // }
+
+
+
+
+
+
+// utility stuff
+
+
+
+pretty_location :: inline proc(location: rt.Source_Code_Location) -> string {
+	file := file_from_path(location.file_path);
+	return fmt.tprintf("%s.%s():%d", file, location.procedure, location.line);
+}
+
+file_from_path :: proc(path: string) -> string {
+	file := path;
+	start := 0;
+	end := len(file);
+
+	if last_slash_idx, ok := find_from_right(file, '\\'); ok {
+		start = last_slash_idx;
+	}
+
+	if dot, ok := find_from_right(file, '.'); ok {
+		end = dot;
+	}
+
+	file = file[start+1:end];
+
+	return file;
+}
+
+find_from_right :: proc(str: string, c: rune) -> (int, bool) {
+	u := cast(u8)c;
+	for i := len(str)-1; i >= 0; i -= 1 {
+		if str[i] == u {
+			return i, true;
+		}
+	}
+
+	return 0, false;
+}
