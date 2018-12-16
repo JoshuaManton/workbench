@@ -255,9 +255,8 @@ _update_debug_window :: proc() {
 			num_draw_calls,
 
 		};
+		
 		if imgui.begin("Debug") {
-			defer imgui.end();
-
 			imgui_struct(&data, "wb_debug_data");
 			imgui.checkbox("Debug Rendering", &debugging_rendering);
 			imgui.checkbox("Debug UI", &debugging_ui);
@@ -266,6 +265,7 @@ _update_debug_window :: proc() {
 
 			if client_debug_window_proc != nil do client_debug_window_proc();
 		}
+		imgui.end();
 
 		console.update_console_window(debug_console);
 	}

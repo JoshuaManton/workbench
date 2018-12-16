@@ -98,8 +98,6 @@ _late_update_ui :: proc() {
 
 	if debugging_ui {
 		if imgui.begin("UI System") {
-			defer imgui.end();
-
 			if len(all_imgui_rects) > 0 {
 				UI_Debug_Info :: struct {
 					pushed_rects: i32,
@@ -133,6 +131,8 @@ _late_update_ui :: proc() {
 				}
 			}
 		}
+
+		imgui.end();
 	}
 }
 

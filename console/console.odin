@@ -152,7 +152,6 @@ update_console_window :: proc(using console: ^Console) {
 
 	io := get_io();
 
-	defer end();
 	if begin("Console") {
 
 		{
@@ -188,6 +187,7 @@ update_console_window :: proc(using console: ^Console) {
 			checkbox("ScrollLock", &console.scroll_lock);
 		}
 	}
+	end();
 }
 
 _process_input :: proc(using console: ^Console) {
