@@ -212,6 +212,11 @@ bind_texture2d :: inline proc(texture: Texture, loc := #caller_location) {
 	log_gl_errors(#procedure, loc);
 }
 
+bind_texture_cubemap :: inline proc(texture: Texture, loc := #caller_location) {
+	odingl.BindTexture(odingl.TEXTURE_CUBE_MAP, cast(u32)texture);
+	log_gl_errors(#procedure, loc);	
+}
+
 delete_texture :: inline proc(texture: Texture, loc := #caller_location) {
 	odingl.DeleteTextures(1, cast(^u32)&texture);
 	log_gl_errors(#procedure, loc);

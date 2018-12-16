@@ -227,12 +227,14 @@ _prerender :: proc() {
 render_workspace :: proc(workspace: Workspace) {
 	log_gl_errors(#procedure);
 
+	_prerender();
+
+	render_skybox();
+
 	num_draw_calls = 0;
 	if workspace.render != nil {
 		workspace.render(fixed_delta_time);
 	}
-
-	_prerender();
 
 	flush_3d();
 	im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);

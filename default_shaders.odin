@@ -159,3 +159,34 @@ void main() {
     color = desired_color;
 }
 `;
+
+SHADER_CUBEMAP_VERT ::
+`
+#version 330 core
+layout (location = 0) in vec3 vbo_vertex_position;
+
+out vec3 TexCoords;
+
+uniform mat4 mvp_matrix;
+
+void main()
+{
+    TexCoords = vbo_vertex_position;
+    gl_Position = mvp_matrix * vec4(vbo_vertex_position, 1.0);
+} 
+`;
+
+SHADER_CUBEMAP_FRAG :: 
+`
+#version 330 core
+out vec4 color;
+
+in vec3 TexCoords;
+
+uniform samplerCube skybox;
+
+void main()
+{    
+    color = texture(skybox, TexCoords);
+}
+`;

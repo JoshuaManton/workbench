@@ -3,6 +3,7 @@ package workbench
 using import        "core:math"
 using import        "core:fmt"
       import        "core:os"
+	  import        "core:strings"
       import        "core:mem"
 
       import odingl "external/gl"
@@ -239,6 +240,32 @@ release_model :: proc(model: Model) {
 	for mesh in model.meshes {
 		release_mesh(mesh);
 	}
+}
+
+load_cubemap :: proc(paths : []string) -> Texture {
+	tex := gen_texture();
+	bind_texture_cubemap(tex);
+
+	for path, i in paths {
+		width, height, channels: i32;
+	
+		cstr_path := strings.new_cstring(path);
+		defer delete(cstr_path);
+	
+		pixel_data := stb.load(cast(^u8)cstr_path, &width, &height, &channels, 0);
+		assert(pixel_data != nil);
+		defer stb.image_free(pixel_data);
+		
+		odingl.TexImage2D(odingl.TEXTURE_CUBE_MAP_POSITIVE_X + u32(i), 0, odingl.RGB, width, height, 0, odingl.RGB, odingl.UNSIGNED_BYTE, pixel_data);
+
+		odingl.TexParameteri(odingl.TEXTURE_CUBE_MAP, odingl.TEXTURE_MAG_FILTER, odingl.LINEAR);
+		odingl.TexParameteri(odingl.TEXTURE_CUBE_MAP, odingl.TEXTURE_MIN_FILTER, odingl.LINEAR);
+		odingl.TexParameteri(odingl.TEXTURE_CUBE_MAP, odingl.TEXTURE_WRAP_S, odingl.CLAMP_TO_EDGE);
+		odingl.TexParameteri(odingl.TEXTURE_CUBE_MAP, odingl.TEXTURE_WRAP_T, odingl.CLAMP_TO_EDGE);
+		odingl.TexParameteri(odingl.TEXTURE_CUBE_MAP, odingl.TEXTURE_WRAP_R, odingl.CLAMP_TO_EDGE);
+	}
+
+	return tex;
 }
 
 //
