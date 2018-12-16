@@ -39,6 +39,12 @@ Model :: struct {
 	meshes: []MeshID
 }
 
+Skybox :: struct {
+	vao : VAO,
+	vbo : VBO,
+	cubemap  : Texture
+}
+
 MeshID :: int;
 all_meshes: map[MeshID]Mesh;
 
@@ -314,10 +320,4 @@ create_cube_mesh :: proc() -> [dynamic]Vertex3D {
 	    {{-1.0, -1.0,  1.0,}, {0, 0, 0}, {0.5, 0.5, 0.5, 1}, {}},
 	    {{ 1.0, -1.0,  1.0,}, {0, 0, 0}, {0.5, 0.5, 0.5, 1}, {}},
 	};
-}
-
-Skybox :: struct {
-	vao : VAO,
-	vbo : VBO,
-	cubemap  : Texture
 }
