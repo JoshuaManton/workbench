@@ -16,9 +16,19 @@ random_range :: inline proc(min, max: f32) -> f32 {
 	return value;
 }
 
+random_range_int :: inline proc(min, max: int) -> int {
+	value := random01i();
+	value = lerp(min, max, value);
+	return value;
+}
+
 random01 :: inline proc() -> f32 {
 	value := rand.float32(&rstate);
 	return value;
+}
+
+random01i :: inline proc() -> int {
+	return int(rand.int31(&rstate));
 }
 
 random_u64 :: inline proc() -> u64 {
