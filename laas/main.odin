@@ -13,11 +13,11 @@ note(josh): laas never allocates, tokens are just slices of the source text
 => API
 
 	// just makes a lexer, identical to `Lexer{some_text, 0, 0, 0}`
-	make_lexer :: inline proc(text: string) -> Lexer
+	make_lexer :: proc(text: string) -> Lexer
 
 	// advances lexer and fills the passed `Token` pointer with the next token.
 	// Returns a `bool` indicating whether this is a valid token (true) or we have reached the end of the stream (false)
-	get_next_token :: proc(using lexer: ^Lexer, token: ^Token) -> bool
+	get_next_token :: proc(lexer: ^Lexer, token: ^Token) -> bool
 
 => Usage
 
@@ -35,43 +35,43 @@ main :: proc() {
 */
 
 Lexer :: struct {
-	lexer_text: string,
+    lexer_text: string,
 
-	lex_idx:  int,
-	lex_char: int,
-	lex_line: int,
+    lex_idx:  int,
+    lex_char: int,
+    lex_line: int,
 
-	userdata: any,
+    userdata: any,
 }
 
 Token_Identifier :: struct {
-	value: string,
+    value: string,
 }
 
 Token_Number :: struct {
-	int_value: i64,
-	unsigned_int_value: u64,
-	float_value: f64,
-	has_a_dot: bool,
+    int_value: i64,
+    unsigned_int_value: u64,
+    float_value: f64,
+    has_a_dot: bool,
 }
 
 Token_String :: struct {
-	value: string,
+    value: string,
 }
 
 Token_Symbol :: struct {
-	value: rune,
+    value: rune,
 }
 
 Token :: struct {
-	slice_of_text: string,
+    slice_of_text: string,
 
-	kind: union {
-		Token_Identifier,
-		Token_Number,
-		Token_String,
-		Token_Symbol,
-	},
+    kind: union {
+        Token_Identifier,
+        Token_Number,
+        Token_String,
+        Token_Symbol,
+    },
 }
 
 make_lexer :: inline proc(text: string) -> Lexer {

@@ -19,9 +19,7 @@ using import        "core:fmt"
 
 Rendermode_Proc :: #type proc();
 
-// note(josh): these rendermode_* procs cannot be marked as inline because https://i.imgur.com/ROXPLQe.png
 rendermode_world :: proc() {
-	current_rendermode = rendermode_world;
 	if current_camera.is_perspective {
 		mvp_matrix = mul(mul(perspective_projection_matrix, current_camera.view_matrix), model_matrix);
 	}
@@ -30,11 +28,9 @@ rendermode_world :: proc() {
 	}
 }
 rendermode_unit :: proc() {
-	current_rendermode = rendermode_unit;
 	mvp_matrix = unit_to_viewport_matrix;
 }
 rendermode_pixel :: proc() {
-	current_rendermode = rendermode_pixel;
 	mvp_matrix = pixel_to_viewport_matrix;
 }
 
@@ -246,21 +242,9 @@ Vertex2D :: struct {
 im_buffered_verts:     [dynamic]Buffered_Vertex;
 im_queued_for_drawing: [dynamic]Vertex2D;
 
-is_scissor: bool;
-
-current_shader:     Shader_Program;
-current_texture:    Texture;
-current_rendermode: proc();
+current_rendermode: Rendermode_Proc;
 
 im_draw_flush :: proc(mode: u32, verts: []Buffered_Vertex) {
-	set_shader :: inline proc(program: Shader_Program, mode: u32, location := #caller_location) {
-		current_shader = program;
-	}
-
-	set_texture :: inline proc(texture: Texture, mode: u32, location := #caller_location) {
-		current_texture = texture;
-	}
-
 	if !current_camera.is_perspective {
 		sort.quick_sort_proc(verts[:], proc(a, b: Buffered_Vertex) -> int {
 				diff := a.render_order - b.render_order;
@@ -271,23 +255,28 @@ im_draw_flush :: proc(mode: u32, verts: []Buffered_Vertex) {
 
 	model_matrix = identity(Mat4);
 
-	current_shader = 0;
-	current_texture = 0;
 	current_rendermode = nil;
+	is_scissor := false;
+	current_shader := Shader_Program(0);
+	current_texture := Texture(0);
 
 	for vertex_info in verts {
-		shader_mismatch  := vertex_info.shader != current_shader;
-		texture_mismatch := vertex_info.texture != current_texture;
-		scissor_mismatch := vertex_info.scissor != is_scissor;
+		shader_mismatch     := vertex_info.shader     != current_shader;
+		texture_mismatch    := vertex_info.texture    != current_texture;
+		scissor_mismatch    := vertex_info.scissor    != is_scissor;
 		rendermode_mismatch := vertex_info.rendermode != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
 			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture, mode);
 			clear(&im_queued_for_drawing);
 		}
 
-		if shader_mismatch  do set_shader(vertex_info.shader, mode);
-		if texture_mismatch do set_texture(vertex_info.texture, mode);
-		if rendermode_mismatch { vertex_info.rendermode(); }
+		if shader_mismatch     do current_shader  = vertex_info.shader;
+		if texture_mismatch    do current_texture = vertex_info.texture;
+		if rendermode_mismatch {
+			current_rendermode = vertex_info.rendermode;
+			vertex_info.rendermode();
+		}
+
 		if scissor_mismatch {
 			is_scissor = vertex_info.scissor;
 			if is_scissor {

@@ -131,16 +131,6 @@ push_mesh :: inline proc(id: MeshID,
 }
 
 flush_3d :: proc() {
-	set_shader :: inline proc(program: Shader_Program) {
-		current_shader = program;
-		use_program(program);
-	}
-
-	set_texture :: inline proc(texture: Texture) {
-		current_texture = texture;
-		bind_texture2d(texture);
-	}
-
 	draw_mesh :: inline proc(mesh: Mesh) {
 		when DEVELOPER {
 			if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
@@ -189,8 +179,8 @@ flush_3d :: proc() {
 		clear(&im_queued_meshes);
 	}
 
-	current_shader = 0;
-	current_texture = 0;
+	current_shader:     Shader_Program  = 0;
+	current_texture:    Texture         = 0;
 
 	sort.quick_sort_proc(im_buffered_meshes[:], proc(a, b: Buffered_Mesh) -> int {
 			if a.texture == b.texture && a.shader == b.shader do return 0;
@@ -207,8 +197,15 @@ flush_3d :: proc() {
 			flush_queue();
 		}
 
-		if shader_mismatch  do set_shader(shader);
-		if texture_mismatch do set_texture(texture);
+		if shader_mismatch {
+			current_shader = shader;
+			use_program(shader);
+		}
+
+		if texture_mismatch {
+			current_texture = texture;
+			bind_texture2d(texture);
+		}
 
 		append(&im_queued_meshes, buffered_mesh);
 	}
