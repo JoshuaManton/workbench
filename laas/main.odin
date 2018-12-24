@@ -92,6 +92,22 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 
 	r := (cast(rune)lexer_text[lex_idx]);
 	switch r {
+		case '`': {
+			if !_inc(lexer) {
+				panic(fmt.tprint("End of text from within raw string"));
+				return false;
+			}
+			start := lex_idx;
+			for lexer_text[lex_idx] != '`' {
+				if !_inc(lexer) {
+					panic(fmt.tprint("End of text from within raw string"));
+					return false;
+				}
+			}
+
+			token_text := lexer_text[start:lex_idx];
+			token^ = Token{token_text, Token_String{token_text}};
+		}
 		case '"': {
 			if !_inc(lexer) {
 				panic(fmt.tprint("End of text from within string"));
@@ -112,7 +128,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 			token^ = Token{token_text, Token_String{token_text}};
 		}
 
-		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
+		case '!'..'/', ':'..'@', '['..']', '{'..'~': {
 			token^ = Token{lexer_text[lex_idx:lex_idx], Token_Symbol{r}};
 		}
 

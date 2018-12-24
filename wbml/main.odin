@@ -109,13 +109,15 @@ serialize :: proc(value: ^$Type) -> string {
 			}
 
 			case rt.Type_Info_String: {
-				print_to_buff(sb, "\"", (cast(^string)value)^, "\"");
+				if name[0] == '_' do
+					print_to_buff(sb, "`", (cast(^string)value)^, "`");
+				else do
+					print_to_buff(sb, "\"", (cast(^string)value)^, "\"");
 			}
 
 			case rt.Type_Info_Named: {
 				serialize_one_thing("", value, kind.base, sb, indent_level);
 			}
-
 			case rt.Type_Info_Struct: {
 				print_to_buff(sb, "{\n"); indent_level += 1;
 				for name, idx in kind.names {
@@ -161,6 +163,10 @@ serialize :: proc(value: ^$Type) -> string {
 					}
 				}
 				indent_level -= 1; print_indents(indent_level, sb); print_to_buff(sb, "]");
+			}
+
+			case rt.Type_Info_Map: {
+				// TODO support map
 			}
 
 			case: panic(tprint(kind));
