@@ -1705,8 +1705,8 @@ load_shaders :: load_shaders_file;
 
 when os.OS == "windows" {
     update_shader_if_changed :: proc(vertex_name, fragment_name: string, program: u32, last_vertex_time, last_fragment_time: os.File_Time) -> (u32, os.File_Time, os.File_Time, bool) {
-        current_vertex_time := os.last_write_time_by_name(vertex_name);
-        current_fragment_time := os.last_write_time_by_name(fragment_name);
+        current_vertex_time, errno := os.last_write_time_by_name(vertex_name); assert(errno == os.ERROR_NONE);
+        current_fragment_time, errno2 := os.last_write_time_by_name(fragment_name); assert(errno2 == os.ERROR_NONE);
 
         updated := false;
         if current_vertex_time != last_vertex_time || current_fragment_time != last_fragment_time {

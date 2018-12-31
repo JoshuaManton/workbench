@@ -1,6 +1,6 @@
 package laas
 
-import "core:fmt"
+using import "core:fmt"
 import "core:strconv"
 
 /*
@@ -44,22 +44,22 @@ Lexer :: struct {
     userdata: any,
 }
 
-Token_Identifier :: struct {
+Identifier :: struct {
     value: string,
 }
 
-Token_Number :: struct {
+Number :: struct {
     int_value: i64,
     unsigned_int_value: u64,
     float_value: f64,
     has_a_dot: bool,
 }
 
-Token_String :: struct {
+String :: struct {
     value: string,
 }
 
-Token_Symbol :: struct {
+Symbol :: struct {
     value: rune,
 }
 
@@ -67,10 +67,10 @@ Token :: struct {
     slice_of_text: string,
 
     kind: union {
-        Token_Identifier,
-        Token_Number,
-        Token_String,
-        Token_Symbol,
+        Identifier,
+        Number,
+        String,
+        Symbol,
     },
 }
 
@@ -109,11 +109,11 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 			}
 
 			token_text := lexer_text[start:lex_idx];
-			token^ = Token{token_text, Token_String{token_text}};
+			token^ = Token{token_text, String{token_text}};
 		}
 
 		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
-			token^ = Token{lexer_text[lex_idx:lex_idx], Token_Symbol{r}};
+			token^ = Token{lexer_text[lex_idx:lex_idx+1], Symbol{r}};
 		}
 
 		case 'A'..'Z', 'a'..'z', '_': {
@@ -133,7 +133,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 			}
 			token_text := lexer_text[start:lex_idx];
 			_dec(lexer);
-			token^ = Token{token_text, Token_Identifier{token_text}};
+			token^ = Token{token_text, Identifier{token_text}};
 		}
 
 		case '0'..'9', '.': {
@@ -177,7 +177,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 			}
 
 			_dec(lexer);
-			token^ = Token{token_text, Token_Number{int_val, unsigned_int_val, float_val, found_a_dot}};
+			token^ = Token{token_text, Number{int_val, unsigned_int_val, float_val, found_a_dot}};
 		}
 
 		case: {
@@ -190,6 +190,12 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 
 	assert(token.kind != nil);
 	return true;
+}
+
+peek :: proc(lexer: ^Lexer, out_token: ^Token) -> bool {
+	lexer_copy := lexer^;
+	ok := get_next_token(&lexer_copy, out_token);
+	return ok;
 }
 
 _is_whitespace :: inline proc(r: u8) -> bool {

@@ -22,7 +22,7 @@ catalog_subscribe :: inline proc(filepath: string, userdata: ^$T, callback: proc
 	data, ok := os.read_entire_file(filepath);
 	assert(ok);
 
-	time := os.last_write_time_by_name(filepath);
+	time, errno := os.last_write_time_by_name(filepath); assert(errno == os.ERROR_NONE);
 	item := Catalog_Item{filepath, time, userdata, cast(proc(rawptr, []u8))callback};
 
 	last_catalog_item_id += 1;
@@ -47,7 +47,7 @@ when DEVELOPER {
 _update_catalog :: proc() {
 	for id, item in all_catalog_items {
 
-		new_write_time := os.last_write_time_by_name(item.path);
+		new_write_time, errno := os.last_write_time_by_name(item.path); assert(errno == os.ERROR_NONE);
 
 		if new_write_time > item.last_write_time {
 			data, ok := os.read_entire_file(item.path);
