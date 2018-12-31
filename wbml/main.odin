@@ -263,9 +263,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 							memory := make([]byte, 1024);
 							byte_index := 0;
 
-							i: int;
+							num_entries: int;
 							for {
-								defer i += 1;
+								defer num_entries += 1;
 
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
@@ -291,15 +291,15 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], i, len(memory) / array_kind.elem_size, {}};
+							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries, len(memory) / array_kind.elem_size, {}};
 						}
 						case rt.Type_Info_Slice: {
 							memory := make([]byte, 1024);
 							byte_index := 0;
 
-							i: int;
+							num_entries: int;
 							for {
-								defer i += 1;
+								defer num_entries += 1;
 
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
@@ -325,7 +325,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], i};
+							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries};
 						}
 						case: panic(tprint(array_kind));
 					}
