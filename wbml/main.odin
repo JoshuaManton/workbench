@@ -278,7 +278,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 									}
 								}
 
-								if byte_index + array_kind.elem_size > len(memory) {
+								// todo(josh): kinda weird that this is a loop, we could probably figure out
+								// the size we need to fit things in
+								for byte_index + array_kind.elem_size > len(memory) {
 									old_mem := memory;
 									memory = make([]byte, len(old_mem) * 2);
 									mem.copy(&memory[0], &old_mem[0], len(old_mem));
@@ -310,7 +312,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 									}
 								}
 
-								if byte_index + array_kind.elem_size > len(memory) {
+								// todo(josh): kinda weird that this is a loop, we could probably figure out
+								// the size we need to fit things in
+								for byte_index + array_kind.elem_size > len(memory) {
 									old_mem := memory;
 									memory = make([]byte, len(old_mem) * 2);
 									mem.copy(&memory[0], &old_mem[0], len(old_mem));
