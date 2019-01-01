@@ -236,6 +236,12 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 					}
 				}
 				case '[': {
+					original_ti: ^rt.Type_Info;
+					if named, ok := ti.variant.(rt.Type_Info_Named); ok {
+						original_ti = ti;
+						ti = named.base;
+					}
+
 					switch array_kind in ti.variant {
 						case rt.Type_Info_Array: {
 							i: int;
@@ -327,7 +333,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries};
 						}
-						case: panic(tprint(array_kind));
+						case: panic(tprint("Unhandled case: ", array_kind, "original ti: ", original_ti));
 					}
 				}
 			}
