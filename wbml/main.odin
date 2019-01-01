@@ -207,16 +207,16 @@ deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 
 parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Type_Info) {
 	switch value_kind in parent_token.kind {
-		case Token_Symbol: {
+		case laas.Symbol: {
 			switch value_kind.value {
 				case '{': {
 					token: Token;
 					for get_next_token(lexer, &token) {
-						if right_curly, ok2 := token.kind.(Token_Symbol); ok2 && right_curly.value == '}' {
+						if right_curly, ok2 := token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
 							break;
 						}
 
-						variable_name, ok2 := token.kind.(Token_Identifier);
+						variable_name, ok2 := token.kind.(laas.Identifier);
 						assert(ok2);
 						field_ptr : rawptr = nil;
 						field_ti  : ^rt.Type_Info = nil;
@@ -255,7 +255,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
 
-								if symbol, is_symbol := array_value_token.kind.(Token_Symbol); is_symbol {
+								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
 									if symbol.value != '{' {
 										assert(false, tprint("Symbol token in array: ", symbol));
@@ -269,22 +269,24 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 							memory := make([]byte, 1024);
 							byte_index := 0;
 
-							i: int;
+							num_entries: int;
 							for {
-								defer i += 1;
+								defer num_entries += 1;
 
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
 
-								if symbol, is_symbol := array_value_token.kind.(Token_Symbol); is_symbol {
+								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
 									if symbol.value != '{' {
 										assert(false, tprint("Symbol token in array: ", symbol));
 									}
 								}
 
-								if byte_index + array_kind.elem_size > len(memory) {
+								// todo(josh): kinda weird that this is a loop, we could probably figure out
+								// the size we need to fit things in
+								for byte_index + array_kind.elem_size > len(memory) {
 									old_mem := memory;
 									memory = make([]byte, len(old_mem) * 2);
 									mem.copy(&memory[0], &old_mem[0], len(old_mem));
@@ -295,28 +297,30 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], i-1, len(memory), {}};
+							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries, len(memory) / array_kind.elem_size, {}};
 						}
 						case rt.Type_Info_Slice: {
 							memory := make([]byte, 1024);
 							byte_index := 0;
 
-							i: int;
+							num_entries: int;
 							for {
-								defer i += 1;
+								defer num_entries += 1;
 
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
 
-								if symbol, is_symbol := array_value_token.kind.(Token_Symbol); is_symbol {
+								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
 									if symbol.value != '{' {
 										assert(false, tprint("Symbol token in array: ", symbol));
 									}
 								}
 
-								if byte_index + array_kind.elem_size > len(memory) {
+								// todo(josh): kinda weird that this is a loop, we could probably figure out
+								// the size we need to fit things in
+								for byte_index + array_kind.elem_size > len(memory) {
 									old_mem := memory;
 									memory = make([]byte, len(old_mem) * 2);
 									mem.copy(&memory[0], &old_mem[0], len(old_mem));
@@ -327,7 +331,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], i-1};
+							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries};
 						}
 						case: panic(tprint(array_kind));
 					}
@@ -336,11 +340,11 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 		}
 
 		// primitives
-		case Token_String: {
+		case laas.String: {
 			(cast(^string)data)^ = strings.new_string(value_kind.value);
 		}
 
-		case Token_Identifier: {
+		case laas.Identifier: {
 			switch kind in ti.variant {
 				case rt.Type_Info_Boolean: {
 					switch value_kind.value {
@@ -389,7 +393,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 			}
 		}
 
-		case Token_Number: {
+		case laas.Number: {
 			switch num_kind in ti.variant {
 				case rt.Type_Info_Integer: {
 					if num_kind.signed {
