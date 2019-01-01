@@ -212,9 +212,10 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 						variable_name, ok2 := token.kind.(laas.Identifier);
 						assert(ok2);
-						field_ptr : rawptr = nil;
-						field_ti  : ^rt.Type_Info = nil;
+
 						struct_kind: ^rt.Type_Info_Struct;
+						field_ptr  : rawptr;
+						field_ti   : ^rt.Type_Info;
 						switch ti_kind in &ti.variant {
 							case rt.Type_Info_Named:  struct_kind = &ti_kind.base.variant.(rt.Type_Info_Struct);
 							case rt.Type_Info_Struct: struct_kind = ti_kind;
@@ -244,10 +245,10 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 					switch array_kind in ti.variant {
 						case rt.Type_Info_Array: {
-							i: int;
+							num_entries: int;
 							for {
-								defer i += 1;
-								if i > array_kind.count {
+								defer num_entries += 1;
+								if num_entries > array_kind.count {
 									assert(false, "Too many array elements");
 								}
 
@@ -262,7 +263,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 									}
 								}
 
-								parse_value(lexer, array_value_token, mem.ptr_offset(cast(^byte)data, array_kind.elem_size * i), array_kind.elem);
+								parse_value(lexer, array_value_token, mem.ptr_offset(cast(^byte)data, array_kind.elem_size * num_entries), array_kind.elem);
 							}
 						}
 						case rt.Type_Info_Dynamic_Array: {
