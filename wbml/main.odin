@@ -151,11 +151,11 @@ serialize :: proc(value: ^$Type) -> string {
 			}
 
 			case rt.Type_Info_Slice: {
-				dyn := transmute(^mem.Raw_Slice)value;
+				slice := transmute(^mem.Raw_Slice)value;
 				print_to_buff(sb, "[\n"); indent_level += 1;
 				{
-					for i in 0..dyn.len-1 {
-						data := mem.ptr_offset(cast(^byte)dyn.data, i * kind.elem_size);
+					for i in 0..slice.len-1 {
+						data := mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size);
 						print_indents(indent_level, sb);
 						serialize_one_thing("", data, kind.elem, sb, indent_level);
 					}
@@ -236,6 +236,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						parse_value(lexer, value_token, field_ptr, field_ti);
 					}
 				}
+
 				case '[': {
 					original_ti: ^rt.Type_Info;
 					if named, ok := ti.variant.(rt.Type_Info_Named); ok {
@@ -336,6 +337,10 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						}
 						case: panic(tprint("Unhandled case: ", array_kind, "original ti: ", original_ti));
 					}
+				}
+
+				case: {
+					panic(tprint("Unhandled case: ", value_kind.value));
 				}
 			}
 		}
