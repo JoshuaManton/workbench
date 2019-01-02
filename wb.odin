@@ -236,13 +236,11 @@ _end_all_workspaces :: proc() {
 	_remove_ended_workspaces();
 }
 
-debug_window_open: bool;
-show_imgui_demo_window: bool;
-last_saved_dt: f32;
-
 client_debug_window_proc: proc();
 
 _update_debug_window :: proc() {
+	static debug_window_open: bool;
+
 	if get_input_down(Input.F1) {
 		debug_window_open = !debug_window_open;
 	}
@@ -269,10 +267,15 @@ _update_debug_window :: proc() {
 		};
 
 		if imgui.begin("Debug") {
+			static show_imgui_demo_window := false;
+			static show_profiler_window := false;
+
 			imgui_struct(&data, "wb_debug_data");
 			imgui.checkbox("Debug Rendering", &debugging_rendering);
 			imgui.checkbox("Debug UI", &debugging_ui);
 			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
+			imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do pf.profiler_imgui_window(&wb_profiler);
+
 			imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 
@@ -280,7 +283,6 @@ _update_debug_window :: proc() {
 		}
 		imgui.end();
 
-		pf.profiler_imgui_window(&wb_profiler);
 
 		console.update_console_window(debug_console);
 	}

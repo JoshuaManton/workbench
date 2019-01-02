@@ -9,6 +9,8 @@ import rt "core:runtime"
 import imgui "shared:workbench/external/imgui"
 
 Profiler :: struct {
+	is_recording: bool,
+
 	get_time_proc: proc() -> f64,
 	this_frame_sections: map[u64]Section_Statistics,
 	all_sections: map[u64]Section_Statistics,
@@ -26,7 +28,7 @@ Section_Statistics :: struct {
 	average_time: f64,
 }
 
-Timed_Section_Info :: struct {
+_Timed_Section_Info :: struct {
 	id: u64,
 	profiler: ^Profiler,
 	start_time: f64,
@@ -34,11 +36,19 @@ Timed_Section_Info :: struct {
 }
 
 make_profiler :: proc(get_time_proc: proc() -> f64) -> Profiler {
-	return Profiler{get_time_proc, {}, {}};
+	return Profiler{false, get_time_proc, {}, {}};
 }
 
 profiler_imgui_window :: proc(profiler: ^Profiler) {
 	if imgui.begin("Profiler") {
+		if imgui.button((profiler.is_recording ? "Stop" : "Play")) {
+			profiler.is_recording = !profiler.is_recording;
+		}
+		imgui.same_line();
+		if imgui.button("Clear") {
+			clear_profiler(profiler);
+		}
+
 		for id, _ in profiler.all_sections {
 			imgui.push_id(tprint(id)); defer imgui.pop_id();
 
@@ -66,14 +76,23 @@ profiler_new_frame :: proc(profiler: ^Profiler) {
 
 }
 
+clear_profiler :: proc(using profiler: ^Profiler) {
+	clear(&this_frame_sections);
+	clear(&all_sections);
+}
+
 destroy_profiler :: proc(using profiler: ^Profiler) {
 	delete(all_sections);
 	delete(this_frame_sections);
 }
 
 @(deferred=END_TIMED_SECTION)
-TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) -> Timed_Section_Info {
+TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) -> (_Timed_Section_Info, bool) {
 	assert(profiler.get_time_proc != nil, "No `get_time_proc` was set before calling TIMED_SECTION().");
+
+	if !profiler.is_recording {
+		return {0, profiler, 0, loc}, false;
+	}
 
 	h: u64;
 	if name == "" {
@@ -97,11 +116,14 @@ TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) 
 	}
 
 	start_time := profiler.get_time_proc();
-	return {h, profiler, start_time, loc};
+	return {h, profiler, start_time, loc}, true;
 }
 
-END_TIMED_SECTION :: proc(using info: Timed_Section_Info) {
+END_TIMED_SECTION :: proc(using info: _Timed_Section_Info, _valid: bool) {
+	if !_valid do return;
+
 	assert(profiler.get_time_proc != nil, "No `get_time_proc` was set before calling END_TIMED_SECTION().");
+
 	end_time := profiler.get_time_proc();
 
 	section_info, ok := profiler.all_sections[id];
