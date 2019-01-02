@@ -299,7 +299,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries, len(memory) / array_kind.elem_size, {}};
+							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries-1, len(memory) / array_kind.elem_size, {}};
 						}
 						case rt.Type_Info_Slice: {
 							memory := make([]byte, 1024);
@@ -333,7 +333,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries};
+							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries-1};
 						}
 						case: panic(tprint("Unhandled case: ", array_kind, "original ti: ", original_ti));
 					}
