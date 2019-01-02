@@ -12,7 +12,7 @@ note(josh): laas never allocates, tokens are just slices of the source text
 
 => API
 
-	// just makes a lexer, identical to `Lexer{some_text, 0, 0, 0}`
+	// makes a lexer by value, identical to `Lexer{some_text, 0, 0, 0, nil}`
 	make_lexer :: proc(text: string) -> Lexer
 
 	// advances lexer and fills the passed `Token` pointer with the next token.
