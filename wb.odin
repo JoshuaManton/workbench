@@ -7,7 +7,7 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
       import        "core:sys/win32"
-	  import		"core:runtime"
+	  import        "core:runtime"
 
       import odingl "external/gl"
       import imgui  "external/imgui"
@@ -15,7 +15,8 @@ using import        "core:fmt"
       import stb    "external/stb"
       import        "external/glfw"
 
-	  import 		"console"
+	  import        "console"
+      import pf     "profiler"
 
 DEVELOPER :: true;
 
@@ -37,6 +38,8 @@ do_log_frame_boundaries := false;
 
 debug_console := console.new_console();
 
+wb_profiler: pf.Profiler;
+
 make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
@@ -47,6 +50,11 @@ make_simple_window :: proc(window_name: string,
 	context.derived = WB_Context{
 		 _log_back
 	};
+
+	wb_profiler = pf.make_profiler(proc() -> f64 {
+		return glfw.GetTime();
+	});
+	defer pf.destroy_profiler(&wb_profiler);
 
 	current_camera = camera;
 
@@ -65,6 +73,9 @@ make_simple_window :: proc(window_name: string,
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
+		pf.profiler_new_frame(&wb_profiler);
+
+		pf.TIMED_SECTION(&wb_profiler, "full engine frame");
 		update_loop_start := glfw.GetTime();
 
 		last_time := time;
@@ -74,6 +85,7 @@ make_simple_window :: proc(window_name: string,
 
 		if acc >= fixed_delta_time {
 			for {
+				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
 				}
@@ -224,27 +236,26 @@ _end_all_workspaces :: proc() {
 	_remove_ended_workspaces();
 }
 
-WB_Debug_Data :: struct {
-	camera_position: Vec3,
-	camera_rotation_euler: Vec3,
-	camera_rotation_quat: Quat,
-	precise_lossy_delta_time_ms: f64,
-	fixed_delta_time: f32,
-	client_target_framerate: f32,
-	draw_calls: i32,
-}
-
-debug_window_open: bool;
-last_saved_dt: f32;
-
 client_debug_window_proc: proc();
 
 _update_debug_window :: proc() {
+	static debug_window_open: bool;
+
 	if get_input_down(Input.F1) {
 		debug_window_open = !debug_window_open;
 	}
 
 	if debug_window_open {
+		WB_Debug_Data :: struct {
+			camera_position: Vec3,
+			camera_rotation_euler: Vec3,
+			camera_rotation_quat: Quat,
+			precise_lossy_delta_time_ms: f64,
+			fixed_delta_time: f32,
+			client_target_framerate: f32,
+			draw_calls: i32,
+		}
+
 		data := WB_Debug_Data{
 			current_camera.position,
 			current_camera.rotation,
@@ -253,19 +264,25 @@ _update_debug_window :: proc() {
 			fixed_delta_time,
 			client_target_framerate,
 			num_draw_calls,
-
 		};
-		
+
 		if imgui.begin("Debug") {
+			static show_imgui_demo_window := false;
+			static show_profiler_window := false;
+
 			imgui_struct(&data, "wb_debug_data");
 			imgui.checkbox("Debug Rendering", &debugging_rendering);
 			imgui.checkbox("Debug UI", &debugging_ui);
 			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
+			imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do pf.profiler_imgui_window(&wb_profiler);
+
+			imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 
 			if client_debug_window_proc != nil do client_debug_window_proc();
 		}
 		imgui.end();
+
 
 		console.update_console_window(debug_console);
 	}

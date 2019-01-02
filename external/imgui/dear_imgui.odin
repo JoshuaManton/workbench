@@ -785,7 +785,7 @@ foreign cimgui {
     @(link_name = "igCheckboxFlags")   im_checkbox_flags     :: proc(label : cstring, flags : ^u32, flags_value : u32) -> bool ---;
     @(link_name = "igRadioButtonBool") im_radio_buttons_bool :: proc(label : cstring, active : bool) -> bool ---;
     @(link_name = "igRadioButton")     im_radio_button       :: proc(label : cstring, v : ^i32, v_button : i32) -> bool ---;
-    @(link_name = "igPlotLines")       plot_lines            :: proc(label : cstring, values : ^f32, values_count : i32, values_offset : i32, overlay_text : cstring, scale_min : f32, scale_max : f32, graph_size : Vec2, stride : i32) ---;
+    @(link_name = "igPlotLines")       plot_lines            :: proc(label : cstring, values : ^f32, values_count : i32, values_offset : i32 = 0, overlay_text : cstring = nil, scale_min : f32 = max(f32), scale_max : f32 = max(f32), graph_size : Vec2 = {}, stride : i32 = size_of(f32)) ---;
     @(link_name = "igPlotLines2")      plot_lines2           :: proc(label : cstring, values_getter : proc(data : rawptr, idx : i32) -> f32, data : rawptr, values_count : i32, values_offset : i32, overlay_text : cstring, scale_min : f32, scale_max : f32, graph_size : Vec2) ---;
     @(link_name = "igPlotHistogram")   im_plot_histogram     :: proc(label : cstring, values : ^f32, values_count : i32, values_offset : i32, overlay_text : cstring, scale_min : f32, scale_max : f32, graph_size : Vec2, stride : i32) ---;
     @(link_name = "igPlotHistogram2")  plot_histogram2       :: proc(label : cstring, values_getter : proc(data : rawptr, idx : i32) -> f32, data : rawptr, values_count : i32, values_offset : i32, overlay_text : cstring, scale_min : f32, scale_max : f32, graph_size : Vec2) ---;

@@ -14,5 +14,7 @@ logln :: proc(args: ..any, location := #caller_location) {
 	str := fmt.tprintf("<%s.%s():%d> %s\n", file, location.procedure, location.line, fmt.tprint(..args));
 	fmt.print(str);
 
-	context.derived.(WB_Context).logger_proc(str);
+	if wb, ok := context.derived.(WB_Context); ok {
+		wb.logger_proc(str);
+	}
 }

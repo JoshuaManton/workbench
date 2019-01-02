@@ -153,11 +153,11 @@ serialize :: proc(value: ^$Type) -> string {
 			}
 
 			case rt.Type_Info_Slice: {
-				dyn := transmute(^mem.Raw_Slice)value;
+				slice := transmute(^mem.Raw_Slice)value;
 				print_to_buff(sb, "[\n"); indent_level += 1;
 				{
-					for i in 0..dyn.len-1 {
-						data := mem.ptr_offset(cast(^byte)dyn.data, i * kind.elem_size);
+					for i in 0..slice.len-1 {
+						data := mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size);
 						print_indents(indent_level, sb);
 						serialize_one_thing("", data, kind.elem, sb, indent_level);
 					}
@@ -218,9 +218,10 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 						variable_name, ok2 := token.kind.(laas.Identifier);
 						assert(ok2);
-						field_ptr : rawptr = nil;
-						field_ti  : ^rt.Type_Info = nil;
+
 						struct_kind: ^rt.Type_Info_Struct;
+						field_ptr  : rawptr;
+						field_ti   : ^rt.Type_Info;
 						switch ti_kind in &ti.variant {
 							case rt.Type_Info_Named:  struct_kind = &ti_kind.base.variant.(rt.Type_Info_Struct);
 							case rt.Type_Info_Struct: struct_kind = ti_kind;
@@ -241,13 +242,20 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						parse_value(lexer, value_token, field_ptr, field_ti);
 					}
 				}
+
 				case '[': {
+					original_ti: ^rt.Type_Info;
+					if named, ok := ti.variant.(rt.Type_Info_Named); ok {
+						original_ti = ti;
+						ti = named.base;
+					}
+
 					switch array_kind in ti.variant {
 						case rt.Type_Info_Array: {
-							i: int;
+							num_entries: int;
 							for {
-								defer i += 1;
-								if i > array_kind.count {
+								defer num_entries += 1;
+								if num_entries > array_kind.count {
 									assert(false, "Too many array elements");
 								}
 
@@ -262,7 +270,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 									}
 								}
 
-								parse_value(lexer, array_value_token, mem.ptr_offset(cast(^byte)data, array_kind.elem_size * i), array_kind.elem);
+								parse_value(lexer, array_value_token, mem.ptr_offset(cast(^byte)data, array_kind.elem_size * num_entries), array_kind.elem);
 							}
 						}
 						case rt.Type_Info_Dynamic_Array: {
@@ -297,7 +305,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries, len(memory) / array_kind.elem_size, {}};
+							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries-1, len(memory) / array_kind.elem_size, {}};
 						}
 						case rt.Type_Info_Slice: {
 							memory := make([]byte, 1024);
@@ -331,10 +339,14 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								byte_index += array_kind.elem_size;
 							}
 
-							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries};
+							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries-1};
 						}
-						case: panic(tprint(array_kind));
+						case: panic(tprint("Unhandled case: ", array_kind, "original ti: ", original_ti));
 					}
+				}
+
+				case: {
+					panic(tprint("Unhandled case: ", value_kind.value));
 				}
 			}
 		}
