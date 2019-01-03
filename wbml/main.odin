@@ -205,7 +205,15 @@ deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	parse_value(lexer, token, ptr, ti);
 }
 
-parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Type_Info) {
+parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Type_Info, is_negative_number := false) {
+	if symbol, ok := parent_token.kind.(laas.Symbol); ok {
+		if symbol.value == '-' {
+			ok := get_next_token(lexer, &parent_token);
+			assert(ok, "End of text when expecting negative number");
+			parse_value(lexer, parent_token, data, ti, !is_negative_number);
+			return;
+		}
+	}
 	switch value_kind in parent_token.kind {
 		case laas.Symbol: {
 			switch value_kind.value {
@@ -265,9 +273,6 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
-									if symbol.value != '{' {
-										assert(false, tprint("Symbol token in array: ", symbol));
-									}
 								}
 
 								parse_value(lexer, array_value_token, mem.ptr_offset(cast(^byte)data, array_kind.elem_size * num_entries), array_kind.elem);
@@ -287,9 +292,6 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
-									if symbol.value != '{' {
-										assert(false, tprint("Symbol token in array: ", symbol));
-									}
 								}
 
 								// todo(josh): kinda weird that this is a loop, we could probably figure out
@@ -321,9 +323,6 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
-									if symbol.value != '{' {
-										assert(false, tprint("Symbol token in array: ", symbol));
-									}
 								}
 
 								// todo(josh): kinda weird that this is a loop, we could probably figure out
@@ -406,31 +405,32 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 		}
 
 		case laas.Number: {
+			sign := is_negative_number ? -1 : 1;
 			switch num_kind in ti.variant {
 				case rt.Type_Info_Integer: {
 					if num_kind.signed {
 						switch ti.size {
-							case 1: (cast(^i8)data)^  = cast(i8) value_kind.int_value;
-							case 2: (cast(^i16)data)^ = cast(i16)value_kind.int_value;
-							case 4: (cast(^i32)data)^ = cast(i32)value_kind.int_value;
-							case 8: (cast(^i64)data)^ =          value_kind.int_value;
+							case 1: (cast(^i8)data)^  = cast(i8) value_kind.int_value * cast(i8) sign;
+							case 2: (cast(^i16)data)^ = cast(i16)value_kind.int_value * cast(i16)sign;
+							case 4: (cast(^i32)data)^ = cast(i32)value_kind.int_value * cast(i32)sign;
+							case 8: (cast(^i64)data)^ =          value_kind.int_value * cast(i64)sign;
 							case: panic(tprint(ti.size));
 						}
 					}
 					else {
 						switch ti.size {
-							case 1: (cast(^u8)data)^  = cast(u8) value_kind.unsigned_int_value;
-							case 2: (cast(^u16)data)^ = cast(u16)value_kind.unsigned_int_value;
-							case 4: (cast(^u32)data)^ = cast(u32)value_kind.unsigned_int_value;
-							case 8: (cast(^u64)data)^ =          value_kind.unsigned_int_value;
+							case 1: (cast(^u8)data)^  = cast(u8) value_kind.unsigned_int_value * cast(u8) sign;
+							case 2: (cast(^u16)data)^ = cast(u16)value_kind.unsigned_int_value * cast(u16)sign;
+							case 4: (cast(^u32)data)^ = cast(u32)value_kind.unsigned_int_value * cast(u32)sign;
+							case 8: (cast(^u64)data)^ =          value_kind.unsigned_int_value * cast(u64)sign;
 							case: panic(tprint(ti.size));
 						}
 					}
 				}
 				case rt.Type_Info_Float: {
 					switch ti.size {
-						case 4: (cast(^f32)data)^ = cast(f32)value_kind.float_value;
-						case 8: (cast(^f64)data)^ =          value_kind.float_value;
+						case 4: (cast(^f32)data)^ = cast(f32)value_kind.float_value * cast(f32)sign;
+						case 8: (cast(^f64)data)^ =          value_kind.float_value * cast(f64)sign;
 						case: panic(tprint(ti.size));
 					}
 				}
