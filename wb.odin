@@ -266,7 +266,12 @@ _update_debug_window :: proc() {
 			num_draw_calls,
 		};
 
-		if imgui.begin("Debug") {
+		imgui.set_next_window_pos(imgui.Vec2{0, 0});
+		imgui.set_next_window_size(imgui.Vec2{200, current_window_height});
+		if imgui.begin("Debug", nil, imgui.Window_Flags.NoResize |
+	                                 imgui.Window_Flags.NoMove |
+	                                 imgui.Window_Flags.NoCollapse |
+	                                 imgui.Window_Flags.NoBringToFrontOnFocus) {
 			static show_imgui_demo_window := false;
 			static show_profiler_window := false;
 

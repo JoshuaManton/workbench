@@ -10,6 +10,7 @@ import imgui "shared:workbench/external/imgui"
 
 Profiler :: struct {
 	is_recording: bool,
+	was_cleared: bool,
 
 	get_time_proc: proc() -> f64,
 	this_frame_sections: map[u64]Section_Statistics,
@@ -36,7 +37,7 @@ _Timed_Section_Info :: struct {
 }
 
 make_profiler :: proc(get_time_proc: proc() -> f64) -> Profiler {
-	return Profiler{false, get_time_proc, {}, {}};
+	return Profiler{false, false, get_time_proc, {}, {}};
 }
 
 profiler_imgui_window :: proc(profiler: ^Profiler) {
@@ -73,17 +74,18 @@ profiler_imgui_window :: proc(profiler: ^Profiler) {
 }
 
 profiler_new_frame :: proc(profiler: ^Profiler) {
-
+	profiler.was_cleared = false;
 }
 
 clear_profiler :: proc(using profiler: ^Profiler) {
+	was_cleared = true;
 	clear(&this_frame_sections);
 	clear(&all_sections);
 }
 
 destroy_profiler :: proc(using profiler: ^Profiler) {
-	delete(all_sections);
 	delete(this_frame_sections);
+	delete(all_sections);
 }
 
 @(deferred=END_TIMED_SECTION)
@@ -121,6 +123,7 @@ TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) 
 
 END_TIMED_SECTION :: proc(using info: _Timed_Section_Info, _valid: bool) {
 	if !_valid do return;
+	if profiler.was_cleared do return;
 
 	assert(profiler.get_time_proc != nil, "No `get_time_proc` was set before calling END_TIMED_SECTION().");
 
