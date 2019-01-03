@@ -223,7 +223,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						if right_curly, ok2 := token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
 							break;
 						}
-
+						
 						variable_name, ok2 := token.kind.(laas.Identifier);
 						assert(ok2);
 
@@ -397,7 +397,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 					case uintptr: val, ok := get_val_for_name(value_kind.value, uintptr, kind); assert(ok); (cast(^uintptr)data)^ = val;
 					}
 				}
+				case rt.Type_Info_Map: {
 
+				}
 				case: {
 					assert(false, tprint(kind));
 				}
@@ -433,6 +435,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						case 8: (cast(^f64)data)^ =          value_kind.float_value * cast(f64)sign;
 						case: panic(tprint(ti.size));
 					}
+				}
+				case rt.Type_Info_Named: {
+					parse_value(lexer, parent_token, data, num_kind.base);
 				}
 				case: {
 					assert(false, tprint(num_kind));
