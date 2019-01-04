@@ -30,6 +30,11 @@ serialize :: proc(value: ^$Type) -> string {
 			sbprint(sb, ..args);
 		}
 
+		if name == "_unserialized" {
+			indent_level -= 1;
+			return;
+		}
+
 		if name != "" {
 			print_to_buff(sb, name, " ");
 		}
