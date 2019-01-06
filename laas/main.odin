@@ -63,6 +63,10 @@ Symbol :: struct {
     value: rune,
 }
 
+New_Line :: struct {
+	value: rune,
+}
+
 Token :: struct {
     slice_of_text: string,
 
@@ -71,6 +75,7 @@ Token :: struct {
         Number,
         String,
         Symbol,
+        New_Line,
     },
 }
 
@@ -80,9 +85,7 @@ make_lexer :: inline proc(text: string) -> Lexer {
 
 get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_location) -> bool {
 	if lex_idx >= len(lexer_text) do return false;
-	had_whitespace_before_token := false;
 	for _is_whitespace(lexer_text[lex_idx]) {
-		had_whitespace_before_token = true;
 		if !_inc(lexer) do return false;
 	}
 
@@ -116,6 +119,10 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 			token^ = Token{lexer_text[lex_idx:lex_idx+1], Symbol{r}};
 		}
 
+		case '\n': {
+			token^ = Token{lexer_text[lex_idx:lex_idx], New_Line{r}};
+		}
+		
 		case 'A'..'Z', 'a'..'z', '_': {
 			start := lex_idx;
 			ident_loop:
@@ -200,9 +207,10 @@ peek :: proc(lexer: ^Lexer, out_token: ^Token) -> bool {
 
 _is_whitespace :: inline proc(r: u8) -> bool {
 	switch cast(rune)r {
-		case ' ', '\n', '\r', '\t': {
+		case ' ', '\r', '\t': {
 			return true;
 		}
+		//case '\n': return false;
 	}
 	return false;
 }
@@ -212,7 +220,9 @@ _dec :: inline proc(using lexer: ^Lexer) {
 	lex_char -= 1;
 }
 
-_inc :: proc(using lexer: ^Lexer) -> bool {
+_inc :: proc(using lexer: ^Lexer, location := #caller_location) -> bool {
+	if lex_idx >= len(lexer_text) do
+		printf(tprint(location));
 	r := lexer_text[lex_idx];
 	lex_idx += 1;
 

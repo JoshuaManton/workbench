@@ -121,7 +121,7 @@ void main() {
 	bytes.b = desired.b;
 	bytes.a &= old_r & desired.a;
 
-	color = vec4(bytes.r, bytes.g, bytes.b, bytes.a) / 255f;
+	color = vec4(bytes.r, bytes.g, bytes.b, bytes.a) / 255;
 }
 `;
 

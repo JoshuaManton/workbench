@@ -2,9 +2,9 @@ package wbml
 
 import rt "core:runtime"
 import "core:mem"
-import "core:strings"
 import "core:types"
 
+using import "core:strings"
 using import "core:fmt"
 using import "../laas"
 
@@ -19,15 +19,20 @@ main :: proc() {
 }
 
 serialize :: proc(value: ^$Type) -> string {
-	serialize_one_thing :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^String_Buffer, indent_level: int) {
-		print_indents :: inline proc(indent_level: int, sb: ^String_Buffer) {
+	serialize_one_thing :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int) {
+		print_indents :: inline proc(indent_level: int, sb: ^Builder) {
 			for i in 0..indent_level-1 {
 				sbprint(sb, "\t");
 			}
 		}
 
-		print_to_buff :: inline proc(sb: ^String_Buffer, args: ..any) {
+		print_to_buff :: inline proc(sb: ^Builder, args: ..any) {
 			sbprint(sb, ..args);
+		}
+
+		if name == "_unserialized" {
+			indent_level -= 1;
+			return;
 		}
 
 		if name != "" {
@@ -109,13 +114,15 @@ serialize :: proc(value: ^$Type) -> string {
 			}
 
 			case rt.Type_Info_String: {
-				print_to_buff(sb, "\"", (cast(^string)value)^, "\"");
+				if name[0] == '_' do
+					print_to_buff(sb, "`", (cast(^string)value)^, "`");
+				else do
+					print_to_buff(sb, "\"", (cast(^string)value)^, "\"");
 			}
 
 			case rt.Type_Info_Named: {
 				serialize_one_thing("", value, kind.base, sb, indent_level);
 			}
-
 			case rt.Type_Info_Struct: {
 				print_to_buff(sb, "{\n"); indent_level += 1;
 				for name, idx in kind.names {
@@ -163,6 +170,10 @@ serialize :: proc(value: ^$Type) -> string {
 				indent_level -= 1; print_indents(indent_level, sb); print_to_buff(sb, "]");
 			}
 
+			case rt.Type_Info_Map: {
+				// TODO support map
+			}
+
 			case: panic(tprint(kind));
 		}
 
@@ -171,7 +182,7 @@ serialize :: proc(value: ^$Type) -> string {
 		}
 	}
 
-	sb: String_Buffer;
+	sb: Builder;
 	ti := type_info_of(Type);
 	serialize_one_thing("", value, ti, &sb, 0);
 
@@ -214,10 +225,16 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 				case '{': {
 					token: Token;
 					for get_next_token(lexer, &token) {
+						
+						for get_next_token(lexer, &token) {
+							if _, is_newline := token.kind.(laas.New_Line); is_newline do continue;
+							else do break;
+						}
+
 						if right_curly, ok2 := token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
 							break;
 						}
-
+						
 						variable_name, ok2 := token.kind.(laas.Identifier);
 						assert(ok2);
 
@@ -256,7 +273,6 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						case rt.Type_Info_Array: {
 							num_entries: int;
 							for {
-								defer num_entries += 1;
 								if num_entries > array_kind.count {
 									assert(false, "Too many array elements");
 								}
@@ -264,6 +280,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
+								
+								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
+								defer num_entries += 1;
 
 								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
@@ -278,11 +297,13 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 							num_entries: int;
 							for {
-								defer num_entries += 1;
 
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
+
+								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
+								defer num_entries += 1;
 
 								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
@@ -309,11 +330,13 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 							num_entries: int;
 							for {
-								defer num_entries += 1;
 
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
+
+								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
+								defer num_entries += 1;
 
 								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
 									if symbol.value == ']' do break;
@@ -391,7 +414,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 					case uintptr: val, ok := get_val_for_name(value_kind.value, uintptr, kind); assert(ok); (cast(^uintptr)data)^ = val;
 					}
 				}
+				case rt.Type_Info_Map: {
 
+				}
 				case: {
 					assert(false, tprint(kind));
 				}
@@ -427,6 +452,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						case 8: (cast(^f64)data)^ =          value_kind.float_value * cast(f64)sign;
 						case: panic(tprint(ti.size));
 					}
+				}
+				case rt.Type_Info_Named: {
+					parse_value(lexer, parent_token, data, num_kind.base);
 				}
 				case: {
 					assert(false, tprint(num_kind));
