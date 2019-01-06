@@ -2,9 +2,9 @@ package wbml
 
 import rt "core:runtime"
 import "core:mem"
-import "core:strings"
 import "core:types"
 
+using import "core:strings"
 using import "core:fmt"
 using import "../laas"
 
@@ -19,14 +19,14 @@ main :: proc() {
 }
 
 serialize :: proc(value: ^$Type) -> string {
-	serialize_one_thing :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^String_Buffer, indent_level: int) {
-		print_indents :: inline proc(indent_level: int, sb: ^String_Buffer) {
+	serialize_one_thing :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int) {
+		print_indents :: inline proc(indent_level: int, sb: ^Builder) {
 			for i in 0..indent_level-1 {
 				sbprint(sb, "\t");
 			}
 		}
 
-		print_to_buff :: inline proc(sb: ^String_Buffer, args: ..any) {
+		print_to_buff :: inline proc(sb: ^Builder, args: ..any) {
 			sbprint(sb, ..args);
 		}
 
@@ -182,7 +182,7 @@ serialize :: proc(value: ^$Type) -> string {
 		}
 	}
 
-	sb: String_Buffer;
+	sb: Builder;
 	ti := type_info_of(Type);
 	serialize_one_thing("", value, ti, &sb, 0);
 
