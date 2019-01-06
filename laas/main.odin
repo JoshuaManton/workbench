@@ -122,7 +122,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 		case '\n': {
 			token^ = Token{lexer_text[lex_idx:lex_idx], New_Line{r}};
 		}
-		
+
 		case 'A'..'Z', 'a'..'z', '_': {
 			start := lex_idx;
 			ident_loop:
@@ -188,7 +188,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 		}
 
 		case: {
-			fmt.println("Unknown token:", cast(rune)lexer_text[lex_idx], "at line", token_start_line, "column", token_start_char);
+			fmt.println("Unknown token:", cast(rune)lexer_text[lex_idx], "at line", token_start_line, "column", token_start_char, "loc:", loc);
 			assert(false);
 		}
 	}
