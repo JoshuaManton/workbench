@@ -19,6 +19,9 @@ note(josh): laas never allocates, tokens are just slices of the source text
 	// Returns a `bool` indicating whether this is a valid token (true) or we have reached the end of the stream (false)
 	get_next_token :: proc(lexer: ^Lexer, token: ^Token) -> bool
 
+	// returns the next token without advancing the lexer
+	peek :: proc(lexer: ^Lexer, out_token: ^Token) -> bool
+
 => Usage
 
 import "shared:laas"
