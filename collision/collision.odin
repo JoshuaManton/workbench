@@ -91,7 +91,9 @@ boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, oth
 _temp_hit_buffer: [dynamic]Hit_Info;
 _temp_hit_buffer_in_use: bool;
 _temp_hit_buffer_user: rt.Source_Code_Location;
-get_temp_hits_buffer :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
+
+@(deferred=_RETURN_TEMP_HITS_BUFFER)
+GET_TEMP_HITS_BUFFER :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
 	if _temp_hit_buffer_in_use {
 		panic(tprint("temp_hit_buffer is already in use by ", pretty_location(_temp_hit_buffer_user), ". Caller: ", pretty_location(loc)));
 	}
@@ -100,7 +102,7 @@ get_temp_hits_buffer :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
 	return &_temp_hit_buffer;
 }
 
-return_temp_hits_buffer :: proc() {
+_RETURN_TEMP_HITS_BUFFER :: proc(_: ^[dynamic]Hit_Info) {
 	_temp_hit_buffer_in_use = false;
 	_temp_hit_buffer_user = {};
 }

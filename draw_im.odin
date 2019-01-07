@@ -185,10 +185,15 @@ get_string_width :: inline proc(rendermode: Rendermode_Proc, font: ^Font, str: s
 
 current_render_layer: int;
 
-swap_render_layers :: inline proc(auto_cast layer: int) -> int {
+@(deferred=_POP_RENDER_LAYER)
+PUSH_RENDER_LAYER :: proc(auto_cast layer: int) -> int {
 	tmp := current_render_layer;
 	current_render_layer = layer;
 	return tmp;
+}
+
+_POP_RENDER_LAYER :: proc(layer: int) {
+	current_render_layer = layer;
 }
 
 //
