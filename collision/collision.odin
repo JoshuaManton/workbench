@@ -60,7 +60,6 @@ destroy_collision_scene :: proc(using scene: ^Collision_Scene) {
 	delete(colliders);
 }
 
-// todo(josh): these *cast functions should probably sort their outputs
 linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
 	for handle, collider in colliders {
