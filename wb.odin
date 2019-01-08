@@ -64,6 +64,7 @@ make_simple_window :: proc(window_name: string,
 	_init_opengl(opengl_version_major, opengl_version_minor);
 	_init_random_number_generator();
 	_init_dear_imgui();
+	_init_draw();
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
@@ -108,6 +109,10 @@ make_simple_window :: proc(window_name: string,
 				_update_workspaces(); // calls client updates
 
 				_late_update_ui();
+
+				if imgui.begin("Scene View") {
+					imgui.image(rawptr(uintptr(scene_texture)), imgui.Vec2{960, 540}, imgui.Vec2{1,1}, imgui.Vec2{0,0});
+				} imgui.end();
 
 	    		imgui.pop_font();
 

@@ -197,7 +197,34 @@ draw_debug_lines :: inline proc() {
 	}
 }
 
+fbo : Frame_Buffer;
+scene_texture : Texture;
+render_buffer : Render_Buffer;
+_init_draw :: proc() {
+	fbo = gen_frame_buffer();
+	bind_frame_buffer(fbo);
 
+	scene_texture = gen_texture();
+	bind_texture2d(scene_texture);
+
+	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA32F, 960, 540, 0, odingl.RGB, odingl.UNSIGNED_BYTE, nil);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
+
+	render_buffer = gen_render_buffer();
+	bind_buffer(render_buffer);
+	odingl.RenderbufferStorage(odingl.RENDERBUFFER, odingl.DEPTH_COMPONENT, 960, 540);
+	odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, odingl.DEPTH_ATTACHMENT, odingl.RENDERBUFFER, u32(render_buffer));
+
+	odingl.FramebufferTexture(odingl.FRAMEBUFFER, odingl.COLOR_ATTACHMENT0, u32(scene_texture), 0);
+	buffers := []u32{ odingl.COLOR_ATTACHMENT0 };
+    odingl.DrawBuffers(1, &buffers[0]);
+
+	if(odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE) do
+		panic("Failed to setup frame buffer");
+
+	bind_frame_buffer(0);
+}
 
 _clear_render_buffers :: proc() {
 	clear(&debug_vertices);
@@ -234,11 +261,22 @@ render_workspace :: proc(workspace: Workspace) {
 
 	_prerender();
 
-	flush_3d();
-	im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
-	draw_debug_lines();
-	imgui_render(true);
+	{
+		bind_frame_buffer(fbo);
+		odingl.Viewport(0, 0, 960, 540);
+		set_clear_color(Colorf{91.0/255,129.0/255,191.0/255,1});
+		odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT | odingl.STENCIL_BUFFER_BIT);
 
+		flush_3d();
+		im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
+		draw_debug_lines();
+
+		bind_frame_buffer(0);
+	}
+
+	set_clear_color(Colorf{0,0,0,0});
+
+	imgui_render(true);
 	log_gl_errors(tprint("workspace_name: ", workspace.name));
 }
 
