@@ -71,6 +71,8 @@ make_simple_window :: proc(window_name: string,
 	start_workspace(workspace);
 	_init_new_workspaces();
 
+	_init_draw();
+
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
 		pf.profiler_new_frame(&wb_profiler);
@@ -98,6 +100,7 @@ make_simple_window :: proc(window_name: string,
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
 
+	    		_update_draw();
 				_update_catalog();
 				_update_glfw();
 				_update_tween();
@@ -238,8 +241,8 @@ _end_all_workspaces :: proc() {
 
 client_debug_window_proc: proc();
 
+debug_window_open: bool;
 _update_debug_window :: proc() {
-	static debug_window_open: bool;
 
 	if get_input_down(Input.F1) {
 		debug_window_open = !debug_window_open;

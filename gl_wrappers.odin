@@ -14,6 +14,7 @@ VAO             :: distinct u32;
 VBO             :: distinct u32;
 EBO             :: distinct u32;
 Texture         :: distinct u32;
+Render_Buffer   :: distinct u32;
 Location        :: distinct i32;
 
 gen_vao :: inline proc(loc := #caller_location) -> VAO {
@@ -56,7 +57,14 @@ gen_frame_buffer :: inline proc(loc := #caller_location) -> Frame_Buffer {
 	return cast(Frame_Buffer)buffer;
 }
 
-bind_buffer :: proc{bind_buffer_vbo, bind_buffer_ebo, bind_frame_buffer};
+gen_render_buffer :: inline proc(loc := #caller_location) -> Render_Buffer {
+	buffer: u32;
+	odingl.GenRenderbuffers(1, &buffer);
+	log_gl_errors(#procedure, loc);
+	return cast(Render_Buffer)buffer;
+}
+
+bind_buffer :: proc{bind_buffer_vbo, bind_buffer_ebo, bind_frame_buffer, bind_render_buffer};
 bind_buffer_vbo :: inline proc(vbo: VBO, loc := #caller_location) {
 	odingl.BindBuffer(odingl.ARRAY_BUFFER, cast(u32)vbo);
 	log_gl_errors(#procedure, loc);
@@ -67,6 +75,10 @@ bind_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 }
 bind_frame_buffer :: inline proc(frame_buffer: Frame_Buffer, loc := #caller_location) {
 	odingl.BindFramebuffer(odingl.FRAMEBUFFER, u32(frame_buffer));
+	log_gl_errors(#procedure, loc);
+}
+bind_render_buffer :: inline proc(render_buffer: Render_Buffer, loc := #caller_location) {
+	odingl.BindRenderbuffer(odingl.RENDERBUFFER, u32(render_buffer));
 	log_gl_errors(#procedure, loc);
 }
 

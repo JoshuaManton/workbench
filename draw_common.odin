@@ -197,7 +197,55 @@ draw_debug_lines :: inline proc() {
 	}
 }
 
+frame_buffer : Frame_Buffer;
+scene_texture : Texture;
+render_buffer : Render_Buffer;
+_init_draw :: proc() {
+	frame_buffer = gen_frame_buffer();
+	bind_buffer(frame_buffer);
 
+	scene_texture = gen_texture();
+	bind_texture2d(scene_texture);
+
+	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA32F, 1920, 1080, 0, odingl.RGB, odingl.UNSIGNED_BYTE, nil);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
+	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
+	odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, odingl.COLOR_ATTACHMENT0, odingl.TEXTURE_2D, u32(scene_texture), 0);
+
+	render_buffer = gen_render_buffer();
+	bind_buffer(render_buffer);
+	odingl.RenderbufferStorage(odingl.RENDERBUFFER, odingl.DEPTH24_STENCIL8, 1920, 1080);
+	odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, odingl.DEPTH_STENCIL_ATTACHMENT, odingl.RENDERBUFFER, u32(render_buffer));
+
+	if(odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE) do
+		panic("Failed to setup frame buffer");
+
+	bind_texture2d(0);
+	bind_buffer(Render_Buffer(0));
+	bind_frame_buffer(0);
+}
+
+_update_draw :: proc() {
+	if !debug_window_open do return;
+	if imgui.begin("Scene View") {
+	    window_size := imgui.get_window_size();
+		imgui.image(rawptr(uintptr(scene_texture)), 
+			imgui.Vec2{window_size.x - 10, window_size.y - 30}, 
+			imgui.Vec2{0,1}, 
+			imgui.Vec2{1,0});
+	} imgui.end();
+}
+
+begin_frame_buffer :: proc() {
+	bind_frame_buffer(frame_buffer);
+	odingl.Viewport(0, 0, 1920, 1080);
+	set_clear_color(Colorf{91.0/255,129.0/255,191.0/255,1});
+	odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT);
+}
+
+end_frame_buffer :: proc() {
+	bind_frame_buffer(0);
+}
 
 _clear_render_buffers :: proc() {
 	clear(&debug_vertices);
@@ -234,11 +282,19 @@ render_workspace :: proc(workspace: Workspace) {
 
 	_prerender();
 
-	flush_3d();
-	im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
-	draw_debug_lines();
-	imgui_render(true);
+	{
+		if debug_window_open do begin_frame_buffer();
 
+		flush_3d();
+		im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
+		draw_debug_lines();
+
+		if debug_window_open do end_frame_buffer();
+	}
+
+	set_clear_color(Colorf{0,0,0,0});
+
+	imgui_render(true);
 	log_gl_errors(tprint("workspace_name: ", workspace.name));
 }
 
