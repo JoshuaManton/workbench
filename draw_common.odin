@@ -236,14 +236,17 @@ _update_draw :: proc() {
 	} imgui.end();
 }
 
-begin_frame_buffer :: proc() {
+@(deferred=_END_FRAME_BUFFER)
+BEGIN_FRAME_BUFFER :: proc() {
+	if !debug_window_open do return;
 	bind_frame_buffer(frame_buffer);
 	odingl.Viewport(0, 0, 1920, 1080);
 	set_clear_color(Colorf{91.0/255,129.0/255,191.0/255,1});
 	odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT);
 }
 
-end_frame_buffer :: proc() {
+_END_FRAME_BUFFER :: proc() {
+	if !debug_window_open do return;
 	bind_frame_buffer(0);
 }
 
@@ -283,13 +286,11 @@ render_workspace :: proc(workspace: Workspace) {
 	_prerender();
 
 	{
-		if debug_window_open do begin_frame_buffer();
+		BEGIN_FRAME_BUFFER();
 
 		flush_3d();
 		im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
 		draw_debug_lines();
-
-		if debug_window_open do end_frame_buffer();
 	}
 
 	set_clear_color(Colorf{0,0,0,0});
