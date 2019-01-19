@@ -88,7 +88,7 @@ destroy_profiler :: proc(using profiler: ^Profiler) {
 	delete(all_sections);
 }
 
-@(deferred=END_TIMED_SECTION)
+@(deferred_out=END_TIMED_SECTION)
 TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) -> (_Timed_Section_Info, bool) {
 	assert(profiler.get_time_proc != nil, "No `get_time_proc` was set before calling TIMED_SECTION().");
 

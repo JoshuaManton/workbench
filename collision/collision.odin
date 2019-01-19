@@ -91,7 +91,7 @@ _temp_hit_buffer: [dynamic]Hit_Info;
 _temp_hit_buffer_in_use: bool;
 _temp_hit_buffer_user: rt.Source_Code_Location;
 
-@(deferred=_RETURN_TEMP_HITS_BUFFER)
+@(deferred_out=_RETURN_TEMP_HITS_BUFFER)
 GET_TEMP_HITS_BUFFER :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
 	if _temp_hit_buffer_in_use {
 		panic(tprint("temp_hit_buffer is already in use by ", pretty_location(_temp_hit_buffer_user), ". Caller: ", pretty_location(loc)));
