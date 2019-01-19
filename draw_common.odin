@@ -155,47 +155,47 @@ normalize_camera_rotation :: proc(using camera: ^Camera) {
 // Debug
 //
 
-Line_Segment :: struct {
-	a, b: Vec3,
-	color: Colorf,
-	rendermode: Rendermode_Proc,
-}
+// Line_Segment :: struct {
+// 	a, b: Vec3,
+// 	color: Colorf,
+// 	rendermode: Rendermode_Proc,
+// }
 
-debug_vertices: [dynamic]Buffered_Vertex;
+// debug_vertices: [dynamic]Draw_Command;
 
-push_debug_vertex :: inline proc(rendermode: Rendermode_Proc, a: Vec3, color: Colorf) {
-	v := Buffered_Vertex{0, len(debug_vertices), a, {}, color, rendermode, shader_rgba, {}, false, full_screen_scissor_rect()};
-	append(&debug_vertices, v);
-}
+// push_debug_vertex :: inline proc(rendermode: Rendermode_Proc, a: Vec3, color: Colorf) {
+// 	v := Buffered_Vertex{0, len(debug_vertices), a, {}, color, rendermode, shader_rgba, {}, false, full_screen_scissor_rect()};
+// 	append(&debug_vertices, v);
+// }
 
-push_debug_line :: inline proc(rendermode: Rendermode_Proc, a, b: Vec3, color: Colorf) {
-	push_debug_vertex(rendermode, a, color);
-	push_debug_vertex(rendermode, b, color);
-}
+// push_debug_line :: inline proc(rendermode: Rendermode_Proc, a, b: Vec3, color: Colorf) {
+// 	push_debug_vertex(rendermode, a, color);
+// 	push_debug_vertex(rendermode, b, color);
+// }
 
-push_debug_box :: proc{push_debug_box_min_max, push_debug_box_points};
-push_debug_box_min_max :: inline proc(rendermode: Rendermode_Proc, min, max: Vec3, color: Colorf) {
-	push_debug_line(rendermode, Vec3{min.x, min.y, min.z}, Vec3{min.x, max.y, max.z}, color);
-	push_debug_line(rendermode, Vec3{min.x, max.y, max.z}, Vec3{max.x, max.y, max.z}, color);
-	push_debug_line(rendermode, Vec3{max.x, max.y, max.z}, Vec3{max.x, min.y, min.z}, color);
-	push_debug_line(rendermode, Vec3{max.x, min.y, min.z}, Vec3{min.x, min.y, min.z}, color);
-}
-push_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Vec3, color: Colorf) {
-	push_debug_line(rendermode, a, b, color);
-	push_debug_line(rendermode, b, c, color);
-	push_debug_line(rendermode, c, d, color);
-	push_debug_line(rendermode, d, a, color);
-}
+// push_debug_box :: proc{push_debug_box_min_max, push_debug_box_points};
+// push_debug_box_min_max :: inline proc(rendermode: Rendermode_Proc, min, max: Vec3, color: Colorf) {
+// 	push_debug_line(rendermode, Vec3{min.x, min.y, min.z}, Vec3{min.x, max.y, max.z}, color);
+// 	push_debug_line(rendermode, Vec3{min.x, max.y, max.z}, Vec3{max.x, max.y, max.z}, color);
+// 	push_debug_line(rendermode, Vec3{max.x, max.y, max.z}, Vec3{max.x, min.y, min.z}, color);
+// 	push_debug_line(rendermode, Vec3{max.x, min.y, min.z}, Vec3{min.x, min.y, min.z}, color);
+// }
+// push_debug_box_points :: inline proc(rendermode: Rendermode_Proc, a, b, c, d: Vec3, color: Colorf) {
+// 	push_debug_line(rendermode, a, b, color);
+// 	push_debug_line(rendermode, b, c, color);
+// 	push_debug_line(rendermode, c, d, color);
+// 	push_debug_line(rendermode, d, a, color);
+// }
 
-draw_debug_lines :: inline proc() {
-	assert(len(debug_vertices) % 2 == 0);
-	depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
-	odingl.Disable(odingl.DEPTH_TEST);
-	im_draw_flush(odingl.LINES, debug_vertices[:]);
-	if depth_test == odingl.TRUE {
-		odingl.Enable(odingl.DEPTH_TEST);
-	}
-}
+// draw_debug_lines :: inline proc() {
+// 	assert(len(debug_vertices) % 2 == 0);
+// 	depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
+// 	odingl.Disable(odingl.DEPTH_TEST);
+// 	im_draw_flush(odingl.LINES, debug_vertices[:]);
+// 	if depth_test == odingl.TRUE {
+// 		odingl.Enable(odingl.DEPTH_TEST);
+// 	}
+// }
 
 frame_buffer : Frame_Buffer;
 scene_texture : Texture;
@@ -229,14 +229,14 @@ _update_draw :: proc() {
 	if !debug_window_open do return;
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
-		imgui.image(rawptr(uintptr(scene_texture)), 
-			imgui.Vec2{window_size.x - 10, window_size.y - 30}, 
-			imgui.Vec2{0,1}, 
+		imgui.image(rawptr(uintptr(scene_texture)),
+			imgui.Vec2{window_size.x - 10, window_size.y - 30},
+			imgui.Vec2{0,1},
 			imgui.Vec2{1,0});
 	} imgui.end();
 }
 
-@(deferred=_END_FRAME_BUFFER)
+@(deferred_none=_END_FRAME_BUFFER)
 BEGIN_FRAME_BUFFER :: proc() {
 	if !debug_window_open do return;
 	bind_frame_buffer(frame_buffer);
@@ -251,8 +251,8 @@ _END_FRAME_BUFFER :: proc() {
 }
 
 _clear_render_buffers :: proc() {
-	clear(&debug_vertices);
-	clear(&im_buffered_verts);
+	// clear(&debug_vertices);
+	clear(&buffered_draw_commands);
 }
 
 _prerender :: proc() {
@@ -288,9 +288,9 @@ render_workspace :: proc(workspace: Workspace) {
 	{
 		BEGIN_FRAME_BUFFER();
 
-		flush_3d();
-		im_draw_flush(odingl.TRIANGLES, im_buffered_verts[:]);
-		draw_debug_lines();
+		// flush_3d();
+		im_draw_flush(odingl.TRIANGLES, buffered_draw_commands[:]);
+		// draw_debug_lines();
 	}
 
 	set_clear_color(Colorf{0,0,0,0});

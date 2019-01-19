@@ -14,28 +14,6 @@ using import        "core:fmt"
       import imgui  "external/imgui"
       import ai     "external/assimp"
 
-Vertex3D :: struct {
-	position: Vec3,
-	tex_coord: Vec3,
-	color: Colorf,
-	normal: Vec3,
-}
-
-Mesh :: struct {
-	vertex_array: VAO,
-	vertex_buffer: VBO,
-	index_buffer: EBO,
-	index_count : int,
-	vertex_count : int,
-	color: Colorf,
-	name : string,
-}
-
-Model :: struct {
-	meshes: []MeshID
-}
-
-MeshID :: int;
 all_meshes: map[MeshID]Mesh;
 
 buffer_model :: proc(data: Model_Data) -> Model {
@@ -48,8 +26,8 @@ buffer_model :: proc(data: Model_Data) -> Model {
 	return Model{meshes[:]};
 }
 
-cur_mesh_id: int;
 buffer_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> MeshID {
+	static last_mesh_id: int;
 
 	vertex_array := gen_vao(); // genVertexArrays
 	vertex_buffer := gen_vbo(); //genVertexBuffers
@@ -69,13 +47,11 @@ buffer_mesh :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> Mesh
 
 	bind_vao(VAO(0)); // release vertex array
 
-	id := MeshID(cur_mesh_id);
-	cur_mesh_id += 1;
+	last_mesh_id += 1;
+	id := MeshID(last_mesh_id);
 
-	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), Colorf{1, 1, 1, 1}, name};
+	mesh := Mesh{vertex_array, vertex_buffer, index_buffer, len(indicies), len(vertices), name};
 	all_meshes[id] = mesh;
-
-	//logln(all_meshes);
 
 	return id;
 }
@@ -106,113 +82,102 @@ model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation:
 
 // Rendering
 
-im_buffered_meshes: [dynamic]Buffered_Mesh;
-im_queued_meshes: [dynamic]Buffered_Mesh;
+// im_buffered_meshes: [dynamic]Buffered_Mesh;
+// im_queued_meshes: [dynamic]Buffered_Mesh;
 
-Buffered_Mesh :: struct {
-	id       : MeshID,
-	position : Vec3,
-	scale    : Vec3,
-	rotation : Vec3,
-	texture  : Texture,
-	shader   : Shader_Program,
-	color    : Colorf,
-}
+// Buffered_Mesh :: struct {
+// 	id       : MeshID,
+// 	position : Vec3,
+// 	scale    : Vec3,
+// 	rotation : Vec3,
+// 	texture  : Texture,
+// 	shader   : Shader_Program,
+// 	color    : Colorf,
+// }
 
-push_mesh :: inline proc(id: MeshID,
-				  position: Vec3,
-				  scale: Vec3,
-				  rotation: Vec3,
-		          texture: Texture,
-		          shader: Shader_Program,
-		          color: Colorf)
-{
-	append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader, color});
-}
+// flush_3d :: proc() {
+// 	draw_mesh :: inline proc(mesh: Mesh) {
+// 		when DEVELOPER {
+// 			if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
+// 				num_draw_calls += 1;
+// 				return;
+// 			}
+// 		}
 
-flush_3d :: proc() {
-	draw_mesh :: inline proc(mesh: Mesh) {
-		when DEVELOPER {
-			if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
-				num_draw_calls += 1;
-				return;
-			}
-		}
+// 		bind_vao(mesh.vertex_array);
+// 		bind_buffer(mesh.vertex_buffer);
+// 		bind_buffer(mesh.index_buffer);
 
-		bind_vao(mesh.vertex_array);
-		bind_buffer(mesh.vertex_buffer);
-		bind_buffer(mesh.index_buffer);
+// 		program := get_current_shader();
 
-		program := get_current_shader();
+// 		// :MeshColor
+// 		uniform4f(program, "mesh_color", mesh.color.r, mesh.color.g, mesh.color.b, mesh.color.a);
+// 		uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
-		// :MeshColor
-		uniform4f(program, "mesh_color", mesh.color.r, mesh.color.g, mesh.color.b, mesh.color.a);
-		uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+// 		num_draw_calls += 1;
 
-		num_draw_calls += 1;
+// 		if debugging_rendering {
+// 			odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+// 		}
+// 		else {
+// 			odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+// 		}
+// 	}
 
-		if debugging_rendering {
-			odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
-		}
-		else {
-			odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
-		}
-	}
+// 	flush_queue :: inline proc() {
+// 		// note(josh): once we have instancing that will break the current way we
+// 		// do mesh colors at :MeshColor because that depends on setting the color
+// 		// on a per-mesh-instance-in-the-world basis
+// 		for queued_mesh in im_queued_meshes {
+// 			mesh, ok := all_meshes[queued_mesh.id];
+// 			if !ok {
+// 				clear(&im_queued_meshes);
+// 				return;
+// 			}
 
-	flush_queue :: inline proc() {
-		// note(josh): once we have instancing that will break the current way we
-		// do mesh colors at :MeshColor because that depends on setting the color
-		// on a per-mesh-instance-in-the-world basis
-		for queued_mesh in im_queued_meshes {
-			mesh, ok := all_meshes[queued_mesh.id];
-			if !ok {
-				clear(&im_queued_meshes);
-				return;
-			}
+// 			mesh.color = queued_mesh.color;
 
-			mesh.color = queued_mesh.color;
+// 			model_matrix_from_elements(queued_mesh.position, queued_mesh.scale, queued_mesh.rotation);
+// 			rendermode_world();
+// 			draw_mesh(mesh);
+// 		}
+// 		clear(&im_queued_meshes);
+// 	}
 
-			model_matrix_from_elements(queued_mesh.position, queued_mesh.scale, queued_mesh.rotation);
-			rendermode_world();
-			draw_mesh(mesh);
-		}
-		clear(&im_queued_meshes);
-	}
+// 	current_shader:  Shader_Program = 0;
+// 	current_texture: Texture        = 0;
 
-	current_shader:     Shader_Program  = 0;
-	current_texture:    Texture         = 0;
+// 	sort.quick_sort_proc(im_buffered_meshes[:], proc(a, b: Buffered_Mesh) -> int {
+// 			if a.texture == b.texture && a.shader == b.shader do return 0;
+// 			return int(a.texture - b.texture);
+// 		});
 
-	sort.quick_sort_proc(im_buffered_meshes[:], proc(a, b: Buffered_Mesh) -> int {
-			if a.texture == b.texture && a.shader == b.shader do return 0;
-			return int(a.texture - b.texture);
-		});
+// 	for buffered_mesh in im_buffered_meshes {
+// 		using buffered_mesh;
 
-	for buffered_mesh in im_buffered_meshes {
-		using buffered_mesh;
+// 		shader_mismatch  := shader != current_shader;
+// 		texture_mismatch := texture != current_texture;
 
-		shader_mismatch  := shader != current_shader;
-		texture_mismatch := texture != current_texture;
+// 		if shader_mismatch || texture_mismatch {
+// 			flush_queue();
+// 		}
 
-		if shader_mismatch || texture_mismatch {
-			flush_queue();
-		}
+// 		if shader_mismatch {
+// 			current_shader = shader;
+// 			use_program(shader);
+// 		}
 
-		if shader_mismatch {
-			current_shader = shader;
-			use_program(shader);
-		}
+// 		if texture_mismatch {
+// 			current_texture = texture;
+// 			bind_texture2d(texture);
+// 		}
 
-		if texture_mismatch {
-			current_texture = texture;
-			bind_texture2d(texture);
-		}
+// 		append(&im_queued_meshes, buffered_mesh);
+// 	}
 
-		append(&im_queued_meshes, buffered_mesh);
-	}
-
-	flush_queue();
-	clear(&im_buffered_meshes);
-}
+// 	flush_queue();
+// 	clear(&im_buffered_meshes);
+// }
 
 // Mesh primitives
 
