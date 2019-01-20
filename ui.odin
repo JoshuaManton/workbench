@@ -297,7 +297,7 @@ ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0
 //
 
 Text_Data :: struct {
-	font: ^Font,
+	font_id: FontID,
 	size: f32,
 	color: Colorf,
 
@@ -314,7 +314,8 @@ Text_Data :: struct {
 
 ui_text :: proc{ui_text_data, ui_text_args};
 ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
-	assert(font != nil, tprint(loc));
+	font, ok := get_font_data(font_id);
+	assert(ok, tprint(loc));
 
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	defer ui_pop_rect(loc);
@@ -323,7 +324,7 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * current_window_height / font.size * size;
 
 	if center {
-		ww := get_string_width(rendermode_unit, font, str, height);
+		ww := get_string_width(rendermode_unit, font_id, str, height);
 		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
 		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
@@ -336,20 +337,21 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	}
 
 	if shadow != 0 {
-		push_text(rendermode_unit, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+		push_text(rendermode_unit, font_id, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 	}
 
-	push_text(rendermode_unit, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	push_text(rendermode_unit, font_id, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
-ui_text_args :: proc(font: ^Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
-	assert(font != nil);
+ui_text_args :: proc(font_id: FontID, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	font, ok := get_font_data(font_id);
+	assert(ok, tprint(loc));
 
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	defer ui_pop_rect(loc);
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.size;
-	push_text(rendermode_unit, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+	push_text(rendermode_unit, font_id, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
 
 //

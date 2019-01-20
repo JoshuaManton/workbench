@@ -35,6 +35,9 @@ push_quad :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, mi
 
 	append(&buffered_draw_commands, cmd);
 }
+push_quad_pos :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, pos, size: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
+	push_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, render_order);
+}
 
 push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position, scale: Vec2, sprite: Sprite, color := Colorf{1, 1, 1, 1}, pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
 	size := (Vec2{sprite.width, sprite.height} * scale);
@@ -127,13 +130,16 @@ push_mesh :: inline proc(
 // 	}
 // }
 
-push_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, position: Vec2, color: Colorf, size: f32, layer: int, actually_draw: bool = true) -> f32 {
+push_text :: proc(rendermode: Rendermode_Proc, font_id: FontID, str: string, position: Vec2, color: Colorf, size: f32, layer: int, actually_draw: bool = true) -> f32 {
 	// todo: make im_text() be render_mode agnostic
 	// old := current_render_mode;
 	// rendering_unit_space();
 	// defer old();
 
 	assert(rendermode == rendermode_unit);
+
+	font, ok := get_font_data(font_id);
+	assert(ok);
 
 	start := position;
 	for _, i in str {
@@ -181,7 +187,7 @@ push_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, positio
 			uv1 := Vec2{quad.s0, quad.t0};
 			uv2 := Vec2{quad.s1, quad.t0};
 			uv3 := Vec2{quad.s1, quad.t1};
-			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.id};
+			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture_id};
 		}
 
 		if !is_space && actually_draw {
@@ -196,8 +202,8 @@ push_text :: proc(rendermode: Rendermode_Proc, font: ^Font, str: string, positio
 	return width;
 }
 
-get_string_width :: inline proc(rendermode: Rendermode_Proc, font: ^Font, str: string, size: f32) -> f32 {
-	return push_text(rendermode, font, str, {}, {}, size, 0, false);
+get_string_width :: inline proc(rendermode: Rendermode_Proc, font_id: FontID, str: string, size: f32) -> f32 {
+	return push_text(rendermode, font_id, str, {}, {}, size, 0, false);
 }
 
 //

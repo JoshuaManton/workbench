@@ -249,12 +249,17 @@ Font :: struct {
 	dim: int,
 	size: f32,
 	chars: []stb.Baked_Char,
-	id: Texture,
+	texture_id: Texture,
 }
 
-font_default: ^Font;
+FontID :: distinct int;
 
-load_font :: proc(data: []byte, size: f32) -> (^Font, bool) {
+loaded_fonts: map[FontID]Font;
+font_default: FontID;
+
+load_font :: proc(data: []byte, size: f32) -> (FontID, bool) {
+	static last_font_id: FontID;
+
 	pixels: []u8;
 	chars:  []stb.Baked_Char;
 	dim := 128;
@@ -279,12 +284,22 @@ load_font :: proc(data: []byte, size: f32) -> (^Font, bool) {
 	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.LINEAR);
 	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA, cast(i32)dim, cast(i32)dim, 0, odingl.RED, odingl.UNSIGNED_BYTE, &pixels[0]);
 
-	font := new_clone(Font{dim, size, chars, texture});
-	return font, true;
+	font := Font{dim, size, chars, texture};
+	last_font_id += 1;
+	loaded_fonts[last_font_id] = font;
+
+	return last_font_id, true;
 }
 
-destroy_font :: inline proc(font: ^Font) {
+get_font_data :: proc(id: FontID) -> (Font, bool) {
+	font, ok := loaded_fonts[id];
+	return font, ok;
+}
+
+unload_font :: proc(id: FontID) {
+	font, ok := loaded_fonts[id];
+	if !ok do return;
+
 	delete(font.chars);
-	delete_texture(font.id);
-	free(font);
+	delete_texture(font.texture_id);
 }
