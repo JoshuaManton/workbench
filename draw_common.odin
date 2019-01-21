@@ -129,17 +129,33 @@ camera_right   :: inline proc(using camera: ^Camera) -> Vec3 do return quaternio
 camera_forward :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_forward(degrees_to_quaternion(rotation));
 camera_back    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_back   (degrees_to_quaternion(rotation));
 
-get_cursor_direction_from_camera :: proc(camera: ^Camera) -> Vec3 {
+get_cursor_world_position :: proc(camera: ^Camera) -> Vec3 {
 	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
 	cursor_viewport_position.w = 1;
-	cursor_viewport_position.z = 0.5; // just some way down the frustum
+	cursor_viewport_position.z = 0; // just some way down the frustum
 
-	inv := _mat4_inverse(mul(perspective_projection_matrix, current_camera.view_matrix));
+	inv: Mat4;
+	if camera.is_perspective {
+		inv = _mat4_inverse(mul(perspective_projection_matrix, current_camera.view_matrix));
+	}
+	else {
+		inv = _mat4_inverse(mul(orthographic_projection_matrix, current_camera.view_matrix));
+	}
+
 	cursor_world_position4 := mul(inv, cursor_viewport_position);
 	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
 	cursor_world_position := to_vec3(cursor_world_position4) - camera.position;
-	cursor_direction := norm(cursor_world_position);
 
+	return cursor_world_position;
+}
+
+get_cursor_direction_from_camera :: proc(camera: ^Camera) -> Vec3 {
+	if !camera.is_perspective {
+		return camera_forward(camera);
+	}
+
+	cursor_world_position := get_cursor_world_position(camera);
+	cursor_direction := norm(cursor_world_position);
 	return cursor_direction;
 }
 

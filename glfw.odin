@@ -23,7 +23,7 @@ current_window_height: f32;
 current_aspect_ratio:  f32;
 
 cursor_scroll: f32;
-cursor_world_position:  Vec2;
+cursor_world_position:  Vec3;
 cursor_screen_position: Vec2;
 cursor_unit_position:   Vec2;
 
@@ -155,6 +155,4 @@ _update_glfw :: proc() {
 		viewport_to_unit_matrix = translate(viewport_to_unit_matrix, Vec3{1, 1, 0});
 		viewport_to_unit_matrix = scale(viewport_to_unit_matrix, 0.5);
 	}
-
-	// cursor_world_position  = screen_to_world(cursor_screen_position);
 }
