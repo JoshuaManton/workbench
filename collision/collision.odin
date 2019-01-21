@@ -29,6 +29,24 @@ Collision_Scene :: struct {
 	colliders: map[i32]Collider,
 }
 
+Hit_Info :: struct {
+	handle: i32, // users data to identify this collider as an entity in their code or something like that
+
+	// Fraction (0..1) of the distance that the ray started intersecting
+	fraction0: f32,
+	// Fraction (0..1) of the distance that the ray stopped intersecting
+	fraction1: f32,
+
+	// Point that the ray started intersecting
+	point0: Vec3,
+	// Point that the ray stopped intersecting
+	point1: Vec3,
+
+	// todo(josh)
+	// normal0: Vec3,
+	// normal1: Vec3,
+}
+
 add_collider_to_scene :: proc(using scene: ^Collision_Scene, collider: Collider, auto_cast handle: i32) {
 	_, ok := colliders[handle];
 	assert(!ok);
@@ -42,8 +60,8 @@ get_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, loc :
 	return coll, ok;
 }
 
-update_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, collider: Collider) {
-	assert(handle != 0);
+update_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, collider: Collider, loc := #caller_location) {
+	assert(handle != 0, tprint(loc));
 
 	_, ok := colliders[handle];
 	assert(ok);
@@ -73,11 +91,29 @@ linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, ou
 }
 
 // todo(josh): test this, not sure if it works
-boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, other_position, other_size: Vec3, out_hits: ^[dynamic]Hit_Info) {
+boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
 	for handle, collider in colliders {
 		info, ok := cast_box_box(origin, size, velocity, collider.position, collider.box.size, handle);
 		if ok do append(out_hits, info);
+	}
+	sort.quick_sort_proc(out_hits[:], proc(a, b: Hit_Info) -> int {
+		if a.fraction0 < b.fraction0 do return -1;
+		return 1;
+	});
+}
+
+overlap_point :: proc(using scene: ^Collision_Scene, origin: Vec3, out_hits: ^[dynamic]Hit_Info) {
+	clear(out_hits);
+	for handle, collider in colliders {
+		min := collider.position-collider.box.size*0.5;
+		max := collider.position+collider.box.size*0.5;
+
+		if origin.x < min.x || origin.x > max.x do continue;
+		if origin.y < min.y || origin.y > max.y do continue;
+
+		info := Hit_Info{handle, 0, 0, origin, origin};
+		append(out_hits, info);
 	}
 	sort.quick_sort_proc(out_hits[:], proc(a, b: Hit_Info) -> int {
 		if a.fraction0 < b.fraction0 do return -1;
@@ -125,24 +161,6 @@ closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 	t := max(min(dot, 1), 0);
 	projection := p1 + t * (p2 - p1);
 	return projection;
-}
-
-Hit_Info :: struct {
-	handle: i32, // users data to identify this collider as an entity in their code or something like that
-
-	// Fraction (0..1) of the distance that the ray started intersecting
-	fraction0: f32,
-	// Fraction (0..1) of the distance that the ray stopped intersecting
-	fraction1: f32,
-
-	// Point that the ray started intersecting
-	point0: Vec3,
-	// Point that the ray stopped intersecting
-	point1: Vec3,
-
-	// todo(josh)
-	// normal0: Vec3,
-	// normal1: Vec3,
 }
 
 cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, b2size: Vec3, b2_handle : i32 = 0) -> (Hit_Info, bool) {
