@@ -21,9 +21,7 @@ Vertex3D :: struct {
 
 
 
-
-
-MeshID :: distinct int;
+MeshID :: distinct i64;
 Mesh :: struct {
 	vertex_array: VAO,
 	vertex_buffer: VBO,

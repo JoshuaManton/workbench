@@ -8,6 +8,7 @@ using import        "core:fmt"
       import        "core:os"
 
       import        "gpu"
+      import wbmath "math"
 using import        "types"
 using import        "logging"
 
@@ -110,29 +111,7 @@ push_mesh :: inline proc(
 		};
 
 		append(&buffered_draw_commands, cmd);
-		// append(&im_buffered_meshes, Buffered_Mesh{id, position, scale, rotation, texture, shader, color});
 }
-
-// im_cube :: inline proc(position: Vec3, scale: f32) {
-// 	vertex_positions := [?]Vec3 {
-// 		{-0.5,-0.5,-0.5}, {-0.5,-0.5, 0.5}, {-0.5, 0.5, 0.5},
-// 	    {0.5, 0.5,-0.5}, {-0.5,-0.5,-0.5}, {-0.5, 0.5,-0.5},
-// 	    {0.5,-0.5, 0.5}, {-0.5,-0.5,-0.5}, {0.5,-0.5,-0.5},
-// 	    {0.5, 0.5,-0.5}, {0.5,-0.5,-0.5}, {-0.5,-0.5,-0.5},
-// 	    {-0.5,-0.5,-0.5}, {-0.5, 0.5, 0.5}, {-0.5, 0.5,-0.5},
-// 	    {0.5,-0.5, 0.5}, {-0.5,-0.5, 0.5}, {-0.5,-0.5,-0.5},
-// 	    {-0.5, 0.5, 0.5}, {-0.5,-0.5, 0.5}, {0.5,-0.5, 0.5},
-// 	    {0.5, 0.5, 0.5}, {0.5,-0.5,-0.5}, {0.5, 0.5,-0.5},
-// 	    {0.5,-0.5,-0.5}, {0.5, 0.5, 0.5}, {0.5,-0.5, 0.5},
-// 	    {0.5, 0.5, 0.5}, {0.5, 0.5,-0.5}, {-0.5, 0.5,-0.5},
-// 	    {0.5, 0.5, 0.5}, {-0.5, 0.5,-0.5}, {-0.5, 0.5, 0.5},
-// 	    {0.5, 0.5, 0.5}, {-0.5, 0.5, 0.5}, {0.5,-0.5, 0.5},
-// 	};
-// 	for p, i in vertex_positions {
-// 		t := cast(f32)i / len(vertex_positions);
-// 		im_vertex(rendermode_world, shader_rgba_3d, position + p * scale, Colorf{t, 0, 0, 1});
-// 	}
-// }
 
 push_text :: proc(rendermode: Rendermode_Proc, font_id: FontID, str: string, position: Vec2, color: Colorf, size: f32, layer: int, actually_draw: bool = true) -> f32 {
 	// todo: make im_text() be render_mode agnostic
@@ -352,7 +331,7 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 			case Draw_Mesh_Command: {
 				// todo(josh): batching of meshes, right now it's a draw call per mesh
 
-				mesh, ok := all_meshes[kind.mesh_id];
+				mesh, ok := gpu.get_mesh(kind.mesh_id);
 				if !ok {
 					logln("Mesh was not loaded: ", kind.mesh_id);
 				}
@@ -398,6 +377,15 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 	}
 }
 
+model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
+	model_matrix = wbmath.translate(identity(Mat4), position);
+	model_matrix = math.scale(model_matrix, scale);
+
+	orientation := wbmath.degrees_to_quaternion(rotation);
+	rotation_matrix := quat_to_mat4(orientation);
+	model_matrix = math.mul(model_matrix, rotation_matrix);
+}
+
 
 
 debugging_rendering: bool;
@@ -424,8 +412,8 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, textu
 	gpu.use_program(shader);
 	gpu.bind_texture2d(texture);
 
-	gpu.bind_vao(vao);
-	gpu.bind_buffer(vbo);
+	gpu.bind_vao(im_vao);
+	gpu.bind_buffer(im_vbo);
 
 	gpu.set_vertex_format(Vertex_Type);
 

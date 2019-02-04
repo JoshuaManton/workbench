@@ -12,37 +12,7 @@ using import "types"
       import stb    "external/stb"
       import ai     "external/assimp"
 
-//
-// Textures and sprites
-//
-
 ATLAS_DIM :: 2048;
-PIXELS_PER_WORLD_UNIT :: 24;
-
-Texture_Atlas_ID :: distinct i64;
-Texture_Atlas :: struct {
-	id: gpu.Texture,
-	atlas_x: i32,
-	atlas_y: i32,
-	biggest_height: i32,
-}
-
-Sprite :: struct {
-	uvs:    [4]Vec2,
-	width:  f32,
-	height: f32,
-	id:     gpu.Texture,
-}
-
-Mesh_Data :: struct {
-	vertices: []gpu.Vertex3D,
-	indicies: []u32,
-	name: string,
-}
-
-Model_Data :: struct {
-	meshes: []Mesh_Data,
-}
 
 create_atlas :: inline proc() -> ^Texture_Atlas {
 	texture := gpu.gen_texture();
@@ -59,7 +29,7 @@ destroy_atlas :: inline proc(atlas: ^Texture_Atlas) {
 	free(atlas);
 }
 
-load_sprite :: proc(texture: ^Texture_Atlas, data: []byte) -> (Sprite, bool) {
+load_sprite :: proc(texture: ^Texture_Atlas, data: []byte, pixels_per_world_unit : f32 = 32) -> (Sprite, bool) {
 	stb.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
 	pixel_data := stb.load_from_memory(&data[0], cast(i32)len(data), &sprite_width, &sprite_height, &channels, 0);
@@ -96,7 +66,7 @@ load_sprite :: proc(texture: ^Texture_Atlas, data: []byte) -> (Sprite, bool) {
 
 	texture.atlas_x += sprite_width;
 
-	sprite := Sprite{coords, cast(f32)sprite_width / PIXELS_PER_WORLD_UNIT, cast(f32)sprite_height / PIXELS_PER_WORLD_UNIT, texture.id};
+	sprite := Sprite{coords, cast(f32)sprite_width / pixels_per_world_unit, cast(f32)sprite_height / pixels_per_world_unit, texture.id};
 	return sprite, true;
 }
 
@@ -158,6 +128,65 @@ load_model_from_file :: proc(path: cstring) -> Model_Data {
 	defer ai.release_import(scene);
 
 	return _load_model_internal(scene);
+}
+
+buffer_model :: proc(data: Model_Data) -> Model {
+	meshes := make([dynamic]gpu.MeshID, 0, len(data.meshes));
+
+	for mesh in data.meshes {
+		append(&meshes, gpu.buffer_mesh(mesh.vertices, mesh.indicies, mesh.name));
+	}
+
+	return Model{meshes[:]};
+}
+
+release_model :: proc(model: Model) {
+	for mesh in model.meshes {
+		gpu.release_mesh(mesh);
+	}
+}
+
+create_cube_mesh :: proc() -> gpu.MeshID {
+	verts := [dynamic]gpu.Vertex3D {
+		{{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+		{{-0.5,-0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+		{{-0.5, 0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5,-0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5,-0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5, 0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	    {{-0.5, 0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
+	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
+	};
+
+	return gpu.buffer_mesh(verts[:], {}, "");
 }
 
 _load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {
@@ -237,12 +266,6 @@ _load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {
 
 	// return all created meshIds
 	return Model_Data{meshes_processed[:]};
-}
-
-release_model :: proc(model: Model) {
-	for mesh in model.meshes {
-		release_mesh(mesh);
-	}
 }
 
 //

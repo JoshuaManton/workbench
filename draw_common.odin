@@ -216,8 +216,8 @@ normalize_camera_rotation :: proc(using camera: ^Camera) {
 // 	}
 // }
 
-vao: VAO;
-vbo: VBO;
+im_vao: VAO;
+im_vbo: VBO;
 
 shader_rgba:    Shader_Program;
 shader_text:    Shader_Program;
@@ -236,8 +236,8 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	vao = gen_vao();
-	vbo = gen_vbo();
+	im_vao = gen_vao();
+	im_vbo = gen_vbo();
 
 	ok: bool;
 	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
