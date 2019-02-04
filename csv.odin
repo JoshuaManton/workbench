@@ -8,6 +8,8 @@ using import        "core:fmt"
       import        "core:os"
       import        "core:sys/win32"
 
+using import        "basic"
+
 Csv_Row :: struct {
 	values: [dynamic]string,
 }

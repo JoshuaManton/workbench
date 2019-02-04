@@ -1,4 +1,4 @@
-package workbench
+package math
 
 using import "core:math"
 
@@ -242,7 +242,7 @@ quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
 	return result;
 }
 
-_mat4_inverse :: proc(m: Mat4) -> Mat4 {
+mat4_inverse_ :: proc(m: Mat4) -> Mat4 {
 	o: Mat4;
 
 	sf00 := m[2][2] * m[3][3] - m[3][2] * m[2][3];

@@ -8,6 +8,8 @@ using import        "core:fmt"
       import        "core:os"
       import        "core:sys/win32"
 
+      import wbmath "math"
+
       import odingl "external/gl"
       import imgui  "external/imgui"
 
@@ -133,7 +135,7 @@ _update_glfw :: proc() {
 
 	// Unit space
 	{
-		unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-1, -1, 0});
+		unit_to_viewport_matrix = wbmath.translate(identity(Mat4), Vec3{-1, -1, 0});
 		unit_to_viewport_matrix = scale(unit_to_viewport_matrix, 2);
 		unit_to_pixel_matrix = scale(identity(Mat4), Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
 	}
@@ -141,18 +143,18 @@ _update_glfw :: proc() {
 	// Pixel space
 	{
 		pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
-		pixel_to_viewport_matrix = translate(pixel_to_viewport_matrix, Vec3{-1, -1, 0});
+		pixel_to_viewport_matrix = wbmath.translate(pixel_to_viewport_matrix, Vec3{-1, -1, 0});
 		pixel_to_viewport_matrix = scale(pixel_to_viewport_matrix, 2);
 	}
 
 	// Viewport space
 	{
 		viewport_to_pixel_matrix = identity(Mat4);
-		viewport_to_pixel_matrix = translate(viewport_to_pixel_matrix, Vec3{1, 1, 0});
+		viewport_to_pixel_matrix = wbmath.translate(viewport_to_pixel_matrix, Vec3{1, 1, 0});
 		viewport_to_pixel_matrix = scale(viewport_to_pixel_matrix, Vec3{cast(f32)current_window_width/2, cast(f32)current_window_height/2, 0});
 
 		viewport_to_unit_matrix = identity(Mat4);
-		viewport_to_unit_matrix = translate(viewport_to_unit_matrix, Vec3{1, 1, 0});
+		viewport_to_unit_matrix = wbmath.translate(viewport_to_unit_matrix, Vec3{1, 1, 0});
 		viewport_to_unit_matrix = scale(viewport_to_unit_matrix, 0.5);
 	}
 }

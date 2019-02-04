@@ -9,21 +9,23 @@ using import "core:math";
 import "core:os";
 import "core:sys/win32"
 
+import "gpu"
+
 import    "external/glfw"
 import    "external/imgui"
 import gl "external/gl"
 
-imgui_program: Shader_Program;
+imgui_program: gpu.Shader_Program;
 
-imgui_uniform_texture: Location;
-imgui_uniform_projection: Location;
+imgui_uniform_texture: gpu.Location;
+imgui_uniform_projection: gpu.Location;
 
-imgui_attrib_position: Location;
-imgui_attrib_uv: Location;
-imgui_attrib_color: Location;
+imgui_attrib_position: gpu.Location;
+imgui_attrib_uv: gpu.Location;
+imgui_attrib_color: gpu.Location;
 
-imgui_vbo_handle: VBO;
-imgui_ebo_handle: EBO;
+imgui_vbo_handle: gpu.VBO;
+imgui_ebo_handle: gpu.EBO;
 
 // note(josh): @Cleanup: These are probably duplicates of fonts we already use in the game
 imgui_font_default: ^imgui.Font;
@@ -81,21 +83,21 @@ _init_dear_imgui :: proc() {
         }`;
 
 	ok: bool;
-    imgui_program, ok = load_shader_text(vs, fs);
+    imgui_program, ok = gpu.load_shader_text(vs, fs);
     assert(ok);
 
-    imgui_uniform_texture    = get_uniform_location(imgui_program, "Texture");
-    imgui_uniform_projection = get_uniform_location(imgui_program, "ProjMtx");
+    imgui_uniform_texture    = gpu.get_uniform_location(imgui_program, "Texture");
+    imgui_uniform_projection = gpu.get_uniform_location(imgui_program, "ProjMtx");
 
-    imgui_attrib_position = get_attrib_location(imgui_program, "Position");
-    imgui_attrib_uv       = get_attrib_location(imgui_program, "UV");
-    imgui_attrib_color    = get_attrib_location(imgui_program, "Color");
+    imgui_attrib_position = gpu.get_attrib_location(imgui_program, "Position");
+    imgui_attrib_uv       = gpu.get_attrib_location(imgui_program, "UV");
+    imgui_attrib_color    = gpu.get_attrib_location(imgui_program, "Color");
 
-    imgui_vbo_handle = cast(VBO)gen_buffer();
-    imgui_ebo_handle = cast(EBO)gen_buffer();
+    imgui_vbo_handle = cast(gpu.VBO)gpu.gen_buffer();
+    imgui_ebo_handle = cast(gpu.EBO)gpu.gen_buffer();
 
-    bind_buffer(imgui_vbo_handle);
-    bind_buffer(imgui_ebo_handle);
+    gpu.bind_buffer(imgui_vbo_handle);
+    gpu.bind_buffer(imgui_ebo_handle);
 
     imgui_font_default = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/OpenSans-Regular.ttf", 20);
     imgui_font_mono    = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/Inconsolata.ttf", 16);
@@ -131,8 +133,8 @@ _init_dear_imgui :: proc() {
     width, height : i32;
     imgui.font_atlas_get_text_data_as_rgba32(io.fonts, &pixels, &width, &height);
 
-    tex := gen_texture();
-    bind_texture2d(tex);
+    tex := gpu.gen_texture();
+    gpu.bind_texture2d(tex);
 
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -322,10 +324,10 @@ imgui_render :: proc(render_to_screen : bool) {
     lastViewport : [4]i32;
     lastScissor  : [4]i32;
 
-    cull    := get_int(gl.CULL_FACE);
-    depth   := get_int(gl.DEPTH_TEST);
-    scissor := get_int(gl.SCISSOR_TEST);
-    blend   := get_int(gl.BLEND);
+    cull    := gpu.get_int(gl.CULL_FACE);
+    depth   := gpu.get_int(gl.DEPTH_TEST);
+    scissor := gpu.get_int(gl.SCISSOR_TEST);
+    blend   := gpu.get_int(gl.BLEND);
 
     gl.GetIntegerv(gl.VIEWPORT, &lastViewport[0]);
     gl.GetIntegerv(gl.SCISSOR_BOX, &lastScissor[0]);
@@ -347,16 +349,16 @@ imgui_render :: proc(render_to_screen : bool) {
         {                    -1,                      1,  0.0, 1.0 },
     };
 
-    old_program := get_current_shader();
-    defer use_program(old_program);
+    old_program := gpu.get_current_shader();
+    defer gpu.use_program(old_program);
 
-    use_program(imgui_program);
-    uniform(imgui_program, "Texture", i32(0));
-    uniform_matrix4fv(imgui_program, "ProjMtx", 1, false, &ortho_projection[0][0]);
+    gpu.use_program(imgui_program);
+    gpu.uniform(imgui_program, "Texture", i32(0));
+    gpu.uniform_matrix4fv(imgui_program, "ProjMtx", 1, false, &ortho_projection[0][0]);
 
-    vao_handle := gen_vao();
-    bind_vao(vao_handle);
-    bind_buffer(imgui_vbo_handle);
+    vao_handle := gpu.gen_vao();
+    gpu.bind_vao(vao_handle);
+    gpu.bind_buffer(imgui_vbo_handle);
 
     gl.EnableVertexAttribArray(cast(u32)imgui_attrib_position);
     gl.EnableVertexAttribArray(cast(u32)imgui_attrib_uv);
@@ -370,13 +372,13 @@ imgui_render :: proc(render_to_screen : bool) {
     for list in new_list {
         idx_buffer_offset : ^imgui.DrawIdx = nil;
 
-        bind_buffer(imgui_vbo_handle);
+        gpu.bind_buffer(imgui_vbo_handle);
         gl.BufferData(gl.ARRAY_BUFFER,
                        cast(int)(imgui.draw_list_get_vertex_buffer_size(list) * size_of(imgui.DrawVert)),
                        imgui.draw_list_get_vertex_ptr(list, 0),
                        gl.STREAM_DRAW);
 
-        bind_buffer(imgui_ebo_handle);
+        gpu.bind_buffer(imgui_ebo_handle);
         gl.BufferData(gl.ELEMENT_ARRAY_BUFFER,
                        cast(int)(imgui.draw_list_get_index_buffer_size(list) * size_of(imgui.DrawIdx)),
                        imgui.draw_list_get_index_ptr(list, 0),
@@ -384,7 +386,7 @@ imgui_render :: proc(render_to_screen : bool) {
 
         for j : i32 = 0; j < imgui.draw_list_get_cmd_size(list); j += 1 {
             cmd := imgui.draw_list_get_cmd_ptr(list, j);
-            bind_texture2d(Texture(uint(uintptr(cmd.texture_id))));
+            gpu.bind_texture2d(gpu.Texture(uint(uintptr(cmd.texture_id))));
             gl.Scissor(i32(cmd.clip_rect.x), height - i32(cmd.clip_rect.w), i32(cmd.clip_rect.z - cmd.clip_rect.x), i32(cmd.clip_rect.w - cmd.clip_rect.y));
             gl.DrawElements(gl.TRIANGLES, i32(cmd.elem_count), gl.UNSIGNED_SHORT, idx_buffer_offset);
             //idx_buffer_offset += cmd.elem_count;
@@ -393,7 +395,7 @@ imgui_render :: proc(render_to_screen : bool) {
         }
     }
 
-    delete_vao(vao_handle);
+    gpu.delete_vao(vao_handle);
 
     //TODO: Restore state
 

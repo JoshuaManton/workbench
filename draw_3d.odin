@@ -1,18 +1,21 @@
 package workbench
 
-using import        "core:math"
-using import        "core:fmt"
-      import        "core:sort"
-      import        "core:strings"
-      import        "core:mem"
-      import        "core:os"
+using import odinmath "core:math"
+using import          "core:fmt"
+      import          "core:sort"
+      import          "core:strings"
+      import          "core:mem"
+      import          "core:os"
 
-      import odingl "external/gl"
+using import          "gpu"
+using import          "math"
+using import          "types"
 
-      import stb    "external/stb"
-      import        "external/glfw"
-      import imgui  "external/imgui"
-      import ai     "external/assimp"
+      import odingl   "external/gl"
+      import stb      "external/stb"
+      import          "external/glfw"
+      import imgui    "external/imgui"
+      import ai       "external/assimp"
 
 all_meshes: map[MeshID]Mesh;
 
@@ -73,11 +76,11 @@ get_mesh_shallow_copy :: proc(id: MeshID) -> Mesh {
 
 model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
 	model_matrix = translate(identity(Mat4), position);
-	model_matrix = math.scale(model_matrix, scale);
+	model_matrix = odinmath.scale(model_matrix, scale);
 
 	orientation := degrees_to_quaternion(rotation);
 	rotation_matrix := quat_to_mat4(orientation);
-	model_matrix = math.mul(model_matrix, rotation_matrix);
+	model_matrix = odinmath.mul(model_matrix, rotation_matrix);
 }
 
 // Rendering

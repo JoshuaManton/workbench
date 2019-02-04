@@ -4,6 +4,8 @@ using import "core:fmt"
       import "core:os"
       import "core:strings"
 
+using import "logging"
+
 Catalog_Item_ID :: int;
 
 Catalog_Item :: struct {

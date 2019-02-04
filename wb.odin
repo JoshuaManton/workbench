@@ -9,6 +9,11 @@ using import        "core:fmt"
       import        "core:sys/win32"
 	  import        "core:runtime"
 
+      import wbmath "math"
+      import        "gpu"
+using import        "logging"
+using import        "types"
+
       import odingl "external/gl"
       import imgui  "external/imgui"
 
@@ -17,8 +22,6 @@ using import        "core:fmt"
 
 	  import        "console"
       import pf     "profiler"
-
-DEVELOPER :: true;
 
 WB_Context :: struct {
 	logger_proc		: proc(log: string)
@@ -61,7 +64,7 @@ make_simple_window :: proc(window_name: string,
 	client_target_framerate = _target_framerate;
 
 	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
-	_init_opengl(opengl_version_major, opengl_version_minor);
+	_init_draw(opengl_version_major, opengl_version_minor);
 	_init_random_number_generator();
 	_init_dear_imgui();
 
@@ -70,8 +73,6 @@ make_simple_window :: proc(window_name: string,
 
 	start_workspace(workspace);
 	_init_new_workspaces();
-
-	_init_draw();
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
@@ -131,7 +132,7 @@ make_simple_window :: proc(window_name: string,
 
 		glfw.SwapBuffers(main_window);
 
-		log_gl_errors("after SwapBuffers()");
+		gpu.log_gl_errors("after SwapBuffers()");
 
 		_remove_ended_workspaces();
 	}
@@ -209,6 +210,32 @@ _render_workspaces :: proc() {
 		render_workspace(workspace);
 	}
 	current_workspace = -1;
+
+
+	//
+	render_workspace :: proc(workspace: Workspace) {
+	gpu.log_gl_errors(#procedure);
+
+	num_draw_calls = 0;
+	if workspace.render != nil {
+		workspace.render(fixed_delta_time);
+	}
+
+	_prerender();
+
+	{
+		// BEGIN_FRAME_BUFFER();
+
+		// flush_3d();
+		im_draw_flush(odingl.TRIANGLES, buffered_draw_commands[:]);
+		// draw_debug_lines();
+	}
+
+	gpu.set_clear_color(Colorf{0,0,0,0});
+
+	imgui_render(true);
+	gpu.log_gl_errors(tprint("workspace_name: ", workspace.name));
+}
 }
 
 _remove_ended_workspaces :: proc() {
@@ -262,7 +289,7 @@ _update_debug_window :: proc() {
 		data := WB_Debug_Data{
 			current_camera.position,
 			current_camera.rotation,
-			degrees_to_quaternion(current_camera.rotation),
+			wbmath.degrees_to_quaternion(current_camera.rotation),
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 			client_target_framerate,

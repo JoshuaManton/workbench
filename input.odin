@@ -3,6 +3,8 @@ package workbench
 import "external/glfw"
 import "external/imgui"
 
+using import "basic"
+
 /*
 
 INPUT API
@@ -419,7 +421,7 @@ _update_input :: proc() {
 			else {
 				append(&_up, up);
 			}
-			
+
 		}
 	}
 

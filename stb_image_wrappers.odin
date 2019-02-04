@@ -5,6 +5,8 @@ import "core:fmt"
 
 import "shared:workbench/external/stb"
 
+using import "types"
+
 load_wrapper :: inline proc(filename: cstring) -> ([]Colori, i32, i32) {
 	stb.set_flip_vertically_on_load(0);
 	w, h, num_channels: i32;

@@ -7,6 +7,10 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
 
+      import        "gpu"
+using import        "types"
+using import        "logging"
+
       import odingl "external/gl"
 
       import        "external/stb"
@@ -16,7 +20,7 @@ using import        "core:fmt"
       import pf     "profiler"
 
 buffered_draw_commands: [dynamic]Draw_Command;
-push_quad :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, min, max: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
+push_quad :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, min, max: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	cmd := Draw_Command{
 		render_order = render_order,
 		serial_number = len(buffered_draw_commands),
@@ -35,11 +39,11 @@ push_quad :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, mi
 
 	append(&buffered_draw_commands, cmd);
 }
-push_quad_pos :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, pos, size: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
+push_quad_pos :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, pos, size: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	push_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, render_order);
 }
 
-push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, position, scale: Vec2, sprite: Sprite, color := Colorf{1, 1, 1, 1}, pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
+push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, position, scale: Vec2, sprite: Sprite, color := Colorf{1, 1, 1, 1}, pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
 	size := (Vec2{sprite.width, sprite.height} * scale);
 	min := position;
 	max := min + size;
@@ -51,7 +55,7 @@ push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: Shader_Program, 
 
 push_sprite_minmax :: inline proc(
 	rendermode: Rendermode_Proc,
-	shader: Shader_Program,
+	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	sprite: Sprite,
 	color := Colorf{1, 1, 1, 1},
@@ -78,12 +82,12 @@ push_sprite_minmax :: inline proc(
 }
 
 push_mesh :: inline proc(
-	id: MeshID,
+	id: gpu.MeshID,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Vec3,
-	texture: Texture,
-	shader: Shader_Program,
+	texture: gpu.Texture,
+	shader: gpu.Shader_Program,
 	color: Colorf,
 	auto_cast render_order: int = current_render_layer) {
 
@@ -271,7 +275,7 @@ end_scissor :: proc() {
 im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 	pf.TIMED_SECTION(&wb_profiler);
 
-	static im_queued_for_drawing: [dynamic]Vertex2D;
+	static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
 
 	if !current_camera.is_perspective {
 		sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {
@@ -285,8 +289,8 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 
 	current_rendermode : Rendermode_Proc = nil;
 	is_scissor := false;
-	current_shader := Shader_Program(0);
-	current_texture := Texture(0);
+	current_shader := gpu.Shader_Program(0);
+	current_texture := gpu.Texture(0);
 
 	for cmd in cmds {
 		shader_mismatch     := cmd.shader     != current_shader;
@@ -322,12 +326,12 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 			case Draw_Quad_Command: {
 				p1, p2, p3, p4 := kind.min, Vec2{kind.min.x, kind.max.y}, kind.max, Vec2{kind.max.x, kind.min.y};
 
-				v1 := Vertex2D{p1, {}, kind.color};
-				v2 := Vertex2D{p2, {}, kind.color};
-				v3 := Vertex2D{p3, {}, kind.color};
-				v4 := Vertex2D{p3, {}, kind.color};
-				v5 := Vertex2D{p4, {}, kind.color};
-				v6 := Vertex2D{p1, {}, kind.color};
+				v1 := gpu.Vertex2D{p1, {}, kind.color};
+				v2 := gpu.Vertex2D{p2, {}, kind.color};
+				v3 := gpu.Vertex2D{p3, {}, kind.color};
+				v4 := gpu.Vertex2D{p3, {}, kind.color};
+				v5 := gpu.Vertex2D{p4, {}, kind.color};
+				v6 := gpu.Vertex2D{p1, {}, kind.color};
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
@@ -335,12 +339,12 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 			case Draw_Sprite_Command: {
 				p1, p2, p3, p4 := kind.min, Vec2{kind.min.x, kind.max.y}, kind.max, Vec2{kind.max.x, kind.min.y};
 
-				v1 := Vertex2D{p1, kind.uvs[0], kind.color};
-				v2 := Vertex2D{p2, kind.uvs[1], kind.color};
-				v3 := Vertex2D{p3, kind.uvs[2], kind.color};
-				v4 := Vertex2D{p3, kind.uvs[2], kind.color};
-				v5 := Vertex2D{p4, kind.uvs[3], kind.color};
-				v6 := Vertex2D{p1, kind.uvs[0], kind.color};
+				v1 := gpu.Vertex2D{p1, kind.uvs[0], kind.color};
+				v2 := gpu.Vertex2D{p2, kind.uvs[1], kind.color};
+				v3 := gpu.Vertex2D{p3, kind.uvs[2], kind.color};
+				v4 := gpu.Vertex2D{p3, kind.uvs[2], kind.color};
+				v5 := gpu.Vertex2D{p4, kind.uvs[3], kind.color};
+				v6 := gpu.Vertex2D{p1, kind.uvs[0], kind.color};
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
@@ -363,16 +367,16 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 						}
 					}
 
-					bind_vao(mesh.vertex_array);
-					bind_buffer(mesh.vertex_buffer);
-					bind_buffer(mesh.index_buffer);
-					use_program(cmd.shader);
-					bind_texture2d(cmd.texture);
+					gpu.bind_vao(mesh.vertex_array);
+					gpu.bind_buffer(mesh.vertex_buffer);
+					gpu.bind_buffer(mesh.index_buffer);
+					gpu.use_program(cmd.shader);
+					gpu.bind_texture2d(cmd.texture);
 
-					program := get_current_shader();
+					program := gpu.get_current_shader();
 
-					uniform4f(program, "mesh_color", kind.color.r, kind.color.g, kind.color.b, kind.color.a);
-					uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+					gpu.uniform4f(program, "mesh_color", kind.color.r, kind.color.g, kind.color.b, kind.color.a);
+					gpu.uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
 					num_draw_calls += 1;
 
@@ -405,7 +409,7 @@ when DEVELOPER {
 	}
 }
 
-draw_vertex_list :: proc(list: []$Vertex_Type, shader: Shader_Program, texture: Texture, mode: u32, loc := #caller_location) {
+draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, texture: gpu.Texture, mode: u32, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -417,13 +421,13 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: Shader_Program, texture: 
 		}
 	}
 
-	use_program(shader);
-	bind_texture2d(texture);
+	gpu.use_program(shader);
+	gpu.bind_texture2d(texture);
 
-	bind_vao(vao);
-	bind_buffer(vbo);
+	gpu.bind_vao(vao);
+	gpu.bind_buffer(vbo);
 
-	set_vertex_format(Vertex_Type);
+	gpu.set_vertex_format(Vertex_Type);
 
 	when DEVELOPER {
 		if debugging_rendering {
@@ -441,11 +445,11 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: Shader_Program, texture: 
 	}
 
 	// TODO: investigate STATIC_DRAW vs others
-	buffer_vertices(list);
+	gpu.buffer_vertices(list);
 	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(list), &list[0], odingl.STATIC_DRAW);
 
-	program := get_current_shader();
-	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+	program := gpu.get_current_shader();
+	gpu.uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 
 	num_draw_calls += 1;
 

@@ -77,15 +77,15 @@ last_array :: inline proc(list: [$N]$T)      -> ^T do return &list[N-1];
 // Equals
 //
 
-equals :: proc{equals_vec2i, equals_colori};
+// equals :: proc{equals_vec2i, equals_colori};
 
-equals_vec2i :: inline proc(a, b: Vec2i) -> bool {
-	return a.x == b.x && a.y == b.y;
-}
+// equals_vec2i :: inline proc(a, b: Vec2i) -> bool {
+// 	return a.x == b.x && a.y == b.y;
+// }
 
-equals_colori :: inline proc(a, b: Colori) -> bool {
-	return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
-}
+// equals_colori :: inline proc(a, b: Colori) -> bool {
+// 	return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+// }
 
 //
 // Enums

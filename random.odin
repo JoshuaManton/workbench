@@ -1,8 +1,9 @@
 package workbench
 
 using import "core:math"
-
       import "core:math/rand"
+
+using import "types"
 
 rstate: rand.Rand;
 
