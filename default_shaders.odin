@@ -1,4 +1,4 @@
-package gpu
+package workbench
 
 SHADER_RGBA_VERT ::
 `

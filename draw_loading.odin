@@ -134,7 +134,7 @@ buffer_model :: proc(data: Model_Data) -> Model {
 	meshes := make([dynamic]gpu.MeshID, 0, len(data.meshes));
 
 	for mesh in data.meshes {
-		append(&meshes, gpu.buffer_mesh(mesh.vertices, mesh.indicies, mesh.name));
+		append(&meshes, gpu.create_mesh(mesh.vertices, mesh.indicies, mesh.name));
 	}
 
 	return Model{meshes[:]};
@@ -186,7 +186,7 @@ create_cube_mesh :: proc() -> gpu.MeshID {
 	    {{0.5,-0.5, 0.5},  {}, Colorf{1, 1, 1, 1}, {}},
 	};
 
-	return gpu.buffer_mesh(verts[:], {}, "");
+	return gpu.create_mesh(verts[:], []u32{}, "");
 }
 
 _load_model_internal :: proc(scene: ^ai.aiScene) -> Model_Data {

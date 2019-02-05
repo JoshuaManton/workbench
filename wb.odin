@@ -227,7 +227,7 @@ _render_workspaces :: proc() {
 		// BEGIN_FRAME_BUFFER();
 
 		// flush_3d();
-		im_draw_flush(odingl.TRIANGLES, buffered_draw_commands[:]);
+		im_draw_flush(gpu.Draw_Mode.Triangles, buffered_draw_commands[:]);
 		// draw_debug_lines();
 	}
 

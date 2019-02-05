@@ -20,6 +20,9 @@ using import        "logging"
 
       import pf     "profiler"
 
+im_vao: gpu.VAO;
+im_vbo: gpu.VBO;
+
 buffered_draw_commands: [dynamic]Draw_Command;
 push_quad :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, min, max: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
 	cmd := Draw_Command{
@@ -251,7 +254,7 @@ end_scissor :: proc() {
 }
 
 
-im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
+im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 	pf.TIMED_SECTION(&wb_profiler);
 
 	static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
@@ -331,7 +334,7 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 			case Draw_Mesh_Command: {
 				// todo(josh): batching of meshes, right now it's a draw call per mesh
 
-				mesh, ok := gpu.get_mesh(kind.mesh_id);
+				mesh, ok := gpu.get_mesh_info(kind.mesh_id);
 				if !ok {
 					logln("Mesh was not loaded: ", kind.mesh_id);
 				}
@@ -346,9 +349,9 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 						}
 					}
 
-					gpu.bind_vao(mesh.vertex_array);
-					gpu.bind_buffer(mesh.vertex_buffer);
-					gpu.bind_buffer(mesh.index_buffer);
+					gpu.bind_vao(mesh.vao);
+					gpu.bind_buffer(mesh.vbo);
+					gpu.bind_buffer(mesh.ibo);
 					gpu.use_program(cmd.shader);
 					gpu.bind_texture2d(cmd.texture);
 
@@ -377,27 +380,7 @@ im_draw_flush :: proc(mode: u32, cmds: []Draw_Command) {
 	}
 }
 
-model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
-	model_matrix = wbmath.translate(identity(Mat4), position);
-	model_matrix = math.scale(model_matrix, scale);
-
-	orientation := wbmath.degrees_to_quaternion(rotation);
-	rotation_matrix := quat_to_mat4(orientation);
-	model_matrix = math.mul(model_matrix, rotation_matrix);
-}
-
-
-
-debugging_rendering: bool;
-debugging_rendering_max_draw_calls : i32 = -1; // note(josh): i32 because my dear-imgui stuff wasn't working with int
-num_draw_calls: i32;
-when DEVELOPER {
-	debug_will_issue_next_draw_call :: proc() -> bool {
-		return debugging_rendering_max_draw_calls == -1 || num_draw_calls < debugging_rendering_max_draw_calls;
-	}
-}
-
-draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, texture: gpu.Texture, mode: u32, loc := #caller_location) {
+draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, texture: gpu.Texture, mode: gpu.Draw_Mode, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -441,5 +424,25 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, textu
 
 	num_draw_calls += 1;
 
-	odingl.DrawArrays(mode, 0, cast(i32)len(list));
+	odingl.DrawArrays(cast(u32)mode, 0, cast(i32)len(list));
+}
+
+model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
+	model_matrix = wbmath.translate(identity(Mat4), position);
+	model_matrix = math.scale(model_matrix, scale);
+
+	orientation := wbmath.degrees_to_quaternion(rotation);
+	rotation_matrix := quat_to_mat4(orientation);
+	model_matrix = math.mul(model_matrix, rotation_matrix);
+}
+
+
+
+debugging_rendering: bool;
+debugging_rendering_max_draw_calls : i32 = -1; // note(josh): i32 because my dear-imgui stuff wasn't working with int
+num_draw_calls: i32;
+when DEVELOPER {
+	debug_will_issue_next_draw_call :: proc() -> bool {
+		return debugging_rendering_max_draw_calls == -1 || num_draw_calls < debugging_rendering_max_draw_calls;
+	}
 }

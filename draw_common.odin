@@ -7,7 +7,7 @@ using import          "core:fmt"
       import          "core:mem"
       import          "core:os"
 
-using import          "gpu"
+      import          "gpu"
 using import wbmath   "math"
 using import          "types"
 
@@ -216,15 +216,12 @@ normalize_camera_rotation :: proc(using camera: ^Camera) {
 // 	}
 // }
 
-im_vao: VAO;
-im_vbo: VBO;
+shader_rgba:    gpu.Shader_Program;
+shader_text:    gpu.Shader_Program;
+shader_texture: gpu.Shader_Program;
 
-shader_rgba:    Shader_Program;
-shader_text:    Shader_Program;
-shader_texture: Shader_Program;
-
-shader_rgba_3d:    Shader_Program;
-shader_fbo : Shader_Program;
+shader_rgba_3d: gpu.Shader_Program;
+shader_fbo:     gpu.Shader_Program;
 
 // @Framebuffer
 // frame_buffer : Frame_Buffer;
@@ -236,17 +233,17 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	im_vao = gen_vao();
-	im_vbo = gen_vbo();
+	im_vao = gpu.gen_vao();
+	im_vbo = gpu.gen_vbo();
 
 	ok: bool;
-	shader_rgba, ok    = load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
+	shader_rgba, ok    = gpu.load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
 	assert(ok);
-	shader_texture, ok = load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
+	shader_texture, ok = gpu.load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
 	assert(ok);
-	shader_text, ok    = load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
+	shader_text, ok    = gpu.load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
 	assert(ok);
-	shader_rgba_3d, ok = load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
+	shader_rgba_3d, ok = gpu.load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
 
 	// @Framebuffer
 	// frame_buffer = gen_frame_buffer();
@@ -271,9 +268,9 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	// if(odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE) do
 	// 	panic("Failed to setup frame buffer");
 
-	bind_texture2d(0);
-	bind_buffer(Render_Buffer(0));
-	bind_frame_buffer(0);
+	gpu.bind_texture2d(0);
+	gpu.bind_buffer(cast(gpu.Render_Buffer)0);
+	gpu.bind_frame_buffer(0);
 }
 
 _update_draw :: proc() {
@@ -309,7 +306,7 @@ _clear_render_buffers :: proc() {
 }
 
 _prerender :: proc() {
-	log_gl_errors(#procedure);
+	gpu.log_gl_errors(#procedure);
 
 	odingl.Enable(odingl.BLEND);
 	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
@@ -325,5 +322,5 @@ _prerender :: proc() {
 
 	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
 
-	log_gl_errors(#procedure);
+	gpu.log_gl_errors(#procedure);
 }

@@ -281,8 +281,12 @@ get_attrib_location :: inline proc(program: Shader_Program, str: string, loc := 
 	return cast(Location)attrib_loc;
 }
 
-set_vertex_format :: proc($Type: typeid, loc := #caller_location) {
-	ti := type_info_base(type_info_of(Type)).variant.(Type_Info_Struct);
+set_vertex_format :: proc{set_vertex_format_poly, set_vertex_format_ti};
+set_vertex_format_poly :: proc($Type: typeid, loc := #caller_location) {
+	set_vertex_format(type_info_of(Type));
+}
+set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
+	ti := type_info_base(_ti).variant.(Type_Info_Struct);
 
 	for name, _i in ti.names {
 		i := cast(u32)_i;
@@ -345,11 +349,11 @@ set_vertex_format :: proc($Type: typeid, loc := #caller_location) {
 			}
 		}
 
-		log_gl_errors(#procedure, loc);
+		log_gl_errors(#procedure);
 		odingl.EnableVertexAttribArray(i);
-		log_gl_errors(#procedure, loc);
-		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, size_of(Type), offset_in_struct);
-		log_gl_errors(#procedure, loc);
+		log_gl_errors(#procedure);
+		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, cast(i32)_ti.size, offset_in_struct);
+		log_gl_errors(#procedure);
 	}
 }
 
