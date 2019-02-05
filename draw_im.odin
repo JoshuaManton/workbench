@@ -417,7 +417,6 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, textu
 
 	// TODO: investigate STATIC_DRAW vs others
 	gpu.buffer_vertices(list);
-	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(list), &list[0], odingl.STATIC_DRAW);
 
 	program := gpu.get_current_shader();
 	gpu.uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
