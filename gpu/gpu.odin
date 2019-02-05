@@ -14,10 +14,11 @@ using import "../logging"
 General:
 
 Meshes:
-create_mesh   :: proc(vertices: []Vertex3D, indicies: []u32, name: string) -> MeshID
-release_mesh  :: proc(mesh_id: MeshID)
-draw_mesh     :: proc()
-get_mesh_info :: proc(id: MeshID) -> (Mesh, bool)
+create_mesh   :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID
+release_mesh  :: proc(id: MeshID)
+update_mesh   :: proc(id: MeshID, vertices: []$Vertex_Type, indicies: []u32)
+draw_mesh     :: proc(id: MeshID, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, mvp_matrix: ^Mat4, depth_test: bool)
+get_mesh_info :: proc(id: MeshID) -> (Mesh_Info, bool)
 
 */
 
@@ -26,14 +27,14 @@ all_meshes: map[MeshID]Mesh_Info;
 create_mesh :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID {
 	static last_mesh_id: int;
 
-	vertex_array := gen_vao();
-	vertex_buffer := gen_vbo();
-	index_buffer := gen_ebo();
+	vao := gen_vao();
+	vbo := gen_vbo();
+	ibo := gen_ebo();
 
 	last_mesh_id += 1;
 	id := cast(MeshID)last_mesh_id;
 
-	mesh := Mesh_Info{name, vertex_array, vertex_buffer, index_buffer, type_info_of(Vertex_Type), len(indicies), len(vertices)};
+	mesh := Mesh_Info{name, vao, vbo, ibo, type_info_of(Vertex_Type), len(indicies), len(vertices)};
 	all_meshes[id] = mesh;
 
 	update_mesh(id, vertices, indicies);
@@ -57,8 +58,8 @@ update_mesh :: proc(id: MeshID, vertices: []$Vertex_Type, indicies: []u32) {
 
 	bind_vao(cast(VAO)0);
 
-	mesh.vertex_type = type_info_of(Vertex_Type);
-	mesh.index_count = len(indicies);
+	mesh.vertex_type  = type_info_of(Vertex_Type);
+	mesh.index_count  = len(indicies);
 	mesh.vertex_count = len(vertices);
 	all_meshes[id] = mesh;
 }
@@ -98,13 +99,13 @@ draw_mesh :: proc(id: MeshID, mode: Draw_Mode, shader: Shader_Program, texture: 
 	}
 }
 
-release_mesh :: proc(mesh_id: MeshID) {
-	mesh, ok := all_meshes[mesh_id];
+release_mesh :: proc(id: MeshID) {
+	mesh, ok := all_meshes[id];
 	assert(ok);
 	delete_vao(mesh.vao);
 	delete_buffer(mesh.vbo);
 	delete_buffer(mesh.ibo);
-	delete_key(&all_meshes, mesh_id);
+	delete_key(&all_meshes, id);
 }
 
 get_mesh_info :: inline proc(id: MeshID) -> (Mesh_Info, bool) {
