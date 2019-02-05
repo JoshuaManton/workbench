@@ -233,8 +233,7 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	im_vao = gpu.gen_vao();
-	im_vbo = gpu.gen_vbo();
+	im_mesh = gpu.create_mesh([]gpu.Vertex3D{}, []u32{}, "im_mesh");
 
 	ok: bool;
 	shader_rgba, ok    = gpu.load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);

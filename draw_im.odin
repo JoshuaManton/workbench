@@ -20,8 +20,7 @@ using import        "logging"
 
       import pf     "profiler"
 
-im_vao: gpu.VAO;
-im_vbo: gpu.VBO;
+im_mesh: gpu.MeshID;
 
 buffered_draw_commands: [dynamic]Draw_Command;
 push_quad :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, min, max: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
@@ -274,13 +273,14 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 	current_shader := gpu.Shader_Program(0);
 	current_texture := gpu.Texture(0);
 
+	command_loop:
 	for cmd in cmds {
 		shader_mismatch     := cmd.shader     != current_shader;
 		texture_mismatch    := cmd.texture    != current_texture;
 		scissor_mismatch    := cmd.scissor    != is_scissor;
 		rendermode_mismatch := cmd.rendermode != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
-			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture, mode);
+			draw_vertex_list(im_queued_for_drawing[:], mode, current_shader, current_texture);
 			clear(&im_queued_for_drawing);
 		}
 
@@ -334,53 +334,30 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 			case Draw_Mesh_Command: {
 				// todo(josh): batching of meshes, right now it's a draw call per mesh
 
-				mesh, ok := gpu.get_mesh_info(kind.mesh_id);
-				if !ok {
-					logln("Mesh was not loaded: ", kind.mesh_id);
-				}
-				else {
-					model_matrix_from_elements(kind.position, kind.scale, kind.rotation);
-					rendermode_world();
-
-					when DEVELOPER {
-						if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
-							num_draw_calls += 1;
-							return;
-						}
-					}
-
-					gpu.bind_vao(mesh.vao);
-					gpu.bind_buffer(mesh.vbo);
-					gpu.bind_buffer(mesh.ibo);
-					gpu.use_program(cmd.shader);
-					gpu.bind_texture2d(cmd.texture);
-
-					program := gpu.get_current_shader();
-
-					gpu.uniform4f(program, "mesh_color", kind.color.r, kind.color.g, kind.color.b, kind.color.a);
-					gpu.uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
-
-					num_draw_calls += 1;
-
-					if debugging_rendering {
-						odingl.DrawElements(odingl.LINES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
-					}
-					else {
-						odingl.DrawElements(odingl.TRIANGLES, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+				when DEVELOPER {
+					if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
+						num_draw_calls += 1;
+						continue command_loop;
 					}
 				}
+
+				model_matrix_from_elements(kind.position, kind.scale, kind.rotation);
+				rendermode_world();
+
+				draw_mode := (debugging_rendering ? gpu.Draw_Mode.Lines : gpu.Draw_Mode.Triangles);
+				gpu.draw_mesh(kind.mesh_id, draw_mode, cmd.shader, cmd.texture, kind.color, &mvp_matrix, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
 	}
 
 	if len(im_queued_for_drawing) > 0 {
-		draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture, mode);
+		draw_vertex_list(im_queued_for_drawing[:], mode, current_shader, current_texture);
 		clear(&im_queued_for_drawing);
 	}
 }
 
-draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, texture: gpu.Texture, mode: gpu.Draw_Mode, loc := #caller_location) {
+draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.Shader_Program, texture: gpu.Texture, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -392,38 +369,9 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, textu
 		}
 	}
 
-	gpu.use_program(shader);
-	gpu.bind_texture2d(texture);
-
-	gpu.bind_vao(im_vao);
-	gpu.bind_buffer(im_vbo);
-
-	gpu.set_vertex_format(Vertex_Type);
-
-	when DEVELOPER {
-		if debugging_rendering {
-			for _, i in list {
-				vert := &list[i];
-				// push_debug_vertex(current_rendermode, vert.position, COLOR_GREEN);
-			}
-		}
-	}
-
-	depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
-	odingl.Disable(odingl.DEPTH_TEST);
-	defer if depth_test == odingl.TRUE {
-		odingl.Enable(odingl.DEPTH_TEST);
-	}
-
-	// TODO: investigate STATIC_DRAW vs others
-	gpu.buffer_vertices(list);
-
-	program := gpu.get_current_shader();
-	gpu.uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
-
+	gpu.update_mesh(im_mesh, list, []u32{});
+	gpu.draw_mesh(im_mesh, mode, shader, texture, COLOR_WHITE, &mvp_matrix, false);
 	num_draw_calls += 1;
-
-	odingl.DrawArrays(cast(u32)mode, 0, cast(i32)len(list));
 }
 
 model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
