@@ -2,6 +2,7 @@ package gpu
 
 using import "core:runtime"
       import "core:fmt"
+      import "core:mem"
       import "core:os"
 using import "core:math"
 
@@ -98,11 +99,11 @@ delete_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 }
 
 buffer_vertices :: inline proc(vertices: []$Vertex_Type, loc := #caller_location) {
-	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(vertices), &vertices[0], odingl.STATIC_DRAW);
+	odingl.BufferData(odingl.ARRAY_BUFFER, size_of(Vertex_Type) * len(vertices), mem.raw_data(vertices), odingl.STATIC_DRAW);
 	log_gl_errors(#procedure, loc);
 }
 buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
-	odingl.BufferData(odingl.ELEMENT_ARRAY_BUFFER, size_of(u32) * len(elements), &elements[0], odingl.STATIC_DRAW);
+	odingl.BufferData(odingl.ELEMENT_ARRAY_BUFFER, size_of(u32) * len(elements), mem.raw_data(elements), odingl.STATIC_DRAW);
 	log_gl_errors(#procedure, loc);
 }
 
