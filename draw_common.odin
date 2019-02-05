@@ -251,9 +251,9 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	// scene_texture = gen_texture();
 	// bind_texture2d(scene_texture);
 
-	odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA32F, 1920, 1080, 0, odingl.RGB, odingl.UNSIGNED_BYTE, nil);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
-	odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
+	// odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA32F, 1920, 1080, 0, odingl.RGB, odingl.UNSIGNED_BYTE, nil);
+	// odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
+	// odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
 
 
 	// @Framebuffer
@@ -267,9 +267,9 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	// if(odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE) do
 	// 	panic("Failed to setup frame buffer");
 
-	gpu.bind_texture2d(0);
-	gpu.bind_buffer(cast(gpu.Render_Buffer)0);
-	gpu.bind_frame_buffer(0);
+	// gpu.bind_texture2d(0);
+	// gpu.bind_buffer(cast(gpu.Render_Buffer)0);
+	// gpu.bind_frame_buffer(0);
 }
 
 _update_draw :: proc() {
