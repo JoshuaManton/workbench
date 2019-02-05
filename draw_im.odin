@@ -23,39 +23,58 @@ using import        "logging"
 im_mesh: gpu.MeshID;
 
 buffered_draw_commands: [dynamic]Draw_Command;
-push_quad :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, min, max: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
-	cmd := Draw_Command{
-		render_order = render_order,
-		serial_number = len(buffered_draw_commands),
-		rendermode = rendermode,
-		shader = shader,
-		texture = {},
-		scissor = do_scissor,
-		scissor_rect = scissor_rect1,
+push_quad :: inline proc(
+	rendermode: Rendermode_Proc,
+	shader: gpu.Shader_Program,
+	min, max: Vec2,
+	color: Colorf,
+	auto_cast render_order: int = current_render_layer) {
 
-		derived = Draw_Quad_Command {
-			min = min,
-			max = max,
-			color = color,
-		},
-	};
+		cmd := Draw_Command{
+			render_order = render_order,
+			serial_number = len(buffered_draw_commands),
+			rendermode = rendermode,
+			shader = shader,
+			texture = {},
+			scissor = do_scissor,
+			scissor_rect = scissor_rect1,
 
-	append(&buffered_draw_commands, cmd);
+			derived = Draw_Quad_Command {
+				min = min,
+				max = max,
+				color = color,
+			},
+		};
+
+		append(&buffered_draw_commands, cmd);
 }
-push_quad_pos :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, pos, size: Vec2, color: Colorf, auto_cast render_order: int = current_render_layer) {
-	push_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, render_order);
+push_quad_pos :: inline proc(
+	rendermode: Rendermode_Proc,
+	shader: gpu.Shader_Program,
+	pos, size: Vec2,
+	color: Colorf,
+	auto_cast render_order: int = current_render_layer) {
+
+		push_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, render_order);
 }
 
-push_sprite :: inline proc(rendermode: Rendermode_Proc, shader: gpu.Shader_Program, position, scale: Vec2, sprite: Sprite, color := Colorf{1, 1, 1, 1}, pivot := Vec2{0.5, 0.5}, auto_cast render_order: int = current_render_layer) {
-	size := (Vec2{sprite.width, sprite.height} * scale);
-	min := position;
-	max := min + size;
-	min -= size * pivot;
-	max -= size * pivot;
+push_sprite :: inline proc(
+	rendermode: Rendermode_Proc,
+	shader: gpu.Shader_Program,
+	position, scale: Vec2,
+	sprite: Sprite,
+	color := Colorf{1, 1, 1, 1},
+	pivot := Vec2{0.5, 0.5},
+	auto_cast render_order: int = current_render_layer) {
 
-	push_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
+		size := (Vec2{sprite.width, sprite.height} * scale);
+		min := position;
+		max := min + size;
+		min -= size * pivot;
+		max -= size * pivot;
+
+		push_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
 }
-
 push_sprite_minmax :: inline proc(
 	rendermode: Rendermode_Proc,
 	shader: gpu.Shader_Program,
@@ -115,80 +134,94 @@ push_mesh :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 
-push_text :: proc(rendermode: Rendermode_Proc, font_id: FontID, str: string, position: Vec2, color: Colorf, size: f32, layer: int, actually_draw: bool = true) -> f32 {
-	// todo: make im_text() be render_mode agnostic
-	// old := current_render_mode;
-	// rendering_unit_space();
-	// defer old();
+push_text :: proc(
+	rendermode: Rendermode_Proc,
+	font_id: FontID,
+	str: string,
+	position: Vec2,
+	color: Colorf,
+	size: f32,
+	layer: int,
+	actually_draw: bool = true) -> f32 {
 
-	assert(rendermode == rendermode_unit);
+		// todo: make im_text() be render_mode agnostic
+		// old := current_render_mode;
+		// rendering_unit_space();
+		// defer old();
 
-	font, ok := get_font_data(font_id);
-	assert(ok);
+		assert(rendermode == rendermode_unit);
 
-	start := position;
-	for _, i in str {
-		c := str[i];
-		is_space := c == ' ';
-		if is_space do c = 'l'; // @DrawStringSpaces: @Hack:
+		font, ok := get_font_data(font_id);
+		assert(ok);
 
-		min, max: Vec2;
-		whitespace_ratio: f32;
-		quad: stb.Aligned_Quad;
-		{
-			//
-			size_pixels: Vec2;
-			// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
-			quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
-			size_pixels.y = abs(quad.y1 - quad.y0);
-			size_pixels *= size;
+		start := position;
+		for _, i in str {
+			c := str[i];
+			is_space := c == ' ';
+			if is_space do c = 'l'; // @DrawStringSpaces: @Hack:
 
-			ww := cast(f32)current_window_width;
-			hh := cast(f32)current_window_height;
-			// min = position + (Vec2{quad.x0, -quad.y1} * size);
-			// max = position + (Vec2{quad.x1, -quad.y0} * size);
-			min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
-			max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
-			// Padding
+			min, max: Vec2;
+			whitespace_ratio: f32;
+			quad: stb.Aligned_Quad;
 			{
-				// todo(josh): @DrawStringSpaces: Currently dont handle spaces properly :/
-				abs_hh := abs(quad.t1 - quad.t0);
-				char_aspect: f32;
-				if abs_hh == 0 {
-					char_aspect = 1;
+				//
+				size_pixels: Vec2;
+				// NOTE!!!!!!!!!!! quad x0 y0 is TOP LEFT and x1 y1 is BOTTOM RIGHT. // I think?!!!!???!!!!
+				quad = stb.get_baked_quad(font.chars, font.dim, font.dim, cast(int)c, &size_pixels.x, &size_pixels.y, true);
+				size_pixels.y = abs(quad.y1 - quad.y0);
+				size_pixels *= size;
+
+				ww := cast(f32)current_window_width;
+				hh := cast(f32)current_window_height;
+				// min = position + (Vec2{quad.x0, -quad.y1} * size);
+				// max = position + (Vec2{quad.x1, -quad.y0} * size);
+				min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
+				max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+				// Padding
+				{
+					// todo(josh): @DrawStringSpaces: Currently dont handle spaces properly :/
+					abs_hh := abs(quad.t1 - quad.t0);
+					char_aspect: f32;
+					if abs_hh == 0 {
+						char_aspect = 1;
+					}
+					else {
+						char_aspect = abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
+					}
+					full_width := size_pixels.x;
+					char_width := size_pixels.y * char_aspect;
+					whitespace_ratio = 1 - (char_width / full_width);
 				}
-				else {
-					char_aspect = abs(quad.s1 - quad.s0) / abs(quad.t1 - quad.t0);
-				}
-				full_width := size_pixels.x;
-				char_width := size_pixels.y * char_aspect;
-				whitespace_ratio = 1 - (char_width / full_width);
 			}
+
+			sprite: Sprite;
+			{
+				uv0 := Vec2{quad.s0, quad.t1};
+				uv1 := Vec2{quad.s0, quad.t0};
+				uv2 := Vec2{quad.s1, quad.t0};
+				uv3 := Vec2{quad.s1, quad.t1};
+				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture_id};
+			}
+
+			if !is_space && actually_draw {
+				push_sprite_minmax(rendermode, shader_text, min, max, sprite, color, layer);
+			}
+
+			width := max.x - min.x;
+			position.x += width + (width * whitespace_ratio);
 		}
 
-		sprite: Sprite;
-		{
-			uv0 := Vec2{quad.s0, quad.t1};
-			uv1 := Vec2{quad.s0, quad.t0};
-			uv2 := Vec2{quad.s1, quad.t0};
-			uv3 := Vec2{quad.s1, quad.t1};
-			sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture_id};
-		}
-
-		if !is_space && actually_draw {
-			push_sprite_minmax(rendermode, shader_text, min, max, sprite, color, layer);
-		}
-
-		width := max.x - min.x;
-		position.x += width + (width * whitespace_ratio);
-	}
-
-	width := position.x - start.x;
-	return width;
+		width := position.x - start.x;
+		return width;
 }
 
-get_string_width :: inline proc(rendermode: Rendermode_Proc, font_id: FontID, str: string, size: f32) -> f32 {
-	return push_text(rendermode, font_id, str, {}, {}, size, 0, false);
+get_string_width :: inline proc(
+	rendermode: Rendermode_Proc,
+	font_id: FontID,
+	str: string,
+	size: f32) -> f32 {
+
+		return push_text(rendermode, font_id, str, {}, {}, size, 0, false);
 }
 
 //
