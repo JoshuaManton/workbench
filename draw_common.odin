@@ -303,7 +303,7 @@ _clear_render_buffers :: proc() {
 }
 
 _prerender :: proc() {
-	gpu.log_gl_errors(#procedure);
+	gpu.log_errors(#procedure);
 
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(gpu.Blend_Factors.Src_Alpha, gpu.Blend_Factors.One_Minus_Src_Alpha);
@@ -318,5 +318,5 @@ _prerender :: proc() {
 
 	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
 
-	gpu.log_gl_errors(#procedure);
+	gpu.log_errors(#procedure);
 }

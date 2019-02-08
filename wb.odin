@@ -131,7 +131,7 @@ make_simple_window :: proc(window_name: string,
 
 		glfw.SwapBuffers(main_window);
 
-		gpu.log_gl_errors("after SwapBuffers()");
+		gpu.log_errors("after SwapBuffers()");
 
 		_remove_ended_workspaces();
 	}
@@ -213,7 +213,7 @@ _render_workspaces :: proc() {
 
 	//
 	render_workspace :: proc(workspace: Workspace) {
-	gpu.log_gl_errors(#procedure);
+	gpu.log_errors(#procedure);
 
 	num_draw_calls = 0;
 	if workspace.render != nil {
@@ -233,7 +233,7 @@ _render_workspaces :: proc() {
 	gpu.set_clear_color(Colorf{0,0,0,0});
 
 	imgui_render(true);
-	gpu.log_gl_errors(tprint("workspace_name: ", workspace.name));
+	gpu.log_errors(tprint("workspace_name: ", workspace.name));
 }
 }
 
