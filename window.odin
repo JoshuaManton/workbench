@@ -10,7 +10,6 @@ using import        "core:fmt"
 
       import wbmath "math"
 
-      import odingl "external/gl"
       import imgui  "external/imgui"
 
       import stb    "external/stb"

@@ -14,7 +14,6 @@ using import        "core:fmt"
 using import        "logging"
 using import        "types"
 
-      import odingl "external/gl"
       import imgui  "external/imgui"
 
       import stb    "external/stb"

@@ -8,7 +8,6 @@ using import        "core:fmt"
 using import "types"
       import "gpu"
 
-      import odingl "external/gl"
       import stb    "external/stb"
       import ai     "external/assimp"
 

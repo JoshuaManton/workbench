@@ -11,7 +11,6 @@ using import "logging"
 using import "basic"
 using import "types"
 
-      import odingl "external/gl"
       import imgui  "external/imgui"
 
 //
