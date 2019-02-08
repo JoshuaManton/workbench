@@ -109,42 +109,50 @@ buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
 
 
 
-scissor :: proc(rect: [4]int) {
+scissor :: proc(rect: [4]int, loc := #caller_location) {
 	odingl.Enable(odingl.SCISSOR_TEST);
 	odingl.Scissor(rect[0], rect[1], rect[2], rect[3]);
+	log_gl_errors(#procedure, loc);
 }
-unscissor :: proc(screen_width, screen_height: f32) {
+unscissor :: proc(screen_width, screen_height: f32, loc := #caller_location) {
 	odingl.Disable(odingl.SCISSOR_TEST);
 	odingl.Scissor(0, 0, screen_width, screen_height); // todo(josh): we might not need this line, if we disable the scissor test wouldn't that be enough?
+	log_gl_errors(#procedure, loc);
 }
 
 
-enable :: proc(bits: Capabilities) {
+enable :: proc(bits: Capabilities, loc := #caller_location) {
 	odingl.Enable(transmute(u32)bits);
+	log_gl_errors(#procedure, loc);
 }
-disable :: proc(bits: Capabilities) {
+disable :: proc(bits: Capabilities, loc := #caller_location) {
 	odingl.Disable(transmute(u32)bits);
+	log_gl_errors(#procedure, loc);
 }
 
 
 
-blend_func :: proc(sfactor, dfactor: Blend_Factors) {
+blend_func :: proc(sfactor, dfactor: Blend_Factors, loc := #caller_location) {
 	odingl.BlendFunc(transmute(u32)sfactor, transmute(u32)dfactor);
+	log_gl_errors(#procedure, loc);
 }
 
 
 
-set_clear_color :: inline proc(color: Colorf) {
+set_clear_color :: inline proc(color: Colorf, loc := #caller_location) {
 	odingl.ClearColor(color.r, color.g, color.b, color.a);
+	log_gl_errors(#procedure, loc);
 }
-clear :: proc(bits: Clear_Flags) {
+clear :: proc(bits: Clear_Flags, loc := #caller_location) {
 	odingl.Clear(transmute(u32)bits);
+	log_gl_errors(#procedure, loc);
 }
 
 
 
-viewport :: proc(x1, y1, x2, y2: int) {
+viewport :: proc(x1, y1, x2, y2: int, loc := #caller_location) {
 	odingl.Viewport(cast(i32)x1, cast(i32)y1, cast(i32)x2, cast(i32)y2);
+	log_gl_errors(#procedure, loc);
 }
 
 
