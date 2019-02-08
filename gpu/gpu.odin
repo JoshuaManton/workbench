@@ -9,18 +9,19 @@ using import "../logging"
 
 /*
 
-=> GPU
+--- GPU
 
-General:
-
-Meshes:
-create_mesh   :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID
-release_mesh  :: proc(id: MeshID)
-update_mesh   :: proc(id: MeshID, vertices: []$Vertex_Type, indicies: []u32)
-draw_mesh     :: proc(id: MeshID, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, mvp_matrix: ^Mat4, depth_test: bool)
-get_mesh_info :: proc(id: MeshID) -> (Mesh_Info, bool)
+=> create_mesh   :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID
+=> release_mesh  :: proc(id: MeshID)
+=> update_mesh   :: proc(id: MeshID, vertices: []$Vertex_Type, indicies: []u32)
+=> draw_mesh     :: proc(id: MeshID, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, mvp_matrix: ^Mat4, depth_test: bool)
+=> get_mesh_info :: proc(id: MeshID) -> (Mesh_Info, bool)
 
 */
+
+init_gpu_opengl :: proc(version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
+	odingl.load_up_to(version_major, version_minor, set_proc_address);
+}
 
 all_meshes: map[MeshID]Mesh_Info;
 

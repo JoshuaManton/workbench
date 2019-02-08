@@ -12,8 +12,6 @@ using import        "core:fmt"
 using import        "types"
 using import        "logging"
 
-      import odingl "external/gl"
-
       import        "external/stb"
       import        "external/glfw"
       import        "external/imgui"
@@ -37,7 +35,7 @@ push_quad :: inline proc(
 			shader = shader,
 			texture = {},
 			scissor = do_scissor,
-			scissor_rect = scissor_rect1,
+			scissor_rect = current_scissor_rect,
 
 			derived = Draw_Quad_Command {
 				min = min,
@@ -90,7 +88,7 @@ push_sprite_minmax :: inline proc(
 			shader = shader,
 			texture = sprite.id,
 			scissor = do_scissor,
-			scissor_rect = scissor_rect1,
+			scissor_rect = current_scissor_rect,
 
 			derived = Draw_Sprite_Command{
 				min = min,
@@ -120,7 +118,7 @@ push_mesh :: inline proc(
 			shader = shader,
 			texture = texture,
 			scissor = do_scissor,
-			scissor_rect = scissor_rect1,
+			scissor_rect = current_scissor_rect,
 
 			derived = Draw_Mesh_Command{
 				mesh_id = id,
@@ -251,39 +249,39 @@ rendermode_pixel :: proc() {
 
 current_render_layer: int;
 
-@(deferred_out=_POP_RENDER_LAYER)
+@(deferred_out=pop_render_layer)
 PUSH_RENDER_LAYER :: proc(auto_cast layer: int) -> int {
 	tmp := current_render_layer;
 	current_render_layer = layer;
 	return tmp;
 }
 
-_POP_RENDER_LAYER :: proc(layer: int) {
+@(private)
+pop_render_layer :: proc(layer: int) {
 	current_render_layer = layer;
 }
+
+
 
 //
 // Scissor
 //
 
 do_scissor: bool;
-scissor_rect1: [4]int;
+current_scissor_rect: [4]int;
 
-scissor :: proc(x1, y1, ww, hh: int) {
-	assert(do_scissor == false, "We don't support nested scissors right now.");
+im_scissor :: proc(x1, y1, ww, hh: int) {
+	if do_scissor do logln("You are nesting scissors, I don't know if this is a problem case but if it's not you can delete this log");
 	do_scissor = true;
-	scissor_rect1 = {x1, y1, ww, hh};
+	current_scissor_rect = {x1, y1, ww, hh};
 }
 
-full_screen_scissor_rect :: proc() -> [4]int {
-	return {0, 0, cast(int)(current_window_width+0.5), cast(int)(current_window_height+0.5)};
-}
-
-end_scissor :: proc() {
+im_scissor_end :: proc() {
 	assert(do_scissor);
 	do_scissor = false;
-	scissor_rect1 = full_screen_scissor_rect();
+	current_scissor_rect = {0, 0, cast(int)(current_window_width+0.5), cast(int)(current_window_height+0.5)};
 }
+
 
 
 im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
@@ -327,12 +325,10 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 		if scissor_mismatch {
 			is_scissor = cmd.scissor;
 			if is_scissor {
-				odingl.Enable(odingl.SCISSOR_TEST);
-				odingl.Scissor(cmd.scissor_rect[0], cmd.scissor_rect[1], cmd.scissor_rect[2], cmd.scissor_rect[3]);
+				gpu.scissor(cmd.scissor_rect);
 			}
 			else {
-				odingl.Disable(odingl.SCISSOR_TEST);
-				odingl.Scissor(0, 0, current_window_width, current_window_height);
+				gpu.unscissor(current_window_width, current_window_height);
 			}
 		}
 

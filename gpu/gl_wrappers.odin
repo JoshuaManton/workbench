@@ -109,8 +109,42 @@ buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
 
 
 
+scissor :: proc(rect: [4]int) {
+	odingl.Enable(odingl.SCISSOR_TEST);
+	odingl.Scissor(rect[0], rect[1], rect[2], rect[3]);
+}
+unscissor :: proc(screen_width, screen_height: f32) {
+	odingl.Disable(odingl.SCISSOR_TEST);
+	odingl.Scissor(0, 0, screen_width, screen_height); // todo(josh): we might not need this line, if we disable the scissor test wouldn't that be enough?
+}
+
+
+enable :: proc(bits: Capabilities) {
+	odingl.Enable(transmute(u32)bits);
+}
+disable :: proc(bits: Capabilities) {
+	odingl.Disable(transmute(u32)bits);
+}
+
+
+
+blend_func :: proc(sfactor, dfactor: Blend_Factors) {
+	odingl.BlendFunc(transmute(u32)sfactor, transmute(u32)dfactor);
+}
+
+
+
 set_clear_color :: inline proc(color: Colorf) {
 	odingl.ClearColor(color.r, color.g, color.b, color.a);
+}
+clear :: proc(bits: Clear_Flags) {
+	odingl.Clear(transmute(u32)bits);
+}
+
+
+
+viewport :: proc(x1, y1, x2, y2: int) {
+	odingl.Viewport(cast(i32)x1, cast(i32)y1, cast(i32)x2, cast(i32)y2);
 }
 
 

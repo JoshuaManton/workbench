@@ -11,7 +11,6 @@ using import          "core:fmt"
 using import wbmath   "math"
 using import          "types"
 
-      import odingl   "external/gl"
       import          "external/stb"
       import          "external/glfw"
       import          "external/imgui"
@@ -228,8 +227,7 @@ shader_fbo:     gpu.Shader_Program;
 // scene_texture : Texture;
 // render_buffer : Render_Buffer;
 _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
-	odingl.load_up_to(opengl_version_major, opengl_version_minor,
-		proc(p: rawptr, name: cstring) {
+	gpu.init_gpu_opengl(opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
@@ -307,19 +305,18 @@ _clear_render_buffers :: proc() {
 _prerender :: proc() {
 	gpu.log_gl_errors(#procedure);
 
-	odingl.Enable(odingl.BLEND);
-	odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
+	gpu.enable(gpu.Capabilities.Blend);
+	gpu.blend_func(gpu.Blend_Factors.Src_Alpha, gpu.Blend_Factors.One_Minus_Src_Alpha);
 	if current_camera.is_perspective {
-		// odingl.Enable(odingl.CULL_FACE);
-		odingl.Enable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
-		odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT); // note(josh): @DepthTest: DEPTH stuff fucks with 2D sorting because all Z is 0.
+		gpu.enable(gpu.Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
+		gpu.clear(gpu.Clear_Flags.Color_Buffer | gpu.Clear_Flags.Depth_Buffer);
 	}
 	else {
-		odingl.Disable(odingl.DEPTH_TEST); // note(josh): @DepthTest: fucks with the sorting of 2D stuff because all Z is 0 :/
-		odingl.Clear(odingl.COLOR_BUFFER_BIT);
+		gpu.disable(gpu.Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
+		gpu.clear(gpu.Clear_Flags.Color_Buffer);
 	}
 
-	odingl.Viewport(0, 0, cast(i32)current_window_width, cast(i32)current_window_height);
+	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
 
 	gpu.log_gl_errors(#procedure);
 }
