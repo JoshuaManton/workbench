@@ -7,7 +7,7 @@ using import "../types"
 
       import odingl "../external/gl"
 
-// Vertex types
+
 
 Vertex2D :: struct {
 	position: Vec2,
@@ -37,6 +37,8 @@ Mesh_Info :: struct {
 }
 
 MeshID :: distinct i64;
+
+
 
 Draw_Mode :: enum u32 {
 	Points    = odingl.POINTS,

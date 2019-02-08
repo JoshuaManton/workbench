@@ -23,6 +23,7 @@ init_gpu_opengl :: proc(version_major, version_minor: int, set_proc_address: odi
 	odingl.load_up_to(version_major, version_minor, set_proc_address);
 }
 
+// todo(josh): this probably should be something faster than a map
 all_meshes: map[MeshID]Mesh_Info;
 
 create_mesh :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID {
