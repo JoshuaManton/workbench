@@ -2,6 +2,7 @@ package workbench
 
       import "core:fmt"
       import "core:mem"
+using import "core:math"
 
 //
 // Arrays
@@ -22,14 +23,14 @@ get_by_id :: proc(array: []$T, id: string) -> ^T {
 	return nil;
 }
 
-inst :: proc{inst_no_value, inst_value};
-inst_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
+instantiate :: proc{instantiate_no_value, instantiate_value};
+instantiate_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
 	length := append(array, T{});
 	return &array[length-1];
 }
-inst_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
-	length := append(array, value);
-	return &array[length-1];
+instantiate_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
+	append(array, value);
+	return &array[len(array)-1];
 }
 
 remove :: proc{remove_value, remove_ptr};
@@ -228,4 +229,43 @@ file_from_path :: proc(path: string) -> string {
 	file = file[start+1:end];
 
 	return file;
+}
+
+
+
+
+
+
+
+
+
+
+to_vec2 :: inline proc(a: $T/[$N]$E) -> Vec2 {
+	result: Vec2;
+	idx := 0;
+	for idx < len(a) && idx < len(result) {
+		result[idx] = a[idx];
+		idx += 1;
+	}
+	return result;
+}
+
+to_vec3 :: inline proc(a: $T/[$N]$E) -> Vec3 {
+	result: Vec3;
+	idx := 0;
+	for idx < len(a) && idx < len(result) {
+		result[idx] = a[idx];
+		idx += 1;
+	}
+	return result;
+}
+
+to_vec4 :: inline proc(a: $T/[$N]$E) -> Vec4 {
+	result: Vec4;
+	idx := 0;
+	for idx < len(a) && idx < len(result) {
+		result[idx] = a[idx];
+		idx += 1;
+	}
+	return result;
 }

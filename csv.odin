@@ -9,6 +9,7 @@ using import        "core:fmt"
       import        "core:sys/win32"
 
 using import        "basic"
+using import        "logging"
 
 Csv_Row :: struct {
 	values: [dynamic]string,
@@ -105,59 +106,7 @@ parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
 			}
 
 			ptr_to_field := mem.ptr_offset(cast(^byte)&record, offset);
-
-			a: any;
-			a.id = field_info.ti.id;
-			switch kind in a {
-				case string:
-					(cast(^string)ptr_to_field)^ = str_value;
-
-				case int:
-					value := parse_int(str_value);
-					(cast(^int)ptr_to_field)^ = value;
-				case i8:
-					value := parse_i8(str_value);
-					(cast(^i8)ptr_to_field)^ = value;
-				case i16:
-					value := parse_i16(str_value);
-					(cast(^i16)ptr_to_field)^ = value;
-				case i32:
-					value := parse_i32(str_value);
-					(cast(^i32)ptr_to_field)^ = value;
-				case i64:
-					value := parse_i64(str_value);
-					(cast(^i64)ptr_to_field)^ = value;
-
-				case uint:
-					value := parse_uint(str_value);
-					(cast(^uint)ptr_to_field)^ = value;
-				case u8:
-					value := parse_u8(str_value);
-					(cast(^u8)ptr_to_field)^ = value;
-				case u16:
-					value := parse_u16(str_value);
-					(cast(^u16)ptr_to_field)^ = value;
-				case u32:
-					value := parse_u32(str_value);
-					(cast(^u32)ptr_to_field)^ = value;
-				case u64:
-					value := parse_u64(str_value);
-					(cast(^u64)ptr_to_field)^ = value;
-
-				case f32:
-					value := parse_f32(str_value);
-					(cast(^f32)ptr_to_field)^ = value;
-				case f64:
-					value := parse_f64(str_value);
-					(cast(^f64)ptr_to_field)^ = value;
-
-				case bool:
-					value := parse_bool(str_value);
-					(cast(^bool)ptr_to_field)^ = value;
-
-				case:
-					assert(false, aprintln("Unsupported record field member type:", field_info.ti));
-			}
+			set_ptr_value_from_string(ptr_to_field, field_info.ti, str_value);
 		}
 
 		append(&records, record);

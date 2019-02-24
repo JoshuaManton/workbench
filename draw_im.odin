@@ -140,9 +140,10 @@ push_text :: proc(
 	color: Colorf,
 	size: f32,
 	layer: int,
-	actually_draw: bool = true) -> f32 {
+	actually_draw: bool = true,
+	loc := #caller_location) -> f32 {
 
-		// todo: make im_text() be render_mode agnostic
+		// todo: make push_text() be render_mode agnostic
 		// old := current_render_mode;
 		// rendering_unit_space();
 		// defer old();
@@ -150,7 +151,7 @@ push_text :: proc(
 		assert(rendermode == rendermode_unit);
 
 		font, ok := get_font_data(font_id);
-		assert(ok);
+		assert(ok, tprint(font_id, loc));
 
 		start := position;
 		for _, i in str {

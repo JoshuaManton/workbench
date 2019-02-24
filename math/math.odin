@@ -145,36 +145,6 @@ degrees_to_vector :: inline proc(degrees: f32) -> Vec2 {
 	return vec;
 }
 
-to_vec2 :: inline proc(a: $T/[$N]$E) -> Vec2 {
-	result: Vec2;
-	idx := 0;
-	for idx < len(a) && idx < len(result) {
-		result[idx] = a[idx];
-		idx += 1;
-	}
-	return result;
-}
-
-to_vec3 :: inline proc(a: $T/[$N]$E) -> Vec3 {
-	result: Vec3;
-	idx := 0;
-	for idx < len(a) && idx < len(result) {
-		result[idx] = a[idx];
-		idx += 1;
-	}
-	return result;
-}
-
-to_vec4 :: inline proc(a: $T/[$N]$E) -> Vec4 {
-	result: Vec4;
-	idx := 0;
-	for idx < len(a) && idx < len(result) {
-		result[idx] = a[idx];
-		idx += 1;
-	}
-	return result;
-}
-
 translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
 	m[3][0] += v[0];
 	m[3][1] += v[1];

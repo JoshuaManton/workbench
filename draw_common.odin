@@ -10,6 +10,7 @@ using import          "core:fmt"
       import          "gpu"
 using import wbmath   "math"
 using import          "types"
+using import          "basic"
 
       import          "external/stb"
       import          "external/glfw"

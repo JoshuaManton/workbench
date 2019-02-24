@@ -225,7 +225,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 				case '{': {
 					token: Token;
 					for get_next_token(lexer, &token) {
-						
+
 						for get_next_token(lexer, &token) {
 							if _, is_newline := token.kind.(laas.New_Line); is_newline do continue;
 							else do break;
@@ -234,7 +234,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						if right_curly, ok2 := token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
 							break;
 						}
-						
+
 						variable_name, ok2 := token.kind.(laas.Identifier);
 						assert(ok2);
 
@@ -280,7 +280,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								array_value_token: Token;
 								ok := get_next_token(lexer, &array_value_token);
 								if !ok do assert(false, "End of text from within array");
-								
+
 								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
 								defer num_entries += 1;
 
