@@ -301,8 +301,8 @@ _update_debug_window :: proc() {
 	                                 imgui.Window_Flags.NoMove |
 	                                 imgui.Window_Flags.NoCollapse |
 	                                 imgui.Window_Flags.NoBringToFrontOnFocus) {
-			static show_imgui_demo_window := false;
-			static show_profiler_window := false;
+			@static show_imgui_demo_window := false;
+			@static show_profiler_window := false;
 
 			imgui_struct(&data, "wb_debug_data");
 			imgui.checkbox("Debug Rendering", &debugging_rendering);

@@ -285,7 +285,7 @@ loaded_fonts: map[FontID]Font;
 font_default: FontID;
 
 load_font :: proc(data: []byte, size: f32) -> (FontID, bool) {
-	static last_font_id: FontID;
+	@static last_font_id: FontID;
 
 	pixels: []u8;
 	chars:  []stb.Baked_Char;

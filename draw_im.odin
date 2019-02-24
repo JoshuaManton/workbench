@@ -288,7 +288,7 @@ im_scissor_end :: proc() {
 im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 	pf.TIMED_SECTION(&wb_profiler);
 
-	static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
+	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
 
 	if !current_camera.is_perspective {
 		sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {

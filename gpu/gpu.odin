@@ -27,7 +27,7 @@ init_gpu_opengl :: proc(version_major, version_minor: int, set_proc_address: odi
 all_meshes: map[MeshID]Mesh_Info;
 
 create_mesh :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID {
-	static last_mesh_id: int;
+	@static last_mesh_id: int;
 
 	vao := gen_vao();
 	vbo := gen_vbo();
