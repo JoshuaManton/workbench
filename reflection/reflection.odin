@@ -1,7 +1,8 @@
-package workbench
+package reflection
 
       import rt "core:runtime"
       import "core:strings"
+      import "core:strconv"
 using import "core:fmt"
 
       import "core:mem"
@@ -146,19 +147,19 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
         case rt.Type_Info_Integer: {
             if ti_kind.signed {
                 switch ti.size {
-                    case 1: (cast(^i8)ptr)^  = parse_i8 (value_string);
-                    case 2: (cast(^i16)ptr)^ = parse_i16(value_string);
-                    case 4: (cast(^i32)ptr)^ = parse_i32(value_string);
-                    case 8: (cast(^i64)ptr)^ = parse_i64(value_string);
+                    case 1: (cast(^i8)ptr)^  = cast(i8 )strconv.parse_i64(value_string);
+                    case 2: (cast(^i16)ptr)^ = cast(i16)strconv.parse_i64(value_string);
+                    case 4: (cast(^i32)ptr)^ = cast(i32)strconv.parse_i64(value_string);
+                    case 8: (cast(^i64)ptr)^ = cast(i64)strconv.parse_i64(value_string);
                     case: panic(tprint(ti.size));
                 }
             }
             else {
                 switch ti.size {
-                    case 1: (cast(^u8)ptr)^  = parse_u8 (value_string);
-                    case 2: (cast(^u16)ptr)^ = parse_u16(value_string);
-                    case 4: (cast(^u32)ptr)^ = parse_u32(value_string);
-                    case 8: (cast(^u64)ptr)^ = parse_u64(value_string);
+                    case 1: (cast(^u8)ptr)^  = cast(u8 )strconv.parse_u64(value_string);
+                    case 2: (cast(^u16)ptr)^ = cast(u16)strconv.parse_u64(value_string);
+                    case 4: (cast(^u32)ptr)^ = cast(u32)strconv.parse_u64(value_string);
+                    case 8: (cast(^u64)ptr)^ = cast(u64)strconv.parse_u64(value_string);
                     case: panic(tprint(ti.size));
                 }
             }
@@ -166,8 +167,8 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
 
         case rt.Type_Info_Float: {
             switch ti.size {
-                case 4: (cast(^f32)ptr)^ = parse_f32(value_string);
-                case 8: (cast(^f64)ptr)^ = parse_f64(value_string);
+                case 4: (cast(^f32)ptr)^ = strconv.parse_f32(value_string);
+                case 8: (cast(^f64)ptr)^ = strconv.parse_f64(value_string);
                 case: panic(tprint(ti.size));
             }
         }

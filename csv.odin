@@ -11,6 +11,10 @@ using import        "core:fmt"
 using import        "basic"
 using import        "logging"
 
+// todo(josh): rewrite this probably
+// todo(josh): rewrite this probably
+// todo(josh): rewrite this probably
+
 Csv_Row :: struct {
 	values: [dynamic]string,
 }
