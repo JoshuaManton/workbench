@@ -62,7 +62,7 @@ make_simple_window :: proc(window_name: string,
 
 	client_target_framerate = _target_framerate;
 
-	_init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
+	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_draw(opengl_version_major, opengl_version_minor);
 	_init_random_number_generator();
 	_init_dear_imgui();
@@ -96,7 +96,7 @@ make_simple_window :: proc(window_name: string,
 
 				_clear_render_buffers();
 
-				_update_input();
+				update_input();
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
 
@@ -325,6 +325,5 @@ _update_debug_window :: proc() {
 main :: proc() {
 	when DEVELOPER {
 		_test_csv();
-		_test_alphabetical_notation();
 	}
 }

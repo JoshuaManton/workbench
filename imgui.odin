@@ -620,6 +620,27 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                 }
             }
         }
+        case Type_Info_Union: {
+            tag_ptr := uintptr(data) + kind.tag_offset;
+            tag_any := any{rawptr(tag_ptr), kind.tag_type.id};
+
+            tag: i64 = -1;
+            switch i in tag_any {
+                case u8:   tag = i64(i);
+                case u16:  tag = i64(i);
+                case u32:  tag = i64(i);
+                case u64:  tag = i64(i);
+                case i8:   tag = i64(i);
+                case i16:  tag = i64(i);
+                case i32:  tag = i64(i);
+                case i64:  tag = i64(i);
+                case: panic(fmt.tprint("Invalid union tag type: ", i));
+            }
+
+            assert(tag > 0);
+            data_ti := kind.variants[tag-1];
+            _imgui_struct_internal(name, data, data_ti, type_name);
+        }
         case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
     }
 }

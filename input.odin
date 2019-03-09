@@ -314,7 +314,7 @@ _up_mid_frame   := make([dynamic]Input, 0, 5);
 
 controllers: [glfw.JOYSTICK_LAST+1]Controller_State;
 
-_update_input :: proc() {
+update_input :: proc() {
 	glfw.PollEvents();
 
 	// Clear old inputs
