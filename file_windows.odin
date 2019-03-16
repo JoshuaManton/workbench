@@ -1,15 +1,15 @@
 /*
  *  @Name:     file_windows
- *  
+ *
  *  @Author:   Mikkel Hjortshoej
  *  @Email:    hoej@northwolfprod.com
  *  @Creation: 29-10-2017 20:14:21
  *
  *  @Last By:   Mikkel Hjortshoej
  *  @Last Time: 01-08-2018 23:10:11 UTC+1
- *  
+ *
  *  @Description:
- *  
+ *
  */
 
  // TODO(jake) support multiple platforms
@@ -78,7 +78,7 @@ get_all_entries_strings_in_directory :: proc(dir_path : string, full_path : bool
         len := len(cstring(&c_str[0]));
         f := string(c_str[:len]);
 
-        return f == "." || f == ".."; 
+        return f == "." || f == "..";
     }
 
     copy_file_name :: proc(c_str : cstring, path : string, full_path : bool) -> string {
@@ -92,11 +92,11 @@ get_all_entries_strings_in_directory :: proc(dir_path : string, full_path : bool
     }
 
     count := 0;
-    //Count 
+    //Count
     if file_handle != win32.INVALID_HANDLE {
         if !skip_dot(find_data.file_name[:]) {
             count += 1;
-        } 
+        }
 
         for win32.find_next_file_a(file_handle, &find_data) == true {
             if skip_dot(find_data.file_name[:]) {
@@ -114,7 +114,7 @@ get_all_entries_strings_in_directory :: proc(dir_path : string, full_path : bool
         if !skip_dot(find_data.file_name[:]) {
             result[i] = copy_file_name(cstring(&find_data.file_name[0]), dir_path, full_path);
             i += 1;
-        } 
+        }
 
         for win32.find_next_file_a(file_handle, &find_data) == true {
             if skip_dot(find_data.file_name[:]) {
@@ -125,18 +125,18 @@ get_all_entries_strings_in_directory :: proc(dir_path : string, full_path : bool
         }
     }
 
-    win32.find_close(file_handle); 
+    win32.find_close(file_handle);
     return result;
 }
 
 get_file_size :: proc(path : string) -> int {
     wc_str := odin_to_wchar_string(path); defer free(wc_str);
     out : i64;
-    h := win32.create_file_w(wc_str, 
-                             win32.FILE_GENERIC_READ, 
-                             win32.FILE_SHARE_READ | win32.FILE_SHARE_WRITE, 
-                             nil, 
-                             win32.OPEN_EXISTING, 
+    h := win32.create_file_w(wc_str,
+                             win32.FILE_GENERIC_READ,
+                             win32.FILE_SHARE_READ | win32.FILE_SHARE_WRITE,
+                             nil,
+                             win32.OPEN_EXISTING,
                              win32.FILE_ATTRIBUTE_NORMAL,
                              nil);
     win32.get_file_size_ex(h, &out);
