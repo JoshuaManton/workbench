@@ -141,7 +141,7 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
     // #complete
     switch ti_kind in ti.variant {
         case rt.Type_Info_String: {
-            (cast(^string)ptr)^ = strings.new_string(value_string);
+            (cast(^string)ptr)^ = strings.clone(value_string);
         }
 
         case rt.Type_Info_Integer: {

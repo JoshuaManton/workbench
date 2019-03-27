@@ -676,7 +676,7 @@ ui_debug_get_file_line :: proc(file_path: string, line: int) -> (string, bool) {
 				line_start = i;
 			}
 			else if cur_line == line + 1 {
-				text := strings.new_string(cast(string)data[line_start:i]);
+				text := strings.clone(cast(string)data[line_start:i]);
 				fl := UI_Debug_File_Line{file_path, line, text};
 				append(&all_ui_debug_file_lines, fl);
 				return text, true;

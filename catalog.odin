@@ -21,7 +21,7 @@ last_catalog_item_id: Catalog_Item_ID;
 
 catalog_subscribe :: inline proc(_filepath: string, userdata: ^$T, callback: proc(^T, []u8)) -> Catalog_Item_ID {
 	assert(callback != nil);
-	filepath := strings.new_string(_filepath); // @Alloc
+	filepath := strings.clone(_filepath); // @Alloc
 
 	data, ok := os.read_entire_file(filepath);
 	assert(ok);

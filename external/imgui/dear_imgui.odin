@@ -800,7 +800,7 @@ foreign cimgui {
 combo            :: proc (label : string, current_item : ^i32, items : []string, height_in_items : i32 = -1) -> bool {
     data := make([]cstring, len(items)); defer delete(data);
     for item, idx in items {
-        data[idx] = strings.new_cstring(item);
+        data[idx] = strings.clone_to_cstring(item);
     }
     return im_combo(_make_label_string(label), current_item, &data[0], i32(len(items)), height_in_items);
 }

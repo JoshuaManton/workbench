@@ -7,8 +7,8 @@ using import "types"
 
 rstate: rand.Rand;
 
-_init_random_number_generator :: inline proc() {
-	rand.init(&rstate);
+init_random :: inline proc(seed: u64) {
+	rand.init(&rstate, seed);
 }
 
 random_range :: inline proc(min, max: f32) -> f32 {

@@ -71,14 +71,14 @@ bind_command :: proc(using console: ^Console, cmd: string, callback: proc()) {
 append_log :: proc(using console: ^Console, log: string) {
 	assert(console != nil);
 
-	as_c_string := strings.new_cstring(log);
+	as_c_string := strings.clone_to_cstring(log);
 
 	im_text_buffer_appendf(buffer, as_c_string);
 }
 
 _internal_append :: inline  proc(console: ^Console, args: ..any) {
 
-	c_string := strings.new_cstring(fmt.tprintln(..args));
+	c_string := strings.clone_to_cstring(fmt.tprintln(..args));
 
 	im_text_buffer_appendf(console.buffer, c_string);
 }
@@ -229,7 +229,7 @@ _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 
 	callback, ok := commands.mapping[cmd];
 
-	append(&commands.history, strings.new_string(cmd));
+	append(&commands.history, strings.clone(cmd));
 	commands.history_count += 1;
 	commands.history_index = 0;
 

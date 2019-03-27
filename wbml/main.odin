@@ -369,7 +369,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 		// primitives
 		case laas.String: {
-			(cast(^string)data)^ = strings.new_string(value_kind.value);
+			(cast(^string)data)^ = strings.clone(value_kind.value);
 		}
 
 		case laas.Identifier: {

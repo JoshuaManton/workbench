@@ -64,7 +64,7 @@ make_simple_window :: proc(window_name: string,
 
 	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	_init_draw(opengl_version_major, opengl_version_minor);
-	_init_random_number_generator();
+	init_random(cast(u64)glfw.GetTime());
 	_init_dear_imgui();
 
 	acc: f32;

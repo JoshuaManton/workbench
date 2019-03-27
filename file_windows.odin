@@ -84,7 +84,7 @@ get_all_entries_strings_in_directory :: proc(dir_path : string, full_path : bool
     copy_file_name :: proc(c_str : cstring, path : string, full_path : bool) -> string {
         if !full_path {
             str := string(c_str);
-            return strings.new_string(str);
+            return strings.clone(str);
         } else {
             pathBuf := make([]u8, win32.MAX_PATH);
             return fmt.bprintf(pathBuf[:], "%s%s", path, string(c_str));
