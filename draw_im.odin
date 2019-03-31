@@ -415,7 +415,6 @@ model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation:
 
 
 
-debugging_rendering: bool;
 debugging_rendering_max_draw_calls : i32 = -1; // note(josh): i32 because my dear-imgui stuff wasn't working with int
 num_draw_calls: i32;
 when DEVELOPER {

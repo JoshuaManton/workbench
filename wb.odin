@@ -22,10 +22,6 @@ using import        "types"
 	  import        "console"
       import pf     "profiler"
 
-WB_Context :: struct {
-	logger_proc		: proc(log: string)
-}
-
 //
 // Game loop stuff
 //
@@ -48,10 +44,6 @@ make_simple_window :: proc(window_name: string,
                            _target_framerate: f32,
                            workspace: Workspace,
                            camera: ^Camera) {
-
-	context.derived = WB_Context{
-		 _log_back
-	};
 
 	wb_profiler = pf.make_profiler(proc() -> f64 {
 		return glfw.GetTime();
@@ -105,7 +97,7 @@ make_simple_window :: proc(window_name: string,
 				_update_glfw();
 				_update_tween();
 				_update_ui();
-				_update_debug_window();
+				_update_debug_menu();
 
 				_init_new_workspaces();
 				_update_workspaces(); // calls client updates
@@ -254,72 +246,11 @@ _remove_ended_workspaces :: proc() {
 	clear(&end_workspaces);
 }
 
-_log_back :: proc(log: string) {
-	console.append_log(debug_console, log);
-}
-
 _end_all_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		end_workspace(id);
 	}
 	_remove_ended_workspaces();
-}
-
-client_debug_window_proc: proc();
-
-debug_window_open: bool;
-_update_debug_window :: proc() {
-
-	if get_input_down(Input.F1) {
-		debug_window_open = !debug_window_open;
-	}
-
-	if debug_window_open {
-		WB_Debug_Data :: struct {
-			camera_position: Vec3,
-			camera_rotation_euler: Vec3,
-			camera_rotation_quat: Quat,
-			precise_lossy_delta_time_ms: f64,
-			fixed_delta_time: f32,
-			client_target_framerate: f32,
-			draw_calls: i32,
-		}
-
-		data := WB_Debug_Data{
-			current_camera.position,
-			current_camera.rotation,
-			wbmath.degrees_to_quaternion(current_camera.rotation),
-			rolling_average_get_value(&whole_frame_time_ra) * 1000,
-			fixed_delta_time,
-			client_target_framerate,
-			num_draw_calls,
-		};
-
-		imgui.set_next_window_pos(imgui.Vec2{0, 0});
-		imgui.set_next_window_size(imgui.Vec2{200, current_window_height});
-		if imgui.begin("Debug", nil, imgui.Window_Flags.NoResize |
-	                                 imgui.Window_Flags.NoMove |
-	                                 imgui.Window_Flags.NoCollapse |
-	                                 imgui.Window_Flags.NoBringToFrontOnFocus) {
-			@static show_imgui_demo_window := false;
-			@static show_profiler_window := false;
-
-			imgui_struct(&data, "wb_debug_data");
-			imgui.checkbox("Debug Rendering", &debugging_rendering);
-			imgui.checkbox("Debug UI", &debugging_ui);
-			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
-			imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do pf.profiler_imgui_window(&wb_profiler);
-
-			imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
-			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
-
-			if client_debug_window_proc != nil do client_debug_window_proc();
-		}
-		imgui.end();
-
-
-		console.update_console_window(debug_console);
-	}
 }
 
 main :: proc() {

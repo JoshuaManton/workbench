@@ -243,6 +243,8 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	assert(ok);
 	shader_rgba_3d, ok = gpu.load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
 
+	register_debug_program("Rendering", _debug_rendering, nil);
+
 	// @Framebuffer
 	// frame_buffer = gen_frame_buffer();
 	// bind_buffer(frame_buffer);
@@ -320,4 +322,10 @@ _prerender :: proc() {
 	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
 
 	gpu.log_errors(#procedure);
+}
+
+
+debugging_rendering: bool;
+_debug_rendering :: proc(_: rawptr) {
+	imgui.checkbox("Debug Rendering", &debugging_rendering);
 }
