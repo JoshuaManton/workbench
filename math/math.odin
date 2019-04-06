@@ -191,6 +191,15 @@ degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 	return orientation;
 }
 
+direction_to_quaternion :: proc(v: Vec3) -> Quat {
+	angle : f32 = cast(f32)atan2(cast(f64)v.x, cast(f64)v.z); // Note: I expected atan2(z,x) but OP reported success with atan2(x,z) instead! Switch around if you see 90° off.
+	qx : f32 = 0;
+	qy : f32 = cast(f32)1 * sin(angle/2);
+	qz : f32 = 0;
+	qw : f32 = cast(f32)cos(angle/2);
+	return Quat{qx, qy, qz, qw};
+}
+
 // note(josh): rotates the vector by the quaternion
 quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
 	num := quat.x * 2;
@@ -211,6 +220,108 @@ quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
 	result.z = (num8 - num11) * vec.x + (num9 + num10) * vec.y + (1 - (num4 + num5)) * vec.z;
 	return result;
 }
+
+atan2 :: proc(y, x: f64) -> f64 {
+    // special cases
+    switch {
+    case is_nan(y) || is_nan(x):
+        return x;
+    case y == 0:
+        if x >= 0 && !(transmute(u64)x & 0x80000000 > 0) {
+            return copy_sign(0, y);
+        }
+        return copy_sign(PI, y);
+    case x == 0:
+        return copy_sign(PI/2, y);
+    case is_inf(x, 0):
+        if is_inf(x, 1) {
+            switch {
+            case is_inf(y, 0):
+                return copy_sign(PI/4, y);
+            case:
+                return copy_sign(0, y);
+            }
+        }
+        switch {
+        case is_inf(y, 0):
+            return copy_sign(3*PI/4, y);
+        case:
+            return copy_sign(PI, y);
+        }
+    case is_inf(y, 0):
+        return copy_sign(PI/2, y);
+    }
+
+    // Call atan and determine the quadrant.
+    q := atan(y / x);
+    if x < 0 {
+        return q <= 0 ? q + PI : q - PI;
+    }
+    return q;
+}
+
+// is_inf :: proc(f: f64, sign: int) -> bool {
+//     return sign >= 0 && f >= max(f64) || sign <= 0 && f < -max(f64);
+// }
+
+copysign :: proc(x, y: f64) -> f64 {
+    s_ign :: 1 << 63;
+    a := transmute(u64)x;
+    b := transmute(u64)y;
+    return transmute(f64)(a&~sign | y&~sign);
+}
+
+// xatan evaluates a series valid in the range [0, 0.66].
+xatan :: proc(x: f64) -> f64 {
+	P0 :: -8.750608600031904122785e-01;
+	P1 :: -1.615753718733365076637e+01;
+	P2 :: -7.500855792314704667340e+01;
+	P3 :: -1.228866684490136173410e+02;
+	P4 :: -6.485021904942025371773e+01;
+	Q0 :: +2.485846490142306297962e+01;
+	Q1 :: +1.650270098316988542046e+02;
+	Q2 :: +4.328810604912902668951e+02;
+	Q3 :: +4.853903996359136964868e+02;
+	Q4 :: +1.945506571482613964425e+02;
+
+	z := x * x;
+	z = z * ((((P0*z+P1)*z+P2)*z+P3)*z + P4) / (((((z+Q0)*z+Q1)*z+Q2)*z+Q3)*z + Q4);
+	z = x*z + x;
+	return z;
+}
+
+// satan reduces its argument (known to be positive)
+// to the range [0, 0.66] and calls xatan.
+satan :: proc(x: f64) -> f64 {
+	Morebits := 6.123233995736765886130e-17; // pi/2 = PIO2 + Morebits
+	Tan3pio8 := 2.41421356237309504880;      // tan(3*pi/8)
+
+	if x <= 0.66 {
+		return xatan(x);
+	}
+	if x > Tan3pio8 {
+		return PI/2 - xatan(1/x) + Morebits;
+	}
+	return PI/4 + xatan((x-1)/(x+1)) + 0.5*Morebits;
+}
+
+// Atan returns the arctangent, in radians, of x.
+//
+// Special cases are:
+//      Atan(±0) = ±0
+//      Atan(±Inf) = ±Pi/2
+
+atan :: proc(x: f64) -> f64 {
+	if x == 0 {
+		return x;
+	}
+	if x > 0 {
+		return satan(x);
+	}
+	return -satan(-x);
+}
+
+
 
 mat4_inverse_ :: proc(m: Mat4) -> Mat4 {
 	o: Mat4;

@@ -105,7 +105,7 @@ push_mesh :: inline proc(
 	id: gpu.MeshID,
 	position: Vec3,
 	scale: Vec3,
-	rotation: Vec3,
+	rotation: Quat,
 	texture: gpu.Texture,
 	shader: gpu.Shader_Program,
 	color: Colorf,
@@ -404,12 +404,11 @@ draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.
 	num_draw_calls += 1;
 }
 
-model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Vec3) {
+model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Quat) {
 	model_matrix = wbmath.translate(identity(Mat4), position);
 	model_matrix = math.scale(model_matrix, scale);
 
-	orientation := wbmath.degrees_to_quaternion(rotation);
-	rotation_matrix := quat_to_mat4(orientation);
+	rotation_matrix := quat_to_mat4(rotation);
 	model_matrix = math.mul(model_matrix, rotation_matrix);
 }
 

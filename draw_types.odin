@@ -71,6 +71,6 @@ Draw_Mesh_Command :: struct {
 	mesh_id: MeshID,
 	position: Vec3,
 	scale: Vec3,
-	rotation: Vec3,
+	rotation: Quat,
 	color: Colorf,
 }
