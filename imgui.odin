@@ -98,8 +98,8 @@ _init_dear_imgui :: proc() {
     imgui_vbo_handle = cast(gpu.VBO)gpu.gen_buffer();
     imgui_ebo_handle = cast(gpu.EBO)gpu.gen_buffer();
 
-    gpu.bind_buffer(imgui_vbo_handle);
-    gpu.bind_buffer(imgui_ebo_handle);
+    gpu.bind_vbo(imgui_vbo_handle);
+    gpu.bind_ebo(imgui_ebo_handle);
 
     imgui_font_default = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/OpenSans-Regular.ttf", 20);
     imgui_font_mono    = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/Inconsolata.ttf", 16);
@@ -360,7 +360,7 @@ imgui_render :: proc(render_to_screen : bool) {
 
     vao_handle := gpu.gen_vao();
     gpu.bind_vao(vao_handle);
-    gpu.bind_buffer(imgui_vbo_handle);
+    gpu.bind_vbo(imgui_vbo_handle);
 
     gl.EnableVertexAttribArray(cast(u32)imgui_attrib_position);
     gl.EnableVertexAttribArray(cast(u32)imgui_attrib_uv);
@@ -374,13 +374,13 @@ imgui_render :: proc(render_to_screen : bool) {
     for list in new_list {
         idx_buffer_offset : ^imgui.DrawIdx = nil;
 
-        gpu.bind_buffer(imgui_vbo_handle);
+        gpu.bind_vbo(imgui_vbo_handle);
         gl.BufferData(gl.ARRAY_BUFFER,
                        cast(int)(imgui.draw_list_get_vertex_buffer_size(list) * size_of(imgui.DrawVert)),
                        imgui.draw_list_get_vertex_ptr(list, 0),
                        gl.STREAM_DRAW);
 
-        gpu.bind_buffer(imgui_ebo_handle);
+        gpu.bind_ebo(imgui_ebo_handle);
         gl.BufferData(gl.ELEMENT_ARRAY_BUFFER,
                        cast(int)(imgui.draw_list_get_index_buffer_size(list) * size_of(imgui.DrawIdx)),
                        imgui.draw_list_get_index_ptr(list, 0),

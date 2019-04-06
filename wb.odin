@@ -198,35 +198,14 @@ _update_workspaces :: proc() {
 _render_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		current_workspace = workspace.id;
-		render_workspace(workspace);
+		if workspace.render != nil {
+			workspace.render(fixed_delta_time);
+		}
+
+		draw_render();
+		gpu.log_errors(tprint("workspace_name: ", workspace.name));
 	}
 	current_workspace = -1;
-
-
-	//
-	render_workspace :: proc(workspace: Workspace) {
-	gpu.log_errors(#procedure);
-
-	num_draw_calls = 0;
-	if workspace.render != nil {
-		workspace.render(fixed_delta_time);
-	}
-
-	_prerender();
-
-	{
-		// BEGIN_FRAME_BUFFER();
-
-		// flush_3d();
-		im_draw_flush(gpu.Draw_Mode.Triangles, buffered_draw_commands[:]);
-		// draw_debug_lines();
-	}
-
-	gpu.set_clear_color(Colorf{0,0,0,0});
-
-	imgui_render(true);
-	gpu.log_errors(tprint("workspace_name: ", workspace.name));
-}
 }
 
 _remove_ended_workspaces :: proc() {

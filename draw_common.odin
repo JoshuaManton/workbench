@@ -223,10 +223,8 @@ shader_texture: gpu.Shader_Program;
 shader_rgba_3d: gpu.Shader_Program;
 shader_fbo:     gpu.Shader_Program;
 
-// @Framebuffer
-// frame_buffer : Frame_Buffer;
-// scene_texture : Texture;
-// render_buffer : Render_Buffer;
+fbo: gpu.FramebufferID;
+
 _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	gpu.init_gpu_opengl(opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
@@ -245,68 +243,31 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 
 	register_debug_program("Rendering", _debug_rendering, nil);
 
-	// @Framebuffer
-	// frame_buffer = gen_frame_buffer();
-	// bind_buffer(frame_buffer);
-
-	// scene_texture = gen_texture();
-	// bind_texture2d(scene_texture);
-
-	// odingl.TexImage2D(odingl.TEXTURE_2D, 0, odingl.RGBA32F, 1920, 1080, 0, odingl.RGB, odingl.UNSIGNED_BYTE, nil);
-	// odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MAG_FILTER, odingl.NEAREST);
-	// odingl.TexParameteri(odingl.TEXTURE_2D, odingl.TEXTURE_MIN_FILTER, odingl.NEAREST);
-
-
-	// @Framebuffer
-	// odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, odingl.COLOR_ATTACHMENT0, odingl.TEXTURE_2D, u32(scene_texture), 0);
-
-	// render_buffer = gen_render_buffer();
-	// bind_buffer(render_buffer);
-	// odingl.RenderbufferStorage(odingl.RENDERBUFFER, odingl.DEPTH24_STENCIL8, 1920, 1080);
-	// odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, odingl.DEPTH_STENCIL_ATTACHMENT, odingl.RENDERBUFFER, u32(render_buffer));
-
-	// if(odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE) do
-	// 	panic("Failed to setup frame buffer");
-
-	// gpu.bind_texture2d(0);
-	// gpu.bind_buffer(cast(gpu.Render_Buffer)0);
-	// gpu.bind_frame_buffer(0);
+	fbo = gpu.create_framebuffer(1920, 1080);
 }
 
 _update_draw :: proc() {
 	if !debug_window_open do return;
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
-	    // @Framebuffer
-		// imgui.image(rawptr(uintptr(scene_texture)),
-		// 	imgui.Vec2{window_size.x - 10, window_size.y - 30},
-		// 	imgui.Vec2{0,1},
-		// 	imgui.Vec2{1,0});
+
+	    fbo_data, ok := gpu.get_framebuffer_data(fbo);
+	    assert(ok);
+		imgui.image(rawptr(uintptr(fbo_data.texture)),
+			imgui.Vec2{window_size.x - 10, window_size.y - 30},
+			imgui.Vec2{0,1},
+			imgui.Vec2{1,0});
 	} imgui.end();
 }
-
-// @Framebuffer
-// @(deferred_none=_END_FRAME_BUFFER)
-// BEGIN_FRAME_BUFFER :: proc() {
-// 	if !debug_window_open do return;
-// 	bind_frame_buffer(frame_buffer);
-// 	odingl.Viewport(0, 0, 1920, 1080);
-// 	set_clear_color(Colorf{91.0/255,129.0/255,191.0/255,1});
-// 	odingl.Clear(odingl.COLOR_BUFFER_BIT | odingl.DEPTH_BUFFER_BIT);
-// }
-
-// _END_FRAME_BUFFER :: proc() {
-// 	if !debug_window_open do return;
-// 	bind_frame_buffer(0);
-// }
 
 _clear_render_buffers :: proc() {
 	// clear(&debug_vertices);
 	clear(&buffered_draw_commands);
 }
 
-_prerender :: proc() {
+draw_render :: proc() {
 	gpu.log_errors(#procedure);
+	num_draw_calls = 0;
 
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(gpu.Blend_Factors.Src_Alpha, gpu.Blend_Factors.One_Minus_Src_Alpha);
@@ -321,7 +282,16 @@ _prerender :: proc() {
 
 	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
 
-	gpu.log_errors(#procedure);
+	{
+		if debug_window_open do gpu.bind_framebuffer(fbo);
+		defer if debug_window_open do gpu.unbind_framebuffer();
+
+		im_draw_flush(gpu.Draw_Mode.Triangles, buffered_draw_commands[:]);
+	}
+
+	gpu.set_clear_color(Colorf{0,0,0,0});
+
+	imgui_render(true);
 }
 
 

@@ -14,12 +14,12 @@ using import "../logging"
 
 Shader_Program :: distinct u32;
 Graphics_Buffer :: distinct u32;
-Frame_Buffer :: distinct u32;
+FBO :: distinct u32;
 VAO :: distinct u32;
 VBO :: distinct u32;
 EBO :: distinct u32;
 Texture :: distinct u32;
-Render_Buffer :: distinct u32;
+RBO :: distinct u32;
 Location :: distinct i32;
 
 gen_vao :: inline proc(loc := #caller_location) -> VAO {
@@ -55,35 +55,35 @@ gen_buffer :: inline proc(loc := #caller_location) -> Graphics_Buffer {
 	return cast(Graphics_Buffer)buffer;
 }
 
-// @Framebuffer
-// gen_frame_buffer :: inline proc(loc := #caller_location) -> Frame_Buffer {
-// 	buffer: u32;
-// 	odingl.GenFramebuffers(1, &buffer);
-// 	log_errors(#procedure, loc);
-// 	return cast(Frame_Buffer)buffer;
-// }
+gen_framebuffer :: inline proc(loc := #caller_location) -> FBO {
+	buffer: u32;
+	odingl.GenFramebuffers(1, &buffer);
+	log_errors(#procedure, loc);
+	return cast(FBO)buffer;
+}
 
-gen_render_buffer :: inline proc(loc := #caller_location) -> Render_Buffer {
+gen_renderbuffer :: inline proc(loc := #caller_location) -> RBO {
 	buffer: u32;
 	odingl.GenRenderbuffers(1, &buffer);
 	log_errors(#procedure, loc);
-	return cast(Render_Buffer)buffer;
+	return cast(RBO)buffer;
 }
 
-bind_buffer :: proc{bind_buffer_vbo, bind_buffer_ebo, bind_frame_buffer, bind_render_buffer};
-bind_buffer_vbo :: inline proc(vbo: VBO, loc := #caller_location) {
+// bind_buffer :: proc{bind_vbo, bind_ebo, bind_fbo, bind_rbo};
+bind_vbo :: inline proc(vbo: VBO, loc := #caller_location) {
 	odingl.BindBuffer(odingl.ARRAY_BUFFER, cast(u32)vbo);
 	log_errors(#procedure, loc);
 }
-bind_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
+bind_ibo :: bind_ebo;
+bind_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
 	odingl.BindBuffer(odingl.ELEMENT_ARRAY_BUFFER, cast(u32)ebo);
 	log_errors(#procedure, loc);
 }
-bind_frame_buffer :: inline proc(frame_buffer: Frame_Buffer, loc := #caller_location) {
+bind_fbo :: inline proc(frame_buffer: FBO, loc := #caller_location) {
 	odingl.BindFramebuffer(odingl.FRAMEBUFFER, u32(frame_buffer));
 	log_errors(#procedure, loc);
 }
-bind_render_buffer :: inline proc(render_buffer: Render_Buffer, loc := #caller_location) {
+bind_rbo :: inline proc(render_buffer: RBO, loc := #caller_location) {
 	odingl.BindRenderbuffer(odingl.RENDERBUFFER, u32(render_buffer));
 	log_errors(#procedure, loc);
 }
@@ -276,6 +276,48 @@ delete_texture :: inline proc(texture: Texture, loc := #caller_location) {
 	odingl.DeleteTextures(1, cast(^u32)&texture);
 	log_errors(#procedure, loc);
 }
+
+delete_fbo :: proc(fbo: FBO) {
+	odingl.DeleteFramebuffers(1, cast(^u32)&fbo);
+}
+
+delete_rbo :: proc(rbo: RBO) {
+	odingl.DeleteRenderbuffers(1, cast(^u32)&rbo);
+}
+
+tex_image2d :: proc(target: Texture_Target,
+					lod: i32,
+					internal_format: Internal_Color_Format,
+					width: i32, height: i32,
+					format: Pixel_Data_Format,
+					type: Texture2D_Data_Type,
+					data: rawptr) {
+
+    odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, 0, cast(u32)format, cast(u32)type, data);
+}
+
+tex_parameteri :: proc(target: Texture_Target, pname: Texture_Parameter, param: Texture_Parameter_Value) {
+    odingl.TexParameteri(cast(u32)target, cast(u32)pname, cast(i32)param);
+}
+
+framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: Texture) {
+	odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
+}
+
+framebuffer_renderbuffer :: proc(attachment: Framebuffer_Attachment, rbo: RBO) {
+	odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.RENDERBUFFER, cast(u32)rbo);
+}
+
+assert_framebuffer_complete :: proc() {
+	if odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE {
+		panic("Failed to setup frame buffer");
+	}
+}
+
+renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: i32) {
+	odingl.RenderbufferStorage(odingl.RENDERBUFFER, cast(u32)storage, width, height);
+}
+
 
 // ActiveTexture() is guaranteed to go from 0-47 on all implementations of OpenGL, but can go higher on some
 active_texture0 :: inline proc(loc := #caller_location) {
