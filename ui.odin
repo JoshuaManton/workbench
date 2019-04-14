@@ -26,7 +26,7 @@ previously_hot:  IMGUI_ID = -1;
 previously_warm: IMGUI_ID = -1;
 cursor_pixel_position_on_clicked: Vec2;
 
-_update_ui :: proc() {
+update_ui :: proc() {
 	mouse_in_rect :: inline proc(unit_rect: Rect(f32)) -> bool {
 		cursor_in_rect := cursor_unit_position.y < unit_rect.y2 &&
 		                  cursor_unit_position.y > unit_rect.y1 &&
@@ -95,7 +95,7 @@ _update_ui :: proc() {
 	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
 }
 
-_late_update_ui :: proc() {
+late_update_ui :: proc() {
 	all_imgui_rects, new_imgui_rects = new_imgui_rects, all_imgui_rects;
 	clear(&new_imgui_rects);
 

@@ -41,7 +41,7 @@ wb_profiler: pf.Profiler;
 make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
-                           _target_framerate: f32,
+                           target_framerate: f32,
                            workspace: Workspace,
                            camera: ^Camera) {
 
@@ -52,18 +52,18 @@ make_simple_window :: proc(window_name: string,
 
 	current_camera = camera;
 
-	client_target_framerate = _target_framerate;
+	client_target_framerate = target_framerate;
 
 	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
-	_init_draw(opengl_version_major, opengl_version_minor);
+	init_draw(opengl_version_major, opengl_version_minor);
 	init_random(cast(u64)glfw.GetTime());
-	_init_dear_imgui();
+	init_dear_imgui();
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
 
 	start_workspace(workspace);
-	_init_new_workspaces();
+	init_new_workspaces();
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
@@ -92,17 +92,17 @@ make_simple_window :: proc(window_name: string,
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
 
-	    		_update_draw();
-				_update_catalog();
-				_update_glfw();
-				_update_tween();
-				_update_ui();
-				_update_debug_menu();
+	    		update_draw();
+				update_catalog();
+				update_glfw();
+				update_tween();
+				update_ui();
+				update_debug_menu();
 
-				_init_new_workspaces();
-				_update_workspaces(); // calls client updates
+				init_new_workspaces();
+				update_workspaces(); // calls client updates
 
-				_late_update_ui();
+				late_update_ui();
 
 	    		imgui.pop_font();
 
@@ -119,13 +119,13 @@ make_simple_window :: proc(window_name: string,
 		update_loop_end := glfw.GetTime();
 		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end - update_loop_start);
 
-		_render_workspaces();
+		render_workspaces();
 
 		glfw.SwapBuffers(main_window);
 
 		gpu.log_errors("after SwapBuffers()");
 
-		_remove_ended_workspaces();
+		remove_ended_workspaces();
 	}
 
 	_end_all_workspaces();
@@ -173,7 +173,7 @@ end_workspace :: proc(id: Workspace_ID) {
 
 current_workspace: Workspace_ID;
 
-_init_new_workspaces :: proc() {
+init_new_workspaces :: proc() {
 	for workspace in new_workspaces {
 		current_workspace = workspace.id;
 		if workspace.init != nil {
@@ -185,7 +185,7 @@ _init_new_workspaces :: proc() {
 	clear(&new_workspaces);
 }
 
-_update_workspaces :: proc() {
+update_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		current_workspace = workspace.id;
 		if workspace.update != nil {
@@ -195,7 +195,7 @@ _update_workspaces :: proc() {
 	current_workspace = -1;
 }
 
-_render_workspaces :: proc() {
+render_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		current_workspace = workspace.id;
 		if workspace.render != nil {
@@ -208,7 +208,7 @@ _render_workspaces :: proc() {
 	current_workspace = -1;
 }
 
-_remove_ended_workspaces :: proc() {
+remove_ended_workspaces :: proc() {
 	for id in end_workspaces {
 		workspace, ok := all_workspaces[id];
 		assert(ok);
@@ -229,7 +229,7 @@ _end_all_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		end_workspace(id);
 	}
-	_remove_ended_workspaces();
+	remove_ended_workspaces();
 }
 
 main :: proc() {

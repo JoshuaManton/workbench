@@ -52,7 +52,7 @@ catalog_unsubscribe :: inline proc(id: Catalog_Item_ID) {
 
 when DEVELOPER {
 
-_update_catalog :: proc() {
+update_catalog :: proc() {
 	for id, item in all_catalog_items {
 
 		new_write_time, errno := os.last_write_time_by_name(item.path);

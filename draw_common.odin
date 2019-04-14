@@ -225,7 +225,7 @@ shader_fbo:     gpu.Shader_Program;
 
 fbo: gpu.FramebufferID;
 
-_init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
+init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	gpu.init_gpu_opengl(opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
@@ -246,7 +246,7 @@ _init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	fbo = gpu.create_framebuffer(1920, 1080);
 }
 
-_update_draw :: proc() {
+update_draw :: proc() {
 	if !debug_window_open do return;
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();

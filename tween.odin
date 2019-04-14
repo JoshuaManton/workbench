@@ -94,7 +94,7 @@ tween_queue :: inline proc(a, b: ^Tweener) {
 	a.queued_tween = b;
 }
 
-_update_tween :: proc() {
+update_tween :: proc() {
 	tweener_idx := len(tweeners)-1;
 	updating_tweens = true;
 	defer updating_tweens = false;

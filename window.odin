@@ -106,7 +106,7 @@ init_glfw :: proc(window_name: string, _window_width, _window_height: int, _open
 	glfw.SetScrollCallback(main_window, glfw_scroll_callback);
 }
 
-_update_glfw :: proc() {
+update_glfw :: proc() {
 	// Update vars from callbacks
 	current_window_width   = _new_window_width;
 	current_window_height  = _new_window_height;

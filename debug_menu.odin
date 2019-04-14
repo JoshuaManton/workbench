@@ -8,7 +8,7 @@ using import "core:math"
       import     "console"
 
 debug_window_open: bool;
-_update_debug_menu :: proc() {
+update_debug_menu :: proc() {
 	if get_input_down(Input.F1) {
 		debug_window_open = !debug_window_open;
 	}
