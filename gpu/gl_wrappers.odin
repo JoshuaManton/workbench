@@ -289,16 +289,31 @@ tex_image2d :: proc(target: Texture_Target,
 					lod: i32,
 					internal_format: Internal_Color_Format,
 					width: i32, height: i32,
+					border: i32,
 					format: Pixel_Data_Format,
 					type: Texture2D_Data_Type,
 					data: rawptr) {
 
-    odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, 0, cast(u32)format, cast(u32)type, data);
+    odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
 }
 
 tex_parameteri :: proc(target: Texture_Target, pname: Texture_Parameter, param: Texture_Parameter_Value) {
     odingl.TexParameteri(cast(u32)target, cast(u32)pname, cast(i32)param);
 }
+
+tex_sub_image2d :: proc(target: Texture_Target,
+	                    lod: i32,
+	                    xoffset: i32,
+	                    yoffset: i32,
+	                    width: i32,
+	                    height: i32,
+	                    format: Pixel_Data_Format,
+	                    type: Texture2D_Data_Type,
+	                    pixels: rawptr) {
+
+	odingl.TexSubImage2D(cast(u32)target, lod, xoffset, yoffset, width, height, cast(u32)format, cast(u32)type, pixels);
+}
+
 
 framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: Texture) {
 	odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
@@ -593,13 +608,15 @@ uniform_matrix4fv :: inline proc(program: Shader_Program, name: string, count: i
 }
 
 
-log_errors :: proc(caller_context: string, location := #caller_location) {
+log_errors :: proc(caller_context: string, location := #caller_location) -> bool {
+	did_error := false;
 	for {
 		err := odingl.GetError();
 		if err == 0 {
 			break;
 		}
 
+		did_error = true;
 		file := location.file_path;
 		idx, ok := find_from_right(location.file_path, '\\');
 		if ok {
@@ -608,4 +625,5 @@ log_errors :: proc(caller_context: string, location := #caller_location) {
 
 		fmt.printf("[%s] OpenGL Error at %s:%d: %d\n", caller_context, file, location.line, err);
 	}
+	return did_error;
 }

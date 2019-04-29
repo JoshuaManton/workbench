@@ -130,7 +130,7 @@ create_framebuffer :: proc(width, height: int) -> FramebufferID {
 	texture := gen_texture();
 	bind_texture2d(texture);
 
-	tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
+	tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, 0, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
 	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Mag_Filter, Texture_Parameter_Value.Nearest);
 	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Min_Filter, Texture_Parameter_Value.Nearest);
 

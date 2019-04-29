@@ -58,6 +58,9 @@ make_simple_window :: proc(window_name: string,
 	init_draw(opengl_version_major, opengl_version_minor);
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
+	init_default_fonts();
+
+
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / client_target_framerate;
@@ -199,7 +202,7 @@ render_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		current_workspace = workspace.id;
 		if workspace.render != nil {
-			workspace.render(fixed_delta_time);
+			workspace.render(lossy_delta_time);
 		}
 
 		draw_render();
@@ -231,6 +234,19 @@ _end_all_workspaces :: proc() {
 	}
 	remove_ended_workspaces();
 }
+
+
+
+_default_font_data := #load("resources/fonts/Roboto/Roboto-Regular.ttf");
+_default_font_mono_data := #load("resources/fonts/Roboto_Mono/RobotoMono-Regular.ttf");
+default_font:      Font;
+default_font_mono: Font;
+init_default_fonts :: proc() {
+	default_font      = load_font(_default_font_data, 72);
+	default_font_mono = load_font(_default_font_mono_data, 72);
+}
+
+
 
 main :: proc() {
 	when DEVELOPER {

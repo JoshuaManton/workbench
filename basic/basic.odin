@@ -193,7 +193,7 @@ split_by_rune :: proc(str: string, split_on: rune, buffer: ^[$N]string) -> []str
 	return buffer[:cur_slice];
 }
 
-split_by_lines :: proc(str: string) -> [dynamic]string /* @Alloc */ {
+split_by_lines :: proc(str: string) -> []string /* @Alloc */ {
 	array: [dynamic]string;
 	start := -1;
 	for _, i in str {
@@ -210,7 +210,7 @@ split_by_lines :: proc(str: string) -> [dynamic]string /* @Alloc */ {
 		}
 	}
 
-	return array;
+	return array[:];
 }
 
 file_from_path :: proc(path: string) -> string {
@@ -218,7 +218,7 @@ file_from_path :: proc(path: string) -> string {
 	start := 0;
 	end := len(file);
 
-	if last_slash_idx, ok := find_from_right(file, '\\'); ok {
+	if last_slash_idx, ok := find_from_right(file, '/'); ok {
 		start = last_slash_idx;
 	}
 

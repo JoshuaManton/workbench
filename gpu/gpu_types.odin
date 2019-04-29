@@ -353,4 +353,6 @@ Texture_Parameter_Value :: enum i32 {
 
     Repeat                 = odingl.REPEAT,
     ClampToEdge            = odingl.CLAMP_TO_EDGE,
+
+    Mirrored_Repeat        = odingl.MIRRORED_REPEAT,
 }

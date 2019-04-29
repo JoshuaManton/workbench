@@ -101,8 +101,8 @@ init_dear_imgui :: proc() {
     gpu.bind_vbo(imgui_vbo_handle);
     gpu.bind_ebo(imgui_ebo_handle);
 
-    imgui_font_default = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/OpenSans-Regular.ttf", 20);
-    imgui_font_mono    = imgui.font_atlas_add_font_from_file_ttf(io.fonts, "resources/fonts/Inconsolata.ttf", 16);
+    imgui_font_default = imgui.font_atlas_add_font_from_memory_ttf(io.fonts, &_default_font_data[0],      cast(i32)(size_of(_default_font_data[0])      * len(_default_font_data)),      20);
+    imgui_font_mono    = imgui.font_atlas_add_font_from_memory_ttf(io.fonts, &_default_font_mono_data[0], cast(i32)(size_of(_default_font_mono_data[0]) * len(_default_font_mono_data)), 16);
 
 
 /*    //TODO(Hoej): Get from font catalog

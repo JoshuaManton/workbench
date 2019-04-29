@@ -336,7 +336,7 @@ file_from_path :: proc(path: string) -> string {
 	start := 0;
 	end := len(file);
 
-	if last_slash_idx, ok := find_from_right(file, '\\'); ok {
+	if last_slash_idx, ok := find_from_right(file, '/'); ok {
 		start = last_slash_idx;
 	}
 

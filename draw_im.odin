@@ -134,7 +134,7 @@ push_mesh :: inline proc(
 
 push_text :: proc(
 	rendermode: Rendermode_Proc,
-	font_id: FontID,
+	font: Font,
 	str: string,
 	position: Vec2,
 	color: Colorf,
@@ -149,9 +149,6 @@ push_text :: proc(
 		// defer old();
 
 		assert(rendermode == rendermode_unit);
-
-		font, ok := get_font_data(font_id);
-		assert(ok, tprint(font_id, loc));
 
 		start := position;
 		for _, i in str {
@@ -216,11 +213,11 @@ push_text :: proc(
 
 get_string_width :: inline proc(
 	rendermode: Rendermode_Proc,
-	font_id: FontID,
+	font: Font,
 	str: string,
 	size: f32) -> f32 {
 
-		return push_text(rendermode, font_id, str, {}, {}, size, 0, false);
+		return push_text(rendermode, font, str, {}, {}, size, 0, false);
 }
 
 //
