@@ -6,7 +6,6 @@ using import        "core:fmt"
       import        "core:strings"
       import        "core:mem"
       import        "core:os"
-      import        "core:sys/win32"
 
 using import        "basic"
 using import        "logging"
@@ -23,8 +22,8 @@ Csv_Row :: struct {
 parse_csv_from_file :: proc($Record: typeid, filepath: string) -> [dynamic]Record {
 	bytes, ok := os.read_entire_file(filepath);
 	if !ok do return nil;
-
 	defer delete(bytes);
+
 	records := parse_csv(Record, cast(string)bytes[:]);
 	return records;
 }

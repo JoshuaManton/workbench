@@ -18,7 +18,7 @@ using import        "logging"
 
       import pf     "profiler"
 
-im_mesh: gpu.MeshID;
+im_mesh: gpu.Mesh;
 
 buffered_draw_commands: [dynamic]Draw_Command;
 push_quad :: inline proc(
@@ -102,7 +102,7 @@ push_sprite_minmax :: inline proc(
 }
 
 push_mesh :: inline proc(
-	id: gpu.MeshID,
+	mesh: ^gpu.Mesh,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,
@@ -121,7 +121,7 @@ push_mesh :: inline proc(
 			scissor_rect = current_scissor_rect,
 
 			derived = Draw_Mesh_Command{
-				mesh_id = id,
+				mesh = mesh,
 				position = position,
 				scale = scale,
 				rotation = rotation,
@@ -372,7 +372,7 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 				rendermode_world();
 
 				draw_mode := (debugging_rendering ? gpu.Draw_Mode.Lines : gpu.Draw_Mode.Triangles);
-				gpu.draw_mesh(kind.mesh_id, draw_mode, cmd.shader, cmd.texture, kind.color, &mvp_matrix, true);
+				gpu.draw_mesh(kind.mesh, draw_mode, cmd.shader, cmd.texture, kind.color, &mvp_matrix, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -396,8 +396,8 @@ draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.
 		}
 	}
 
-	gpu.update_mesh(im_mesh, list, []u32{});
-	gpu.draw_mesh(im_mesh, mode, shader, texture, COLOR_WHITE, &mvp_matrix, false);
+	gpu.update_mesh(&im_mesh, list, []u32{});
+	gpu.draw_mesh(&im_mesh, mode, shader, texture, COLOR_WHITE, &mvp_matrix, false);
 	num_draw_calls += 1;
 }
 

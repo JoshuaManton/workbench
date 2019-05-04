@@ -24,7 +24,7 @@ Vertex3D :: struct {
 
 
 
-Mesh_Info :: struct {
+Mesh :: struct {
 	name : string,
 
 	vao: VAO,
@@ -36,12 +36,9 @@ Mesh_Info :: struct {
 	vertex_count: int,
 }
 
-MeshID :: distinct i64;
 
 
-
-
-Framebuffer_Data :: struct {
+Framebuffer :: struct {
     fbo: FBO,
     texture: Texture,
     rbo: RBO,
@@ -49,7 +46,7 @@ Framebuffer_Data :: struct {
     width, height: int,
 }
 
-FramebufferID :: distinct i64;
+
 
 
 

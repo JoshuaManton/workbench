@@ -223,7 +223,7 @@ shader_texture: gpu.Shader_Program;
 shader_rgba_3d: gpu.Shader_Program;
 shader_fbo:     gpu.Shader_Program;
 
-fbo: gpu.FramebufferID;
+wb_fbo: gpu.Framebuffer;
 
 init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	gpu.init_gpu_opengl(opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
@@ -243,7 +243,7 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 
 	register_debug_program("Rendering", _debug_rendering, nil);
 
-	fbo = gpu.create_framebuffer(1920, 1080);
+	wb_fbo = gpu.create_framebuffer(1920, 1080);
 }
 
 update_draw :: proc() {
@@ -251,9 +251,7 @@ update_draw :: proc() {
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
 
-	    fbo_data, ok := gpu.get_framebuffer_data(fbo);
-	    assert(ok);
-		imgui.image(rawptr(uintptr(fbo_data.texture)),
+		imgui.image(rawptr(uintptr(wb_fbo.texture)),
 			imgui.Vec2{window_size.x - 10, window_size.y - 30},
 			imgui.Vec2{0,1},
 			imgui.Vec2{1,0});
@@ -283,7 +281,7 @@ draw_render :: proc() {
 	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
 
 	{
-		if debug_window_open do gpu.bind_framebuffer(fbo);
+		if debug_window_open do gpu.bind_framebuffer(&wb_fbo);
 		defer if debug_window_open do gpu.unbind_framebuffer();
 
 		im_draw_flush(gpu.Draw_Mode.Triangles, buffered_draw_commands[:]);

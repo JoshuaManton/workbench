@@ -45,12 +45,13 @@ is_path_valid :: proc(str : string) -> bool {
 is_directory :: proc(str : string) -> bool {
     wc_str := odin_to_wchar_string(str); defer free(wc_str);
     attr := win32.get_file_attributes_w(wc_str);
-    result := i32(attr) != win32.INVALID_FILE_ATTRIBUTES;
-    if result {
-        result = (attr & win32.FILE_ATTRIBUTE_DIRECTORY) == win32.FILE_ATTRIBUTE_DIRECTORY;
+
+    if i32(attr) == win32.INVALID_FILE_ATTRIBUTES {
+        fmt.println(win32.get_last_error());
+        return false;
     }
 
-    return result;
+    return (attr & win32.FILE_ATTRIBUTE_DIRECTORY) == win32.FILE_ATTRIBUTE_DIRECTORY;
 }
 
 create_directory :: proc(name : string) -> bool {

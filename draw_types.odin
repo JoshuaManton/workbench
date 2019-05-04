@@ -32,7 +32,7 @@ Draw_Sprite_Command :: struct {
 	uvs: [4]Vec2,
 }
 Draw_Mesh_Command :: struct {
-	mesh_id: gpu.MeshID,
+	mesh: ^gpu.Mesh,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,

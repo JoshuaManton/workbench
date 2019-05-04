@@ -131,8 +131,8 @@ add_sprite_to_atlas :: proc(texture: ^Texture_Atlas, pixels_rgba: []byte, pixels
 //
 
 Model :: struct {
-	meshes: []Mesh,
-	mesh_ids: []gpu.MeshID,
+	cpu_meshes: []Mesh,
+	gpu_meshes: []gpu.Mesh,
 }
 
 Mesh :: struct {
@@ -177,31 +177,32 @@ load_model_from_memory :: proc(data: []byte) -> Model {
 }
 
 load_model_to_gpu :: proc(model: ^Model) {
-	assert(model != nil);
-	assert(model.mesh_ids == nil);
-	ids := make([dynamic]gpu.MeshID, 0, len(model.meshes));
-	for mesh in model.meshes {
-		append(&ids, gpu.create_mesh(mesh.vertices, mesh.indicies, mesh.name));
+	assert(model.gpu_meshes == nil);
+	meshes := make([dynamic]gpu.Mesh, 0, len(model.cpu_meshes));
+	for mesh in model.cpu_meshes {
+		append(&meshes, gpu.create_mesh(mesh.vertices, mesh.indicies, mesh.name));
 	}
-	model.mesh_ids = ids[:];
+	model.gpu_meshes = meshes[:];
 }
 
 free_model_from_gpu :: proc(model: ^Model) {
 	assert(model != nil);
-	for id in model.mesh_ids {
-		gpu.release_mesh(id);
+	for _, i in model.gpu_meshes {
+		mesh := &model.gpu_meshes[i];
+		gpu.delete_mesh(mesh);
 	}
-	delete(model.mesh_ids);
+	delete(model.gpu_meshes);
 }
 
 free_model_cpu_memory :: proc(model: ^Model) {
 	assert(model != nil);
-	for mesh in model.meshes {
+	for _, i in model.cpu_meshes {
+		mesh := &model.cpu_meshes[i];
 		delete(mesh.vertices);
 		delete(mesh.indicies);
 		if mesh.name != "" do delete(mesh.name);
 	}
-	delete(model.meshes);
+	delete(model.cpu_meshes);
 }
 
 delete_model :: proc(model: Model) {
@@ -298,7 +299,7 @@ _load_model_internal :: proc(scene: ^ai.Scene) -> []Mesh {
 	return meshes_processed[:];
 }
 
-create_cube_mesh :: proc() -> gpu.MeshID {
+create_cube_mesh :: proc() -> gpu.Mesh {
 	verts := [dynamic]gpu.Vertex3D {
 		{{-0.5,-0.5,-0.5}, {}, Colorf{1, 1, 1, 1}, {}},
 		{{-0.5,-0.5, 0.5}, {}, Colorf{1, 1, 1, 1}, {}},
