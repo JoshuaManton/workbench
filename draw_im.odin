@@ -376,7 +376,6 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 				if len(all_lights) > 0 {
 					gpu.use_program(cmd.shader);
 					if gpu.get_uniform_location(cmd.shader, "light_position") != 0 {
-						logln(current_camera.position);
 						gpu.uniform3f(cmd.shader, "camera_position", expand_to_tuple(current_camera.position));
 						gpu.uniform3f(cmd.shader, "light_position",  expand_to_tuple(all_lights[0].position));
 						gpu.uniform4f(cmd.shader, "light_color",     expand_to_tuple(all_lights[0].color));
