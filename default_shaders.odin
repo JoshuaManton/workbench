@@ -146,7 +146,7 @@ void main() {
     gl_Position = result;
     tex_coord = vbo_tex_coord;
     normal = vbo_normal;
-    frag_position = result.xyz;
+    frag_position = vec3(model_matrix * vec4(vbo_vertex_position, 1.0));
     desired_color = mesh_color;
 }
 `;
@@ -166,7 +166,7 @@ uniform int has_texture;
 uniform vec3  camera_position;
 uniform vec3  light_position;
 uniform vec4  light_color;
-uniform float light_intensity;
+uniform float light_intensity; // todo(josh)
 
 out vec4 color;
 
@@ -181,11 +181,12 @@ void main() {
     vec3 light_dir = normalize(light_position - frag_position);
 
     // ambient
-    float ambient_strength = 0.1;
+    float ambient_strength = 0.35;
     vec4 ambient = ambient_strength * light_color;
 
     // diffuse
-    float diff = max(dot(norm, light_dir), 0.0);
+    float diffuse_strength = 1.0;
+    float diff = max(dot(norm, light_dir), 0.0) * diffuse_strength;
     vec4 diffuse = light_color * diff;
 
     // specular
@@ -195,7 +196,7 @@ void main() {
     float spec              = pow(max(dot(view_dir, reflect_dir), 0.0), 32);
     vec4 specular           = light_color * spec * specular_strength;
 
-    color *= vec4(((ambient + diffuse + specular) * desired_color).xyz, 1.0);
+    color *= vec4((desired_color * ((ambient + diffuse + specular))).xyz, 1.0);
 }
 `;
 
