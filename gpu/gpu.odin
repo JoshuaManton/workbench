@@ -62,6 +62,7 @@ draw_mesh :: proc(mesh: ^Mesh, mode: Draw_Mode, shader: Shader_Program, texture:
 
 	program := get_current_shader();
 
+	uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
 	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
 	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
 

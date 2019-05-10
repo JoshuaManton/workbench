@@ -216,11 +216,13 @@ normalize_camera_rotation :: proc(using camera: ^Camera) {
 // 	}
 // }
 
-shader_rgba:    gpu.Shader_Program;
-shader_text:    gpu.Shader_Program;
-shader_texture: gpu.Shader_Program;
-
+shader_rgba: gpu.Shader_Program;
+shader_text: gpu.Shader_Program;
 shader_rgba_3d: gpu.Shader_Program;
+
+shader_texture_unlit: gpu.Shader_Program;
+shader_texture_lit:   gpu.Shader_Program;
+
 shader_fbo:     gpu.Shader_Program;
 
 wb_fbo: gpu.Framebuffer;
@@ -235,7 +237,9 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	ok: bool;
 	shader_rgba, ok    = gpu.load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
 	assert(ok);
-	shader_texture, ok = gpu.load_shader_text(SHADER_TEXTURE_VERT, SHADER_TEXTURE_FRAG);
+	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_TEXTURE_UNLIT_VERT, SHADER_TEXTURE_UNLIT_FRAG);
+	assert(ok);
+	shader_texture_lit, ok = gpu.load_shader_text(SHADER_TEXTURE_LIT_VERT, SHADER_TEXTURE_LIT_FRAG);
 	assert(ok);
 	shader_text, ok    = gpu.load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
 	assert(ok);

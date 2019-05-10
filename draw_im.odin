@@ -359,7 +359,7 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 			}
 
 			case Draw_Mesh_Command: {
-				// todo(josh): batching of meshes, right now it's a draw call per mesh
+				// todo(josh): mesh batching, right now it's a draw call per mesh
 
 				when DEVELOPER {
 					if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
@@ -368,10 +368,21 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 					}
 				}
 
-				model_matrix_from_elements(kind.position, kind.scale, kind.rotation);
+				model_matrix = model_matrix_from_elements(kind.position, kind.scale, kind.rotation);
 				rendermode_world();
 
 				draw_mode := (debugging_rendering ? gpu.Draw_Mode.Lines : gpu.Draw_Mode.Triangles);
+
+				if len(all_lights) > 0 {
+					gpu.use_program(cmd.shader);
+					if gpu.get_uniform_location(cmd.shader, "light_position") != 0 {
+						logln(current_camera.position);
+						gpu.uniform3f(cmd.shader, "camera_position", expand_to_tuple(current_camera.position));
+						gpu.uniform3f(cmd.shader, "light_position",  expand_to_tuple(all_lights[0].position));
+						gpu.uniform4f(cmd.shader, "light_color",     expand_to_tuple(all_lights[0].color));
+						gpu.uniform1f(cmd.shader, "light_intensity", all_lights[0].intensity);
+					}
+				}
 				gpu.draw_mesh(kind.mesh, draw_mode, cmd.shader, cmd.texture, kind.color, &mvp_matrix, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
@@ -401,12 +412,11 @@ draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.
 	num_draw_calls += 1;
 }
 
-model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Quat) {
-	model_matrix = wbmath.translate(identity(Mat4), position);
-	model_matrix = math.scale(model_matrix, scale);
-
-	rotation_matrix := quat_to_mat4(rotation);
-	model_matrix = math.mul(model_matrix, rotation_matrix);
+model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Quat) -> Mat4 {
+	result := wbmath.translate(identity(Mat4), position);
+	result = math.scale(result, scale);
+	result = math.mul(result, quat_to_mat4(rotation));
+	return result;
 }
 
 

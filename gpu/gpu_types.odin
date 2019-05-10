@@ -25,7 +25,7 @@ Vertex3D :: struct {
 
 
 Mesh :: struct {
-	name : string,
+	name: string,
 
 	vao: VAO,
 	vbo: VBO,
