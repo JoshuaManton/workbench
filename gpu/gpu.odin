@@ -3,7 +3,9 @@ package gpu
 using import "core:math"
 
 using import "../types"
+using import "../basic"
 using import "../logging"
+using import wbm "../math"
 
       import odingl "../external/gl"
 
@@ -53,7 +55,31 @@ update_mesh :: proc(mesh: ^Mesh, vertices: []$Vertex_Type, indicies: []u32) {
 	mesh.vertex_count = len(vertices);
 }
 
-draw_mesh :: proc(mesh: ^Mesh, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, mvp_matrix: ^Mat4, depth_test: bool) {
+draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, depth_test: bool) {
+	normalize_camera_rotation(camera);
+
+	// view matrix
+	view_matrix := identity(Mat4);
+	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
+
+	qx := axis_angle(Vec3{1,0,0}, to_radians(360 - camera.rotation.x));
+	qy := axis_angle(Vec3{0,1,0}, to_radians(360 - camera.rotation.y));
+	// todo(josh): z axis
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(360 - camera.rotation.z));
+	orientation := quat_mul(qx, qy);
+	orientation = quat_norm(orientation);
+	rotation_matrix := quat_to_mat4(orientation);
+	view_matrix = mul(rotation_matrix, view_matrix);
+
+
+
+	// model_matrix
+	model_matrix := translate(identity(Mat4), position);
+	model_matrix = math.scale(model_matrix, scale);
+	model_matrix = math.mul(model_matrix, quat_to_mat4(rotation));
+
+
+
 	bind_vao(mesh.vao);
 	bind_vbo(mesh.vbo);
 	bind_ibo(mesh.ibo);
@@ -64,7 +90,13 @@ draw_mesh :: proc(mesh: ^Mesh, mode: Draw_Mode, shader: Shader_Program, texture:
 
 	uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
 	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
-	uniform_matrix4fv(program, "mvp_matrix", 1, false, &mvp_matrix[0][0]);
+
+	logln(view_matrix);
+	logln(camera.projection_matrix);
+
+	uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
+	uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
+	uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.projection_matrix[0][0]);
 
 	old_depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
 	defer if old_depth_test == odingl.TRUE {
@@ -90,6 +122,173 @@ delete_mesh :: proc(mesh: ^Mesh) {
 	delete_vao(mesh.vao);
 	delete_buffer(mesh.vbo);
 	delete_buffer(mesh.ibo);
+}
+
+
+
+create_camera :: proc() -> ^Camera {
+	camera := new(Camera);
+	return camera;
+}
+
+update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
+	camera.pixel_width = pixel_width;
+	camera.pixel_height = pixel_height;
+	camera.aspect = camera.pixel_width / camera.pixel_height;
+
+	// perspective
+	{
+		camera.perspective_matrix = perspective(to_radians(camera.size), camera.aspect, 0.01, 1000);
+	}
+
+	// ortho
+	{
+		top    : f32 =  1 * camera.size + camera.position.y;
+		bottom : f32 = -1 * camera.size + camera.position.y;
+		left   : f32 = -1 * camera.aspect * camera.size + camera.position.x;
+		right  : f32 =  1 * camera.aspect * camera.size + camera.position.x;
+		camera.orthographic_matrix = ortho3d(left, right, bottom, top, -1, 1);
+	}
+
+	// Unit space
+	{
+		camera.unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-1, -1, 0});
+		camera.unit_to_viewport_matrix = scale(camera.unit_to_viewport_matrix, 2);
+		camera.unit_to_pixel_matrix = scale(identity(Mat4), Vec3{camera.pixel_width, camera.pixel_height, 0});
+	}
+
+	// Pixel space
+	{
+		camera.pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
+		camera.pixel_to_viewport_matrix = translate(camera.pixel_to_viewport_matrix, Vec3{-1, -1, 0});
+		camera.pixel_to_viewport_matrix = scale(camera.pixel_to_viewport_matrix, 2);
+	}
+
+	// Viewport space
+	{
+		camera.viewport_to_pixel_matrix = identity(Mat4);
+		camera.viewport_to_pixel_matrix = translate(camera.viewport_to_pixel_matrix, Vec3{1, 1, 0});
+		camera.viewport_to_pixel_matrix = scale(camera.viewport_to_pixel_matrix, Vec3{camera.pixel_width/2, camera.pixel_height/2, 0});
+
+		camera.viewport_to_unit_matrix = identity(Mat4);
+		camera.viewport_to_unit_matrix = translate(camera.viewport_to_unit_matrix, Vec3{1, 1, 0});
+		camera.viewport_to_unit_matrix = scale(camera.viewport_to_unit_matrix, 0.5);
+	}
+
+}
+
+Rendermode_Proc :: #type proc(^Camera);
+
+rendermode_world :: proc(camera: ^Camera) {
+	if camera.is_perspective {
+		camera.projection_matrix = camera.perspective_matrix;
+	}
+	else {
+		camera.projection_matrix = camera.orthographic_matrix;
+	}
+}
+rendermode_unit :: proc(camera: ^Camera) {
+	camera.projection_matrix = camera.unit_to_viewport_matrix;
+}
+rendermode_pixel :: proc(camera: ^Camera) {
+	camera.projection_matrix = camera.pixel_to_viewport_matrix;
+}
+
+camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (degrees_to_quaternion(rotation));
+camera_down    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_down   (degrees_to_quaternion(rotation));
+camera_left    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_left   (degrees_to_quaternion(rotation));
+camera_right   :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_right  (degrees_to_quaternion(rotation));
+camera_forward :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_forward(degrees_to_quaternion(rotation));
+camera_back    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_back   (degrees_to_quaternion(rotation));
+
+get_cursor_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
+	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
+	cursor_viewport_position.w = 1;
+
+	// todo(josh): should probably make this 0.5 because I think directx is 0-1 instead of -1-1 like opengl
+	cursor_viewport_position.z = 0; // just some way down the frustum
+
+	inv: Mat4;
+	inv = mat4_inverse_(mul(camera.projection_matrix, camera.view_matrix));
+
+	cursor_world_position4 := mul(inv, cursor_viewport_position);
+	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
+	cursor_world_position := to_vec3(cursor_world_position4) - camera.position;
+
+	return cursor_world_position;
+}
+
+get_cursor_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
+	if !camera.is_perspective {
+		return camera_forward(camera);
+	}
+
+	cursor_world_position := get_cursor_world_position(camera, cursor_unit_position);
+	cursor_direction := norm(cursor_world_position);
+	return cursor_direction;
+}
+
+normalize_camera_rotation :: proc(using camera: ^Camera) {
+	for _, i in rotation {
+		element := &rotation[i];
+		for element^ < 0   do element^ += 360;
+		for element^ > 360 do element^ -= 360;
+	}
+}
+
+world_to_viewport :: inline proc(position: Vec3, camera: ^Camera) -> Vec3 {
+	if camera.is_perspective {
+		mv := mul(camera.projection_matrix, camera.view_matrix);
+		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
+		if result.w > 0 do result /= result.w;
+		new_result := Vec3{result.x, result.y, result.z};
+		return new_result;
+	}
+
+	result := mul(camera.projection_matrix, Vec4{position.x, position.y, position.z, 1});
+	return Vec3{result.x, result.y, result.z};
+}
+world_to_pixel :: inline proc(a: Vec3, camera: ^Camera, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	result := world_to_viewport(a, camera);
+	result = viewport_to_pixel(result, pixel_width, pixel_height);
+	return result;
+}
+world_to_unit :: inline proc(a: Vec3, camera: ^Camera) -> Vec3 {
+	result := world_to_viewport(a, camera);
+	result = viewport_to_unit(result);
+	return result;
+}
+
+unit_to_pixel :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	result := a * Vec3{pixel_width, pixel_height, 1};
+	return result;
+}
+unit_to_viewport :: inline proc(a: Vec3) -> Vec3 {
+	result := (a * 2) - Vec3{1, 1, 0};
+	return result;
+}
+
+pixel_to_viewport :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a /= Vec3{pixel_width/2, pixel_height/2, 1};
+	a -= Vec3{1, 1, 0};
+	return a;
+}
+pixel_to_unit :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a /= Vec3{pixel_width, pixel_height, 1};
+	return a;
+}
+
+viewport_to_pixel :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a += Vec3{1, 1, 0};
+	a *= Vec3{pixel_width/2, pixel_height/2, 0};
+	a.z = 0;
+	return a;
+}
+viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
+	a += Vec3{1, 1, 0};
+	a /= 2;
+	a.z = 0;
+	return a;
 }
 
 

@@ -8,6 +8,8 @@ using import        "core:fmt"
       import        "core:os"
       import        "core:sys/win32"
 
+      import "gpu"
+
       import wbmath "math"
 
       import imgui  "external/imgui"
@@ -117,43 +119,5 @@ update_glfw :: proc() {
 	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
 	window_is_focused = _new_window_is_focused;
 
-	// ortho
-	{
-		top    : f32 =  1 * current_camera.size + current_camera.position.y;
-		bottom : f32 = -1 * current_camera.size + current_camera.position.y;
-		left   : f32 = -1 * current_aspect_ratio * current_camera.size + current_camera.position.x;
-		right  : f32 =  1 * current_aspect_ratio * current_camera.size + current_camera.position.x;
-		orthographic_projection_matrix = ortho3d(left, right, bottom, top, -1, 1);
-	}
-
-	perspective_projection_matrix  = perspective(to_radians(current_camera.size), current_aspect_ratio, 0.01, 1000);
-
-	update_view_matrix(current_camera);
-
-	model_matrix = identity(Mat4);
-
-	// Unit space
-	{
-		unit_to_viewport_matrix = wbmath.translate(identity(Mat4), Vec3{-1, -1, 0});
-		unit_to_viewport_matrix = scale(unit_to_viewport_matrix, 2);
-		unit_to_pixel_matrix = scale(identity(Mat4), Vec3{cast(f32)current_window_width, cast(f32)current_window_height, 0});
-	}
-
-	// Pixel space
-	{
-		pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / cast(f32)current_window_width, 1.0 / cast(f32)current_window_height, 0});
-		pixel_to_viewport_matrix = wbmath.translate(pixel_to_viewport_matrix, Vec3{-1, -1, 0});
-		pixel_to_viewport_matrix = scale(pixel_to_viewport_matrix, 2);
-	}
-
-	// Viewport space
-	{
-		viewport_to_pixel_matrix = identity(Mat4);
-		viewport_to_pixel_matrix = wbmath.translate(viewport_to_pixel_matrix, Vec3{1, 1, 0});
-		viewport_to_pixel_matrix = scale(viewport_to_pixel_matrix, Vec3{cast(f32)current_window_width/2, cast(f32)current_window_height/2, 0});
-
-		viewport_to_unit_matrix = identity(Mat4);
-		viewport_to_unit_matrix = wbmath.translate(viewport_to_unit_matrix, Vec3{1, 1, 0});
-		viewport_to_unit_matrix = scale(viewport_to_unit_matrix, 0.5);
-	}
+	gpu.update_camera(current_camera, current_window_width, current_window_height);
 }

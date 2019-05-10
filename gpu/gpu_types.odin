@@ -9,6 +9,31 @@ using import "../types"
 
 
 
+Camera :: struct {
+    is_perspective: bool,
+    // orthographic -> size in world units from center of screen to top of screen
+    // perspective  -> fov
+    size: f32,
+
+    pixel_width, pixel_height, aspect: f32,
+
+    position: Vec3,
+    rotation: Vec3,
+
+    perspective_matrix:  Mat4,
+    orthographic_matrix: Mat4,
+    projection_matrix: Mat4, // should be one of the  perspective or orthographic matrices above
+    view_matrix: Mat4,
+
+    unit_to_viewport_matrix: Mat4,
+    unit_to_pixel_matrix: Mat4,
+    pixel_to_viewport_matrix: Mat4,
+    viewport_to_pixel_matrix: Mat4,
+    viewport_to_unit_matrix: Mat4,
+}
+
+
+
 Vertex2D :: struct {
 	position: Vec2,
 	tex_coord: Vec2,

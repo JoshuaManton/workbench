@@ -9,7 +9,7 @@ Draw_Command :: struct {
 	render_order:  int,
 	serial_number: int,
 
-	rendermode:   Rendermode_Proc,
+	rendermode:   gpu.Rendermode_Proc,
 	shader:       gpu.Shader_Program,
 	texture:      gpu.Texture,
 	scissor:      bool,

@@ -42,15 +42,14 @@ make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
                            opengl_version_major, opengl_version_minor: int,
                            target_framerate: f32,
-                           workspace: Workspace,
-                           camera: ^Camera) {
+                           workspace: Workspace) {
 
 	wb_profiler = pf.make_profiler(proc() -> f64 {
 		return glfw.GetTime();
 	});
 	defer pf.destroy_profiler(&wb_profiler);
 
-	current_camera = camera;
+	current_camera = gpu.create_camera();
 
 	client_target_framerate = target_framerate;
 

@@ -9,12 +9,14 @@ layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
 
-uniform mat4 mvp_matrix;
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
 
 out vec4 desired_color;
 
 void main() {
-    vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     desired_color = vbo_color;
@@ -44,12 +46,15 @@ layout(location = 2) in vec4 vbo_color;
 layout(location = 3) in vec4 vbo_normal;
 
 uniform vec4 mesh_color;
-uniform mat4 mvp_matrix;
+
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
 
 out vec4 desired_color;
 
 void main() {
-    vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     desired_color = vbo_color * mesh_color;
@@ -81,13 +86,16 @@ layout(location = 1) in vec2 vbo_tex_coord;
 // layout(location = 2) in vec4 vbo_color;
 
 uniform vec4 mesh_color;
-uniform mat4 mvp_matrix;
+
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
 
 out vec2 tex_coord;
 out vec4 desired_color;
 
 void main() {
-    vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     tex_coord = vbo_tex_coord;
@@ -122,7 +130,10 @@ layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 3) in vec3 vbo_normal;
 
 uniform vec4 mesh_color;
-uniform mat4 mvp_matrix;
+
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
 
 out vec2 tex_coord;
 out vec3 normal;
@@ -130,7 +141,7 @@ out vec3 frag_position;
 out vec4 desired_color;
 
 void main() {
-    vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     tex_coord = vbo_tex_coord;
@@ -197,13 +208,15 @@ layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
 
-uniform mat4 mvp_matrix;
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
 
 out vec2 tex_coord;
 out vec4 desired_color;
 
 void main() {
-    vec4 result = mvp_matrix * vec4(vbo_vertex_position.x, vbo_vertex_position.y, vbo_vertex_position.z, 1);
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     tex_coord = vbo_tex_coord;

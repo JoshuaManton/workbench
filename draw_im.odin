@@ -22,7 +22,7 @@ im_mesh: gpu.Mesh;
 
 buffered_draw_commands: [dynamic]Draw_Command;
 push_quad :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	color: Colorf,
@@ -47,7 +47,7 @@ push_quad :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 push_quad_pos :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	pos, size: Vec2,
 	color: Colorf,
@@ -57,7 +57,7 @@ push_quad_pos :: inline proc(
 }
 
 push_sprite :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	position, scale: Vec2,
 	sprite: Sprite,
@@ -74,7 +74,7 @@ push_sprite :: inline proc(
 		push_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
 }
 push_sprite_minmax :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	sprite: Sprite,
@@ -114,7 +114,7 @@ push_mesh :: inline proc(
 		cmd := Draw_Command{
 			render_order = render_order,
 			serial_number = len(buffered_draw_commands),
-			rendermode = rendermode_world,
+			rendermode = gpu.rendermode_world,
 			shader = shader,
 			texture = texture,
 			scissor = do_scissor,
@@ -133,7 +133,7 @@ push_mesh :: inline proc(
 }
 
 push_text :: proc(
-	rendermode: Rendermode_Proc,
+	rendermode: gpu.Rendermode_Proc,
 	font: Font,
 	str: string,
 	position: Vec2,
@@ -148,7 +148,7 @@ push_text :: proc(
 		// rendering_unit_space();
 		// defer old();
 
-		assert(rendermode == rendermode_unit);
+		assert(rendermode == gpu.rendermode_unit);
 
 		start := position;
 		for _, i in str {
@@ -212,33 +212,12 @@ push_text :: proc(
 }
 
 get_string_width :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: gpu.Rendermode_Proc,
 	font: Font,
 	str: string,
 	size: f32) -> f32 {
 
 		return push_text(rendermode, font, str, {}, {}, size, 0, false);
-}
-
-//
-// Rendermodes
-//
-
-Rendermode_Proc :: #type proc();
-
-rendermode_world :: proc() {
-	if current_camera.is_perspective {
-		mvp_matrix = mul(mul(perspective_projection_matrix, current_camera.view_matrix), model_matrix);
-	}
-	else {
-		mvp_matrix = orthographic_projection_matrix;
-	}
-}
-rendermode_unit :: proc() {
-	mvp_matrix = unit_to_viewport_matrix;
-}
-rendermode_pixel :: proc() {
-	mvp_matrix = pixel_to_viewport_matrix;
 }
 
 //
@@ -295,9 +274,8 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 			});
 	}
 
-	model_matrix = identity(Mat4);
 
-	current_rendermode : Rendermode_Proc = nil;
+	current_rendermode : gpu.Rendermode_Proc = nil;
 	is_scissor := false;
 	current_shader := gpu.Shader_Program(0);
 	current_texture := gpu.Texture(0);
@@ -317,7 +295,7 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 		if texture_mismatch    do current_texture = cmd.texture;
 		if rendermode_mismatch {
 			current_rendermode = cmd.rendermode;
-			cmd.rendermode();
+			cmd.rendermode(current_camera);
 		}
 
 		if scissor_mismatch {
@@ -368,8 +346,7 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 					}
 				}
 
-				model_matrix = model_matrix_from_elements(kind.position, kind.scale, kind.rotation);
-				rendermode_world();
+				gpu.rendermode_world(current_camera);
 
 				draw_mode := (debugging_rendering ? gpu.Draw_Mode.Lines : gpu.Draw_Mode.Triangles);
 
@@ -382,7 +359,7 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 						gpu.uniform1f(cmd.shader, "light_intensity", all_lights[0].intensity);
 					}
 				}
-				gpu.draw_mesh(kind.mesh, draw_mode, cmd.shader, cmd.texture, kind.color, &mvp_matrix, true);
+				gpu.draw_mesh(kind.mesh, current_camera, kind.position, kind.scale, kind.rotation, draw_mode, cmd.shader, cmd.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -407,15 +384,8 @@ draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.
 	}
 
 	gpu.update_mesh(&im_mesh, list, []u32{});
-	gpu.draw_mesh(&im_mesh, mode, shader, texture, COLOR_WHITE, &mvp_matrix, false);
+	gpu.draw_mesh(&im_mesh, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, mode, shader, texture, COLOR_WHITE, false);
 	num_draw_calls += 1;
-}
-
-model_matrix_from_elements :: inline proc(position: Vec3, scale: Vec3, rotation: Quat) -> Mat4 {
-	result := wbmath.translate(identity(Mat4), position);
-	result = math.scale(result, scale);
-	result = math.mul(result, quat_to_mat4(rotation));
-	return result;
 }
 
 
