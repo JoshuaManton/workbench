@@ -91,9 +91,6 @@ draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rot
 	uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
 	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
 
-	logln(view_matrix);
-	logln(camera.projection_matrix);
-
 	uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
 	uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
 	uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.projection_matrix[0][0]);
