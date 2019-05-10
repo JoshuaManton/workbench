@@ -170,7 +170,7 @@ void main() {
     vec3 light_dir = normalize(light_position - frag_position);
 
     // ambient
-    float ambient_strength = 0.25;
+    float ambient_strength = 0.1;
     vec4 ambient = ambient_strength * light_color;
 
     // diffuse
@@ -178,7 +178,7 @@ void main() {
     vec4 diffuse = light_color * diff;
 
     // specular
-    float specular_strength = 10;
+    float specular_strength = 0.5;
     vec3 view_dir           = normalize(camera_position - frag_position);
     vec3 reflect_dir        = reflect(-light_dir, norm);
     float spec              = pow(max(dot(view_dir, reflect_dir), 0.0), 32);
