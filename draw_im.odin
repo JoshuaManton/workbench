@@ -350,11 +350,18 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 
 				if len(all_lights) > 0 {
 					gpu.use_program(cmd.shader);
-					if gpu.get_uniform_location(cmd.shader, "light_position") != 0 {
+					if gpu.get_uniform_location(cmd.shader, "lights") != 0 {
 						gpu.uniform3f(cmd.shader, "camera_position", expand_to_tuple(current_camera.position));
-						gpu.uniform3f(cmd.shader, "light_position",  expand_to_tuple(all_lights[0].position));
-						gpu.uniform4f(cmd.shader, "light_color",     expand_to_tuple(all_lights[0].color));
-						gpu.uniform1f(cmd.shader, "light_intensity", all_lights[0].intensity);
+						lights_capped := all_lights[:min(len(all_lights), 100)];
+						if len(lights_capped) != len(all_lights) {
+							logln("Too many lights, max is 100.");
+						}
+						for light, idx in lights_capped {
+							gpu.uniform3f(cmd.shader, tprint("lights[", idx, "].position"),  expand_to_tuple(light.position));
+							gpu.uniform4f(cmd.shader, tprint("lights[", idx, "].color"),     expand_to_tuple(light.color));
+							gpu.uniform1f(cmd.shader, tprint("lights[", idx, "].intensity"), light.intensity);
+						}
+						gpu.uniform1i(cmd.shader, "num_lights", cast(i32)len(lights_capped));
 					}
 				}
 

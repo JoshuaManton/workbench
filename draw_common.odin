@@ -156,6 +156,8 @@ draw_render :: proc() {
 	gpu.set_clear_color(Colorf{0,0,0,0});
 
 	imgui_render(true);
+
+	clear_lights();
 }
 
 

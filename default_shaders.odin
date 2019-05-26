@@ -166,40 +166,59 @@ in vec4 desired_color;
 uniform sampler2D atlas_texture;
 uniform int has_texture;
 
-uniform vec3  camera_position;
-uniform vec3  light_position;
-uniform vec4  light_color;
-uniform float light_intensity; // todo(josh)
+struct Light_Source {
+    vec3  position;
+    vec4  color;
+    float intensity;
+};
+
+uniform vec3 camera_position;
+uniform Light_Source lights[100];
+uniform int num_lights;
 
 out vec4 color;
 
-void main() {
-    color = desired_color;
-    if (has_texture == 1) {
-        color *= texture(atlas_texture, tex_coord);
-    }
+vec4 calculate_point_light(Light_Source, vec3, vec4);
 
-    // todo(josh): handle non-uniform scaling with normals
+void main() {
     vec3 norm = normalize(normal);
-    vec3 light_dir = normalize(light_position - frag_position);
+
+    vec4 unlit_color = desired_color;
+    if (has_texture == 1) {
+        unlit_color *= texture(atlas_texture, tex_coord);
+    }
+    for (int i = 0; i < num_lights; i++) {
+        color += calculate_point_light(lights[i], norm, unlit_color);
+    }
+}
+
+vec4 calculate_point_light(Light_Source light, vec3 norm, vec4 unlit_color) {
+    float distance = length(light.position - frag_position);
+    vec3 light_dir = normalize(light.position - frag_position);
+    vec3 view_dir  = normalize(camera_position - frag_position);
 
     // ambient
     float ambient_strength = 0.35;
-    vec4 ambient = ambient_strength * light_color;
+    vec4 ambient = light.color * ambient_strength;
 
     // diffuse
-    float diffuse_strength = 1.0;
+    float diffuse_strength = 0.25;
     float diff = max(dot(norm, light_dir), 0.0) * diffuse_strength;
-    vec4 diffuse = light_color * diff;
+    vec4 diffuse = light.color * diff;
 
     // specular
     float specular_strength = 0.5;
-    vec3 view_dir           = normalize(camera_position - frag_position);
     vec3 reflect_dir        = reflect(-light_dir, norm);
     float spec              = pow(max(dot(view_dir, reflect_dir), 0.0), 32);
-    vec4 specular           = light_color * spec * specular_strength;
+    vec4 specular           = light.color * spec * specular_strength;
 
-    color *= vec4((desired_color * ((ambient + diffuse + specular))).xyz, 1.0);
+    float attenuation = 1.0 / distance;
+
+    ambient  *= attenuation;
+    diffuse  *= attenuation;
+    specular *= attenuation;
+
+    return unlit_color * vec4((ambient + diffuse + specular).xyz, 1.0) * light.intensity;
 }
 `;
 
