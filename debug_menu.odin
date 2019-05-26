@@ -16,8 +16,7 @@ update_debug_menu :: proc() {
 	if debug_window_open {
 		WB_Debug_Data :: struct {
 			camera_position: Vec3,
-			camera_rotation_euler: Vec3,
-			camera_rotation_quat: Quat,
+			camera_rotation: Quat,
 			precise_lossy_delta_time_ms: f64,
 			fixed_delta_time: f32,
 			client_target_framerate: f32,
@@ -27,7 +26,6 @@ update_debug_menu :: proc() {
 		data := WB_Debug_Data{
 			current_camera.position,
 			current_camera.rotation,
-			wbm.degrees_to_quaternion(current_camera.rotation),
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 			client_target_framerate,

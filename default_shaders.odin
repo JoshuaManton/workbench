@@ -125,7 +125,7 @@ SHADER_TEXTURE_LIT_VERT ::
 
 layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
-// note(josh): mesh vert colors are broken right now
+// todo(josh): mesh vert colors
 // layout(location = 2) in vec4 vbo_color;
 layout(location = 3) in vec3 vbo_normal;
 
@@ -141,10 +141,14 @@ out vec4 desired_color;
 
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    if (result.w > 0) { result /= result.w; }
+
+    // commenting this out fixes specularity, hopefully it wasn't here for a reason :DDDDDDDD
+    // https://i.imgur.com/UqXbIMe.png
+    // if (result.w > 0) { result /= result.w; }
+
     gl_Position = result;
     tex_coord = vbo_tex_coord;
-    normal = vbo_normal;
+    normal = mat3(transpose(inverse(model_matrix))) * vbo_normal;
     frag_position = vec3(model_matrix * vec4(vbo_vertex_position, 1.0));
     desired_color = mesh_color;
 }

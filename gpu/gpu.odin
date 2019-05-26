@@ -56,24 +56,11 @@ update_mesh :: proc(mesh: ^Mesh, vertices: []$Vertex_Type, indicies: []u32) {
 }
 
 draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, shader: Shader_Program, texture: Texture, color: Colorf, depth_test: bool) {
-	normalize_camera_rotation(camera);
-
 	// view matrix
 	view_matrix := identity(Mat4);
 	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
-
-	// qx := axis_angle(Vec3{1,0,0}, to_radians(360 - camera.rotation.x));
-	// qy := axis_angle(Vec3{0,1,0}, to_radians(360 - camera.rotation.y));
-	// // todo(josh): z axis
-	// // qz := axis_angle(Vec3{0,0,1}, to_radians(360 - camera.rotation.z));
-	// orientation := quat_mul(qx, qy);
-	// orientation = quat_norm(orientation);
-
-	orientation := degrees_to_quaternion(camera.rotation);
-	rotation_matrix := quat_to_mat4(inverse(orientation));
+	rotation_matrix := quat_to_mat4(inverse(camera.rotation));
 	view_matrix = mul(rotation_matrix, view_matrix);
-
-
 
 	// model_matrix
 	model_matrix := translate(identity(Mat4), position);
@@ -190,12 +177,12 @@ rendermode_pixel :: proc(camera: ^Camera) {
 	camera.projection_matrix = camera.pixel_to_viewport_matrix;
 }
 
-camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (degrees_to_quaternion(rotation));
-camera_down    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_down   (degrees_to_quaternion(rotation));
-camera_left    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_left   (degrees_to_quaternion(rotation));
-camera_right   :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_right  (degrees_to_quaternion(rotation));
-camera_forward :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_forward(degrees_to_quaternion(rotation));
-camera_back    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_back   (degrees_to_quaternion(rotation));
+camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (rotation);
+camera_down    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_down   (rotation);
+camera_left    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_left   (rotation);
+camera_right   :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_right  (rotation);
+camera_forward :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_forward(rotation);
+camera_back    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_back   (rotation);
 
 get_cursor_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
 	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
@@ -224,13 +211,13 @@ get_cursor_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: 
 	return cursor_direction;
 }
 
-normalize_camera_rotation :: proc(using camera: ^Camera) {
-	for _, i in rotation {
-		element := &rotation[i];
-		for element^ < 0   do element^ += 360;
-		for element^ > 360 do element^ -= 360;
-	}
-}
+// normalize_camera_rotation :: proc(using camera: ^Camera) {
+// 	for _, i in rotation {
+// 		element := &rotation[i];
+// 		for element^ < 0   do element^ += 360;
+// 		for element^ > 360 do element^ -= 360;
+// 	}
+// }
 
 world_to_viewport :: inline proc(position: Vec3, camera: ^Camera) -> Vec3 {
 	if camera.is_perspective {

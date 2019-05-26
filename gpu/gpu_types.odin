@@ -18,7 +18,7 @@ Camera :: struct {
     pixel_width, pixel_height, aspect: f32,
 
     position: Vec3,
-    rotation: Vec3,
+    rotation: Quat,
 
     perspective_matrix:  Mat4,
     orthographic_matrix: Mat4,
