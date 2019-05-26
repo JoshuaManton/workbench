@@ -261,7 +261,7 @@ im_scissor_end :: proc() {
 
 
 
-im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
+im_draw_flush :: proc(cmds: []Draw_Command) {
 	pf.TIMED_SECTION(&wb_profiler);
 
 	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
@@ -287,7 +287,7 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 		scissor_mismatch    := cmd.scissor    != is_scissor;
 		rendermode_mismatch := cmd.rendermode != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
-			draw_vertex_list(im_queued_for_drawing[:], mode, current_shader, current_texture);
+			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture);
 			clear(&im_queued_for_drawing);
 		}
 
@@ -348,8 +348,6 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 
 				gpu.rendermode_world(current_camera);
 
-				draw_mode := (debugging_rendering ? gpu.Draw_Mode.Lines : gpu.Draw_Mode.Triangles);
-
 				if len(all_lights) > 0 {
 					gpu.use_program(cmd.shader);
 					if gpu.get_uniform_location(cmd.shader, "light_position") != 0 {
@@ -359,19 +357,20 @@ im_draw_flush :: proc(mode: gpu.Draw_Mode, cmds: []Draw_Command) {
 						gpu.uniform1f(cmd.shader, "light_intensity", all_lights[0].intensity);
 					}
 				}
-				gpu.draw_mesh(kind.mesh, current_camera, kind.position, kind.scale, kind.rotation, draw_mode, cmd.shader, cmd.texture, kind.color, true);
+
+				gpu.draw_mesh(kind.mesh, current_camera, kind.position, kind.scale, kind.rotation, cmd.shader, cmd.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
 	}
 
 	if len(im_queued_for_drawing) > 0 {
-		draw_vertex_list(im_queued_for_drawing[:], mode, current_shader, current_texture);
+		draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture);
 		clear(&im_queued_for_drawing);
 	}
 }
 
-draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.Shader_Program, texture: gpu.Texture, loc := #caller_location) {
+draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, texture: gpu.Texture, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -384,7 +383,7 @@ draw_vertex_list :: proc(list: []$Vertex_Type, mode: gpu.Draw_Mode, shader: gpu.
 	}
 
 	gpu.update_mesh(&im_mesh, list, []u32{});
-	gpu.draw_mesh(&im_mesh, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, mode, shader, texture, COLOR_WHITE, false);
+	gpu.draw_mesh(&im_mesh, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, shader, texture, COLOR_WHITE, false);
 	num_draw_calls += 1;
 }
 

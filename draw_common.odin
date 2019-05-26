@@ -29,11 +29,8 @@ viewport_to_unit_matrix:  Mat4;
 
 
 
+wb_camera: gpu.Camera;
 current_camera: ^gpu.Camera;
-
-set_current_camera :: proc(camera: ^gpu.Camera) {
-	current_camera = camera;
-}
 
 //
 // Debug
@@ -153,7 +150,7 @@ draw_render :: proc() {
 		if debug_window_open do gpu.bind_framebuffer(&wb_fbo);
 		defer if debug_window_open do gpu.unbind_framebuffer();
 
-		im_draw_flush(gpu.Draw_Mode.Triangles, buffered_draw_commands[:]);
+		im_draw_flush(buffered_draw_commands[:]);
 	}
 
 	gpu.set_clear_color(Colorf{0,0,0,0});
@@ -165,4 +162,10 @@ draw_render :: proc() {
 debugging_rendering: bool;
 _debug_rendering :: proc(_: rawptr) {
 	imgui.checkbox("Debug Rendering", &debugging_rendering);
+	if debugging_rendering {
+		current_camera.draw_mode = .Lines;
+	}
+	else {
+		current_camera.draw_mode = .Triangles;
+	}
 }

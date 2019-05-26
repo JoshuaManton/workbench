@@ -55,20 +55,22 @@ update_mesh :: proc(mesh: ^Mesh, vertices: []$Vertex_Type, indicies: []u32) {
 	mesh.vertex_count = len(vertices);
 }
 
-draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, depth_test: bool) {
+draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, shader: Shader_Program, texture: Texture, color: Colorf, depth_test: bool) {
 	normalize_camera_rotation(camera);
 
 	// view matrix
 	view_matrix := identity(Mat4);
 	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
 
-	qx := axis_angle(Vec3{1,0,0}, to_radians(360 - camera.rotation.x));
-	qy := axis_angle(Vec3{0,1,0}, to_radians(360 - camera.rotation.y));
-	// todo(josh): z axis
-	// qz := axis_angle(Vec3{0,0,1}, to_radians(360 - camera.rotation.z));
-	orientation := quat_mul(qx, qy);
-	orientation = quat_norm(orientation);
-	rotation_matrix := quat_to_mat4(orientation);
+	// qx := axis_angle(Vec3{1,0,0}, to_radians(360 - camera.rotation.x));
+	// qy := axis_angle(Vec3{0,1,0}, to_radians(360 - camera.rotation.y));
+	// // todo(josh): z axis
+	// // qz := axis_angle(Vec3{0,0,1}, to_radians(360 - camera.rotation.z));
+	// orientation := quat_mul(qx, qy);
+	// orientation = quat_norm(orientation);
+
+	orientation := degrees_to_quaternion(camera.rotation);
+	rotation_matrix := quat_to_mat4(inverse(orientation));
 	view_matrix = mul(rotation_matrix, view_matrix);
 
 
@@ -108,10 +110,10 @@ draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rot
 	}
 
 	if mesh.index_count > 0 {
-		odingl.DrawElements(cast(u32)mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+		odingl.DrawElements(cast(u32)camera.draw_mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
 	}
 	else {
-		odingl.DrawArrays(cast(u32)mode, 0, cast(i32)mesh.vertex_count);
+		odingl.DrawArrays(cast(u32)camera.draw_mode, 0, cast(i32)mesh.vertex_count);
 	}
 }
 
@@ -123,10 +125,7 @@ delete_mesh :: proc(mesh: ^Mesh) {
 
 
 
-create_camera :: proc() -> ^Camera {
-	camera := new(Camera);
-	return camera;
-}
+
 
 update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 	camera.pixel_width = pixel_width;

@@ -49,7 +49,8 @@ make_simple_window :: proc(window_name: string,
 	});
 	defer pf.destroy_profiler(&wb_profiler);
 
-	current_camera = gpu.create_camera();
+	gpu.init_camera(&wb_camera);
+	current_camera = &wb_camera;
 
 	client_target_framerate = target_framerate;
 

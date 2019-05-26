@@ -30,6 +30,15 @@ Camera :: struct {
     pixel_to_viewport_matrix: Mat4,
     viewport_to_pixel_matrix: Mat4,
     viewport_to_unit_matrix: Mat4,
+
+    draw_mode: Draw_Mode,
+}
+
+init_camera :: proc(camera: ^Camera) {
+    camera.draw_mode = .Triangles;
+}
+
+delete_camera :: proc(camera: ^Camera) {
 }
 
 

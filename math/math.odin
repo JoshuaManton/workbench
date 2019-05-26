@@ -193,13 +193,36 @@ quaternion_down :: inline proc(quat: Quat) -> Vec3 {
 }
 
 degrees_to_quaternion :: proc(v: Vec3) -> Quat {
+	// qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
+	// qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
+	// // todo(josh): z axis
+	// // qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
+	// orientation := quat_mul(qx, qy);
+	// orientation = quat_norm(orientation);
+	// return orientation;
+
 	qx := axis_angle(Vec3{1,0,0}, to_radians(v.x));
 	qy := axis_angle(Vec3{0,1,0}, to_radians(v.y));
 	// todo(josh): z axis
-	// qz := axis_angle(Vec3{0,0,1}, to_radians(v.z));
+	// qz := axis_angle(Vec3{0,0,1}, to_radians(360 - camera.rotation.z));
 	orientation := quat_mul(qy, qx);
 	orientation = quat_norm(orientation);
 	return orientation;
+
+	// Abbreviations for the various angular functions
+	// cy := cos(to_radians(0) * 0.5);
+	// sy := sin(to_radians(0) * 0.5);
+	// cp := cos(to_radians(v.y) * 0.5);
+	// sp := sin(to_radians(v.y) * 0.5);
+	// cr := cos(to_radians(v.x) * 0.5);
+	// sr := sin(to_radians(v.x) * 0.5);
+
+	// q: Quat;
+	// q.w = cy * cp * cr + sy * sp * sr;
+	// q.x = cy * cp * sr - sy * sp * cr;
+	// q.y = sy * cp * sr + cy * sp * cr;
+	// q.z = sy * cp * cr - cy * sp * sr;
+	// return q;
 }
 
 direction_to_quaternion :: proc(v: Vec3) -> Quat {
@@ -212,7 +235,7 @@ direction_to_quaternion :: proc(v: Vec3) -> Quat {
 }
 
 // note(josh): rotates the vector by the quaternion
-quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3{
+quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3 {
 	num := quat.x * 2;
 	num2 := quat.y * 2;
 	num3 := quat.z * 2;
