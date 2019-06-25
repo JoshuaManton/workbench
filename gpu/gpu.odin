@@ -16,7 +16,7 @@ using import wbm "../math"
 => create_mesh   :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID
 => release_mesh  :: proc(id: MeshID)
 => update_mesh   :: proc(id: MeshID, vertices: []$Vertex_Type, indicies: []u32)
-=> draw_mesh     :: proc(id: MeshID, mode: Draw_Mode, shader: Shader_Program, texture: Texture, color: Colorf, mvp_matrix: ^Mat4, depth_test: bool)
+=> draw_mesh     :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool)
 => get_mesh_info :: proc(id: MeshID) -> (Mesh_Info, bool)
 
 */
@@ -46,8 +46,6 @@ update_mesh :: proc(mesh: ^Mesh, vertices: []$Vertex_Type, indicies: []u32) {
 	bind_ibo(mesh.ibo);
 	buffer_elements(indicies);
 
-	set_vertex_format(Vertex_Type);
-
 	bind_vao(cast(VAO)0);
 
 	mesh.vertex_type  = type_info_of(Vertex_Type);
@@ -55,7 +53,7 @@ update_mesh :: proc(mesh: ^Mesh, vertices: []$Vertex_Type, indicies: []u32) {
 	mesh.vertex_count = len(vertices);
 }
 
-draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, shader: Shader_Program, texture: Texture, color: Colorf, depth_test: bool) {
+draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
 	// view matrix
 	view_matrix := identity(Mat4);
 	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
@@ -67,15 +65,16 @@ draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rot
 	model_matrix = math.scale(model_matrix, scale);
 	model_matrix = math.mul(model_matrix, quat_to_mat4(rotation));
 
-
-
 	bind_vao(mesh.vao);
 	bind_vbo(mesh.vbo);
 	bind_ibo(mesh.ibo);
-	use_program(shader);
 	bind_texture2d(texture);
 
+	set_vertex_format(mesh.vertex_type);
+
 	program := get_current_shader();
+
+	uniform3f(program, "camera_position", expand_to_tuple(camera.position));
 
 	uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
 	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
@@ -83,6 +82,8 @@ draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rot
 	uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
 	uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
 	uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.projection_matrix[0][0]);
+
+	// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
 
 	old_depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
 	defer if old_depth_test == odingl.TRUE {
@@ -157,7 +158,6 @@ update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 		camera.viewport_to_unit_matrix = translate(camera.viewport_to_unit_matrix, Vec3{1, 1, 0});
 		camera.viewport_to_unit_matrix = scale(camera.viewport_to_unit_matrix, 0.5);
 	}
-
 }
 
 Rendermode_Proc :: #type proc(^Camera);
@@ -309,7 +309,7 @@ bind_framebuffer :: proc(framebuffer: ^Framebuffer) {
 	bind_fbo(framebuffer.fbo);
 	viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
 	set_clear_color(Colorf{.1, .5, .6, 1});
-	clear(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
+	clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
 }
 
 unbind_framebuffer :: proc() {

@@ -275,6 +275,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 	}
 
 
+
 	current_rendermode : gpu.Rendermode_Proc = nil;
 	is_scissor := false;
 	current_shader := gpu.Shader_Program(0);
@@ -347,25 +348,8 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 				}
 
 				gpu.rendermode_world(current_camera);
-
-				if len(all_lights) > 0 {
-					gpu.use_program(cmd.shader);
-					if gpu.get_uniform_location(cmd.shader, "lights") != 0 {
-						gpu.uniform3f(cmd.shader, "camera_position", expand_to_tuple(current_camera.position));
-						lights_capped := all_lights[:min(len(all_lights), 100)];
-						if len(lights_capped) != len(all_lights) {
-							logln("Too many lights, max is 100.");
-						}
-						for light, idx in lights_capped {
-							gpu.uniform3f(cmd.shader, tprint("lights[", idx, "].position"),  expand_to_tuple(light.position));
-							gpu.uniform4f(cmd.shader, tprint("lights[", idx, "].color"),     expand_to_tuple(light.color));
-							gpu.uniform1f(cmd.shader, tprint("lights[", idx, "].intensity"), light.intensity);
-						}
-						gpu.uniform1i(cmd.shader, "num_lights", cast(i32)len(lights_capped));
-					}
-				}
-
-				gpu.draw_mesh(kind.mesh, current_camera, kind.position, kind.scale, kind.rotation, cmd.shader, cmd.texture, kind.color, true);
+				gpu.use_program(cmd.shader);
+				gpu.draw_mesh(kind.mesh, current_camera, kind.position, kind.scale, kind.rotation, cmd.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -377,7 +361,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 	}
 }
 
-draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, texture: gpu.Texture, loc := #caller_location) {
+draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, texture: gpu.Texture, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -390,7 +374,8 @@ draw_vertex_list :: proc(list: []$Vertex_Type, shader: gpu.Shader_Program, textu
 	}
 
 	gpu.update_mesh(&im_mesh, list, []u32{});
-	gpu.draw_mesh(&im_mesh, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, shader, texture, COLOR_WHITE, false);
+	gpu.use_program(shader);
+	gpu.draw_mesh(&im_mesh, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
 	num_draw_calls += 1;
 }
 

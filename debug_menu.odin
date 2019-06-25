@@ -17,7 +17,7 @@ update_debug_menu :: proc() {
 		WB_Debug_Data :: struct {
 			camera_position: Vec3,
 			camera_rotation: Quat,
-			precise_lossy_delta_time_ms: f64,
+			precise_lossy_delta_time_ms: f32,
 			fixed_delta_time: f32,
 			client_target_framerate: f32,
 			draw_calls: i32,

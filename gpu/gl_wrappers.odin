@@ -143,7 +143,7 @@ set_clear_color :: inline proc(color: Colorf, loc := #caller_location) {
 	odingl.ClearColor(color.r, color.g, color.b, color.a);
 	log_errors(#procedure, loc);
 }
-clear :: proc(bits: Clear_Flags, loc := #caller_location) {
+clear_screen :: proc(bits: Clear_Flags, loc := #caller_location) {
 	odingl.Clear(transmute(u32)bits);
 	log_errors(#procedure, loc);
 }
@@ -383,9 +383,11 @@ get_attrib_location :: inline proc(program: Shader_Program, str: string, loc := 
 
 set_vertex_format :: proc{set_vertex_format_poly, set_vertex_format_ti};
 set_vertex_format_poly :: proc($Type: typeid, loc := #caller_location) {
-	set_vertex_format(type_info_of(Type));
+	set_vertex_format(type_info_of(Type), loc);
 }
 set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
+	log_errors("set_vertex_format_ti start", loc);
+
 	ti := type_info_base(_ti).variant.(Type_Info_Struct);
 
 	for name, _i in ti.names {
@@ -449,11 +451,11 @@ set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
 			}
 		}
 
-		log_errors(#procedure);
 		odingl.EnableVertexAttribArray(i);
-		log_errors(#procedure);
+		log_errors("set_vertex_format: EnableVertexAttribArray", loc);
+		// logln(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
 		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, cast(i32)_ti.size, offset_in_struct);
-		log_errors(#procedure);
+		log_errors("set_vertex_format: VertexAttribPointer", loc);
 	}
 }
 

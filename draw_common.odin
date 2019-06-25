@@ -94,7 +94,7 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	im_mesh = gpu.create_mesh([]gpu.Vertex3D{}, []u32{}, "im_mesh");
+	im_mesh = gpu.create_mesh([]gpu.Vertex2D{}, []u32{}, "im_mesh");
 
 	ok: bool;
 	shader_rgba, ok    = gpu.load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
@@ -129,40 +129,38 @@ _clear_render_buffers :: proc() {
 	clear(&buffered_draw_commands);
 }
 
-draw_render :: proc() {
+draw_prerender :: proc() {
 	gpu.log_errors(#procedure);
 	num_draw_calls = 0;
 
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(gpu.Blend_Factors.Src_Alpha, gpu.Blend_Factors.One_Minus_Src_Alpha);
+	gpu.set_clear_color(Colorf{0,0,0,0});
 	if current_camera.is_perspective {
 		gpu.enable(gpu.Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
-		gpu.clear(gpu.Clear_Flags.Color_Buffer | gpu.Clear_Flags.Depth_Buffer);
+		gpu.clear_screen(gpu.Clear_Flags.Color_Buffer | gpu.Clear_Flags.Depth_Buffer);
 	}
 	else {
 		gpu.disable(gpu.Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
-		gpu.clear(gpu.Clear_Flags.Color_Buffer);
+		gpu.clear_screen(gpu.Clear_Flags.Color_Buffer);
 	}
 
 	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
 
-	{
-		if debug_window_open do gpu.bind_framebuffer(&wb_fbo);
-		defer if debug_window_open do gpu.unbind_framebuffer();
+	if debug_window_open do gpu.bind_framebuffer(&wb_fbo);
+}
 
-		im_draw_flush(buffered_draw_commands[:]);
-	}
-
-	gpu.set_clear_color(Colorf{0,0,0,0});
+draw_postrender :: proc() {
+	im_draw_flush(buffered_draw_commands[:]);
+	if debug_window_open do gpu.unbind_framebuffer();
 
 	imgui_render(true);
-
-	clear_lights();
 }
 
 
 debugging_rendering: bool;
 _debug_rendering :: proc(_: rawptr) {
+	// todo(josh): make this a combo box
 	imgui.checkbox("Debug Rendering", &debugging_rendering);
 	if debugging_rendering {
 		current_camera.draw_mode = .Lines;

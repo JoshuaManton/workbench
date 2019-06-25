@@ -443,13 +443,9 @@ imgui_struct :: inline proc(value: ^$T, name: string) {
 
 _imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
     if name != "" {
-        if imgui.collapsing_header(tprint(name, ": ", typename, " {")) {
+        if imgui.collapsing_header(tprint(name, ": ", typename)) {
             imgui.indent();
             return true;
-        }
-        else {
-            imgui.same_line();
-            imgui.text(" ... }");
         }
         return false;
     }
@@ -458,7 +454,6 @@ _imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool 
 _imgui_struct_block_field_end :: proc(name: string) {
     if name != "" {
         imgui.unindent();
-        imgui.text("}");
     }
 }
 

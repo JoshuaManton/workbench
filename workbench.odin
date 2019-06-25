@@ -29,8 +29,8 @@ using import        "types"
 client_target_framerate:  f32;
 fixed_delta_time: f32;
 
-update_loop_ra: Rolling_Average(f64, 100);
-whole_frame_time_ra: Rolling_Average(f64, 100);
+update_loop_ra: Rolling_Average(f32, 100);
+whole_frame_time_ra: Rolling_Average(f32, 100);
 
 do_log_frame_boundaries := false;
 
@@ -68,16 +68,15 @@ make_simple_window :: proc(window_name: string,
 	start_workspace(workspace);
 	init_new_workspaces();
 
+	last_update_start_time: f32;
+
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
 		pf.profiler_new_frame(&wb_profiler);
-
 		pf.TIMED_SECTION(&wb_profiler, "full engine frame");
-		update_loop_start := glfw.GetTime();
-
-		last_time := time;
-		time = cast(f32)glfw.GetTime();
-		lossy_delta_time = time - last_time;
+		new_update_start_time := cast(f32)glfw.GetTime();
+		lossy_delta_time = new_update_start_time - last_update_start_time;
+		last_update_start_time = new_update_start_time;
 		acc += lossy_delta_time;
 
 		if acc >= fixed_delta_time {
@@ -87,6 +86,7 @@ make_simple_window :: proc(window_name: string,
 					logln("[WB] FRAME #", frame_count);
 				}
 
+				time = cast(f32)glfw.GetTime();
 				frame_count += 1;
 
 				_clear_render_buffers();
@@ -119,8 +119,8 @@ make_simple_window :: proc(window_name: string,
 			}
 		}
 
-		update_loop_end := glfw.GetTime();
-		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end - update_loop_start);
+		update_loop_end_time := cast(f32)glfw.GetTime();
+		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end_time - last_update_start_time);
 
 		render_workspaces();
 
@@ -201,12 +201,12 @@ update_workspaces :: proc() {
 render_workspaces :: proc() {
 	for id, workspace in all_workspaces {
 		current_workspace = workspace.id;
+		draw_prerender();
 		if workspace.render != nil {
 			workspace.render(lossy_delta_time);
+			gpu.log_errors(tprint("workspace_name: ", workspace.name));
 		}
-
-		draw_render();
-		gpu.log_errors(tprint("workspace_name: ", workspace.name));
+		draw_postrender();
 	}
 	current_workspace = -1;
 }
