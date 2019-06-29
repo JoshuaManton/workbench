@@ -93,7 +93,7 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	im_mesh = gpu.create_mesh([]gpu.Vertex2D{}, []u32{}, "im_mesh");
+	gpu.add_mesh_to_model(&im_model, "im_model", []gpu.Vertex2D{}, []u32{});
 
 	ok: bool;
 	shader_rgba, ok    = gpu.load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);

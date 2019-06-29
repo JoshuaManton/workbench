@@ -18,7 +18,7 @@ using import        "logging"
 
       import pf     "profiler"
 
-im_mesh: gpu.Mesh;
+im_model: gpu.Model;
 
 buffered_draw_commands: [dynamic]Draw_Command;
 push_quad :: inline proc(
@@ -102,7 +102,7 @@ push_sprite_minmax :: inline proc(
 }
 
 push_mesh :: inline proc(
-	mesh: ^gpu.Mesh,
+	model: ^gpu.Model,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,
@@ -120,8 +120,8 @@ push_mesh :: inline proc(
 			scissor = do_scissor,
 			scissor_rect = current_scissor_rect,
 
-			derived = Draw_Mesh_Command{
-				mesh = mesh,
+			derived = Draw_Model_Command{
+				model = model,
 				position = position,
 				scale = scale,
 				rotation = rotation,
@@ -337,7 +337,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
 
-			case Draw_Mesh_Command: {
+			case Draw_Model_Command: {
 				// todo(josh): mesh batching, right now it's a draw call per mesh
 
 				when DEVELOPER {
@@ -349,7 +349,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 
 				gpu.rendermode_world(current_camera);
 				gpu.use_program(cmd.shader);
-				gpu.draw_mesh(kind.mesh, current_camera, kind.position, kind.scale, kind.rotation, cmd.texture, kind.color, true);
+				gpu.draw_model(kind.model, current_camera, kind.position, kind.scale, kind.rotation, cmd.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -373,9 +373,9 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 		}
 	}
 
-	gpu.update_mesh(&im_mesh, list, []u32{});
+	gpu.update_mesh(&im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	gpu.draw_mesh(&im_mesh, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
+	gpu.draw_model(&im_model, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
 	num_draw_calls += 1;
 }
 

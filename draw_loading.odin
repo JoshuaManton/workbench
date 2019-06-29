@@ -130,18 +130,7 @@ add_sprite_to_atlas :: proc(texture: ^Texture_Atlas, pixels_rgba: []byte, pixels
 // Meshes
 //
 
-Model :: struct {
-	cpu_meshes: []Mesh,
-	gpu_meshes: []gpu.Mesh,
-}
-
-Mesh :: struct {
-	vertices: []gpu.Vertex3D,
-	indicies: []u32,
-	name: string,
-}
-
-load_model_from_file :: proc(path: string) -> Model {
+load_model_from_file :: proc(path: string) -> gpu.Model {
 	path_c := strings.clone_to_cstring(path);
 	defer delete(path_c);
 
@@ -155,12 +144,12 @@ load_model_from_file :: proc(path: string) -> Model {
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
-	meshes := _load_model_internal(scene);
-	return Model{meshes, {}};
+	model := _load_model_internal(scene);
+	return model;
 }
 
 // todo(josh): test load_model_from_memory, not sure if it works
-load_model_from_memory :: proc(data: []byte) -> Model {
+load_model_from_memory :: proc(data: []byte) -> gpu.Model {
 	pHint : byte;
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
 		cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
@@ -172,47 +161,46 @@ load_model_from_memory :: proc(data: []byte) -> Model {
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
-	meshes := _load_model_internal(scene);
-	return Model{meshes, {}};
+	model := _load_model_internal(scene);
+	return model;
 }
 
-load_model_to_gpu :: proc(model: ^Model) {
-	assert(model.gpu_meshes == nil);
-	meshes := make([dynamic]gpu.Mesh, 0, len(model.cpu_meshes));
-	for mesh in model.cpu_meshes {
-		append(&meshes, gpu.create_mesh(mesh.vertices, mesh.indicies, mesh.name));
-	}
-	model.gpu_meshes = meshes[:];
-}
+// load_model_to_gpu :: proc(model: ^Model) {
+// 	assert(model.gpu_meshes == nil);
+// 	meshes := make([dynamic]gpu.Mesh, 0, len(model.cpu_meshes));
+// 	for mesh in model.cpu_meshes {
+// 		append(&meshes, gpu.create_mesh(mesh.vertices, mesh.indicies, mesh.name));
+// 	}
+// 	model.gpu_meshes = meshes[:];
+// }
 
-free_model_from_gpu :: proc(model: ^Model) {
-	assert(model != nil);
-	for _, i in model.gpu_meshes {
-		mesh := &model.gpu_meshes[i];
-		gpu.delete_mesh(mesh);
-	}
-	delete(model.gpu_meshes);
-}
+// free_model_from_gpu :: proc(model: ^Model) {
+// 	assert(model != nil);
+// 	for _, i in model.gpu_meshes {
+// 		mesh := &model.gpu_meshes[i];
+// 		gpu.delete_mesh(mesh);
+// 	}
+// 	delete(model.gpu_meshes);
+// }
 
-free_model_cpu_memory :: proc(model: ^Model) {
-	assert(model != nil);
-	for _, i in model.cpu_meshes {
-		mesh := &model.cpu_meshes[i];
-		delete(mesh.vertices);
-		delete(mesh.indicies);
-		if mesh.name != "" do delete(mesh.name);
-	}
-	delete(model.cpu_meshes);
-}
+// free_model_cpu_memory :: proc(model: ^Model) {
+// 	assert(model != nil);
+// 	for _, i in model.cpu_meshes {
+// 		mesh := &model.cpu_meshes[i];
+// 		delete(mesh.vertices);
+// 		delete(mesh.indicies);
+// 		if mesh.name != "" do delete(mesh.name);
+// 	}
+// 	delete(model.cpu_meshes);
+// }
 
-delete_model :: proc(model: Model) {
-	free_model_from_gpu(&model);
-	free_model_cpu_memory(&model);
-}
+// delete_model :: proc(model: Model) {
+// 	free_model_from_gpu(&model);
+// 	free_model_cpu_memory(&model);
+// }
 
-load_textured_model :: proc(model_path: string, texture_path: string) -> (Model, gpu.Texture) {
+load_textured_model :: proc(model_path: string, texture_path: string) -> (gpu.Model, gpu.Texture) {
 	model := load_model_from_file(model_path);
-	load_model_to_gpu(&model);
 
 	texture_data, ok := os.read_entire_file(texture_path);
 	assert(ok);
@@ -221,9 +209,10 @@ load_textured_model :: proc(model_path: string, texture_path: string) -> (Model,
 	return model, texture;
 }
 
-_load_model_internal :: proc(scene: ^ai.Scene) -> []Mesh {
+_load_model_internal :: proc(scene: ^ai.Scene) -> gpu.Model {
 	mesh_count := cast(int) scene.num_meshes;
-	meshes_processed := make([dynamic]Mesh, 0, mesh_count);
+	model: gpu.Model;
+	model.meshes = make([dynamic]gpu.Mesh, 0, mesh_count);
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
@@ -288,18 +277,17 @@ _load_model_internal :: proc(scene: ^ai.Scene) -> []Mesh {
 		}
 
 		// create mesh
-		append(&meshes_processed, Mesh{
+		gpu.add_mesh_to_model(&model,
+			string(mesh.name.data[:mesh.name.length]),
 			processedVerts[:],
-			indices[:],
-			string(mesh.name.data[:mesh.name.length])
-		});
+			indices[:]
+		);
 	}
 
-	// return all created meshIds
-	return meshes_processed[:];
+	return model;
 }
 
-create_cube_mesh :: proc() -> gpu.Mesh {
+create_cube_model :: proc() -> gpu.Model {
 	verts := []gpu.Vertex3D {
 		{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
         {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
@@ -339,10 +327,12 @@ create_cube_mesh :: proc() -> gpu.Mesh {
         {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
 	};
 
-	return gpu.create_mesh(verts, []u32{}, "");
+	model: gpu.Model;
+	gpu.add_mesh_to_model(&model, "cube", verts, {});
+	return model;
 }
 
-create_quad_mesh :: proc() -> gpu.Mesh {
+create_quad_model :: proc() -> gpu.Model {
 	verts := []gpu.Vertex3D {
 		{{-0.5, -0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
 		{{-0.5,  0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
@@ -352,7 +342,9 @@ create_quad_mesh :: proc() -> gpu.Mesh {
 		{{-0.5, -0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
 	};
 
-	return gpu.create_mesh(verts, []u32{}, "");
+	model: gpu.Model;
+	gpu.add_mesh_to_model(&model, "quad", verts, {});
+	return model;
 }
 
 

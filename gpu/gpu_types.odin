@@ -68,16 +68,21 @@ Vertex3D :: struct {
 
 
 
-Mesh :: struct {
+Model :: struct {
 	name: string,
+    meshes: [dynamic]Mesh,
+}
 
-	vao: VAO,
-	vbo: VBO,
-	ibo: EBO,
-	vertex_type: ^rt.Type_Info,
+Mesh :: struct {
+    name: string,
 
-	index_count:  int,
-	vertex_count: int,
+    vao: VAO,
+    vbo: VBO,
+    ibo: EBO,
+    vertex_type: ^rt.Type_Info,
+
+    index_count:  int,
+    vertex_count: int,
 }
 
 

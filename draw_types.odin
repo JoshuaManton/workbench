@@ -18,7 +18,7 @@ Draw_Command :: struct {
 	derived: union {
 		Draw_Quad_Command,
 		Draw_Sprite_Command,
-		Draw_Mesh_Command,
+		Draw_Model_Command,
 	},
 
 }
@@ -31,8 +31,8 @@ Draw_Sprite_Command :: struct {
 	color: Colorf,
 	uvs: [4]Vec2,
 }
-Draw_Mesh_Command :: struct {
-	mesh: ^gpu.Mesh,
+Draw_Model_Command :: struct {
+	model: ^gpu.Model,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,

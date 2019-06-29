@@ -27,33 +27,35 @@ init_gpu_opengl :: proc(version_major, version_minor: int, set_proc_address: odi
 
 
 
-create_mesh :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> Mesh {
+add_mesh_to_model :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) {
 	vao := gen_vao();
 	vbo := gen_vbo();
 	ibo := gen_ebo();
 
 	mesh := Mesh{name, vao, vbo, ibo, type_info_of(Vertex_Type), len(indicies), len(vertices)};
-	update_mesh(&mesh, vertices, indicies);
-	return mesh;
+	append(&model.meshes, mesh);
+
+	update_mesh(model, len(model.meshes)-1, vertices, indicies);
 }
 
-update_mesh :: proc(mesh: ^Mesh, vertices: []$Vertex_Type, indicies: []u32) {
-	bind_vao(mesh.vao);
+update_mesh :: proc(model: ^Model, mesh_index: int, vertices: []$Vertex_Type, indicies: []u32) {
+	info := &model.meshes[mesh_index];
+	bind_vao(info.vao);
 
-	bind_vbo(mesh.vbo);
+	bind_vbo(info.vbo);
 	buffer_vertices(vertices);
 
-	bind_ibo(mesh.ibo);
+	bind_ibo(info.ibo);
 	buffer_elements(indicies);
 
 	bind_vao(cast(VAO)0);
 
-	mesh.vertex_type  = type_info_of(Vertex_Type);
-	mesh.index_count  = len(indicies);
-	mesh.vertex_count = len(vertices);
+	info.vertex_type  = type_info_of(Vertex_Type);
+	info.index_count  = len(indicies);
+	info.vertex_count = len(vertices);
 }
 
-draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
+draw_model :: proc(model: ^Model, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
 	// view matrix
 	view_matrix := identity(Mat4);
 	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
@@ -65,50 +67,55 @@ draw_mesh :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rot
 	model_matrix = math.scale(model_matrix, scale);
 	model_matrix = math.mul(model_matrix, quat_to_mat4(rotation));
 
-	bind_vao(mesh.vao);
-	bind_vbo(mesh.vbo);
-	bind_ibo(mesh.ibo);
-	bind_texture2d(texture);
+	for mesh in model.meshes {
+		bind_vao(mesh.vao);
+		bind_vbo(mesh.vbo);
+		bind_ibo(mesh.ibo);
+		bind_texture2d(texture);
 
-	set_vertex_format(mesh.vertex_type);
+		set_vertex_format(mesh.vertex_type);
 
-	program := get_current_shader();
+		program := get_current_shader();
 
-	uniform3f(program, "camera_position", expand_to_tuple(camera.position));
+		uniform3f(program, "camera_position", expand_to_tuple(camera.position));
 
-	uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
-	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
+		uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
+		uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
 
-	uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
-	uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-	uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.projection_matrix[0][0]);
+		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
+		uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
+		uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.projection_matrix[0][0]);
 
-	// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
+		// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
 
-	old_depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
-	defer if old_depth_test == odingl.TRUE {
-		odingl.Enable(odingl.DEPTH_TEST);
-	}
+		old_depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
+		defer if old_depth_test == odingl.TRUE {
+			odingl.Enable(odingl.DEPTH_TEST);
+		}
 
-	if depth_test {
-		odingl.Enable(odingl.DEPTH_TEST);
-	}
-	else {
-		odingl.Disable(odingl.DEPTH_TEST);
-	}
+		if depth_test {
+			odingl.Enable(odingl.DEPTH_TEST);
+		}
+		else {
+			odingl.Disable(odingl.DEPTH_TEST);
+		}
 
-	if mesh.index_count > 0 {
-		odingl.DrawElements(cast(u32)camera.draw_mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
-	}
-	else {
-		odingl.DrawArrays(cast(u32)camera.draw_mode, 0, cast(i32)mesh.vertex_count);
+		if mesh.index_count > 0 {
+			odingl.DrawElements(cast(u32)camera.draw_mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+		}
+		else {
+			odingl.DrawArrays(cast(u32)camera.draw_mode, 0, cast(i32)mesh.vertex_count);
+		}
 	}
 }
 
-delete_mesh :: proc(mesh: ^Mesh) {
-	delete_vao(mesh.vao);
-	delete_buffer(mesh.vbo);
-	delete_buffer(mesh.ibo);
+delete_mesh :: proc(model: ^Model) {
+	for mesh in model.meshes {
+		delete_vao(mesh.vao);
+		delete_buffer(mesh.vbo);
+		delete_buffer(mesh.ibo);
+	}
+	delete(model.meshes);
 }
 
 
