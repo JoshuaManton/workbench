@@ -83,9 +83,8 @@ shader_text: gpu.Shader_Program;
 shader_rgba_3d: gpu.Shader_Program;
 
 shader_texture_unlit: gpu.Shader_Program;
-shader_texture_lit:   gpu.Shader_Program;
 
-shader_fbo:     gpu.Shader_Program;
+shader_fbo: gpu.Shader_Program;
 
 wb_fbo: gpu.Framebuffer;
 
@@ -101,11 +100,10 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	assert(ok);
 	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_TEXTURE_UNLIT_VERT, SHADER_TEXTURE_UNLIT_FRAG);
 	assert(ok);
-	shader_texture_lit, ok = gpu.load_shader_text(SHADER_TEXTURE_LIT_VERT, SHADER_TEXTURE_LIT_FRAG);
-	assert(ok);
 	shader_text, ok    = gpu.load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
 	assert(ok);
 	shader_rgba_3d, ok = gpu.load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
+	assert(ok);
 
 	register_debug_program("Rendering", _debug_rendering, nil);
 

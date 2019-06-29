@@ -355,7 +355,7 @@ imgui_render :: proc(render_to_screen : bool) {
     defer gpu.use_program(old_program);
 
     gpu.use_program(imgui_program);
-    gpu.uniform(imgui_program, "Texture", i32(0));
+    gpu.uniform_int(imgui_program, "Texture", i32(0));
     gpu.uniform_matrix4fv(imgui_program, "ProjMtx", 1, false, &ortho_projection[0][0]);
 
     vao_handle := gpu.gen_vao();

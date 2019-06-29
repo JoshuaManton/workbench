@@ -475,15 +475,15 @@ get_current_shader :: inline proc(loc := #caller_location) -> Shader_Program {
 
 
 
-uniform :: proc{uniform1f,
-				uniform2f,
-				uniform3f,
-				uniform4f,
-				uniform1i,
-				uniform2i,
-				uniform3i,
-				uniform4i,
-				};
+uniform_float :: uniform1f;
+uniform_int   :: uniform1i;
+uniorm_vec3 :: inline proc(program: Shader_Program, name: string, v: Vec3, loc := #caller_location) {
+	uniform3f(program, name, expand_to_tuple(v), loc);
+}
+uniform_vec4 :: inline proc(program: Shader_Program, name: string, v: Vec4, loc := #caller_location) {
+	uniform4f(program, name, expand_to_tuple(v), loc);
+}
+
 uniform1f :: inline proc(program: Shader_Program, name: string, v0: f32, loc := #caller_location) {
 	location := get_uniform_location(program, name, loc);
 	odingl.Uniform1f(cast(i32)location, v0);
