@@ -199,14 +199,16 @@ load_model_from_memory :: proc(data: []byte) -> gpu.Model {
 // 	free_model_cpu_memory(&model);
 // }
 
-load_textured_model :: proc(model_path: string, texture_path: string) -> (gpu.Model, gpu.Texture) {
+load_textured_model :: proc(model_path: string, texture_path: string) -> gpu.Model {
 	model := load_model_from_file(model_path);
 
 	texture_data, ok := os.read_entire_file(texture_path);
 	assert(ok);
 	defer delete(texture_data);
 	texture := create_texture(texture_data);
-	return model, texture;
+
+	model.texture = texture;
+	return model;
 }
 
 _load_model_internal :: proc(scene: ^ai.Scene) -> gpu.Model {
