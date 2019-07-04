@@ -19,7 +19,7 @@ using import "logging"
 // Textures
 //
 
-create_texture :: proc(pixels_rgba: []byte) -> gpu.Texture {
+create_texture_from_png_data :: proc(pixels_rgba: []byte) -> gpu.Texture {
 	width, height, channels: i32;
 	pixel_data := stb.load_from_memory(&pixels_rgba[0], cast(i32)len(pixels_rgba), &width, &height, &channels, 0);
 	assert(pixel_data != nil);
@@ -42,10 +42,6 @@ update_texture :: proc(texture: gpu.Texture, new_data: []byte) {
 
 	gpu.bind_texture2d(texture);
 	gpu.tex_image2d(.Texture2D, 0, .RGB, width, height, 0, .RGB, .Unsigned_Byte, pixel_data);
-}
-
-delete_texture :: proc(texture: gpu.Texture) {
-	gpu.delete_texture(texture);
 }
 
 
@@ -148,16 +144,15 @@ load_model_from_file :: proc(path: string) -> gpu.Model {
 	return model;
 }
 
-// todo(josh): test load_model_from_memory, not sure if it works
 load_model_from_memory :: proc(data: []byte) -> gpu.Model {
-	pHint : byte;
+	hint := "fbx\x00";
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
 		cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
 		cast(u32) ai.Post_Process_Steps.Triangulate |
 		cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
 		cast(u32) ai.Post_Process_Steps.Sort_By_PType |
 		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order|
-		cast(u32) ai.Post_Process_Steps.Flip_UVs, &pHint);
+		cast(u32) ai.Post_Process_Steps.Flip_UVs, &hint[0]);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
@@ -198,18 +193,6 @@ load_model_from_memory :: proc(data: []byte) -> gpu.Model {
 // 	free_model_from_gpu(&model);
 // 	free_model_cpu_memory(&model);
 // }
-
-load_textured_model :: proc(model_path: string, texture_path: string) -> gpu.Model {
-	model := load_model_from_file(model_path);
-
-	texture_data, ok := os.read_entire_file(texture_path);
-	assert(ok);
-	defer delete(texture_data);
-	texture := create_texture(texture_data);
-
-	model.texture = texture;
-	return model;
-}
 
 _load_model_internal :: proc(scene: ^ai.Scene) -> gpu.Model {
 	mesh_count := cast(int) scene.num_meshes;

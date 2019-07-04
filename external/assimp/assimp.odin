@@ -39,8 +39,6 @@ foreign lib {
 	@(link_name="aiGetMaterialTexture")        get_material_texture :: proc(mat: ^Material,type: Texture_Type,index: u32,path: ^String,mapping: ^Texture_Mapping,uvindex: ^u32,blend: ^f64,op: ^Texture_Op,mapmode: ^Texture_Map_Mode) -> Return ---;
 }
 
-// todo(josh): rename structs and fields to Odin styling
-
 Vector_Key :: struct {
 	time : f64,
 	value : Vector3D,

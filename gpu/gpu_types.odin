@@ -70,7 +70,6 @@ Vertex3D :: struct {
 
 Model :: struct {
 	name: string,
-    texture: Texture,
     meshes: [dynamic]Mesh,
 }
 

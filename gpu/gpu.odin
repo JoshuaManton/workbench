@@ -55,7 +55,7 @@ update_mesh :: proc(model: ^Model, mesh_index: int, vertices: []$Vertex_Type, in
 	info.vertex_count = len(vertices);
 }
 
-draw_model :: proc(model: ^Model, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, depth_test: bool) {
+draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
 	// view matrix
 	view_matrix := identity(Mat4);
 	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
@@ -71,7 +71,7 @@ draw_model :: proc(model: ^Model, camera: ^Camera, position: Vec3, scale: Vec3, 
 		bind_vao(mesh.vao);
 		bind_vbo(mesh.vbo);
 		bind_ibo(mesh.ibo);
-		bind_texture2d(model.texture);
+		bind_texture2d(texture);
 
 		set_vertex_format(mesh.vertex_type);
 
@@ -79,7 +79,7 @@ draw_model :: proc(model: ^Model, camera: ^Camera, position: Vec3, scale: Vec3, 
 
 		uniform3f(program, "camera_position", expand_to_tuple(camera.position));
 
-		uniform1i(program, "has_texture", model.texture != 0 ? 1 : 0);
+		uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
 		uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
 
 		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
@@ -109,7 +109,7 @@ draw_model :: proc(model: ^Model, camera: ^Camera, position: Vec3, scale: Vec3, 
 	}
 }
 
-delete_mesh :: proc(model: ^Model) {
+delete_model :: proc(model: Model) {
 	for mesh in model.meshes {
 		delete_vao(mesh.vao);
 		delete_buffer(mesh.vbo);

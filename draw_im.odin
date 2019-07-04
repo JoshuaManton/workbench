@@ -102,12 +102,12 @@ push_sprite_minmax :: inline proc(
 }
 
 push_mesh :: inline proc(
-	model: ^gpu.Model,
+	model: gpu.Model,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,
-	texture: gpu.Texture,
 	shader: gpu.Shader_Program,
+	texture: gpu.Texture,
 	color: Colorf,
 	auto_cast render_order: int = current_render_layer) {
 
@@ -125,6 +125,7 @@ push_mesh :: inline proc(
 				position = position,
 				scale = scale,
 				rotation = rotation,
+				texture = texture,
 				color = color,
 			},
 		};
@@ -349,7 +350,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 
 				gpu.rendermode_world(current_camera);
 				gpu.use_program(cmd.shader);
-				gpu.draw_model(kind.model, current_camera, kind.position, kind.scale, kind.rotation, kind.color, true);
+				gpu.draw_model(kind.model, current_camera, kind.position, kind.scale, kind.rotation, kind.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -375,8 +376,7 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 
 	gpu.update_mesh(&im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	im_model.texture = texture;
-	gpu.draw_model(&im_model, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, COLOR_WHITE, false);
+	gpu.draw_model(im_model, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
 	num_draw_calls += 1;
 }
 

@@ -32,9 +32,10 @@ Draw_Sprite_Command :: struct {
 	uvs: [4]Vec2,
 }
 Draw_Model_Command :: struct {
-	model: ^gpu.Model,
+	model: gpu.Model,
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,
+	texture: gpu.Texture,
 	color: Colorf,
 }
