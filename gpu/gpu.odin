@@ -134,10 +134,10 @@ update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 
 	// ortho
 	{
-		top    : f32 =  1 * camera.size + camera.position.y;
-		bottom : f32 = -1 * camera.size + camera.position.y;
-		left   : f32 = -1 * camera.aspect * camera.size + camera.position.x;
-		right  : f32 =  1 * camera.aspect * camera.size + camera.position.x;
+		top    : f32 =  1 * camera.size;
+		bottom : f32 = -1 * camera.size;
+		left   : f32 = -1 * camera.aspect * camera.size;
+		right  : f32 =  1 * camera.aspect * camera.size;
 		camera.orthographic_matrix = ortho3d(left, right, bottom, top, -1, 1);
 	}
 
@@ -258,23 +258,27 @@ unit_to_viewport :: inline proc(a: Vec3) -> Vec3 {
 	return result;
 }
 
-pixel_to_viewport :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+pixel_to_viewport :: inline proc(_a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a := _a;
 	a /= Vec3{pixel_width/2, pixel_height/2, 1};
 	a -= Vec3{1, 1, 0};
 	return a;
 }
-pixel_to_unit :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+pixel_to_unit :: inline proc(_a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a := _a;
 	a /= Vec3{pixel_width, pixel_height, 1};
 	return a;
 }
 
-viewport_to_pixel :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+viewport_to_pixel :: inline proc(_a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a := _a;
 	a += Vec3{1, 1, 0};
 	a *= Vec3{pixel_width/2, pixel_height/2, 0};
 	a.z = 0;
 	return a;
 }
-viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
+viewport_to_unit :: inline proc(_a: Vec3) -> Vec3 {
+	a := _a;
 	a += Vec3{1, 1, 0};
 	a /= 2;
 	a.z = 0;

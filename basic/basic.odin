@@ -1,4 +1,4 @@
-package workbench
+package basic
 
       import "core:fmt"
       import "core:mem"
@@ -7,21 +7,6 @@ using import "core:math"
 //
 // Arrays
 //
-
-get_by_name :: proc(array: []$T, name: string) -> ^T {
-	for _, i in array {
-		thing := &array[i];
-		if thing.name == name do return thing;
-	}
-	return nil;
-}
-get_by_id :: proc(array: []$T, id: string) -> ^T {
-	for _, i in array {
-		thing := &array[i];
-		if thing.id == id do return thing;
-	}
-	return nil;
-}
 
 instantiate :: proc{instantiate_no_value, instantiate_value};
 instantiate_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
@@ -33,41 +18,51 @@ instantiate_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
 	return &array[len(array)-1];
 }
 
-remove :: proc{remove_value, remove_ptr};
-remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
-	for _, i in array {
-		item := &array[i];
-		if item == to_remove {
-			array[i] = array[len(array)-1];
-			pop(array);
-			return;
+array_contains :: proc(array: $T/[]$E, val: E) -> bool {
+	for elem in array {
+		if elem == val {
+			return true;
 		}
 	}
+	return false;
 }
-remove_ptr :: proc(array: ^[dynamic]^$T, to_remove: ^T) {
-	for _, i in array {
-		item := array[i];
-		if item == to_remove {
-			array[i] = array[len(array)-1];
-			pop(array);
-			return;
-		}
-	}
-}
-remove_at :: proc(array: ^[dynamic]$T, to_remove: int) {
-	array[to_remove] = array[len(array)-1];
-	pop(array);
-}
-remove_all :: proc(array: ^[dynamic]$T, to_remove: T) {
-	assert(false, "this proc seems weird");
-	// not sure about this, I think we skip elements when we copy from the end into a remove element
-	for item, index in array {
-		if item == to_remove {
-			array[index] = array[len(array)-1];
-			pop(array);
-		}
-	}
-}
+
+// get_by_name :: proc(array: []$T, name: string) -> ^T {
+// 	for _, i in array {
+// 		thing := &array[i];
+// 		if thing.name == name do return thing;
+// 	}
+// 	return nil;
+// }
+// get_by_id :: proc(array: []$T, id: string) -> ^T {
+// 	for _, i in array {
+// 		thing := &array[i];
+// 		if thing.id == id do return thing;
+// 	}
+// 	return nil;
+// }
+
+// remove :: proc{remove_value, remove_ptr};
+// remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
+// 	for _, i in array {
+// 		item := &array[i];
+// 		if item == to_remove {
+// 			array[i] = array[len(array)-1];
+// 			pop(array);
+// 			return;
+// 		}
+// 	}
+// }
+// remove_ptr :: proc(array: ^[dynamic]^$T, to_remove: ^T) {
+// 	for _, i in array {
+// 		item := array[i];
+// 		if item == to_remove {
+// 			array[i] = array[len(array)-1];
+// 			pop(array);
+// 			return;
+// 		}
+// 	}
+// }
 
 last :: proc{last_dyn, last_slice, last_array};
 last_dyn   :: inline proc(list: [dynamic]$T) -> ^T do return &list[len(list)-1];
@@ -75,18 +70,40 @@ last_slice :: inline proc(list: []$T)        -> ^T do return &list[len(list)-1];
 last_array :: inline proc(list: [$N]$T)      -> ^T do return &list[N-1];
 
 //
-// Equals
+// Paths
 //
 
-// equals :: proc{equals_vec2i, equals_colori};
+// "path/to/filename.txt" -> "filename"
+get_file_name :: proc(_filepath: string) -> (string, bool) {
+	filepath := _filepath;
+	if slash_idx, ok := find_from_right(filepath, '/'); ok {
+		filepath = filepath[slash_idx+1:];
+	}
 
-// equals_vec2i :: inline proc(a, b: Vec2i) -> bool {
-// 	return a.x == b.x && a.y == b.y;
-// }
+	if dot_idx, ok := find_from_left(filepath, '.'); ok {
+		name := filepath[:dot_idx];
+		return name, true;
+	}
+	return "", false;
+}
 
-// equals_colori :: inline proc(a, b: Colori) -> bool {
-// 	return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
-// }
+// "filename.txt" -> "txt"
+get_file_extension :: proc(filepath: string) -> (string, bool) {
+	if idx, ok := find_from_right(filepath, '.'); ok {
+		extension := filepath[idx+1:];
+		return extension, true;
+	}
+	return "", false;
+}
+
+// "path/to/filename.txt" -> "path/to/"
+get_file_directory :: proc(filepath: string) -> (string, bool) {
+	if idx, ok := find_from_right(filepath, '/'); ok {
+		dirpath := filepath[:idx+1];
+		return dirpath, true;
+	}
+	return "", false;
+}
 
 //
 // Enums
@@ -172,7 +189,8 @@ string_starts_with :: proc(str: string, start: string) -> bool {
 	return true;
 }
 
-split_by_rune :: proc(str: string, split_on: rune, buffer: ^[$N]string) -> []string {
+split_by_rune :: proc(str: string, split_on: rune, _buffer: ^[$N]string) -> []string {
+	buffer := _buffer;
 	cur_slice := 0;
 	start := 0;
 	for b, i in str {

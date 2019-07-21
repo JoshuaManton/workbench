@@ -75,14 +75,13 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types
 				delete(data);
 			}
 			case: {
-				for text_file_type in text_file_types {
-					if ext == text_file_type {
-						assert(name notin catalog.text_files);
-						catalog.text_files[name] = cast(string)data;
-						break;
-					}
+				if array_contains(text_file_types, ext) {
+					assert(name notin catalog.text_files);
+					catalog.text_files[name] = cast(string)data;
 				}
-				logln("unhandled file extension: ", ext);
+				else {
+					logln("unhandled file extension: ", ext);
+				}
 			}
 		}
 	}

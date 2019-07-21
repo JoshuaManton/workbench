@@ -68,7 +68,8 @@ rotate_vec2_degrees :: proc(vec: Vec2, degrees: f32) -> Vec2 {
 
 	return Vec2{x, y};
 }
-rotate_vector :: proc(v: Vec3, k: Vec3, theta: f32) -> Vec3 {
+rotate_vector :: proc(v: Vec3, k: Vec3, _theta: f32) -> Vec3 {
+	theta := _theta;
 	theta = to_radians(theta);
     cos_theta := cos(theta);
     sin_theta := sin(theta);
@@ -156,7 +157,8 @@ degrees_to_vector :: inline proc(degrees: f32) -> Vec2 {
 	return vec;
 }
 
-translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
+translate :: proc(_m: Mat4, v: Vec3) -> Mat4 {
+	m := _m;
 	m[3][0] += v[0];
 	m[3][1] += v[1];
 	m[3][2] += v[2];

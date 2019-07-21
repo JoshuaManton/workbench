@@ -33,7 +33,8 @@ bind_vao :: inline proc(vao: VAO, loc := #caller_location) {
 	odingl.BindVertexArray(cast(u32)vao);
 }
 
-delete_vao :: inline proc(vao: VAO, loc := #caller_location) {
+delete_vao :: inline proc(_vao: VAO, loc := #caller_location) {
+	vao := _vao;
 	odingl.DeleteVertexArrays(1, cast(^u32)&vao);
 	log_errors(#procedure, loc);
 }
@@ -89,11 +90,13 @@ bind_rbo :: inline proc(render_buffer: RBO, loc := #caller_location) {
 }
 
 delete_buffer :: proc{delete_buffer_vbo, delete_buffer_ebo};
-delete_buffer_vbo :: inline proc(vbo: VBO, loc := #caller_location) {
+delete_buffer_vbo :: inline proc(_vbo: VBO, loc := #caller_location) {
+	vbo := _vbo;
 	odingl.DeleteBuffers(1, cast(^u32)&vbo);
 	log_errors(#procedure, loc);
 }
-delete_buffer_ebo :: inline proc(ebo: EBO, loc := #caller_location) {
+delete_buffer_ebo :: inline proc(_ebo: EBO, loc := #caller_location) {
+	ebo := _ebo;
 	odingl.DeleteBuffers(1, cast(^u32)&ebo);
 	log_errors(#procedure, loc);
 }
@@ -201,7 +204,8 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
     }
 
     // Compiling shaders are identical for any shader (vertex, geometry, fragment, tesselation, (maybe compute too))
-    compile_shader_from_text :: proc(shader_code: string, shader_type: odingl.Shader_Type) -> (u32, bool) {
+    compile_shader_from_text :: proc(_shader_code: string, shader_type: odingl.Shader_Type) -> (u32, bool) {
+    	shader_code := _shader_code;
         shader_id := odingl.CreateShader(cast(u32)shader_type);
         length := i32(len(shader_code));
         odingl.ShaderSource(shader_id, 1, (^^u8)(&shader_code), &length);
@@ -272,16 +276,19 @@ bind_texture2d :: inline proc(texture: Texture, loc := #caller_location) {
 	log_errors(#procedure, loc);
 }
 
-delete_texture :: inline proc(texture: Texture, loc := #caller_location) {
-	odingl.DeleteTextures(1, cast(^u32)&texture);
+delete_texture :: inline proc(_texture: Texture, loc := #caller_location) {
+	t := _texture;
+	odingl.DeleteTextures(1, cast(^u32)&t);
 	log_errors(#procedure, loc);
 }
 
-delete_fbo :: proc(fbo: FBO) {
+delete_fbo :: proc(_fbo: FBO) {
+	fbo := _fbo;
 	odingl.DeleteFramebuffers(1, cast(^u32)&fbo);
 }
 
-delete_rbo :: proc(rbo: RBO) {
+delete_rbo :: proc(_rbo: RBO) {
+	rbo := _rbo;
 	odingl.DeleteRenderbuffers(1, cast(^u32)&rbo);
 }
 

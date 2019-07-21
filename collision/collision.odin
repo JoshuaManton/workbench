@@ -163,7 +163,8 @@ closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 	return projection;
 }
 
-cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, b2size: Vec3, b2_handle : i32 = 0) -> (Hit_Info, bool) {
+cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, _b2size: Vec3, b2_handle : i32 = 0) -> (Hit_Info, bool) {
+	b2size := _b2size;
 	b2size += b1size;
 	return cast_line_box(b1pos, box_direction, b2pos, b2size, b2_handle);
 }

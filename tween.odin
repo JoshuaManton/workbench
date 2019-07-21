@@ -65,7 +65,7 @@ tween_destroy :: proc(ptr: rawptr) {
 
 tween_destroy_index :: inline proc(idx: int) {
 	tweener := tweeners[idx];
-	remove_at(&tweeners, idx);
+	unordered_remove(&tweeners, idx);
 	free(tweener);
 }
 
@@ -155,32 +155,39 @@ _update_one_tweener :: proc($kind: typeid, tweener: ^Tweener, dt: f32) -> kind {
 	return result;
 }
 
-ease_linear :: proc(t: f32) -> f32 {
+ease_linear :: proc(_t: f32) -> f32 {
+	t := _t;
 	return t;
 }
 
-ease_in_sine :: proc(t: f32) -> f32 {
+ease_in_sine :: proc(_t: f32) -> f32 {
+	t := _t;
 	t -= 1;
 	return 1 + sin(1.5707963 * t);
 }
 
-ease_out_sine :: proc(t: f32) -> f32 {
+ease_out_sine :: proc(_t: f32) -> f32 {
+	t := _t;
 	return sin(1.5707963 * t);
 }
 
-ease_in_out_sine :: proc(t: f32) -> f32 {
+ease_in_out_sine :: proc(_t: f32) -> f32 {
+	t := _t;
 	return 0.5 * (1 + sin(3.1415926 * (t - 0.5)));
 }
 
-ease_in_quad :: proc(t: f32) -> f32 {
+ease_in_quad :: proc(_t: f32) -> f32 {
+	t := _t;
     return t * t;
 }
 
-ease_out_quad ::  proc(t: f32) -> f32 {
+ease_out_quad ::  proc(_t: f32) -> f32 {
+	t := _t;
 	return t * (2 - t);
 }
 
-ease_in_out_quad :: proc(t: f32) -> f32 {
+ease_in_out_quad :: proc(_t: f32) -> f32 {
+	t := _t;
 	if t < 0.5 {
 		return 2 * t * t;
 	}
@@ -189,16 +196,19 @@ ease_in_out_quad :: proc(t: f32) -> f32 {
 	}
 }
 
-ease_in_cubic :: proc(t: f32) -> f32 {
+ease_in_cubic :: proc(_t: f32) -> f32 {
+	t := _t;
     return t * t * t;
 }
 
-ease_out_cubic :: proc(t: f32) -> f32 {
+ease_out_cubic :: proc(_t: f32) -> f32 {
+	t := _t;
 	t -= 1;
     return 1 + t * t * t;
 }
 
-ease_in_out_cubic :: proc(t: f32) -> f32 {
+ease_in_out_cubic :: proc(_t: f32) -> f32 {
+	t := _t;
 	if t < 0.5 {
 		return 4 * t * t * t;
 	}
@@ -208,18 +218,21 @@ ease_in_out_cubic :: proc(t: f32) -> f32 {
 	}
 }
 
-ease_in_quart :: proc(t: f32) -> f32 {
+ease_in_quart :: proc(_t: f32) -> f32 {
+	t := _t;
     t *= t;
     return t * t;
 }
 
-ease_out_quart :: proc(t: f32) -> f32 {
+ease_out_quart :: proc(_t: f32) -> f32 {
+	t := _t;
 	t -= 1;
     t = t * t;
     return 1 - t * t;
 }
 
-ease_in_out_quart :: proc(t: f32) -> f32 {
+ease_in_out_quart :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.5 {
         t *= t;
         return 8 * t * t;
@@ -231,18 +244,21 @@ ease_in_out_quart :: proc(t: f32) -> f32 {
     }
 }
 
-ease_in_quint :: proc(t: f32) -> f32 {
+ease_in_quint :: proc(_t: f32) -> f32 {
+	t := _t;
     t2 := t * t;
     return t * t2 * t2;
 }
 
-ease_out_quint :: proc(t: f32) -> f32 {
+ease_out_quint :: proc(_t: f32) -> f32 {
+	t := _t;
 	t -= 1;
     t2 := t * t;
     return 1 + t * t2 * t2;
 }
 
-ease_in_out_quint :: proc(t: f32) -> f32 {
+ease_in_out_quint :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.5 {
         t2 := t * t;
         return 16 * t * t2 * t2;
@@ -254,15 +270,18 @@ ease_in_out_quint :: proc(t: f32) -> f32 {
     }
 }
 
-ease_in_expo :: proc(t: f32) -> f32 {
+ease_in_expo :: proc(_t: f32) -> f32 {
+	t := _t;
     return (pow(2, 8 * t) - 1) / 255;
 }
 
-ease_out_expo :: proc(t: f32) -> f32 {
+ease_out_expo :: proc(_t: f32) -> f32 {
+	t := _t;
     return 1 - pow(2, -8 * t);
 }
 
-ease_in_out_expo :: proc(t: f32) -> f32 {
+ease_in_out_expo :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.5 {
         return (pow(2, 16 * t) - 1) / 510;
     }
@@ -271,15 +290,18 @@ ease_in_out_expo :: proc(t: f32) -> f32 {
     }
 }
 
-ease_in_circ :: proc(t: f32) -> f32 {
+ease_in_circ :: proc(_t: f32) -> f32 {
+	t := _t;
     return 1 - sqrt(1 - t);
 }
 
-ease_out_circ :: proc(t: f32) -> f32 {
+ease_out_circ :: proc(_t: f32) -> f32 {
+	t := _t;
     return sqrt(t);
 }
 
-ease_in_out_circ :: proc(t: f32) -> f32 {
+ease_in_out_circ :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.5 {
         return (1 - sqrt(1 - 2 * t)) * 0.5;
     }
@@ -288,16 +310,19 @@ ease_in_out_circ :: proc(t: f32) -> f32 {
     }
 }
 
-ease_in_back :: proc(t: f32) -> f32 {
+ease_in_back :: proc(_t: f32) -> f32 {
+	t := _t;
     return t * t * (2.70158 * t - 1.70158);
 }
 
-ease_out_back :: proc(t: f32) -> f32 {
+ease_out_back :: proc(_t: f32) -> f32 {
+	t := _t;
 	t -= 1;
     return 1 + t * t * (2.70158 * t + 1.70158);
 }
 
-ease_in_out_back :: proc(t: f32) -> f32 {
+ease_in_out_back :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.5 {
         return t * t * (7 * t - 2.5) * 2;
     }
@@ -307,17 +332,20 @@ ease_in_out_back :: proc(t: f32) -> f32 {
     }
 }
 
-ease_in_elastic :: proc(t: f32) -> f32 {
+ease_in_elastic :: proc(_t: f32) -> f32 {
+	t := _t;
     t2 := t * t;
     return t2 * t2 * sin(t * PI * 4.5);
 }
 
-ease_out_elastic :: proc(t: f32) -> f32 {
+ease_out_elastic :: proc(_t: f32) -> f32 {
+	t := _t;
     t2 := (t - 1) * (t - 1);
     return 1 - t2 * t2 * cos(t * PI * 4.5);
 }
 
-ease_in_out_elastic :: proc(t: f32) -> f32 {
+ease_in_out_elastic :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.45 {
         t2 := t * t;
         return 8 * t2 * t2 * sin(t * PI * 9);
@@ -331,15 +359,18 @@ ease_in_out_elastic :: proc(t: f32) -> f32 {
     }
 }
 
-ease_in_bounce :: proc(t: f32) -> f32 {
+ease_in_bounce :: proc(_t: f32) -> f32 {
+	t := _t;
     return pow(2, 6 * (t - 1)) * abs(sin(t * PI * 3.5));
 }
 
-ease_out_bounce :: proc(t: f32) -> f32 {
+ease_out_bounce :: proc(_t: f32) -> f32 {
+	t := _t;
     return 1 - pow(2, -6 * t) * abs(cos(t * PI * 3.5));
 }
 
-ease_in_out_bounce :: proc(t: f32) -> f32 {
+ease_in_out_bounce :: proc(_t: f32) -> f32 {
+	t := _t;
     if t < 0.5 {
         return 8 * pow(2, 8 * (t - 1)) * abs(sin(t * PI * 7));
     }

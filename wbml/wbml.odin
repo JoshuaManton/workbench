@@ -200,7 +200,9 @@ deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	parse_value(lexer, token, ptr, ti);
 }
 
-parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Type_Info, is_negative_number := false) {
+parse_value :: proc(lexer: ^Lexer, _parent_token: Token, data: rawptr, _ti: ^rt.Type_Info, is_negative_number := false) {
+	parent_token := _parent_token;
+	ti := _ti;
 	if symbol, ok := parent_token.kind.(laas.Symbol); ok {
 		if symbol.value == '-' {
 			ok := get_next_token(lexer, &parent_token);

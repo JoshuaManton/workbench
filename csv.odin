@@ -28,8 +28,9 @@ parse_csv_from_file :: proc($Record: typeid, filepath: string) -> [dynamic]Recor
 	return records;
 }
 
-parse_csv :: proc($Record: typeid, text: string) -> [dynamic]Record {
+parse_csv :: proc($Record: typeid, _text: string) -> [dynamic]Record {
 	// todo(josh): @Optimization probably
+	text := _text;
 	text = trim_whitespace(text);
 
 	lines: [dynamic]Csv_Row;

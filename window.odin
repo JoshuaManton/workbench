@@ -26,9 +26,10 @@ current_window_height: f32;
 current_aspect_ratio:  f32;
 
 cursor_scroll: f32;
-cursor_world_position:  Vec3;
-cursor_screen_position: Vec2;
-cursor_unit_position:   Vec2;
+cursor_world_position:        Vec3;
+cursor_screen_position:       Vec2;
+cursor_screen_position_delta: Vec2;
+cursor_unit_position:         Vec2;
 
 frame_count: u64;
 time: f32;
@@ -115,6 +116,7 @@ update_glfw :: proc() {
 	current_aspect_ratio   = _new_aspect_ratio;
 	cursor_scroll          = _new_cursor_scroll;
 	_new_cursor_scroll     = 0;
+	cursor_screen_position_delta = _new_cursor_screen_position - cursor_screen_position;
 	cursor_screen_position = _new_cursor_screen_position;
 	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
 	window_is_focused = _new_window_is_focused;

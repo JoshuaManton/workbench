@@ -137,7 +137,7 @@ push_text :: proc(
 	rendermode: gpu.Rendermode_Proc,
 	font: Font,
 	str: string,
-	position: Vec2,
+	_position: Vec2,
 	color: Colorf,
 	size: f32,
 	layer: int,
@@ -148,6 +148,8 @@ push_text :: proc(
 		// old := current_render_mode;
 		// rendering_unit_space();
 		// defer old();
+
+		position := _position;
 
 		assert(rendermode == gpu.rendermode_unit);
 

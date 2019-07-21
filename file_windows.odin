@@ -64,7 +64,8 @@ create_directory :: proc(name : string) -> bool {
 //TODO(Hoej): Full path doesn't really mean full path atm
 //            It really just means prepend dir_path to the filename
 //NOTE(Hoej): Only ASCII
-get_all_entries_strings_in_directory :: proc(dir_path : string, full_path : bool = false) -> []string {
+get_all_entries_strings_in_directory :: proc(_dir_path : string, full_path : bool = false) -> []string {
+    dir_path := _dir_path;
     path_buf : [win32.MAX_PATH]u8;
 
     if(dir_path[len(dir_path)-1] != '/' && dir_path[len(dir_path)-1] != '\\') {

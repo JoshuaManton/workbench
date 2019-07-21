@@ -1620,7 +1620,7 @@ check_error :: proc(id: u32, type_: Shader_Type, status: u32,
 compile_shader_from_source :: proc(shader_data: string, shader_type: Shader_Type) -> (u32, bool) {
     shader_id := CreateShader(cast(u32)shader_type);
     length := i32(len(shader_data));
-    ShaderSource(shader_id, 1, (^^u8)(&shader_data), &length);
+    ShaderSource(shader_id, 1, (^^u8)(&shader_data[0]), &length);
     CompileShader(shader_id);
 
     if check_error(shader_id, shader_type, COMPILE_STATUS, GetShaderiv, GetShaderInfoLog) {
@@ -1704,7 +1704,8 @@ load_shaders :: load_shaders_file;
 
 
 when os.OS == "windows" {
-    update_shader_if_changed :: proc(vertex_name, fragment_name: string, program: u32, last_vertex_time, last_fragment_time: os.File_Time) -> (u32, os.File_Time, os.File_Time, bool) {
+    update_shader_if_changed :: proc(vertex_name, fragment_name: string, _program: u32, last_vertex_time, last_fragment_time: os.File_Time) -> (u32, os.File_Time, os.File_Time, bool) {
+        program := _program;
         current_vertex_time, errno := os.last_write_time_by_name(vertex_name); assert(errno == os.ERROR_NONE);
         current_fragment_time, errno2 := os.last_write_time_by_name(fragment_name); assert(errno2 == os.ERROR_NONE);
 

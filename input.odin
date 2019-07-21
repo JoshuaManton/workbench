@@ -472,7 +472,7 @@ wb_button_release :: proc(button: $Input_Type) {
 	}
 	// idx being -1 means that we got a release but no press, which sometimes happens
 	if idx != -1 {
-		remove_at(&_held_mid_frame, idx);
+		unordered_remove(&_held_mid_frame, idx);
 	}
 	append(&_up_mid_frame, cast(Input)button);
 }

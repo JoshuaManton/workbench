@@ -213,7 +213,11 @@ new_imgui_rects: [dynamic]IMGUI_Rect;
 ui_current_rect_unit:   Unit_Rect;
 ui_current_rect_pixels: Pixel_Rect;
 
-ui_push_rect :: proc(x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, rect_kind := IMGUI_Rect_Kind.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> IMGUI_Rect {
+ui_push_rect :: proc(x1, y1, x2, y2: f32, _top := 0, _right := 0, _bottom := 0, _left := 0, rect_kind := IMGUI_Rect_Kind.Push_Rect, loc := #caller_location, pivot := Vec2{0.5, 0.5}) -> IMGUI_Rect {
+	top    := _top;
+	right  := _right;
+	bottom := _bottom;
+	left   := _left;
 	if len(ui_rect_stack) > 0 && last(ui_rect_stack).kind == IMGUI_Rect_Kind.Scroll_View {
 		top    -= cast(int)(current_scroll_view.scroll_offset.y);
 		right  -= cast(int)(current_scroll_view.scroll_offset.x);

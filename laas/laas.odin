@@ -70,6 +70,10 @@ New_Line :: struct {
 	value: rune,
 }
 
+EOF :: struct {
+
+}
+
 Token :: struct {
     slice_of_text: string,
 
@@ -79,6 +83,7 @@ Token :: struct {
         String,
         Symbol,
         New_Line,
+        EOF,
     },
 }
 
@@ -87,9 +92,15 @@ make_lexer :: inline proc(text: string) -> Lexer {
 }
 
 get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_location) -> bool {
-	if lex_idx >= len(lexer_text) do return false;
+	if lex_idx >= len(lexer_text) {
+		token^ = Token{"", EOF{}};
+		return false;
+	}
 	for _is_whitespace(lexer_text[lex_idx]) {
-		if !_inc(lexer) do return false;
+		if !_inc(lexer) {
+			token^ = Token{"", EOF{}};
+			return false;
+		}
 	}
 
 	token^ = Token{};
@@ -204,8 +215,9 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 
 peek :: proc(lexer: ^Lexer, out_token: ^Token) -> bool {
 	lexer_copy := lexer^;
-	ok := get_next_token(&lexer_copy, out_token);
-	return ok;
+	get_next_token(&lexer_copy, out_token);
+	_, is_end := out_token.kind.(EOF);
+	return !is_end;
 }
 
 _is_whitespace :: inline proc(r: u8) -> bool {
