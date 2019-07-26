@@ -2,6 +2,7 @@ package workbench
 
 using import "core:math"
 
+      import "platform"
       import wbm "math"
       import     "external/imgui"
       import pf  "profiler"
@@ -9,7 +10,7 @@ using import "core:math"
 
 debug_window_open: bool;
 update_debug_menu :: proc() {
-	if get_input_down(Input.F1) {
+	if platform.get_input_down(.F1) {
 		debug_window_open = !debug_window_open;
 	}
 
@@ -33,7 +34,7 @@ update_debug_menu :: proc() {
 		};
 
 		imgui.set_next_window_pos(imgui.Vec2{0, 0});
-		imgui.set_next_window_size(imgui.Vec2{200, current_window_height});
+		imgui.set_next_window_size(imgui.Vec2{200, platform.current_window_height});
 		if imgui.begin("Debug", nil, imgui.Window_Flags.NoResize |
 	                                 imgui.Window_Flags.NoMove |
 	                                 imgui.Window_Flags.NoCollapse |

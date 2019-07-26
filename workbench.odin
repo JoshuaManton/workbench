@@ -11,6 +11,7 @@ using import        "core:fmt"
 
       import wbmath "math"
       import        "gpu"
+      import        "platform"
 using import        "logging"
 using import        "types"
 
@@ -26,6 +27,8 @@ using import        "types"
 // Game loop stuff
 //
 
+main_window: platform.Window;
+
 client_target_framerate:  f32;
 fixed_delta_time: f32;
 
@@ -37,6 +40,12 @@ do_log_frame_boundaries := false;
 debug_console := console.new_console();
 
 wb_profiler: pf.Profiler;
+
+frame_count: u64;
+time: f32;
+precise_time: f64;
+lossy_delta_time: f32;
+precise_lossy_delta_time: f64;
 
 make_simple_window :: proc(window_name: string,
                            window_width, window_height: int,
@@ -54,7 +63,7 @@ make_simple_window :: proc(window_name: string,
 
 	client_target_framerate = target_framerate;
 
-	init_glfw(window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
+	platform.init_platform(&main_window, window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	init_draw(opengl_version_major, opengl_version_minor);
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
@@ -91,13 +100,12 @@ make_simple_window :: proc(window_name: string,
 
 				_clear_render_buffers();
 
-				update_input();
+				platform.update_platform();
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
 
 	    		update_draw();
 				update_catalog();
-				update_glfw();
 				update_tween();
 				update_ui();
 				update_debug_menu();
@@ -122,6 +130,7 @@ make_simple_window :: proc(window_name: string,
 		update_loop_end_time := cast(f32)glfw.GetTime();
 		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end_time - last_update_start_time);
 
+		gpu.update_camera(current_camera, platform.current_window_width, platform.current_window_height);
 		render_workspaces();
 
 		glfw.SwapBuffers(main_window);

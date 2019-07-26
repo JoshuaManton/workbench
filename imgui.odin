@@ -2,14 +2,15 @@ package workbench
 
 using import "core:runtime"
 using import "core:fmt"
-
-import "core:mem";
-import "core:strconv"
+      import "core:mem";
+      import "core:strconv"
 using import "core:math";
-import "core:os";
-import "core:sys/win32"
+      import "core:os";
+      import "core:sys/win32"
 
-import "gpu"
+
+      import "gpu"
+using import "platform"
 using import "logging"
 
 import    "external/glfw"
@@ -38,25 +39,25 @@ init_dear_imgui :: proc() {
     io := imgui.get_io();
     io.ime_window_handle = win32.get_desktop_window();
 
-    io.key_map[imgui.Key.Tab]        = i32(Input.Tab);
-    io.key_map[imgui.Key.LeftArrow]  = i32(Input.Left);
-    io.key_map[imgui.Key.RightArrow] = i32(Input.Right);
-    io.key_map[imgui.Key.UpArrow]    = i32(Input.Up);
-    io.key_map[imgui.Key.DownArrow]  = i32(Input.Down);
-    io.key_map[imgui.Key.PageUp]     = i32(Input.Page_Up);
-    io.key_map[imgui.Key.PageDown]   = i32(Input.Page_Down);
-    io.key_map[imgui.Key.Home]       = i32(Input.Home);
-    io.key_map[imgui.Key.End]        = i32(Input.End);
-    io.key_map[imgui.Key.Delete]     = i32(Input.Delete);
-    io.key_map[imgui.Key.Backspace]  = i32(Input.Backspace);
-    io.key_map[imgui.Key.Enter]      = i32(Input.Enter);
-    io.key_map[imgui.Key.Escape]     = i32(Input.Escape);
-    io.key_map[imgui.Key.A]          = i32(Input.A);
-    io.key_map[imgui.Key.C]          = i32(Input.C);
-    io.key_map[imgui.Key.V]          = i32(Input.V);
-    io.key_map[imgui.Key.X]          = i32(Input.X);
-    io.key_map[imgui.Key.Y]          = i32(Input.Y);
-    io.key_map[imgui.Key.Z]          = i32(Input.Z);
+    io.key_map[imgui.Key.Tab]        = i32(platform.Input.Tab);
+    io.key_map[imgui.Key.LeftArrow]  = i32(platform.Input.Left);
+    io.key_map[imgui.Key.RightArrow] = i32(platform.Input.Right);
+    io.key_map[imgui.Key.UpArrow]    = i32(platform.Input.Up);
+    io.key_map[imgui.Key.DownArrow]  = i32(platform.Input.Down);
+    io.key_map[imgui.Key.PageUp]     = i32(platform.Input.Page_Up);
+    io.key_map[imgui.Key.PageDown]   = i32(platform.Input.Page_Down);
+    io.key_map[imgui.Key.Home]       = i32(platform.Input.Home);
+    io.key_map[imgui.Key.End]        = i32(platform.Input.End);
+    io.key_map[imgui.Key.Delete]     = i32(platform.Input.Delete);
+    io.key_map[imgui.Key.Backspace]  = i32(platform.Input.Backspace);
+    io.key_map[imgui.Key.Enter]      = i32(platform.Input.Enter);
+    io.key_map[imgui.Key.Escape]     = i32(platform.Input.Escape);
+    io.key_map[imgui.Key.A]          = i32(platform.Input.A);
+    io.key_map[imgui.Key.C]          = i32(platform.Input.C);
+    io.key_map[imgui.Key.V]          = i32(platform.Input.V);
+    io.key_map[imgui.Key.X]          = i32(platform.Input.X);
+    io.key_map[imgui.Key.Y]          = i32(platform.Input.Y);
+    io.key_map[imgui.Key.Z]          = i32(platform.Input.Z);
 
     vs ::
         `#version 330

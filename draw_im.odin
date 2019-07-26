@@ -7,6 +7,7 @@ using import        "core:fmt"
       import        "core:mem"
       import        "core:os"
 
+      import        "platform"
       import        "gpu"
       import wbmath "math"
 using import        "types"
@@ -170,8 +171,8 @@ push_text :: proc(
 				size_pixels.y = abs(quad.y1 - quad.y0);
 				size_pixels *= size;
 
-				ww := cast(f32)current_window_width;
-				hh := cast(f32)current_window_height;
+				ww := cast(f32)platform.current_window_width;
+				hh := cast(f32)platform.current_window_height;
 				// min = position + (Vec2{quad.x0, -quad.y1} * size);
 				// max = position + (Vec2{quad.x1, -quad.y0} * size);
 				min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
@@ -259,7 +260,7 @@ im_scissor :: proc(x1, y1, ww, hh: int) {
 im_scissor_end :: proc() {
 	assert(do_scissor);
 	do_scissor = false;
-	current_scissor_rect = {0, 0, cast(int)(current_window_width+0.5), cast(int)(current_window_height+0.5)};
+	current_scissor_rect = {0, 0, cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5)};
 }
 
 
@@ -308,7 +309,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 				gpu.scissor(cmd.scissor_rect);
 			}
 			else {
-				gpu.unscissor(current_window_width, current_window_height);
+				gpu.unscissor(platform.current_window_width, platform.current_window_height);
 			}
 		}
 

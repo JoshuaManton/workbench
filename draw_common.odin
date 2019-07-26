@@ -7,6 +7,7 @@ using import          "core:fmt"
       import          "core:mem"
       import          "core:os"
 
+      import          "platform"
       import          "gpu"
 using import wbmath   "math"
 using import          "types"
@@ -143,7 +144,7 @@ draw_prerender :: proc() {
 		gpu.clear_screen(gpu.Clear_Flags.Color_Buffer);
 	}
 
-	gpu.viewport(0, 0, cast(int)current_window_width, cast(int)current_window_height);
+	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
 
 	if debug_window_open do gpu.bind_framebuffer(&wb_fbo);
 }

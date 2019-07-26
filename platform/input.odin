@@ -1,9 +1,9 @@
 package workbench
 
-import "external/glfw"
-import "external/imgui"
+import "../external/glfw"
+import "../external/imgui"
 
-using import "basic"
+using import "../basic"
 
 /*
 
@@ -314,6 +314,7 @@ _up_mid_frame   := make([dynamic]Input, 0, 5);
 
 controllers: [glfw.JOYSTICK_LAST+1]Controller_State;
 
+@private
 update_input :: proc() {
 	glfw.PollEvents();
 

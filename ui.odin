@@ -10,6 +10,7 @@ using import "core:fmt"
 using import "logging"
 using import "basic"
 using import "types"
+      import "platform"
       import "gpu"
 
       import imgui  "external/imgui"
@@ -29,15 +30,15 @@ cursor_pixel_position_on_clicked: Vec2;
 
 update_ui :: proc() {
 	mouse_in_rect :: inline proc(unit_rect: Rect(f32)) -> bool {
-		cursor_in_rect := cursor_unit_position.y < unit_rect.y2 &&
-		                  cursor_unit_position.y > unit_rect.y1 &&
-		                  cursor_unit_position.x < unit_rect.x2 &&
-		                  cursor_unit_position.x > unit_rect.x1;
+		cursor_in_rect := platform.cursor_unit_position.y < unit_rect.y2 &&
+		                  platform.cursor_unit_position.y > unit_rect.y1 &&
+		                  platform.cursor_unit_position.x < unit_rect.x2 &&
+		                  platform.cursor_unit_position.x > unit_rect.x1;
 		return cursor_in_rect;
 	}
 
 	previously_hot = -1;
-	if get_input_up(Input.Left) {
+	if platform.get_input_up(.Left) {
 		if hot != -1 {
 			previously_hot = hot;
 			hot = -1;
@@ -70,9 +71,9 @@ update_ui :: proc() {
 			}
 
 			if warm == rect.imgui_id {
-				if get_input_down(Input.Mouse_Left) {
+				if platform.get_input_down(.Mouse_Left) {
 					hot = rect.imgui_id;
-					cursor_pixel_position_on_clicked = cursor_screen_position;
+					cursor_pixel_position_on_clicked = platform.cursor_screen_position;
 				}
 			}
 		}
@@ -236,16 +237,17 @@ ui_push_rect :: proc(x1, y1, x2, y2: f32, _top := 0, _right := 0, _bottom := 0, 
 	cur_w := current_rect.x2 - current_rect.x1;
 	cur_h := current_rect.y2 - current_rect.y1;
 
-	new_x1 := current_rect.x1 + (cur_w * x1) + ((cast(f32)left   / cast(f32)current_window_width));
-	new_y1 := current_rect.y1 + (cur_h * y1) + ((cast(f32)bottom / cast(f32)current_window_height));
+	cww := cast(f32)platform.current_window_width;
+	cwh := cast(f32)platform.current_window_height;
 
-	new_x2 := current_rect.x2 - cast(f32)cur_w * (1-x2) - ((cast(f32)right / cast(f32)current_window_width));
-	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top   / cast(f32)current_window_height));
+	new_x1 := current_rect.x1 + (cur_w * x1) + ((cast(f32)left   / cww));
+	new_y1 := current_rect.y1 + (cur_h * y1) + ((cast(f32)bottom / cwh));
+
+	new_x2 := current_rect.x2 - cast(f32)cur_w * (1-x2) - ((cast(f32)right / cww));
+	new_y2 := current_rect.y2 - cast(f32)cur_h * (1-y2) - ((cast(f32)top   / cwh));
 
 	ui_current_rect_unit = Unit_Rect{new_x1, new_y1, new_x2, new_y2};
-	cww := current_window_width;
-	cwh := current_window_height;
-	ui_current_rect_pixels = Pixel_Rect{cast(int)(ui_current_rect_unit.x1 * cast(f32)cww), cast(int)(ui_current_rect_unit.y1 * cast(f32)cwh), cast(int)(ui_current_rect_unit.x2 * cast(f32)cww), cast(int)(ui_current_rect_unit.y2 * cast(f32)cwh)};
+	ui_current_rect_pixels = Pixel_Rect{cast(int)(ui_current_rect_unit.x1 * cww), cast(int)(ui_current_rect_unit.y1 * cwh), cast(int)(ui_current_rect_unit.x2 * cww), cast(int)(ui_current_rect_unit.y2 * cwh)};
 
 	rect := IMGUI_Rect{get_imgui_id_from_location(loc), rect_kind, "", loc, ui_current_rect_unit, ui_current_rect_pixels, x1, y1, x2, y2, top, right, bottom, left};
 	append(&ui_rect_stack, rect);
@@ -326,7 +328,7 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	defer ui_pop_rect(loc);
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * current_window_height / font.pixel_height * size;
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * size;
 
 	if center {
 		ww := get_string_width(gpu.rendermode_unit, font, str, height);
@@ -342,7 +344,7 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 	}
 
 	if shadow != 0 {
-		push_text(gpu.rendermode_unit, font, str, position+Vec2{cast(f32)shadow/current_window_width, cast(f32)-shadow/current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
+		push_text(gpu.rendermode_unit, font, str, position+Vec2{cast(f32)shadow/platform.current_window_width, cast(f32)-shadow/platform.current_window_width}, shadow_color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 	}
 
 	push_text(gpu.rendermode_unit, font, str, position, color, height, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
@@ -352,7 +354,7 @@ ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := ca
 	defer ui_pop_rect(loc);
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)current_window_height / font.pixel_height;
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)platform.current_window_height / font.pixel_height;
 	push_text(gpu.rendermode_unit, font, str, position, color, height * size, current_render_layer); // todo(josh): @TextRenderOrder: proper render order on text
 }
 
@@ -426,7 +428,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		if button.on_clicked  != nil do button.on_clicked(button);
 	}
 
-	if (hot == rect.imgui_id && get_input_down(Input.Mouse_Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
+	if (hot == rect.imgui_id && platform.get_input_down(.Mouse_Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
 		if button.on_pressed != nil do button.on_pressed(button);
 	}
 
@@ -452,7 +454,7 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32, fit_type: Aspect_Ratio_Fit_Kind = C
 	current_rect_height_unit : f32 = (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
 	assert(current_rect_height_unit != 0);
-	current_rect_aspect : f32 = (current_rect_height_unit * current_window_height) / (current_rect_width_unit * current_window_width);
+	current_rect_aspect : f32 = (current_rect_height_unit * platform.current_window_height) / (current_rect_width_unit * platform.current_window_width);
 
 	aspect : f32 = hh / ww;
 	width:   f32;
@@ -480,8 +482,8 @@ ui_fit_to_aspect :: inline proc(ww, hh: f32, fit_type: Aspect_Ratio_Fit_Kind = C
 		}
 	}
 
-	h_width  := cast(int)round(current_window_height * width  / 2);
-	h_height := cast(int)round(current_window_height * height / 2);
+	h_width  := cast(int)round(platform.current_window_height * width  / 2);
+	h_height := cast(int)round(platform.current_window_height * height / 2);
 
 	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, IMGUI_Rect_Kind.Fit_To_Aspect, loc);
 }
@@ -536,7 +538,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 	sv := current_scroll_view;
 
 	if hot == rect.imgui_id {
-		if get_input_down(Input.Mouse_Left) {
+		if platform.get_input_down(.Mouse_Left) {
 			sv.scroll_at_pressed_position = sv.scroll_offset_target;
 		}
 
@@ -546,7 +548,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 		// 	}
 		// }
 
-		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - cursor_screen_position);
+		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.cursor_screen_position);
 		#complete switch kind {
 			case Vertical:   sv.scroll_offset_target.y = offset.y;
 			case Horizontal: sv.scroll_offset_target.x = offset.x;
@@ -563,7 +565,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 	}
 
 	if warm == rect.imgui_id {
-		sv.scroll_offset_target.y -= cursor_scroll * 50;
+		sv.scroll_offset_target.y -= platform.cursor_scroll * 50;
 	}
 
 	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, 20 * fixed_delta_time);
