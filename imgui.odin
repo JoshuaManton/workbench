@@ -4,6 +4,7 @@ using import "core:runtime"
 using import "core:fmt"
       import "core:mem";
       import "core:strconv"
+      import "core:strings"
 using import "core:math";
       import "core:os";
       import "core:sys/win32"
@@ -467,9 +468,22 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
         value: string;
 
         when T == string {
-            // todo(josh): support editing of strings
-            result := tprint(name, " = ", "\"", data_value, "\"");
-            imgui.text(result);
+            // todo(josh): arbitrary string length, right now there is a max length
+            // https://github.com/ocornut/imgui/issues/1008
+
+            text_edit_buffer: [256]u8;
+            bprint(text_edit_buffer[:], data_value);;
+            if imgui.input_text(name, text_edit_buffer[:], .EnterReturnsTrue) {
+                result := text_edit_buffer[:];
+                for b, i in text_edit_buffer {
+                    if b == '\x00' {
+                        result = text_edit_buffer[:i];
+                        break;
+                    }
+                }
+                str := strings.clone(cast(string)result);
+                (cast(^string)data)^ = str; // @Leak
+            }
         }
         else when T == f32 || T == f64 {
             value = tprintf("%.8f", data_value);
@@ -635,7 +649,35 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
 
             assert(tag > 0);
             data_ti := kind.variants[tag-1];
+            label := tprint("tag\x00");
+            current_tag := cast(i32)tag-1;
+            item := current_tag;
+            v := kind.variants;
+            imgui.combo3(cast(cstring)&label[0], &item, item_getter, &v, cast(i32)len(v), cast(i32)min(5, len(v)));
+            if item != current_tag {
+                // todo(josh): is zeroing a good idea here?
+                // mem.zero(data, ti.size);
+                switch i in tag_any {
+                    case u8:   (cast(^u8 )tag_ptr)^ = u8 (item+1);
+                    case u16:  (cast(^u16)tag_ptr)^ = u16(item+1);
+                    case u32:  (cast(^u32)tag_ptr)^ = u32(item+1);
+                    case u64:  (cast(^u64)tag_ptr)^ = u64(item+1);
+                    case i8:   (cast(^i8 )tag_ptr)^ = i8 (item+1);
+                    case i16:  (cast(^i16)tag_ptr)^ = i16(item+1);
+                    case i32:  (cast(^i32)tag_ptr)^ = i32(item+1);
+                    case i64:  (cast(^i64)tag_ptr)^ = i64(item+1);
+                    case: panic(fmt.tprint("Invalid union tag type: ", i));
+                }
+            }
+
             _imgui_struct_internal(name, data, data_ti, type_name);
+
+            item_getter :: proc"cdecl"(data: rawptr, idx: i32, out_text: ^^u8) -> bool {
+                variants := cast(^[]^Type_Info)data;
+                name := tprint(variants[idx], "\x00");
+                out_text^ = &name[0];
+                return true;
+            }
         }
         case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
     }
