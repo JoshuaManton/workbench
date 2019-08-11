@@ -189,6 +189,19 @@ string_starts_with :: proc(str: string, start: string) -> bool {
 	return true;
 }
 
+// note(josh): returned string is tprint'ed, save manually on user-side if persistence is needed
+string_to_lower :: proc(str: string) -> string {
+	lower := fmt.tprint(str);
+	for r, i in lower {
+		switch r {
+			case 'A'..'Z': {
+				lower[i] += 'a'-'A';
+			}
+		}
+	}
+	return lower;
+}
+
 split_by_rune :: proc(str: string, split_on: rune, _buffer: ^[$N]string) -> []string {
 	buffer := _buffer;
 	cur_slice := 0;
