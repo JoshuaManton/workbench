@@ -21,11 +21,11 @@ do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32, fast : f32 = -1, slo
 		speed = slow;
 	}
 
-    up      := Vec3{0,  1,  0};
-    down    := Vec3{0, -1,  0};
+    up      := wbm.quaternion_up(current_camera.rotation);
     forward := wbm.quaternion_forward(current_camera.rotation);
 	right   := wbm.quaternion_right(current_camera.rotation);
 
+    down := -up;
     back := -forward;
     left := -right;
 
