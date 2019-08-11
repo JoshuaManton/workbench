@@ -1,6 +1,9 @@
 package wbml
 
 using import "core:fmt"
+using import "core:math"
+
+      import wbml ".."
 
 main :: proc() {
 	run_tests();
@@ -19,11 +22,32 @@ run_tests :: proc() {
 		Zxc,
 	}
 
+	Foo :: struct {
+		x, y, z: f32,
+	}
+	Bar :: struct {
+		str: string,
+		big_bool: b32,
+	}
+
 	Nightmare :: struct {
 		some_int: int,
 		some_string: string,
 		some_float: f64,
 		some_bool: bool,
+		some_union: union {
+			string,
+			int,
+		},
+		union_foo: union {
+			Foo,
+			Bar,
+		},
+		union_bar: union {
+			Foo,
+			Bar,
+		},
+		some_unserialized_thing: int "wbml_unserialized",
 		enum1: Int_Enum,
 		enum2: Byte_Enum,
 		some_nested_thing: struct {
@@ -45,6 +69,16 @@ run_tests :: proc() {
 	some_string "henlo lizer"
 	some_float 123.400
 	some_bool true
+	some_union .string "foo"
+	union_foo .Foo {
+		x 1
+		y 4
+		z 9
+	}
+	union_bar .Bar {
+		str "bar string"
+		big_bool true
+	}
 	enum1 Baz
 	enum2 Asd
 	some_nested_thing {
@@ -77,12 +111,42 @@ run_tests :: proc() {
 	}
 }`;
 
-	a := deserialize(Nightmare, source);
+	a := wbml.deserialize(Nightmare, source);
 
 	assert(a.some_int == 123, tprint(a.some_int));
 	assert(a.some_string == "henlo lizer", tprint(a.some_string));
 	assert(a.some_float == 123.4, tprint(a.some_float));
 	assert(a.some_bool == true, tprint(a.some_bool));
+
+	assert(a.enum1 == .Baz, tprint(a.enum1));
+	assert(a.enum2 == .Asd, tprint(a.enum2));
+
+	if str, ok := a.some_union.(string); ok {
+		assert(str == "foo", tprint(str));
+	}
+	else {
+		assert(false, tprint("some_union wasn't a string: ", a.some_union));
+	}
+
+	if foo, ok := a.union_foo.(Foo); ok {
+		assert(foo.x == 1, tprint(foo));
+		assert(foo.y == 4, tprint(foo));
+		assert(foo.z == 9, tprint(foo));
+	}
+	else {
+		assert(false, tprint("union_foo wasn't a Foo: ", a.union_foo));
+	}
+
+	if bar, ok := a.union_bar.(Bar); ok {
+		assert(bar.str == "bar string", tprint(bar));
+		assert(bar.big_bool == true, tprint(bar));
+	}
+	else {
+		assert(false, tprint("union_bar wasn't a Bar: ", a.union_bar));
+	}
+
+	// todo(josh): support for `wbml_unserialized` in the deserializer
+	// assert(a.some_unserialized_thing == 0);
 
 	assert(a.some_nested_thing.asd == 432.500, tprintf("%.8f", a.some_nested_thing.asd));
 	assert(a.some_nested_thing.super_nested.blah == "super nested string", tprint(a.some_nested_thing.super_nested.blah));
@@ -105,15 +169,42 @@ run_tests :: proc() {
 	assert(a.some_nested_thing.slice[1].x == 43, tprint(a.some_nested_thing.slice[1].x));
 	assert(a.some_nested_thing.slice[1].y == 21, tprint(a.some_nested_thing.slice[1].y));
 
-	a_text := serialize(&a);
+	a_text := wbml.serialize(&a);
 	defer delete(a_text);
 	println(a_text);
-	b := deserialize(Nightmare, a_text);
+	b := wbml.deserialize(Nightmare, a_text);
 
 	assert(a.some_int == b.some_int);
 	assert(a.some_string == b.some_string);
 	assert(a.some_float == b.some_float);
 	assert(a.some_bool == b.some_bool);
+
+	assert(a.enum1 == b.enum1);
+	assert(a.enum2 == b.enum2);
+
+	if str, ok := b.some_union.(string); ok {
+		assert(str == a.some_union.(string));
+	}
+	else {
+		assert(false, tprint("some_union wasn't a string: ", b.some_union));
+	}
+
+	if foo, ok := b.union_foo.(Foo); ok {
+		assert(foo.x == a.union_foo.(Foo).x);
+		assert(foo.y == a.union_foo.(Foo).y);
+		assert(foo.z == a.union_foo.(Foo).z);
+	}
+	else {
+		assert(false, tprint("union_foo wasn't a Foo: ", b.union_foo));
+	}
+
+	if bar, ok := b.union_bar.(Bar); ok {
+		assert(bar.str      == a.union_bar.(Bar).str);
+		assert(bar.big_bool == a.union_bar.(Bar).big_bool);
+	}
+	else {
+		assert(false, tprint("union_foo wasn't a Foo: ", b.union_foo));
+	}
 
 	assert(a.some_nested_thing.asd == b.some_nested_thing.asd);
 	assert(a.some_nested_thing.super_nested.blah == b.some_nested_thing.super_nested.blah);
