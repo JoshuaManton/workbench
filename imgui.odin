@@ -444,19 +444,26 @@ imgui_struct :: inline proc(value: ^$T, name: string) {
 }
 
 _imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
-    if name != "" {
-        if imgui.collapsing_header(tprint(name, ": ", typename)) {
+    // if name != "" {
+        header: string;
+        if name != "" {
+            header = tprint(name, ": ", typename);
+        }
+        else {
+            header = tprint(typename);
+        }
+        if imgui.collapsing_header(header) {
             imgui.indent();
             return true;
         }
         return false;
-    }
-    return true;
+    // }
+    // return true;
 }
 _imgui_struct_block_field_end :: proc(name: string) {
-    if name != "" {
+    // if name != "" {
         imgui.unindent();
-    }
+    // }
 }
 
 imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: string = "") {
@@ -576,7 +583,10 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: s
                     t := kind.types[i];
                     offset := kind.offsets[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
-                    imgui_struct_ti(field_name, data, t);
+                    tag := kind.tags[i];
+                    if tag != "imgui_hidden" {
+                        imgui_struct_ti(field_name, data, t);
+                    }
                 }
             }
         }
