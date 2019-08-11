@@ -63,9 +63,10 @@ draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, r
 	view_matrix = mul(rotation_matrix, view_matrix);
 
 	// model_matrix
-	model_matrix := translate(identity(Mat4), position);
-	model_matrix = math.scale(model_matrix, scale);
-	model_matrix = math.mul(model_matrix, quat_to_mat4(rotation));
+	model_p := translate(identity(Mat4), position);
+	model_s := math.scale(identity(Mat4), scale);
+	model_r := quat_to_mat4(rotation);
+	model_matrix := mul(mul(model_p, model_r), model_s);
 
 	for mesh in model.meshes {
 		bind_vao(mesh.vao);
