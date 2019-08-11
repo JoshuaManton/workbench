@@ -433,14 +433,14 @@ imgui_struct_window :: inline proc(value: ^$T) {
     imgui.begin(tprint(type_info_of(T)));
     defer imgui.end();
 
-    _imgui_struct_internal("", value, type_info_of(T));
+    imgui_struct_ti("", value, type_info_of(T));
 }
 
 imgui_struct :: inline proc(value: ^$T, name: string) {
     imgui.push_font(imgui_font_mono);
     defer imgui.pop_font();
 
-    _imgui_struct_internal(name, value, type_info_of(T));
+    imgui_struct_ti(name, value, type_info_of(T));
 }
 
 _imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
@@ -459,7 +459,7 @@ _imgui_struct_block_field_end :: proc(name: string) {
     }
 }
 
-_imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: string = "") {
+imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: string = "") {
     imgui.push_id(name);
     defer imgui.pop_id();
 
@@ -567,7 +567,7 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
             simple_field(name, data, ^byte);
         }
         case Type_Info_Named: {
-            _imgui_struct_internal(name, data, kind.base, kind.name);
+            imgui_struct_ti(name, data, kind.base, kind.name);
         }
         case Type_Info_Struct: {
             if _imgui_struct_block_field_start(name, type_name) {
@@ -576,7 +576,7 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                     t := kind.types[i];
                     offset := kind.offsets[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
-                    _imgui_struct_internal(field_name, data, t);
+                    imgui_struct_ti(field_name, data, t);
                 }
             }
         }
@@ -603,7 +603,7 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                 for i in 0..slice.len-1 {
                     imgui.push_id(tprint(i));
                     defer imgui.pop_id();
-                    _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
+                    imgui_struct_ti(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size), kind.elem);
                 }
             }
         }
@@ -614,7 +614,7 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                 for i in 0..kind.count-1 {
                     imgui.push_id(tprint(i));
                     defer imgui.pop_id();
-                    _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
+                    imgui_struct_ti(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)data, i * kind.elem_size), kind.elem);
                 }
             }
         }
@@ -626,7 +626,7 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                 for i in 0..array.len-1 {
                     imgui.push_id(tprint(i));
                     defer imgui.pop_id();
-                    _imgui_struct_internal(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
+                    imgui_struct_ti(tprint("[", i, "]"), mem.ptr_offset(cast(^byte)array.data, i * kind.elem_size), kind.elem);
                 }
             }
         }
@@ -647,8 +647,6 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                 case: panic(fmt.tprint("Invalid union tag type: ", i));
             }
 
-            assert(tag > 0);
-            data_ti := kind.variants[tag-1];
             label := tprint("tag\x00");
             current_tag := cast(i32)tag-1;
             item := current_tag;
@@ -670,7 +668,10 @@ _imgui_struct_internal :: proc(name: string, data: rawptr, ti: ^Type_Info, type_
                 }
             }
 
-            _imgui_struct_internal(name, data, data_ti, type_name);
+            if tag > 0 {
+                data_ti := kind.variants[tag-1];
+                imgui_struct_ti(name, data, data_ti, type_name);
+            }
 
             item_getter :: proc"cdecl"(data: rawptr, idx: i32, out_text: ^^u8) -> bool {
                 variants := cast(^[]^Type_Info)data;
