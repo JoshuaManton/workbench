@@ -6,7 +6,21 @@ using import "core:math"
       import "gpu"
       import wbm "math"
 
-do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32) {
+do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32, fast : f32 = -1, slow : f32 = -1) {
+	speed := speed;
+	fast := fast;
+	slow := slow;
+
+	if fast < 0 do fast = speed;
+	if slow < 0 do slow = speed;
+
+	if platform.get_input(.Left_Shift) {
+		speed = fast;
+	}
+	else if platform.get_input(.Left_Alt) {
+		speed = slow;
+	}
+
     up      := Vec3{0,  1,  0};
     down    := Vec3{0, -1,  0};
     forward := wbm.quaternion_forward(current_camera.rotation);
