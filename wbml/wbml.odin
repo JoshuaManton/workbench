@@ -11,184 +11,184 @@ using import "core:fmt"
 using import "../laas"
 
 serialize :: proc(value: ^$Type) -> string {
-	serialize_one_thing :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int, loc := #caller_location) {
-		indent_level := indent_level;
+	sb: Builder;
+	ti := type_info_of(Type);
+	serialize_with_type_info("", value, ti, &sb, 0);
 
-		print_indents :: inline proc(indent_level: int, sb: ^Builder) {
-			for i in 0..indent_level-1 {
-				sbprint(sb, "\t");
-			}
-		}
+	return to_string(sb);
+}
 
-		print_to_buf :: inline proc(sb: ^Builder, args: ..any) {
-			sbprint(sb, ..args);
-		}
+serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int, loc := #caller_location) {
+	indent_level := indent_level;
 
-		if name != "" {
-			print_to_buf(sb, name, " ");
-		}
-
-		do_newline := true;
-		switch kind in ti.variant {
-			case rt.Type_Info_Integer: {
-				if kind.signed {
-					switch ti.size {
-						case 1: print_to_buf(sb, (cast(^i8 )value)^);
-						case 2: print_to_buf(sb, (cast(^i16)value)^);
-						case 4: print_to_buf(sb, (cast(^i32)value)^);
-						case 8: print_to_buf(sb, (cast(^i64)value)^);
-						case: panic(tprint(ti.size));
-					}
-				}
-				else {
-					switch ti.size {
-						case 1: print_to_buf(sb, (cast(^u8 )value)^);
-						case 2: print_to_buf(sb, (cast(^u16)value)^);
-						case 4: print_to_buf(sb, (cast(^u32)value)^);
-						case 8: print_to_buf(sb, (cast(^u64)value)^);
-						case: panic(tprint(ti.size));
-					}
-				}
-			}
-
-			case rt.Type_Info_Float: {
-				switch ti.size {
-					case 4: print_to_buf(sb, (cast(^f32)value)^);
-					case 8: print_to_buf(sb, (cast(^f64)value)^);
-					case: panic(tprint(ti.size));
-				}
-			}
-
-			case rt.Type_Info_Enum: {
-				do_newline = false;
-
-				get_str :: proc(i: $T, e: rt.Type_Info_Enum) -> (string, bool) {
-					if types.is_string(e.base) {
-						for val, idx in e.values {
-							if v, ok := val.(T); ok && v == i {
-								return e.names[idx], true;
-							}
-						}
-					} else if len(e.values) == 0 {
-						return "", true;
-					} else {
-						for val, idx in e.values {
-							if v, ok := val.(T); ok && v == i {
-								return e.names[idx], true;
-							}
-						}
-					}
-					return "", false;
-				}
-
-				a := any{value, rt.type_info_base(kind.base).id};
-				switch v in a {
-				case rune:    str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case i8:      str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case i16:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case i32:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case i64:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case int:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case u8:      str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case u16:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case u32:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case u64:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case uint:    str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				case uintptr: str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
-				}
-			}
-
-			case rt.Type_Info_Boolean: {
-				print_to_buf(sb, (cast(^bool)value)^);
-			}
-
-			case rt.Type_Info_String: {
-				print_to_buf(sb, "\"", (cast(^string)value)^, "\"");
-			}
-
-			case rt.Type_Info_Named: {
-				if _, ok := kind.base.variant.(rt.Type_Info_Struct); ok {
-					// the struct will handle the new line
-					do_newline = false;
-				}
-				serialize_one_thing("", value, kind.base, sb, indent_level);
-			}
-
-			case rt.Type_Info_Struct: {
-				print_to_buf(sb, "{\n"); indent_level += 1;
-				for name, idx in kind.names {
-					tag := kind.tags[idx];
-					if strings.contains(tag, "wbml_unserialized") do continue;
-
-					print_indents(indent_level, sb);
-					serialize_one_thing(name, mem.ptr_offset(cast(^byte)value, cast(int)kind.offsets[idx]), kind.types[idx], sb, indent_level);
-				}
-				indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "}");
-			}
-
-			case rt.Type_Info_Union: {
-				assert(kind.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
-				do_newline = false; // recursing into serialize_one_thing would cause two newlines to be written
-				union_ti := reflection.get_union_type_info(any{value, ti.id});
-				print_to_buf(sb, ".", tprint(union_ti), " ");
-				serialize_one_thing("", value, union_ti, sb, indent_level);
-			}
-
-			case rt.Type_Info_Array: {
-				print_to_buf(sb, "[\n"); indent_level += 1;
-				{
-					for i in 0..kind.count-1 {
-						data := mem.ptr_offset(cast(^byte)value, i * kind.elem_size);
-						print_indents(indent_level, sb);
-						serialize_one_thing("", data, kind.elem, sb, indent_level);
-					}
-				}
-				indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "]");
-			}
-
-			case rt.Type_Info_Dynamic_Array: {
-				dyn := transmute(^mem.Raw_Dynamic_Array)value;
-				print_to_buf(sb, "[\n"); indent_level += 1;
-				{
-					for i in 0..dyn.len-1 {
-						data := mem.ptr_offset(cast(^byte)dyn.data, i * kind.elem_size);
-						print_indents(indent_level, sb);
-						serialize_one_thing("", data, kind.elem, sb, indent_level);
-					}
-				}
-				indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "]");
-			}
-
-			case rt.Type_Info_Slice: {
-				slice := transmute(^mem.Raw_Slice)value;
-				print_to_buf(sb, "[\n"); indent_level += 1;
-				{
-					for i in 0..slice.len-1 {
-						data := mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size);
-						print_indents(indent_level, sb);
-						serialize_one_thing("", data, kind.elem, sb, indent_level);
-					}
-				}
-				indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "]");
-			}
-
-			case rt.Type_Info_Map: {
-				// todo(josh): support map
-			}
-
-			case: panic(tprint(kind));
-		}
-
-		if do_newline {
-			print_to_buf(sb, "\n");
+	print_indents :: inline proc(indent_level: int, sb: ^Builder) {
+		for i in 0..indent_level-1 {
+			sbprint(sb, "\t");
 		}
 	}
 
-	sb: Builder;
-	ti := type_info_of(Type);
-	serialize_one_thing("", value, ti, &sb, 0);
+	print_to_buf :: inline proc(sb: ^Builder, args: ..any) {
+		sbprint(sb, ..args);
+	}
 
-	return to_string(sb);
+	if name != "" {
+		print_to_buf(sb, name, " ");
+	}
+
+	do_newline := true;
+	switch kind in ti.variant {
+		case rt.Type_Info_Integer: {
+			if kind.signed {
+				switch ti.size {
+					case 1: print_to_buf(sb, (cast(^i8 )value)^);
+					case 2: print_to_buf(sb, (cast(^i16)value)^);
+					case 4: print_to_buf(sb, (cast(^i32)value)^);
+					case 8: print_to_buf(sb, (cast(^i64)value)^);
+					case: panic(tprint(ti.size));
+				}
+			}
+			else {
+				switch ti.size {
+					case 1: print_to_buf(sb, (cast(^u8 )value)^);
+					case 2: print_to_buf(sb, (cast(^u16)value)^);
+					case 4: print_to_buf(sb, (cast(^u32)value)^);
+					case 8: print_to_buf(sb, (cast(^u64)value)^);
+					case: panic(tprint(ti.size));
+				}
+			}
+		}
+
+		case rt.Type_Info_Float: {
+			switch ti.size {
+				case 4: print_to_buf(sb, (cast(^f32)value)^);
+				case 8: print_to_buf(sb, (cast(^f64)value)^);
+				case: panic(tprint(ti.size));
+			}
+		}
+
+		case rt.Type_Info_Enum: {
+			do_newline = false;
+
+			get_str :: proc(i: $T, e: rt.Type_Info_Enum) -> (string, bool) {
+				if types.is_string(e.base) {
+					for val, idx in e.values {
+						if v, ok := val.(T); ok && v == i {
+							return e.names[idx], true;
+						}
+					}
+				} else if len(e.values) == 0 {
+					return "", true;
+				} else {
+					for val, idx in e.values {
+						if v, ok := val.(T); ok && v == i {
+							return e.names[idx], true;
+						}
+					}
+				}
+				return "", false;
+			}
+
+			a := any{value, rt.type_info_base(kind.base).id};
+			switch v in a {
+			case rune:    str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case i8:      str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case i16:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case i32:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case i64:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case int:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case u8:      str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case u16:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case u32:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case u64:     str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case uint:    str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			case uintptr: str, ok := get_str(v, kind); assert(ok); print_to_buf(sb, str);
+			}
+		}
+
+		case rt.Type_Info_Boolean: {
+			print_to_buf(sb, (cast(^bool)value)^);
+		}
+
+		case rt.Type_Info_String: {
+			print_to_buf(sb, "\"", (cast(^string)value)^, "\"");
+		}
+
+		case rt.Type_Info_Named: {
+			if _, ok := kind.base.variant.(rt.Type_Info_Struct); ok {
+				// the struct will handle the new line
+				do_newline = false;
+			}
+			serialize_with_type_info("", value, kind.base, sb, indent_level);
+		}
+
+		case rt.Type_Info_Struct: {
+			print_to_buf(sb, "{\n"); indent_level += 1;
+			for name, idx in kind.names {
+				tag := kind.tags[idx];
+				if strings.contains(tag, "wbml_unserialized") do continue;
+
+				print_indents(indent_level, sb);
+				serialize_with_type_info(name, mem.ptr_offset(cast(^byte)value, cast(int)kind.offsets[idx]), kind.types[idx], sb, indent_level);
+			}
+			indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "}");
+		}
+
+		case rt.Type_Info_Union: {
+			assert(kind.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
+			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
+			union_ti := reflection.get_union_type_info(any{value, ti.id});
+			print_to_buf(sb, ".", tprint(union_ti), " ");
+			serialize_with_type_info("", value, union_ti, sb, indent_level);
+		}
+
+		case rt.Type_Info_Array: {
+			print_to_buf(sb, "[\n"); indent_level += 1;
+			{
+				for i in 0..kind.count-1 {
+					data := mem.ptr_offset(cast(^byte)value, i * kind.elem_size);
+					print_indents(indent_level, sb);
+					serialize_with_type_info("", data, kind.elem, sb, indent_level);
+				}
+			}
+			indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "]");
+		}
+
+		case rt.Type_Info_Dynamic_Array: {
+			dyn := transmute(^mem.Raw_Dynamic_Array)value;
+			print_to_buf(sb, "[\n"); indent_level += 1;
+			{
+				for i in 0..dyn.len-1 {
+					data := mem.ptr_offset(cast(^byte)dyn.data, i * kind.elem_size);
+					print_indents(indent_level, sb);
+					serialize_with_type_info("", data, kind.elem, sb, indent_level);
+				}
+			}
+			indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "]");
+		}
+
+		case rt.Type_Info_Slice: {
+			slice := transmute(^mem.Raw_Slice)value;
+			print_to_buf(sb, "[\n"); indent_level += 1;
+			{
+				for i in 0..slice.len-1 {
+					data := mem.ptr_offset(cast(^byte)slice.data, i * kind.elem_size);
+					print_indents(indent_level, sb);
+					serialize_with_type_info("", data, kind.elem, sb, indent_level);
+				}
+			}
+			indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "]");
+		}
+
+		case rt.Type_Info_Map: {
+			// todo(josh): support map
+		}
+
+		case: panic(tprint(kind));
+	}
+
+	if do_newline {
+		print_to_buf(sb, "\n");
+	}
 }
 
 deserialize :: proc{deserialize_to_value, deserialize_into_pointer};
@@ -202,7 +202,18 @@ deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
 deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	ti := type_info_of(Type);
 
-	_lexer := laas.Lexer{text, 0, 0, 0, nil};
+	_lexer := laas.make_lexer(text);
+	lexer := &_lexer;
+
+	token: Token;
+	ok := get_next_token(lexer, &token);
+	if !ok do panic("empty text");
+
+	parse_value(lexer, token, ptr, ti);
+}
+
+deserialize_into_pointer_with_type_info :: proc(text: string, ptr: rawptr, ti: ^rt.Type_Info) {
+	_lexer := laas.make_lexer(text);
 	lexer := &_lexer;
 
 	token: Token;

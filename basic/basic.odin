@@ -1,6 +1,8 @@
 package basic
 
-      import "core:fmt"
+      import "core:sys/win32"
+      import "core:strings"
+using import "core:fmt"
       import "core:mem"
 using import "core:math"
 
@@ -96,6 +98,15 @@ get_file_extension :: proc(filepath: string) -> (string, bool) {
 	return "", false;
 }
 
+// "filename.txt" -> "txt"
+get_file_name_and_extension :: proc(filepath: string) -> (string, bool) {
+	if slash_idx, ok := find_from_right(filepath, '/'); ok {
+		filename := filepath[slash_idx+1:];
+		return filename, true;
+	}
+	return "", false;
+}
+
 // "path/to/filename.txt" -> "path/to/"
 get_file_directory :: proc(filepath: string) -> (string, bool) {
 	if idx, ok := find_from_right(filepath, '/'); ok {
@@ -103,6 +114,45 @@ get_file_directory :: proc(filepath: string) -> (string, bool) {
 		return dirpath, true;
 	}
 	return "", false;
+}
+
+get_all_filepaths_recursively :: proc(path: string) -> []string {
+	results: [dynamic]string;
+	path_c := strings.clone_to_cstring(path);
+	defer delete(path_c);
+	recurse(path_c, &results);
+
+	recurse :: proc(path: cstring, results: ^[dynamic]string) {
+		query_path := strings.clone_to_cstring(tprint(path, "/*.*"));
+		defer delete(query_path);
+
+		ffd: win32.Find_Data_A;
+		hnd := win32.find_first_file_a(query_path, &ffd);
+		defer win32.find_close(hnd);
+
+		assert(hnd != win32.INVALID_HANDLE, tprint("Path not found: ", query_path));
+
+		for {
+			file_name := cast(cstring)&ffd.file_name[0];
+
+			if file_name != "." && file_name != ".." {
+				if (ffd.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY) > 0 {
+					nested_path := strings.clone_to_cstring(tprint(path, "/", cast(cstring)&ffd.file_name[0]));
+					defer delete(nested_path);
+					recurse(nested_path, results);
+				}
+				else {
+					append(results, strings.clone(tprint(path, "/", file_name)));
+				}
+			}
+
+			if !win32.find_next_file_a(hnd, &ffd) {
+				break;
+			}
+		}
+	}
+
+	return results[:];
 }
 
 //
@@ -200,6 +250,16 @@ string_to_lower :: proc(str: string) -> string {
 		}
 	}
 	return lower;
+}
+
+string_ends_in :: proc(str: string, end: string) -> bool {
+	if len(str) < len(end) do return false;
+	j := len(str)-1;
+	for i := len(end)-1; i >= 0; i -= 1 {
+		if str[j] != end[i] do return false;
+		j -= 1;
+	}
+	return true;
 }
 
 split_by_rune :: proc(str: string, split_on: rune, _buffer: ^[$N]string) -> []string {

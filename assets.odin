@@ -76,52 +76,16 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types
 			}
 			case: {
 				if array_contains(text_file_types, ext) {
-					assert(name notin catalog.text_files);
-					catalog.text_files[name] = cast(string)data;
+					name_and_ext, ok := get_file_name_and_extension(filepath);
+					println(filepath);
+					println(name_and_ext);
+					assert(name_and_ext notin catalog.text_files);
+					catalog.text_files[name_and_ext] = cast(string)data;
 				}
 				else {
-					logln("unhandled file extension: ", ext);
+					logln("Unknown file extension: .", ext, " at ", filepath);
 				}
 			}
 		}
 	}
-}
-
-get_all_filepaths_recursively :: proc(path: string) -> []string {
-	results: [dynamic]string;
-	path_c := strings.clone_to_cstring(path);
-	defer delete(path_c);
-	recurse(path_c, &results);
-
-	recurse :: proc(path: cstring, results: ^[dynamic]string) {
-		query_path := strings.clone_to_cstring(tprint(path, "/*.*"));
-		defer delete(query_path);
-
-		ffd: win32.Find_Data_A;
-		hnd := win32.find_first_file_a(query_path, &ffd);
-		defer win32.find_close(hnd);
-
-		assert(hnd != win32.INVALID_HANDLE, tprint("Path not found: ", query_path));
-
-		for {
-			file_name := cast(cstring)&ffd.file_name[0];
-
-			if file_name != "." && file_name != ".." {
-				if (ffd.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY) > 0 {
-					nested_path := strings.clone_to_cstring(tprint(path, "/", cast(cstring)&ffd.file_name[0]));
-					defer delete(nested_path);
-					recurse(nested_path, results);
-				}
-				else {
-					append(results, strings.clone(tprint(path, "/", file_name)));
-				}
-			}
-
-			if !win32.find_next_file_a(hnd, &ffd) {
-				break;
-			}
-		}
-	}
-
-	return results[:];
 }

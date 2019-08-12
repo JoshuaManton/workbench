@@ -584,7 +584,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: s
                     offset := kind.offsets[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
                     tag := kind.tags[i];
-                    if tag != "imgui_hidden" {
+                    if !strings.contains(tag, "imgui_hidden") {
                         imgui_struct_ti(field_name, data, t);
                     }
                 }

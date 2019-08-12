@@ -213,11 +213,33 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 	return true;
 }
 
+is_token :: proc(lexer: ^Lexer, $T: typeid) -> bool {
+	t: Token;
+	ok := peek(lexer, &t);
+	if !ok do return false;
+	_, ok2 := t.kind.(T);
+	return ok2;
+}
+
 peek :: proc(lexer: ^Lexer, out_token: ^Token) -> bool {
 	lexer_copy := lexer^;
 	get_next_token(&lexer_copy, out_token);
 	_, is_end := out_token.kind.(EOF);
 	return !is_end;
+}
+
+eat :: proc(lexer: ^Lexer) -> bool {
+	t: Token;
+	ok := get_next_token(lexer, &t);
+	return ok;
+}
+
+expect :: proc(lexer: ^Lexer, $T: typeid) -> (T, bool) {
+	t: Token;
+	ok := get_next_token(lexer, &t);
+	if !ok do return {}, false;
+
+	return t.kind.(T);
 }
 
 _is_whitespace :: inline proc(r: u8) -> bool {
