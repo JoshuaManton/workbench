@@ -38,9 +38,9 @@ do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32, fast : f32 = -1, slo
 
 	if platform.get_input(.Mouse_Right) {
 		SENSITIVITY :: 0.1;
-		delta := platform.cursor_screen_position_delta;
+		delta := platform.mouse_screen_position_delta;
 		delta *= SENSITIVITY;
-		degrees := Vec3{delta.y, -delta.x, platform.cursor_scroll};
+		degrees := Vec3{delta.y, -delta.x, platform.mouse_scroll};
 		current_camera.rotation = rotate_quat_by_degrees(current_camera.rotation, degrees);
 	}
 }

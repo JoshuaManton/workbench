@@ -79,7 +79,7 @@ current_camera: ^gpu.Camera;
 // 	}
 // }
 
-shader_rgba: gpu.Shader_Program;
+shader_rgba_2d: gpu.Shader_Program;
 shader_text: gpu.Shader_Program;
 shader_rgba_3d: gpu.Shader_Program;
 
@@ -97,7 +97,7 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	gpu.add_mesh_to_model(&im_model, "im_model", []gpu.Vertex2D{}, []u32{});
 
 	ok: bool;
-	shader_rgba, ok    = gpu.load_shader_text(SHADER_RGBA_VERT, SHADER_RGBA_FRAG);
+	shader_rgba_2d, ok    = gpu.load_shader_text(SHADER_RGBA_2D_VERT, SHADER_RGBA_2D_FRAG);
 	assert(ok);
 	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_TEXTURE_UNLIT_VERT, SHADER_TEXTURE_UNLIT_FRAG);
 	assert(ok);

@@ -4,6 +4,7 @@ using import "core:math"
       import rt "core:runtime"
 
 using import "../types"
+using import wbm "../math"
 
       import odingl "../external/gl"
 
@@ -23,7 +24,8 @@ Camera :: struct {
     perspective_matrix:  Mat4,
     orthographic_matrix: Mat4,
     projection_matrix: Mat4, // should be one of the  perspective or orthographic matrices above
-    view_matrix: Mat4,
+
+    current_render_projection_matrix: Mat4,
 
     unit_to_viewport_matrix: Mat4,
     unit_to_pixel_matrix: Mat4,
@@ -49,6 +51,14 @@ init_camera :: proc(camera: ^Camera) {
 }
 
 delete_camera :: proc(camera: ^Camera) {
+}
+
+get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
+    view_matrix := identity(Mat4);
+    view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
+    rotation_matrix := quat_to_mat4(inverse(camera.rotation));
+    view_matrix = mul(rotation_matrix, view_matrix);
+    return view_matrix;
 }
 
 

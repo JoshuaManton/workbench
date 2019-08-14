@@ -98,8 +98,6 @@ make_simple_window :: proc(window_name: string,
 				time = cast(f32)glfw.GetTime();
 				frame_count += 1;
 
-				_clear_render_buffers();
-
 				platform.update_platform();
 				imgui_begin_new_frame();
 	    		imgui.push_font(imgui_font_default);
@@ -131,6 +129,7 @@ make_simple_window :: proc(window_name: string,
 		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end_time - last_update_start_time);
 
 		gpu.update_camera(current_camera, platform.current_window_width, platform.current_window_height);
+		_clear_render_buffers();
 		render_workspaces();
 
 		glfw.SwapBuffers(main_window);

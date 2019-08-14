@@ -57,10 +57,7 @@ update_mesh :: proc(model: ^Model, mesh_index: int, vertices: []$Vertex_Type, in
 
 draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
 	// view matrix
-	view_matrix := identity(Mat4);
-	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
-	rotation_matrix := quat_to_mat4(inverse(camera.rotation));
-	view_matrix = mul(rotation_matrix, view_matrix);
+	view_matrix := get_view_matrix(camera);
 
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
@@ -85,7 +82,7 @@ draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, r
 
 		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
 		uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-		uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.projection_matrix[0][0]);
+		uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.current_render_projection_matrix[0][0]);
 
 		// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
 
@@ -151,9 +148,10 @@ update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 
 	// Pixel space
 	{
-		camera.pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-		camera.pixel_to_viewport_matrix = translate(camera.pixel_to_viewport_matrix, Vec3{-1, -1, 0});
+		camera.pixel_to_viewport_matrix = identity(Mat4);
+		camera.pixel_to_viewport_matrix = scale(camera.pixel_to_viewport_matrix, Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
 		camera.pixel_to_viewport_matrix = scale(camera.pixel_to_viewport_matrix, 2);
+		camera.pixel_to_viewport_matrix = translate(camera.pixel_to_viewport_matrix, Vec3{-1, -1, 0});
 	}
 
 	// Viewport space
@@ -166,11 +164,7 @@ update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 		camera.viewport_to_unit_matrix = translate(camera.viewport_to_unit_matrix, Vec3{1, 1, 0});
 		camera.viewport_to_unit_matrix = scale(camera.viewport_to_unit_matrix, 0.5);
 	}
-}
 
-Rendermode_Proc :: #type proc(^Camera);
-
-rendermode_world :: proc(camera: ^Camera) {
 	if camera.is_perspective {
 		camera.projection_matrix = camera.perspective_matrix;
 	}
@@ -178,11 +172,22 @@ rendermode_world :: proc(camera: ^Camera) {
 		camera.projection_matrix = camera.orthographic_matrix;
 	}
 }
+
+Rendermode_Proc :: #type proc(^Camera);
+
+rendermode_world :: proc(camera: ^Camera) {
+	if camera.is_perspective {
+		camera.current_render_projection_matrix = camera.perspective_matrix;
+	}
+	else {
+		camera.current_render_projection_matrix = camera.orthographic_matrix;
+	}
+}
 rendermode_unit :: proc(camera: ^Camera) {
-	camera.projection_matrix = camera.unit_to_viewport_matrix;
+	camera.current_render_projection_matrix = camera.unit_to_viewport_matrix;
 }
 rendermode_pixel :: proc(camera: ^Camera) {
-	camera.projection_matrix = camera.pixel_to_viewport_matrix;
+	camera.current_render_projection_matrix = camera.pixel_to_viewport_matrix;
 }
 
 camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (rotation);
@@ -192,15 +197,22 @@ camera_right   :: inline proc(using camera: ^Camera) -> Vec3 do return quaternio
 camera_forward :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_forward(rotation);
 camera_back    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_back   (rotation);
 
-get_cursor_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
+get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
 	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
 	cursor_viewport_position.w = 1;
 
 	// todo(josh): should probably make this 0.5 because I think directx is 0-1 instead of -1-1 like opengl
 	cursor_viewport_position.z = 0; // just some way down the frustum
 
-	inv: Mat4;
-	inv = mat4_inverse_(mul(camera.projection_matrix, camera.view_matrix));
+	// proj: Mat4;
+	// if camera.is_perspective {
+	// 	proj = camera.perspective_matrix;
+	// }
+	// else {
+	// 	proj = camera._matrix;
+	// }
+
+	inv := mat4_inverse_(mul(camera.projection_matrix, get_view_matrix(camera)));
 
 	cursor_world_position4 := mul(inv, cursor_viewport_position);
 	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
@@ -209,12 +221,12 @@ get_cursor_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -
 	return cursor_world_position;
 }
 
-get_cursor_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
+get_mouse_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
 	if !camera.is_perspective {
 		return camera_forward(camera);
 	}
 
-	cursor_world_position := get_cursor_world_position(camera, cursor_unit_position);
+	cursor_world_position := get_mouse_world_position(camera, cursor_unit_position);
 	cursor_direction := norm(cursor_world_position);
 	return cursor_direction;
 }
@@ -229,7 +241,7 @@ get_cursor_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: 
 
 world_to_viewport :: inline proc(position: Vec3, camera: ^Camera) -> Vec3 {
 	if camera.is_perspective {
-		mv := mul(camera.projection_matrix, camera.view_matrix);
+		mv := mul(camera.projection_matrix, get_view_matrix(camera));
 		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
 		if result.w > 0 do result /= result.w;
 		new_result := Vec3{result.x, result.y, result.z};

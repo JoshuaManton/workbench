@@ -30,10 +30,10 @@ cursor_pixel_position_on_clicked: Vec2;
 
 update_ui :: proc() {
 	mouse_in_rect :: inline proc(unit_rect: Rect(f32)) -> bool {
-		cursor_in_rect := platform.cursor_unit_position.y < unit_rect.y2 &&
-		                  platform.cursor_unit_position.y > unit_rect.y1 &&
-		                  platform.cursor_unit_position.x < unit_rect.x2 &&
-		                  platform.cursor_unit_position.x > unit_rect.x1;
+		cursor_in_rect := platform.mouse_unit_position.y < unit_rect.y2 &&
+		                  platform.mouse_unit_position.y > unit_rect.y1 &&
+		                  platform.mouse_unit_position.x < unit_rect.x2 &&
+		                  platform.mouse_unit_position.x > unit_rect.x1;
 		return cursor_in_rect;
 	}
 
@@ -73,7 +73,7 @@ update_ui :: proc() {
 			if warm == rect.imgui_id {
 				if platform.get_input_down(.Mouse_Left) {
 					hot = rect.imgui_id;
-					cursor_pixel_position_on_clicked = platform.cursor_screen_position;
+					cursor_pixel_position_on_clicked = platform.mouse_screen_position;
 				}
 			}
 		}
@@ -281,7 +281,7 @@ ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	push_quad(gpu.rendermode_pixel, shader_rgba, min, max, color);
+	push_quad(gpu.rendermode_pixel, shader_rgba_2d, min, max, color);
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Colored_Quad, loc);
@@ -543,12 +543,12 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 		}
 
 		// if get_mouse(Mouse.Left) {
-		// 	if abs(cursor_screen_position.y - cursor_pixel_position_on_clicked.y) > 0.005 {
+		// 	if abs(mouse_screen_position.y - cursor_pixel_position_on_clicked.y) > 0.005 {
 		// 		hot = id;
 		// 	}
 		// }
 
-		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.cursor_screen_position);
+		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.mouse_screen_position);
 		#complete switch kind {
 			case Vertical:   sv.scroll_offset_target.y = offset.y;
 			case Horizontal: sv.scroll_offset_target.x = offset.x;
@@ -565,7 +565,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 	}
 
 	if warm == rect.imgui_id {
-		sv.scroll_offset_target.y -= platform.cursor_scroll * 50;
+		sv.scroll_offset_target.y -= platform.mouse_scroll * 50;
 	}
 
 	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, 20 * fixed_delta_time);

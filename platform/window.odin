@@ -25,19 +25,18 @@ current_window_width:  f32;
 current_window_height: f32;
 current_aspect_ratio:  f32;
 
-cursor_scroll: f32;
-cursor_world_position:        Vec3;
-cursor_screen_position:       Vec2;
-cursor_screen_position_delta: Vec2;
-cursor_unit_position:         Vec2;
+mouse_scroll: f32;
+mouse_screen_position:       Vec2;
+mouse_screen_position_delta: Vec2;
+mouse_unit_position:         Vec2;
 
  // set in callbacks
 _new_ortho_matrix:  Mat3;
 _new_window_width:  f32;
 _new_window_height: f32;
 _new_aspect_ratio:  f32;
-_new_cursor_scroll: f32;
-_new_cursor_screen_position: Vec2;
+_new_mouse_scroll: f32;
+_new_mouse_screen_position: Vec2;
 _new_window_is_focused := true;
 
 init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _window_height: int, _opengl_version_major, _opengl_version_minor: int) -> bool {
@@ -53,11 +52,11 @@ init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _
 	}
 
 	glfw_cursor_callback :: proc"c"(window: glfw.Window_Handle, x, y: f64) {
-		_new_cursor_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
+		_new_mouse_screen_position = Vec2{cast(f32)x, cast(f32)current_window_height - cast(f32)y};
 	}
 
 	glfw_scroll_callback :: proc"c"(window: glfw.Window_Handle, x, y: f64) {
-		_new_cursor_scroll = cast(f32)y;
+		_new_mouse_scroll = cast(f32)y;
 	}
 
 	glfw_character_callback :: proc"c"(window: glfw.Window_Handle, codepoint: u32) {
@@ -113,10 +112,10 @@ update_platform :: proc() {
 	current_window_width   = _new_window_width;
 	current_window_height  = _new_window_height;
 	current_aspect_ratio   = _new_aspect_ratio;
-	cursor_scroll          = _new_cursor_scroll;
-	_new_cursor_scroll     = 0;
-	cursor_screen_position_delta = _new_cursor_screen_position - cursor_screen_position;
-	cursor_screen_position = _new_cursor_screen_position;
-	cursor_unit_position   = cursor_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
+	mouse_scroll          = _new_mouse_scroll;
+	_new_mouse_scroll     = 0;
+	mouse_screen_position_delta = _new_mouse_screen_position - mouse_screen_position;
+	mouse_screen_position = _new_mouse_screen_position;
+	mouse_unit_position   = mouse_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
 	window_is_focused = _new_window_is_focused;
 }

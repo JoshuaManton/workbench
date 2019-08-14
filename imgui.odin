@@ -277,7 +277,7 @@ imgui_begin_new_frame :: proc() {
         io.mouse_pos.y = cast(f32)posy;
         io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Left) == glfw.Action.Press;
         io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Right) == glfw.Action.Press;
-        io.mouse_wheel   = cursor_scroll;
+        io.mouse_wheel   = mouse_scroll;
 
         io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);
         io.key_shift = win32.is_key_down(win32.Key_Code.Lshift)   || win32.is_key_down(win32.Key_Code.Rshift);

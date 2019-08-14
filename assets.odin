@@ -77,8 +77,6 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types
 			case: {
 				if array_contains(text_file_types, ext) {
 					name_and_ext, ok := get_file_name_and_extension(filepath);
-					println(filepath);
-					println(name_and_ext);
 					assert(name_and_ext notin catalog.text_files);
 					catalog.text_files[name_and_ext] = cast(string)data;
 				}

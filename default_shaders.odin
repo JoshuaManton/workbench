@@ -1,6 +1,6 @@
 package workbench
 
-SHADER_RGBA_VERT ::
+SHADER_RGBA_2D_VERT ::
 `
 #version 330 core
 
@@ -9,21 +9,18 @@ layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
 
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
 
 out vec4 desired_color;
 
 void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    if (result.w > 0) { result /= result.w; }
+    vec4 result = projection_matrix * vec4(vbo_vertex_position, 1);
     gl_Position = result;
     desired_color = vbo_color;
 }
 `;
 
-SHADER_RGBA_FRAG ::
+SHADER_RGBA_2D_FRAG ::
 `
 #version 330 core
 
@@ -55,7 +52,6 @@ out vec4 desired_color;
 
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     desired_color = vbo_color * mesh_color;
 }
@@ -96,7 +92,6 @@ out vec4 desired_color;
 
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     tex_coord = vbo_tex_coord;
     desired_color = mesh_color;
@@ -137,7 +132,6 @@ out vec4 desired_color;
 
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    if (result.w > 0) { result /= result.w; }
     gl_Position = result;
     tex_coord = vbo_tex_coord;
     desired_color = vbo_color;
