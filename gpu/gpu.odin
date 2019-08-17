@@ -21,7 +21,10 @@ using import wbm "../math"
 
 */
 
-init_gpu_opengl :: proc(version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
+init_gpu :: proc(version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
+	init_camera(&default_camera, true, 85);
+	current_camera = &default_camera;
+
 	odingl.load_up_to(version_major, version_minor, set_proc_address);
 }
 
@@ -55,9 +58,9 @@ update_mesh :: proc(model: ^Model, mesh_index: int, vertices: []$Vertex_Type, in
 	info.vertex_count = len(vertices);
 }
 
-draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
+draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
 	// view matrix
-	view_matrix := get_view_matrix(camera);
+	view_matrix := get_view_matrix(current_camera);
 
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
@@ -75,14 +78,14 @@ draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, r
 
 		program := get_current_shader();
 
-		uniform3f(program, "camera_position", expand_to_tuple(camera.position));
+		uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
 
 		uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
 		uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
 
 		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
 		uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-		uniform_matrix4fv(program, "projection_matrix", 1, false, &camera.current_render_projection_matrix[0][0]);
+		uniform_matrix4fv(program, "projection_matrix", 1, false, &current_camera.current_render_projection_matrix[0][0]);
 
 		// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
 
@@ -99,10 +102,10 @@ draw_model :: proc(model: Model, camera: ^Camera, position: Vec3, scale: Vec3, r
 		}
 
 		if mesh.index_count > 0 {
-			odingl.DrawElements(cast(u32)camera.draw_mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+			odingl.DrawElements(cast(u32)current_camera.draw_mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
 		}
 		else {
-			odingl.DrawArrays(cast(u32)camera.draw_mode, 0, cast(i32)mesh.vertex_count);
+			odingl.DrawArrays(cast(u32)current_camera.draw_mode, 0, cast(i32)mesh.vertex_count);
 		}
 	}
 }
@@ -119,6 +122,20 @@ delete_model :: proc(model: Model) {
 
 
 
+default_camera: Camera;
+current_camera: ^Camera;
+
+
+@(deferred_out=POP_CAMERA)
+PUSH_CAMERA :: proc(camera: ^Camera) -> ^Camera {
+	old_camera := current_camera;
+	current_camera = camera;
+	return old_camera;
+}
+
+POP_CAMERA :: proc(old_camera: ^Camera) {
+	current_camera = old_camera;
+}
 
 update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 	camera.pixel_width = pixel_width;
@@ -143,26 +160,13 @@ update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 	{
 		camera.unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-1, -1, 0});
 		camera.unit_to_viewport_matrix = scale(camera.unit_to_viewport_matrix, 2);
-		camera.unit_to_pixel_matrix = scale(identity(Mat4), Vec3{camera.pixel_width, camera.pixel_height, 0});
 	}
 
 	// Pixel space
 	{
-		camera.pixel_to_viewport_matrix = identity(Mat4);
-		camera.pixel_to_viewport_matrix = scale(camera.pixel_to_viewport_matrix, Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
+		camera.pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
 		camera.pixel_to_viewport_matrix = scale(camera.pixel_to_viewport_matrix, 2);
 		camera.pixel_to_viewport_matrix = translate(camera.pixel_to_viewport_matrix, Vec3{-1, -1, 0});
-	}
-
-	// Viewport space
-	{
-		camera.viewport_to_pixel_matrix = identity(Mat4);
-		camera.viewport_to_pixel_matrix = translate(camera.viewport_to_pixel_matrix, Vec3{1, 1, 0});
-		camera.viewport_to_pixel_matrix = scale(camera.viewport_to_pixel_matrix, Vec3{camera.pixel_width/2, camera.pixel_height/2, 0});
-
-		camera.viewport_to_unit_matrix = identity(Mat4);
-		camera.viewport_to_unit_matrix = translate(camera.viewport_to_unit_matrix, Vec3{1, 1, 0});
-		camera.viewport_to_unit_matrix = scale(camera.viewport_to_unit_matrix, 0.5);
 	}
 
 	if camera.is_perspective {
@@ -173,21 +177,21 @@ update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
 	}
 }
 
-Rendermode_Proc :: #type proc(^Camera);
+Rendermode_Proc :: #type proc();
 
-rendermode_world :: proc(camera: ^Camera) {
-	if camera.is_perspective {
-		camera.current_render_projection_matrix = camera.perspective_matrix;
+rendermode_world :: proc() {
+	if current_camera.is_perspective {
+		current_camera.current_render_projection_matrix = current_camera.perspective_matrix;
 	}
 	else {
-		camera.current_render_projection_matrix = camera.orthographic_matrix;
+		current_camera.current_render_projection_matrix = current_camera.orthographic_matrix;
 	}
 }
-rendermode_unit :: proc(camera: ^Camera) {
-	camera.current_render_projection_matrix = camera.unit_to_viewport_matrix;
+rendermode_unit :: proc() {
+	current_camera.current_render_projection_matrix = current_camera.unit_to_viewport_matrix;
 }
-rendermode_pixel :: proc(camera: ^Camera) {
-	camera.current_render_projection_matrix = camera.pixel_to_viewport_matrix;
+rendermode_pixel :: proc() {
+	current_camera.current_render_projection_matrix = current_camera.pixel_to_viewport_matrix;
 }
 
 camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (rotation);

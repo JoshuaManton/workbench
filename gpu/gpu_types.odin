@@ -12,6 +12,7 @@ using import wbm "../math"
 
 Camera :: struct {
     is_perspective: bool,
+
     // orthographic -> size in world units from center of screen to top of screen
     // perspective  -> fov
     size: f32,
@@ -28,12 +29,11 @@ Camera :: struct {
     current_render_projection_matrix: Mat4,
 
     unit_to_viewport_matrix: Mat4,
-    unit_to_pixel_matrix: Mat4,
     pixel_to_viewport_matrix: Mat4,
-    viewport_to_pixel_matrix: Mat4,
-    viewport_to_unit_matrix: Mat4,
 
     draw_mode: Draw_Mode,
+
+    framebuffer: Framebuffer,
 }
 Debug_Draw_Call_Data :: struct {
     mesh_name: string,
@@ -45,12 +45,16 @@ Debug_Draw_Call_Data :: struct {
     color: Colorf,
 }
 
-
-init_camera :: proc(camera: ^Camera) {
+init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, position := Vec3{}, rotation := Quat{0, 0, 0, 1}) {
+    camera.is_perspective = is_perspective;
+    camera.size = size;
+    camera.position = position;
+    camera.rotation = rotation;
     camera.draw_mode = .Triangles;
 }
 
 delete_camera :: proc(camera: ^Camera) {
+
 }
 
 get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
@@ -60,6 +64,8 @@ get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
     view_matrix = mul(rotation_matrix, view_matrix);
     return view_matrix;
 }
+
+
 
 
 
@@ -112,9 +118,11 @@ Framebuffer :: struct {
 
 
 Draw_Mode :: enum u32 {
-	Points    = odingl.POINTS,
-	Lines     = odingl.LINES,
-	Triangles = odingl.TRIANGLES,
+	Points     = odingl.POINTS,
+    Lines      = odingl.LINES,
+    Line_Loop  = odingl.LINE_LOOP,
+	Line_Strip = odingl.LINE_STRIP,
+	Triangles  = odingl.TRIANGLES,
 }
 
 Clear_Flags :: enum u32 {

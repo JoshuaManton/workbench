@@ -6,6 +6,7 @@ using import "core:math"
       import wbm "math"
       import     "external/imgui"
       import pf  "profiler"
+      import     "gpu"
       import     "console"
 
 debug_window_open: bool;
@@ -25,8 +26,8 @@ update_debug_menu :: proc() {
 		}
 
 		data := WB_Debug_Data{
-			current_camera.position,
-			current_camera.rotation,
+			gpu.current_camera.position,
+			gpu.current_camera.rotation,
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 			client_target_framerate,

@@ -21,27 +21,27 @@ do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32, fast : f32 = -1, slo
 		speed = slow;
 	}
 
-    up      := wbm.quaternion_up(current_camera.rotation);
-    forward := wbm.quaternion_forward(current_camera.rotation);
-	right   := wbm.quaternion_right(current_camera.rotation);
+    up      := wbm.quaternion_up(camera.rotation);
+    forward := wbm.quaternion_forward(camera.rotation);
+	right   := wbm.quaternion_right(camera.rotation);
 
     down := -up;
     back := -forward;
     left := -right;
 
-	if platform.get_input(.E) { current_camera.position += up      * speed * fixed_delta_time; }
-	if platform.get_input(.Q) { current_camera.position += down    * speed * fixed_delta_time; }
-	if platform.get_input(.W) { current_camera.position += forward * speed * fixed_delta_time; }
-	if platform.get_input(.S) { current_camera.position += back    * speed * fixed_delta_time; }
-	if platform.get_input(.A) { current_camera.position += left    * speed * fixed_delta_time; }
-	if platform.get_input(.D) { current_camera.position += right   * speed * fixed_delta_time; }
+	if platform.get_input(.E) { camera.position += up      * speed * fixed_delta_time; }
+	if platform.get_input(.Q) { camera.position += down    * speed * fixed_delta_time; }
+	if platform.get_input(.W) { camera.position += forward * speed * fixed_delta_time; }
+	if platform.get_input(.S) { camera.position += back    * speed * fixed_delta_time; }
+	if platform.get_input(.A) { camera.position += left    * speed * fixed_delta_time; }
+	if platform.get_input(.D) { camera.position += right   * speed * fixed_delta_time; }
 
 	if platform.get_input(.Mouse_Right) {
 		SENSITIVITY :: 0.1;
 		delta := platform.mouse_screen_position_delta;
 		delta *= SENSITIVITY;
 		degrees := Vec3{delta.y, -delta.x, platform.mouse_scroll};
-		current_camera.rotation = rotate_quat_by_degrees(current_camera.rotation, degrees);
+		camera.rotation = rotate_quat_by_degrees(camera.rotation, degrees);
 	}
 }
 

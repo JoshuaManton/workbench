@@ -58,10 +58,8 @@ make_simple_window :: proc(window_name: string,
 	});
 	defer pf.destroy_profiler(&wb_profiler);
 
-	gpu.init_camera(&wb_camera);
-	current_camera = &wb_camera;
-
 	client_target_framerate = target_framerate;
+
 
 	platform.init_platform(&main_window, window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	init_draw(opengl_version_major, opengl_version_minor);
@@ -128,7 +126,7 @@ make_simple_window :: proc(window_name: string,
 		update_loop_end_time := cast(f32)glfw.GetTime();
 		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end_time - last_update_start_time);
 
-		gpu.update_camera(current_camera, platform.current_window_width, platform.current_window_height);
+		gpu.update_camera(gpu.current_camera, platform.current_window_width, platform.current_window_height);
 		_clear_render_buffers();
 		render_workspaces();
 

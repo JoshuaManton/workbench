@@ -270,7 +270,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 
 	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
 
-	if !current_camera.is_perspective {
+	if !gpu.current_camera.is_perspective {
 		sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {
 				diff := a.render_order - b.render_order;
 				if diff != 0 do return diff;
@@ -300,7 +300,7 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 		if texture_mismatch    do current_texture = cmd.texture;
 		if rendermode_mismatch {
 			current_rendermode = cmd.rendermode;
-			cmd.rendermode(current_camera);
+			cmd.rendermode();
 		}
 
 		if scissor_mismatch {
@@ -351,9 +351,9 @@ im_draw_flush :: proc(cmds: []Draw_Command) {
 					}
 				}
 
-				gpu.rendermode_world(current_camera);
+				gpu.rendermode_world();
 				gpu.use_program(cmd.shader);
-				gpu.draw_model(kind.model, current_camera, kind.position, kind.scale, kind.rotation, kind.texture, kind.color, true);
+				gpu.draw_model(kind.model, kind.position, kind.scale, kind.rotation, kind.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -379,7 +379,7 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 
 	gpu.update_mesh(&im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	gpu.draw_model(im_model, current_camera, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
+	gpu.draw_model(im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
 	num_draw_calls += 1;
 }
 
