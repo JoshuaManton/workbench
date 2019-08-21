@@ -17,6 +17,40 @@ using import          "basic"
       import          "external/glfw"
       import          "external/imgui"
 
+//
+// API
+//
+
+// Debug
+
+Debug_Line :: struct {
+	a, b: Vec3,
+	color: Colorf,
+	rotation: Quat,
+}
+
+// todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
+draw_debug_line :: proc(a, b: Vec3, color: Colorf) {
+	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}});
+}
+
+Debug_Cube :: struct {
+	position: Vec3,
+	scale: Vec3,
+	rotation: Quat,
+	color: Colorf,
+}
+
+draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}) {
+	append(&debug_cubes, Debug_Cube{position, scale, rotation, color});
+}
+
+
+
+//
+// Internal
+//
+
 DEVELOPER :: true;
 
 wb_cube_model: gpu.Model;
@@ -32,6 +66,8 @@ wb_fbo: gpu.Framebuffer;
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: gpu.Model;
+
+debugging_rendering: bool;
 
 init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 	gpu.init_gpu(opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
@@ -98,7 +134,7 @@ draw_prerender :: proc() {
 }
 
 draw_postrender :: proc() {
-	im_draw_flush(buffered_draw_commands[:]);
+	im_flush(buffered_draw_commands[:], gpu.current_camera);
 
 	// draw debug lines
 	{
@@ -128,8 +164,6 @@ draw_postrender :: proc() {
 	imgui_render(true);
 }
 
-
-debugging_rendering: bool;
 _debug_rendering :: proc(_: rawptr) {
 	// todo(josh): make this a combo box
 	imgui.checkbox("Debug Rendering", &debugging_rendering);
@@ -139,32 +173,4 @@ _debug_rendering :: proc(_: rawptr) {
 	else {
 		gpu.current_camera.draw_mode = .Triangles;
 	}
-}
-
-
-
-//
-// Debug
-//
-
-Debug_Line :: struct {
-	a, b: Vec3,
-	color: Colorf,
-	rotation: Quat,
-}
-
-// todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
-draw_debug_line :: proc(a, b: Vec3, color: Colorf) {
-	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}});
-}
-
-Debug_Cube :: struct {
-	position: Vec3,
-	scale: Vec3,
-	rotation: Quat,
-	color: Colorf,
-}
-
-draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}) {
-	append(&debug_cubes, Debug_Cube{position, scale, rotation, color});
 }

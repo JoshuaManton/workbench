@@ -127,14 +127,18 @@ current_camera: ^Camera;
 
 
 @(deferred_out=POP_CAMERA)
-PUSH_CAMERA :: proc(camera: ^Camera) -> ^Camera {
-	old_camera := current_camera;
-	current_camera = camera;
-	return old_camera;
+PUSH_CAMERA :: inline proc(camera: ^Camera) -> ^Camera {
+	return push_camera_non_deferred(camera);
 }
 
 POP_CAMERA :: proc(old_camera: ^Camera) {
 	current_camera = old_camera;
+}
+
+push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
+	old_camera := current_camera;
+	current_camera = camera;
+	return old_camera;
 }
 
 update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {

@@ -19,9 +19,10 @@ using import        "logging"
 
       import pf     "profiler"
 
-im_model: gpu.Model;
+//
+// API
+//
 
-buffered_draw_commands: [dynamic]Draw_Command;
 push_quad :: inline proc(
 	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
@@ -138,7 +139,7 @@ push_text :: proc(
 	rendermode: gpu.Rendermode_Proc,
 	font: Font,
 	str: string,
-	_position: Vec2,
+	position: Vec2,
 	color: Colorf,
 	size: f32,
 	layer: int,
@@ -150,7 +151,7 @@ push_text :: proc(
 		// rendering_unit_space();
 		// defer old();
 
-		position := _position;
+		position := position;
 
 		assert(rendermode == gpu.rendermode_unit);
 
@@ -224,11 +225,20 @@ get_string_width :: inline proc(
 		return push_text(rendermode, font, str, {}, {}, size, 0, false);
 }
 
-//
-// Render layers
-//
+// Camera utilities
 
-current_render_layer: int;
+@(deferred_out=im_pop_camera)
+IM_PUSH_CAMERA :: proc(camera: ^gpu.Camera) -> ^gpu.Camera {
+	return gpu.push_camera_non_deferred(camera);
+}
+
+@private
+im_pop_camera :: proc(old_camera: ^gpu.Camera) {
+	im_flush(buffered_draw_commands[:], gpu.current_camera);
+	gpu.POP_CAMERA(old_camera);
+}
+
+// Render layers
 
 @(deferred_out=pop_render_layer)
 PUSH_RENDER_LAYER :: proc(auto_cast layer: int) -> int {
@@ -237,22 +247,17 @@ PUSH_RENDER_LAYER :: proc(auto_cast layer: int) -> int {
 	return tmp;
 }
 
-@(private)
+@private
 pop_render_layer :: proc(layer: int) {
 	current_render_layer = layer;
 }
 
 
 
-//
 // Scissor
-//
-
-do_scissor: bool;
-current_scissor_rect: [4]int;
 
 im_scissor :: proc(x1, y1, ww, hh: int) {
-	if do_scissor do logln("You are nesting scissors, I don't know if this is a problem case but if it's not you can delete this log");
+	if do_scissor do logln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
 	do_scissor = true;
 	current_scissor_rect = {x1, y1, ww, hh};
 }
@@ -265,7 +270,19 @@ im_scissor_end :: proc() {
 
 
 
-im_draw_flush :: proc(cmds: []Draw_Command) {
+//
+// Internal
+//
+
+im_model: gpu.Model;
+buffered_draw_commands: [dynamic]Draw_Command;
+
+do_scissor: bool;
+current_scissor_rect: [4]int;
+
+current_render_layer: int;
+
+im_flush :: proc(cmds: []Draw_Command, camera: ^gpu.Camera) {
 	pf.TIMED_SECTION(&wb_profiler);
 
 	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
