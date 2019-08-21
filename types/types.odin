@@ -14,3 +14,7 @@ COLOR_GREEN  := Colorf{0, 1, 0, 1};
 COLOR_BLUE   := Colorf{0, 0, 1, 1};
 COLOR_BLACK  := Colorf{0, 0, 0, 1};
 COLOR_YELLOW := Colorf{1, 1, 0, 1};
+
+Maybe :: union(T: typeid) {
+	T,
+}

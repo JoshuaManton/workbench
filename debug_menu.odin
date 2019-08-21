@@ -26,8 +26,8 @@ update_debug_menu :: proc() {
 		}
 
 		data := WB_Debug_Data{
-			gpu.current_camera.position,
-			gpu.current_camera.rotation,
+			wb_camera.position,
+			wb_camera.rotation,
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 			client_target_framerate,

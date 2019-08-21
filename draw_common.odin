@@ -11,6 +11,7 @@ using import          "core:fmt"
       import          "gpu"
 using import wbmath   "math"
 using import          "types"
+using import          "logging"
 using import          "basic"
 
       import          "external/stb"
@@ -53,7 +54,9 @@ draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0,
 
 DEVELOPER :: true;
 
+wb_camera: gpu.Camera;
 wb_cube_model: gpu.Model;
+wb_quad_model: gpu.Model;
 
 shader_rgba_2d: gpu.Shader_Program;
 shader_text: gpu.Shader_Program;
@@ -61,18 +64,18 @@ shader_rgba_3d: gpu.Shader_Program;
 
 shader_texture_unlit: gpu.Shader_Program;
 
-wb_fbo: gpu.Framebuffer;
-
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: gpu.Model;
 
 debugging_rendering: bool;
 
-init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
-	gpu.init_gpu(opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
+init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl_version_minor: int) {
+	gpu.init_gpu(screen_width, screen_height, opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
+
+	gpu.init_camera(&wb_camera, true, 85, screen_width, screen_height, true);
 
 	gpu.add_mesh_to_model(&im_model, "im_model", []gpu.Vertex2D{}, []u32{});
 
@@ -88,89 +91,92 @@ init_draw :: proc(opengl_version_major, opengl_version_minor: int) {
 
 	register_debug_program("Rendering", _debug_rendering, nil);
 
-	wb_fbo = gpu.create_framebuffer(1920, 1080);
-
 	wb_cube_model = create_cube_model();
+	wb_quad_model = create_quad_model();
 	gpu.add_mesh_to_model(&debug_line_model, "lines", []gpu.Vertex3D{}, []u32{});
 }
 
 update_draw :: proc() {
 	if !debug_window_open do return;
-	// if imgui.begin("Scene View") {
-	//     window_size := imgui.get_window_size();
+	if imgui.begin("Scene View") {
+	    window_size := imgui.get_window_size();
 
-	// 	imgui.image(rawptr(uintptr(wb_fbo.texture)),
-	// 		imgui.Vec2{window_size.x - 10, window_size.y - 30},
-	// 		imgui.Vec2{0,1},
-	// 		imgui.Vec2{1,0});
-	// } imgui.end();
+		imgui.image(rawptr(uintptr(wb_camera.framebuffer.texture)),
+			imgui.Vec2{window_size.x - 10, window_size.y - 30},
+			imgui.Vec2{0,1},
+			imgui.Vec2{1,0});
+	} imgui.end();
 }
 
-_clear_render_buffers :: proc() {
+render_workspaces :: proc() {
 	clear(&debug_lines);
 	clear(&debug_cubes);
 	clear(&buffered_draw_commands);
-}
 
-draw_prerender :: proc() {
-	gpu.log_errors(#procedure);
-	num_draw_calls = 0;
+	gpu.update_camera_pixel_size(&gpu.default_camera, platform.current_window_width, platform.current_window_height);
+	gpu.update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
 
-	gpu.enable(gpu.Capabilities.Blend);
-	gpu.blend_func(gpu.Blend_Factors.Src_Alpha, gpu.Blend_Factors.One_Minus_Src_Alpha);
-	gpu.set_clear_color(Colorf{0,0,0,0});
-	if gpu.current_camera.is_perspective {
-		gpu.enable(gpu.Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
-		gpu.clear_screen(gpu.Clear_Flags.Color_Buffer | gpu.Clear_Flags.Depth_Buffer);
-	}
-	else {
-		gpu.disable(gpu.Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
-		gpu.clear_screen(gpu.Clear_Flags.Color_Buffer);
-	}
+	for id, workspace in all_workspaces {
+		current_workspace = workspace.id;
 
-	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
+		{
+			// pre-render
+			gpu.log_errors(#procedure);
+			num_draw_calls = 0;
+			gpu.PUSH_CAMERA(&wb_camera);
+			// gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
 
-	if debug_window_open do gpu.bind_framebuffer(&wb_fbo);
-}
+			// if debug_window_open do gpu.bind_framebuffer(&wb_camera.framebuffer);
 
-draw_postrender :: proc() {
-	im_flush(buffered_draw_commands[:], gpu.current_camera);
+			if workspace.render != nil {
+				workspace.render(lossy_delta_time);
+				gpu.log_errors(tprint("workspace_name: ", workspace.name));
+			}
 
-	// draw debug lines
-	{
-		old_draw_mode := gpu.current_camera.draw_mode;
-		defer gpu.current_camera.draw_mode = old_draw_mode;
-		gpu.current_camera.draw_mode = .Line_Strip;
+			// post-render
+			im_flush(buffered_draw_commands[:]);
 
-		// todo(josh): support all rendermodes
-		gpu.rendermode_world();
+			// draw debug lines
+			{
+				old_draw_mode := gpu.current_camera.draw_mode;
+				defer gpu.current_camera.draw_mode = old_draw_mode;
+				gpu.current_camera.draw_mode = .Line_Strip;
 
-		gpu.use_program(shader_rgba_3d);
-		for line in debug_lines {
-			verts: [2]gpu.Vertex3D;
-			verts[0] = gpu.Vertex3D{line.a, {}, line.color, {}};
-			verts[1] = gpu.Vertex3D{line.b, {}, line.color, {}};
-			gpu.update_mesh(&debug_line_model, 0, verts[:], []u32{});
-			gpu.draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+				// todo(josh): support all rendermodes
+				gpu.rendermode_world();
+
+				gpu.use_program(shader_rgba_3d);
+				for line in debug_lines {
+					verts: [2]gpu.Vertex3D;
+					verts[0] = gpu.Vertex3D{line.a, {}, line.color, {}};
+					verts[1] = gpu.Vertex3D{line.b, {}, line.color, {}};
+					gpu.update_mesh(&debug_line_model, 0, verts[:], []u32{});
+					gpu.draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+				}
+
+				for cube in debug_cubes {
+					gpu.draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, {1, 1, 1, 1}, true);
+				}
+			}
 		}
 
-		for cube in debug_cubes {
-			gpu.draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, {1, 1, 1, 1}, true);
-		}
+		gpu.rendermode_unit();
+		gpu.use_program(shader_texture_unlit);
+		gpu.draw_model(wb_quad_model, Vec3{0.5, 0.5, 0}, {1, 1, 1}, {0, 0, 0, 1}, wb_camera.framebuffer.texture, {1, 1, 1, 1}, false);
+
+		// if debug_window_open do gpu.unbind_framebuffer();
+		imgui_render(true);
 	}
-
-
-	if debug_window_open do gpu.unbind_framebuffer();
-	imgui_render(true);
+	current_workspace = -1;
 }
 
 _debug_rendering :: proc(_: rawptr) {
 	// todo(josh): make this a combo box
 	imgui.checkbox("Debug Rendering", &debugging_rendering);
 	if debugging_rendering {
-		gpu.current_camera.draw_mode = .Lines;
+		wb_camera.draw_mode = .Lines;
 	}
 	else {
-		gpu.current_camera.draw_mode = .Triangles;
+		wb_camera.draw_mode = .Triangles;
 	}
 }

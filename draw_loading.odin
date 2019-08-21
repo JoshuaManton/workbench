@@ -27,6 +27,7 @@ create_texture_from_png_data :: proc(pixels_rgba: []byte) -> gpu.Texture {
 
 	tex := gpu.gen_texture();
 	gpu.bind_texture2d(tex);
+	assert(channels == 3); // for the .RGB in the following tex_image2d call
 	gpu.tex_image2d(.Texture2D, 0, .RGB, width, height, 0, .RGB, .Unsigned_Byte, pixel_data);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
@@ -319,12 +320,12 @@ create_cube_model :: proc() -> gpu.Model {
 
 create_quad_model :: proc() -> gpu.Model {
 	verts := []gpu.Vertex3D {
-		{{-0.5, -0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-		{{-0.5,  0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-		{{ 0.5,  0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-		{{ 0.5,  0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-		{{ 0.5, -0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-		{{-0.5, -0.5, 0}, {}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
+		{{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+		{{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+		{{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+		{{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+		{{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+		{{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
 	};
 
 	model: gpu.Model;

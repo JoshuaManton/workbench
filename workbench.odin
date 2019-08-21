@@ -62,7 +62,7 @@ make_simple_window :: proc(window_name: string,
 
 
 	platform.init_platform(&main_window, window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
-	init_draw(opengl_version_major, opengl_version_minor);
+	init_draw(window_width, window_height, opengl_version_major, opengl_version_minor);
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
 	init_default_fonts();
@@ -126,8 +126,6 @@ make_simple_window :: proc(window_name: string,
 		update_loop_end_time := cast(f32)glfw.GetTime();
 		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end_time - last_update_start_time);
 
-		gpu.update_camera(gpu.current_camera, platform.current_window_width, platform.current_window_height);
-		_clear_render_buffers();
 		render_workspaces();
 
 		glfw.SwapBuffers(main_window);
@@ -200,19 +198,6 @@ update_workspaces :: proc() {
 		if workspace.update != nil {
 			workspace.update(fixed_delta_time);
 		}
-	}
-	current_workspace = -1;
-}
-
-render_workspaces :: proc() {
-	for id, workspace in all_workspaces {
-		current_workspace = workspace.id;
-		draw_prerender();
-		if workspace.render != nil {
-			workspace.render(lossy_delta_time);
-			gpu.log_errors(tprint("workspace_name: ", workspace.name));
-		}
-		draw_postrender();
 	}
 	current_workspace = -1;
 }

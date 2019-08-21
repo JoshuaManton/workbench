@@ -234,7 +234,7 @@ IM_PUSH_CAMERA :: proc(camera: ^gpu.Camera) -> ^gpu.Camera {
 
 @private
 im_pop_camera :: proc(old_camera: ^gpu.Camera) {
-	im_flush(buffered_draw_commands[:], gpu.current_camera);
+	im_flush(buffered_draw_commands[:]);
 	gpu.POP_CAMERA(old_camera);
 }
 
@@ -282,7 +282,7 @@ current_scissor_rect: [4]int;
 
 current_render_layer: int;
 
-im_flush :: proc(cmds: []Draw_Command, camera: ^gpu.Camera) {
+im_flush :: proc(cmds: []Draw_Command) {
 	pf.TIMED_SECTION(&wb_profiler);
 
 	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
@@ -316,6 +316,7 @@ im_flush :: proc(cmds: []Draw_Command, camera: ^gpu.Camera) {
 		if shader_mismatch     do current_shader  = cmd.shader;
 		if texture_mismatch    do current_texture = cmd.texture;
 		if rendermode_mismatch {
+			// todo(josh): do we need a flush here??
 			current_rendermode = cmd.rendermode;
 			cmd.rendermode();
 		}
@@ -396,7 +397,7 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 
 	gpu.update_mesh(&im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	gpu.draw_model(im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false);
+	gpu.draw_model(im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
 	num_draw_calls += 1;
 }
 

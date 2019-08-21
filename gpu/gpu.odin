@@ -1,6 +1,7 @@
 package gpu
 
 using import "core:math"
+using import "core:fmt"
 
 using import "../types"
 using import "../basic"
@@ -21,11 +22,11 @@ using import wbm "../math"
 
 */
 
-init_gpu :: proc(version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
-	init_camera(&default_camera, true, 85);
-	current_camera = &default_camera;
-
+init_gpu :: proc(screen_width, screen_height: int, version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
 	odingl.load_up_to(version_major, version_minor, set_proc_address);
+
+	init_camera(&default_camera, true, 85, screen_width, screen_height);
+	push_camera_non_deferred(&default_camera);
 }
 
 
@@ -58,7 +59,10 @@ update_mesh :: proc(model: ^Model, mesh_index: int, vertices: []$Vertex_Type, in
 	info.vertex_count = len(vertices);
 }
 
-draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool) {
+draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool, loc := #caller_location) {
+	// projection matrix
+	projection_matrix := get_rendermode_matrix(current_camera);
+
 	// view matrix
 	view_matrix := get_view_matrix(current_camera);
 
@@ -85,7 +89,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
 		uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-		uniform_matrix4fv(program, "projection_matrix", 1, false, &current_camera.current_render_projection_matrix[0][0]);
+		uniform_matrix4fv(program, "projection_matrix", 1, false, &projection_matrix[0][0]);
 
 		// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
 
@@ -131,71 +135,56 @@ PUSH_CAMERA :: inline proc(camera: ^Camera) -> ^Camera {
 	return push_camera_non_deferred(camera);
 }
 
-POP_CAMERA :: proc(old_camera: ^Camera) {
-	current_camera = old_camera;
-}
-
 push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := current_camera;
 	current_camera = camera;
+
+	enable(Capabilities.Blend);
+	blend_func(Blend_Factors.Src_Alpha, Blend_Factors.One_Minus_Src_Alpha);
+	set_clear_color(Colorf{0.1,0.5,0.4,1});
+	if current_camera.is_perspective {
+		enable(Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
+		clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
+	}
+	else {
+		disable(Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
+		clear_screen(Clear_Flags.Color_Buffer);
+	}
+
+	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
+	if current_camera.framebuffer.fbo != 0 {
+		bind_framebuffer(&current_camera.framebuffer);
+	}
+	else {
+		unbind_framebuffer();
+	}
 	return old_camera;
 }
 
-update_camera :: proc(camera: ^Camera, pixel_width: f32, pixel_height: f32) {
-	camera.pixel_width = pixel_width;
-	camera.pixel_height = pixel_height;
-	camera.aspect = camera.pixel_width / camera.pixel_height;
+POP_CAMERA :: proc(old_camera: ^Camera) {
+	current_camera = old_camera;
 
-	// perspective
-	{
-		camera.perspective_matrix = perspective(to_radians(camera.size), camera.aspect, 0.01, 1000);
-	}
-
-	// ortho
-	{
-		top    : f32 =  1 * camera.size;
-		bottom : f32 = -1 * camera.size;
-		left   : f32 = -1 * camera.aspect * camera.size;
-		right  : f32 =  1 * camera.aspect * camera.size;
-		camera.orthographic_matrix = ortho3d(left, right, bottom, top, -1, 1);
-	}
-
-	// Unit space
-	{
-		camera.unit_to_viewport_matrix = translate(identity(Mat4), Vec3{-1, -1, 0});
-		camera.unit_to_viewport_matrix = scale(camera.unit_to_viewport_matrix, 2);
-	}
-
-	// Pixel space
-	{
-		camera.pixel_to_viewport_matrix = scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-		camera.pixel_to_viewport_matrix = scale(camera.pixel_to_viewport_matrix, 2);
-		camera.pixel_to_viewport_matrix = translate(camera.pixel_to_viewport_matrix, Vec3{-1, -1, 0});
-	}
-
-	if camera.is_perspective {
-		camera.projection_matrix = camera.perspective_matrix;
+	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
+	if current_camera.framebuffer.fbo != 0 {
+		bind_framebuffer(&current_camera.framebuffer);
 	}
 	else {
-		camera.projection_matrix = camera.orthographic_matrix;
+		unbind_framebuffer();
 	}
 }
+
+
 
 Rendermode_Proc :: #type proc();
 
 rendermode_world :: proc() {
-	if current_camera.is_perspective {
-		current_camera.current_render_projection_matrix = current_camera.perspective_matrix;
-	}
-	else {
-		current_camera.current_render_projection_matrix = current_camera.orthographic_matrix;
-	}
+	current_camera.current_rendermode = .World;
 }
 rendermode_unit :: proc() {
-	current_camera.current_render_projection_matrix = current_camera.unit_to_viewport_matrix;
+	current_camera.current_rendermode = .Unit;
 }
 rendermode_pixel :: proc() {
-	current_camera.current_render_projection_matrix = current_camera.pixel_to_viewport_matrix;
+	current_camera.current_rendermode = .Pixel;
 }
 
 camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (rotation);
@@ -209,22 +198,14 @@ get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) ->
 	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
 	cursor_viewport_position.w = 1;
 
-	// todo(josh): should probably make this 0.5 because I think directx is 0-1 instead of -1-1 like opengl
-	cursor_viewport_position.z = 0; // just some way down the frustum
+	// todo(josh): should probably make this 0.5 because I think directx is 0 -> 1 instead of -1 -> 1 like opengl
+	cursor_viewport_position.z = 0.1; // just some way down the frustum
 
-	// proj: Mat4;
-	// if camera.is_perspective {
-	// 	proj = camera.perspective_matrix;
-	// }
-	// else {
-	// 	proj = camera._matrix;
-	// }
-
-	inv := mat4_inverse_(mul(camera.projection_matrix, get_view_matrix(camera)));
+	inv := mat4_inverse_(mul(get_projection_matrix(camera), get_view_matrix(camera)));
 
 	cursor_world_position4 := mul(inv, cursor_viewport_position);
 	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
-	cursor_world_position := to_vec3(cursor_world_position4) - camera.position;
+	cursor_world_position := to_vec3(cursor_world_position4);
 
 	return cursor_world_position;
 }
@@ -235,28 +216,21 @@ get_mouse_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: V
 	}
 
 	cursor_world_position := get_mouse_world_position(camera, cursor_unit_position);
-	cursor_direction := norm(cursor_world_position);
+	cursor_direction := norm(cursor_world_position - camera.position);
 	return cursor_direction;
 }
 
-// normalize_camera_rotation :: proc(using camera: ^Camera) {
-// 	for _, i in rotation {
-// 		element := &rotation[i];
-// 		for element^ < 0   do element^ += 360;
-// 		for element^ > 360 do element^ -= 360;
-// 	}
-// }
-
 world_to_viewport :: inline proc(position: Vec3, camera: ^Camera) -> Vec3 {
+	proj := get_projection_matrix(camera);
 	if camera.is_perspective {
-		mv := mul(camera.projection_matrix, get_view_matrix(camera));
+		mv := mul(proj, get_view_matrix(camera));
 		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
 		if result.w > 0 do result /= result.w;
 		new_result := Vec3{result.x, result.y, result.z};
 		return new_result;
 	}
 
-	result := mul(camera.projection_matrix, Vec4{position.x, position.y, position.z, 1});
+	result := mul(proj, Vec4{position.x, position.y, position.z, 1});
 	return Vec3{result.x, result.y, result.z};
 }
 world_to_pixel :: inline proc(a: Vec3, camera: ^Camera, pixel_width: f32, pixel_height: f32) -> Vec3 {
@@ -315,17 +289,21 @@ create_framebuffer :: proc(width, height: int) -> Framebuffer {
 	texture := gen_texture();
 	bind_texture2d(texture);
 
-	tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, 0, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
+	tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+	// tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, 0, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
 	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Mag_Filter, Texture_Parameter_Value.Nearest);
 	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Min_Filter, Texture_Parameter_Value.Nearest);
-
-	framebuffer_texture2d(Framebuffer_Attachment.Color0, texture);
 
 	rbo := gen_renderbuffer();
 	bind_rbo(rbo);
 
 	renderbuffer_storage(Renderbuffer_Storage.Depth24_Stencil8, cast(i32)width, cast(i32)height);
 	framebuffer_renderbuffer(Framebuffer_Attachment.Depth_Stencil, rbo);
+
+	framebuffer_texture2d(Framebuffer_Attachment.Color0, texture);
+
+	draw_buffer := Framebuffer_Attachment.Color0;
+	odingl.DrawBuffers(1, transmute(^u32)&draw_buffer);
 
 	assert_framebuffer_complete();
 
@@ -339,7 +317,8 @@ create_framebuffer :: proc(width, height: int) -> Framebuffer {
 
 bind_framebuffer :: proc(framebuffer: ^Framebuffer) {
 	bind_fbo(framebuffer.fbo);
-	viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
+
+	// viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
 	set_clear_color(Colorf{.1, .5, .6, 1});
 	clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
 }
