@@ -235,7 +235,7 @@ IM_PUSH_CAMERA :: proc(camera: ^gpu.Camera) -> ^gpu.Camera {
 @private
 im_pop_camera :: proc(old_camera: ^gpu.Camera) {
 	im_flush(buffered_draw_commands[:]);
-	gpu.POP_CAMERA(old_camera);
+	gpu.pop_camera(old_camera);
 }
 
 // Render layers
@@ -395,7 +395,7 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 		}
 	}
 
-	gpu.update_mesh(&im_model, 0, list, []u32{});
+	gpu.update_mesh(&im_model, "im_model", list, []u32{});
 	gpu.use_program(shader);
 	gpu.draw_model(im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
 	num_draw_calls += 1;

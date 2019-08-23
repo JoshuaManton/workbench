@@ -12,25 +12,228 @@ using import wbm "../math"
 
 /*
 
---- GPU
+--- Cameras
+{
+	init_camera              :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false)
+	delete_camera            :: proc(camera: ^Camera)
+	update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32)
 
-=> create_mesh   :: proc(vertices: []$Vertex_Type, indicies: []u32, name: string) -> MeshID
-=> release_mesh  :: proc(id: MeshID)
-=> update_mesh   :: proc(id: MeshID, vertices: []$Vertex_Type, indicies: []u32)
-=> draw_mesh     :: proc(mesh: ^Mesh, camera: ^Camera, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool)
-=> get_mesh_info :: proc(id: MeshID) -> (Mesh_Info, bool)
+	PUSH_CAMERA              :: proc(camera: ^Camera) -> ^Camera
+	push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera
+	pop_camera               :: proc(old_camera: ^Camera)
+
+	get_view_matrix :: proc(camera: ^Camera) -> Mat4
+	get_projection_matrix :: proc(camera: ^Camera) -> Mat4
+	get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4
+
+	rendermode_world :: proc()
+	rendermode_unit  :: proc()
+	rendermode_pixel :: proc()
+}
+
+--- Textures
+{
+	draw_texture :: proc(texture: Texture, shader: Shader_Program, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1})
+}
+
+--- Models and Meshes
+{
+	add_mesh_to_model      :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32)
+	remove_mesh_from_model :: proc(model: ^Model, name: string) -> bool
+	update_mesh            :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) -> bool
+	draw_model             :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool)
+	delete_model           :: proc(model: Model)
+}
+
+--- Helpers
+{
+	create_cube_model :: proc() -> Model
+	create_quad_model :: proc() -> Model
+
+	camera_up      :: proc(camera: ^Camera) -> Vec3
+	camera_down    :: proc(camera: ^Camera) -> Vec3
+	camera_left    :: proc(camera: ^Camera) -> Vec3
+	camera_right   :: proc(camera: ^Camera) -> Vec3
+	camera_forward :: proc(camera: ^Camera) -> Vec3
+	camera_back    :: proc(camera: ^Camera) -> Vec3
+
+	get_mouse_world_position        :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3
+	get_mouse_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3
+
+	world_to_viewport               :: proc(position: Vec3, camera: ^Camera) -> Vec3
+	world_to_pixel                  :: proc(a: Vec3, camera: ^Camera, pixel_width: f32, pixel_height: f32) -> Vec3
+	world_to_unit                   :: proc(a: Vec3, camera: ^Camera) -> Vec3
+	unit_to_pixel                   :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3
+	unit_to_viewport                :: proc(a: Vec3) -> Vec3
+	pixel_to_viewport               :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3
+	pixel_to_unit                   :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3
+	viewport_to_pixel               :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3
+	viewport_to_unit                :: proc(a: Vec3) -> Vec3
+}
+
+--- Framebuffers
+{
+	create_framebuffer :: proc(width, height: int) -> Framebuffer
+	delete_framebuffer :: proc(framebuffer: Framebuffer)
+	bind_framebuffer   :: proc(framebuffer: ^Framebuffer)
+	unbind_framebuffer :: proc()
+}
 
 */
 
-init_gpu :: proc(screen_width, screen_height: int, version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
-	odingl.load_up_to(version_major, version_minor, set_proc_address);
 
-	init_camera(&default_camera, true, 85, screen_width, screen_height);
-	push_camera_non_deferred(&default_camera);
+
+//
+// Cameras
+//
+
+init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false) {
+    camera.is_perspective = is_perspective;
+    camera.size = size;
+    camera.position = Vec3{};
+    camera.rotation = Quat{0, 0, 0, 1};
+    camera.draw_mode = .Triangles;
+    camera.pixel_width = cast(f32)pixel_width;
+    camera.pixel_height = cast(f32)pixel_height;
+    camera.aspect = camera.pixel_width / camera.pixel_height;
+
+    if make_framebuffer {
+        assert(pixel_width > 0);
+        assert(pixel_height > 0);
+        camera.framebuffer = create_framebuffer(pixel_width, pixel_height);
+    }
+}
+
+@(deferred_out=pop_camera)
+PUSH_CAMERA :: inline proc(camera: ^Camera) -> ^Camera {
+	return push_camera_non_deferred(camera);
+}
+
+push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
+	old_camera := current_camera;
+	current_camera = camera;
+
+	enable(Capabilities.Blend);
+	blend_func(Blend_Factors.Src_Alpha, Blend_Factors.One_Minus_Src_Alpha);
+	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
+
+	if current_camera.framebuffer.fbo != 0 {
+		bind_framebuffer(&current_camera.framebuffer);
+	}
+	else {
+		unbind_framebuffer();
+	}
+
+	set_clear_color(camera.clear_color);
+	if current_camera.is_perspective {
+		enable(Capabilities.Depth_Test);
+		clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
+	}
+	else {
+		disable(Capabilities.Depth_Test);
+		clear_screen(Clear_Flags.Color_Buffer);
+	}
+	return old_camera;
+}
+
+pop_camera :: proc(old_camera: ^Camera) {
+	current_camera = old_camera;
+
+	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
+	if current_camera.framebuffer.fbo != 0 {
+		bind_framebuffer(&current_camera.framebuffer);
+	}
+	else {
+		unbind_framebuffer();
+	}
+}
+
+update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
+    pixel_width = new_width;
+    pixel_height = new_height;
+    aspect = new_width / new_height;
+
+    if framebuffer.fbo != 0 {
+        if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
+            logln("Rebuilding framebuffer...");
+            delete_framebuffer(framebuffer);
+            framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height);
+        }
+    }
+}
+
+delete_camera :: proc(camera: ^Camera) {
+    if camera.framebuffer.fbo != 0 {
+        delete_framebuffer(camera.framebuffer);
+    }
+}
+
+get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
+    view_matrix := identity(Mat4);
+    view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
+    rotation_matrix := quat_to_mat4(inverse(camera.rotation));
+    view_matrix = mul(rotation_matrix, view_matrix);
+    return view_matrix;
+}
+
+get_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
+    if current_camera.is_perspective {
+        return perspective(to_radians(current_camera.size), current_camera.aspect, 0.01, 1000);
+    }
+    else {
+        top    : f32 =  1 * current_camera.size;
+        bottom : f32 = -1 * current_camera.size;
+        left   : f32 = -1 * current_camera.aspect * current_camera.size;
+        right  : f32 =  1 * current_camera.aspect * current_camera.size;
+        return ortho3d(left, right, bottom, top, -1, 1);
+    }
+}
+
+get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
+    #complete
+    switch current_camera.current_rendermode {
+        case .World: {
+            return get_projection_matrix(camera);
+        }
+        case .Unit: {
+            unit := translate(identity(Mat4), Vec3{-1, -1, 0});
+            unit = scale(unit, 2);
+            return unit;
+        }
+        case .Pixel: {
+            pixel := scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
+            pixel = scale(pixel, 2);
+            pixel = translate(pixel, Vec3{-1, -1, 0});
+            return pixel;
+        }
+        case: panic(tprint(current_camera.current_rendermode));
+    }
+
+    unreachable();
+    return {};
 }
 
 
 
+//
+// Textures
+//
+
+draw_texture :: proc(texture: Texture, shader: Shader_Program, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
+	rendermode_pixel();
+	use_program(shader);
+	center := to_vec3(pixel1 + ((pixel2 - pixel1) / 2));
+	size   := to_vec3(pixel2 - pixel1);
+	draw_model(_internal_quad_model, center, size, {0, 0, 0, 1}, texture, {1, 1, 1, 1}, false);
+}
+
+
+
+//
+// Models and Meshes
+//
+
+// todo(josh): maybe shouldn't use strings for mesh names, not sure
 add_mesh_to_model :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) {
 	vao := gen_vao();
 	vbo := gen_vbo();
@@ -39,24 +242,47 @@ add_mesh_to_model :: proc(model: ^Model, name: string, vertices: []$Vertex_Type,
 	mesh := Mesh{name, vao, vbo, ibo, type_info_of(Vertex_Type), len(indicies), len(vertices)};
 	append(&model.meshes, mesh);
 
-	update_mesh(model, len(model.meshes)-1, vertices, indicies);
+	update_mesh(model, name, vertices, indicies);
 }
 
-update_mesh :: proc(model: ^Model, mesh_index: int, vertices: []$Vertex_Type, indicies: []u32) {
-	info := &model.meshes[mesh_index];
-	bind_vao(info.vao);
+remove_mesh_from_model :: proc(model: ^Model, name: string) -> bool {
+	for mesh, idx in model.meshes {
+		if mesh.name != name do continue;
+		_internal_delete_mesh(mesh);
+		unordered_remove(&model.meshes, idx);
+		return true;
+	}
 
-	bind_vbo(info.vbo);
-	buffer_vertices(vertices);
+	// todo(josh): maybe remove this log? idk
+	logln("Couldn't find mesh '", name, "'.");
+	return false;
+}
 
-	bind_ibo(info.ibo);
-	buffer_elements(indicies);
+update_mesh :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) -> bool {
+	for _, i in model.meshes {
+		mesh := &model.meshes[i];
+		if mesh.name != name do continue;
 
-	bind_vao(cast(VAO)0);
+		bind_vao(mesh.vao);
 
-	info.vertex_type  = type_info_of(Vertex_Type);
-	info.index_count  = len(indicies);
-	info.vertex_count = len(vertices);
+		bind_vbo(mesh.vbo);
+		buffer_vertices(vertices);
+
+		bind_ibo(mesh.ibo);
+		buffer_elements(indicies);
+
+		bind_vao(cast(VAO)0);
+
+		mesh.vertex_type  = type_info_of(Vertex_Type);
+		mesh.index_count  = len(indicies);
+		mesh.vertex_count = len(vertices);
+
+		return true;
+	}
+
+	// todo(josh): maybe remove this log? idk
+	logln("Couldn't find mesh '", name, "'.");
+	return false;
 }
 
 draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool, loc := #caller_location) {
@@ -116,64 +342,78 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 delete_model :: proc(model: Model) {
 	for mesh in model.meshes {
-		delete_vao(mesh.vao);
-		delete_buffer(mesh.vbo);
-		delete_buffer(mesh.ibo);
+		_internal_delete_mesh(mesh);
 	}
 	delete(model.meshes);
 }
 
+create_cube_model :: proc() -> Model {
+    verts := []Vertex3D {
+        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
+        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
+        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
+        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
+        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
+        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
+        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
+        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
+        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
+        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
+        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
+        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
+        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
+        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
+        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
+        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
+        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
+        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
+        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
+        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
+        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
+        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
+        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
+        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
+        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
+        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
+        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
+        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
+        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
+        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
+        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+    };
 
-
-
-default_camera: Camera;
-current_camera: ^Camera;
-
-
-@(deferred_out=POP_CAMERA)
-PUSH_CAMERA :: inline proc(camera: ^Camera) -> ^Camera {
-	return push_camera_non_deferred(camera);
+    model: Model;
+    add_mesh_to_model(&model, "cube", verts, {});
+    return model;
 }
 
-push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
-	old_camera := current_camera;
-	current_camera = camera;
+create_quad_model :: proc() -> Model {
+    verts := []Vertex3D {
+        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+    };
 
-	enable(Capabilities.Blend);
-	blend_func(Blend_Factors.Src_Alpha, Blend_Factors.One_Minus_Src_Alpha);
-	set_clear_color(Colorf{0.1,0.5,0.4,1});
-	if current_camera.is_perspective {
-		enable(Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
-		clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
-	}
-	else {
-		disable(Capabilities.Depth_Test); // note(josh): @DepthTest: fucks with the sorting of 2D stuff
-		clear_screen(Clear_Flags.Color_Buffer);
-	}
-
-	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
-	if current_camera.framebuffer.fbo != 0 {
-		bind_framebuffer(&current_camera.framebuffer);
-	}
-	else {
-		unbind_framebuffer();
-	}
-	return old_camera;
-}
-
-POP_CAMERA :: proc(old_camera: ^Camera) {
-	current_camera = old_camera;
-
-	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
-	if current_camera.framebuffer.fbo != 0 {
-		bind_framebuffer(&current_camera.framebuffer);
-	}
-	else {
-		unbind_framebuffer();
-	}
+    model: Model;
+    add_mesh_to_model(&model, "quad", verts, {});
+    return model;
 }
 
 
+
+//
+// Rendermodes
+//
+
+// todo(josh): maybe do a push/pop rendermode kinda thing?
 
 Rendermode_Proc :: #type proc();
 
@@ -186,6 +426,65 @@ rendermode_unit :: proc() {
 rendermode_pixel :: proc() {
 	current_camera.current_rendermode = .Pixel;
 }
+
+
+
+//
+// Framebuffers
+//
+
+create_framebuffer :: proc(width, height: int) -> Framebuffer {
+	fbo := gen_framebuffer();
+	bind_fbo(fbo);
+
+	texture := gen_texture();
+	bind_texture2d(texture);
+
+	tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+	// tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, 0, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
+	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Mag_Filter, Texture_Parameter_Value.Nearest);
+	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Min_Filter, Texture_Parameter_Value.Nearest);
+
+	rbo := gen_renderbuffer();
+	bind_rbo(rbo);
+
+	renderbuffer_storage(Renderbuffer_Storage.Depth24_Stencil8, cast(i32)width, cast(i32)height);
+	framebuffer_renderbuffer(Framebuffer_Attachment.Depth_Stencil, rbo);
+
+	framebuffer_texture2d(Framebuffer_Attachment.Color0, texture);
+
+	draw_buffer := Framebuffer_Attachment.Color0;
+	odingl.DrawBuffers(1, transmute(^u32)&draw_buffer);
+
+	assert_framebuffer_complete();
+
+	bind_texture2d(0);
+	bind_rbo(0);
+	bind_fbo(0);
+
+	framebuffer := Framebuffer{fbo, texture, rbo, width, height};
+	return framebuffer;
+}
+
+bind_framebuffer :: proc(framebuffer: ^Framebuffer) {
+	bind_fbo(framebuffer.fbo);
+}
+
+unbind_framebuffer :: proc() {
+	bind_fbo(0);
+}
+
+delete_framebuffer :: proc(framebuffer: Framebuffer) {
+	delete_rbo(framebuffer.rbo);
+	delete_texture(framebuffer.texture);
+	delete_fbo(framebuffer.fbo);
+}
+
+
+
+//
+// Helpers
+//
 
 camera_up      :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_up     (rotation);
 camera_down    :: inline proc(using camera: ^Camera) -> Vec3 do return quaternion_down   (rotation);
@@ -253,27 +552,27 @@ unit_to_viewport :: inline proc(a: Vec3) -> Vec3 {
 	return result;
 }
 
-pixel_to_viewport :: inline proc(_a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
-	a := _a;
+pixel_to_viewport :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a := a;
 	a /= Vec3{pixel_width/2, pixel_height/2, 1};
 	a -= Vec3{1, 1, 0};
 	return a;
 }
-pixel_to_unit :: inline proc(_a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
-	a := _a;
+pixel_to_unit :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a := a;
 	a /= Vec3{pixel_width, pixel_height, 1};
 	return a;
 }
 
-viewport_to_pixel :: inline proc(_a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
-	a := _a;
+viewport_to_pixel :: inline proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
+	a := a;
 	a += Vec3{1, 1, 0};
 	a *= Vec3{pixel_width/2, pixel_height/2, 0};
 	a.z = 0;
 	return a;
 }
-viewport_to_unit :: inline proc(_a: Vec3) -> Vec3 {
-	a := _a;
+viewport_to_unit :: inline proc(a: Vec3) -> Vec3 {
+	a := a;
 	a += Vec3{1, 1, 0};
 	a /= 2;
 	a.z = 0;
@@ -282,53 +581,29 @@ viewport_to_unit :: inline proc(_a: Vec3) -> Vec3 {
 
 
 
-create_framebuffer :: proc(width, height: int) -> Framebuffer {
-	fbo := gen_framebuffer();
-	bind_fbo(fbo);
+//
+// Internal
+//
 
-	texture := gen_texture();
-	bind_texture2d(texture);
+_internal_quad_model: Model;
+_internal_cube_model: Model;
 
-	tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
-	// tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, 0, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
-	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Mag_Filter, Texture_Parameter_Value.Nearest);
-	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Min_Filter, Texture_Parameter_Value.Nearest);
+default_camera: Camera;
+current_camera: ^Camera;
 
-	rbo := gen_renderbuffer();
-	bind_rbo(rbo);
+init_gpu :: proc(screen_width, screen_height: int, version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
+	odingl.load_up_to(version_major, version_minor, set_proc_address);
 
-	renderbuffer_storage(Renderbuffer_Storage.Depth24_Stencil8, cast(i32)width, cast(i32)height);
-	framebuffer_renderbuffer(Framebuffer_Attachment.Depth_Stencil, rbo);
+	init_camera(&default_camera, true, 85, screen_width, screen_height);
+	default_camera.clear_color = {1, 1, 0, 1};
+	push_camera_non_deferred(&default_camera);
 
-	framebuffer_texture2d(Framebuffer_Attachment.Color0, texture);
-
-	draw_buffer := Framebuffer_Attachment.Color0;
-	odingl.DrawBuffers(1, transmute(^u32)&draw_buffer);
-
-	assert_framebuffer_complete();
-
-	bind_texture2d(0);
-	bind_rbo(0);
-	bind_fbo(0);
-
-	framebuffer := Framebuffer{fbo, texture, rbo, width, height};
-	return framebuffer;
+	_internal_cube_model = create_cube_model();
+	_internal_quad_model = create_quad_model();
 }
 
-bind_framebuffer :: proc(framebuffer: ^Framebuffer) {
-	bind_fbo(framebuffer.fbo);
-
-	// viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
-	set_clear_color(Colorf{.1, .5, .6, 1});
-	clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
-}
-
-unbind_framebuffer :: proc() {
-	bind_fbo(0);
-}
-
-delete_framebuffer :: proc(framebuffer: Framebuffer) {
-	delete_rbo(framebuffer.rbo);
-	delete_texture(framebuffer.texture);
-	delete_fbo(framebuffer.fbo);
+_internal_delete_mesh :: proc(mesh: Mesh) {
+	delete_vao(mesh.vao);
+	delete_buffer(mesh.vbo);
+	delete_buffer(mesh.ibo);
 }

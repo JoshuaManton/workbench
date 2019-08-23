@@ -76,6 +76,7 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 		});
 
 	gpu.init_camera(&wb_camera, true, 85, screen_width, screen_height, true);
+	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
 	gpu.add_mesh_to_model(&im_model, "im_model", []gpu.Vertex2D{}, []u32{});
 
@@ -91,8 +92,8 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 
 	register_debug_program("Rendering", _debug_rendering, nil);
 
-	wb_cube_model = create_cube_model();
-	wb_quad_model = create_quad_model();
+	wb_cube_model = gpu.create_cube_model();
+	wb_quad_model = gpu.create_quad_model();
 	gpu.add_mesh_to_model(&debug_line_model, "lines", []gpu.Vertex3D{}, []u32{});
 }
 
@@ -124,9 +125,6 @@ render_workspaces :: proc() {
 			gpu.log_errors(#procedure);
 			num_draw_calls = 0;
 			gpu.PUSH_CAMERA(&wb_camera);
-			// gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
-
-			// if debug_window_open do gpu.bind_framebuffer(&wb_camera.framebuffer);
 
 			if workspace.render != nil {
 				workspace.render(lossy_delta_time);
@@ -150,7 +148,7 @@ render_workspaces :: proc() {
 					verts: [2]gpu.Vertex3D;
 					verts[0] = gpu.Vertex3D{line.a, {}, line.color, {}};
 					verts[1] = gpu.Vertex3D{line.b, {}, line.color, {}};
-					gpu.update_mesh(&debug_line_model, 0, verts[:], []u32{});
+					gpu.update_mesh(&debug_line_model, "lines", verts[:], []u32{});
 					gpu.draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
 				}
 
@@ -160,11 +158,8 @@ render_workspaces :: proc() {
 			}
 		}
 
-		gpu.rendermode_unit();
-		gpu.use_program(shader_texture_unlit);
-		gpu.draw_model(wb_quad_model, Vec3{0.5, 0.5, 0}, {1, 1, 1}, {0, 0, 0, 1}, wb_camera.framebuffer.texture, {1, 1, 1, 1}, false);
+		gpu.draw_texture(wb_camera.framebuffer.texture, shader_texture_unlit, {0, 0}, {platform.current_window_width, platform.current_window_height});
 
-		// if debug_window_open do gpu.unbind_framebuffer();
 		imgui_render(true);
 	}
 	current_workspace = -1;

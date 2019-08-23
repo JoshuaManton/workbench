@@ -19,6 +19,8 @@ Camera :: struct {
     // perspective  -> fov
     size: f32,
 
+    clear_color: Colorf,
+
     current_rendermode: Rendermode,
 
     position: Vec3,
@@ -56,88 +58,6 @@ Framebuffer :: struct {
     width, height: int,
 }
 
-init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false) {
-    camera.is_perspective = is_perspective;
-    camera.size = size;
-    camera.position = Vec3{};
-    camera.rotation = Quat{0, 0, 0, 1};
-    camera.draw_mode = .Triangles;
-    camera.pixel_width = cast(f32)pixel_width;
-    camera.pixel_height = cast(f32)pixel_height;
-    camera.aspect = camera.pixel_width / camera.pixel_height;
-
-    if make_framebuffer {
-        assert(pixel_width > 0);
-        assert(pixel_height > 0);
-        camera.framebuffer = create_framebuffer(pixel_width, pixel_height);
-    }
-}
-
-update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
-    pixel_width = new_width;
-    pixel_height = new_height;
-    aspect = new_width / new_height;
-
-    if framebuffer.fbo != 0 {
-        if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
-            logln("Rebuilding framebuffer...");
-            delete_framebuffer(framebuffer);
-            framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height);
-        }
-    }
-}
-
-delete_camera :: proc(camera: ^Camera) {
-    if camera.framebuffer.fbo != 0 {
-        delete_framebuffer(camera.framebuffer);
-    }
-}
-
-get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
-    view_matrix := identity(Mat4);
-    view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
-    rotation_matrix := quat_to_mat4(inverse(camera.rotation));
-    view_matrix = mul(rotation_matrix, view_matrix);
-    return view_matrix;
-}
-
-get_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
-    if current_camera.is_perspective {
-        return perspective(to_radians(current_camera.size), current_camera.aspect, 0.01, 1000);
-    }
-    else {
-        top    : f32 =  1 * current_camera.size;
-        bottom : f32 = -1 * current_camera.size;
-        left   : f32 = -1 * current_camera.aspect * current_camera.size;
-        right  : f32 =  1 * current_camera.aspect * current_camera.size;
-        return ortho3d(left, right, bottom, top, -1, 1);
-    }
-}
-
-get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
-    #complete
-    switch current_camera.current_rendermode {
-        case .World: {
-            return get_projection_matrix(camera);
-        }
-        case .Unit: {
-            unit := translate(identity(Mat4), Vec3{-1, -1, 0});
-            unit = scale(unit, 2);
-            return unit;
-        }
-        case .Pixel: {
-            pixel := scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-            pixel = scale(pixel, 2);
-            pixel = translate(pixel, Vec3{-1, -1, 0});
-            return pixel;
-        }
-        case: panic(tprint(current_camera.current_rendermode));
-    }
-
-    unreachable();
-    return {};
-}
-
 
 
 
@@ -173,6 +93,7 @@ Mesh :: struct {
     index_count:  int,
     vertex_count: int,
 }
+
 
 
 
