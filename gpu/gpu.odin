@@ -22,7 +22,7 @@ using import wbm "../math"
 	push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera
 	pop_camera               :: proc(old_camera: ^Camera)
 
-	get_view_matrix :: proc(camera: ^Camera) -> Mat4
+	get_view_matrix       :: proc(camera: ^Camera) -> Mat4
 	get_projection_matrix :: proc(camera: ^Camera) -> Mat4
 	get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4
 
@@ -168,6 +168,7 @@ delete_camera :: proc(camera: ^Camera) {
     }
 }
 
+// todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
 get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
     view_matrix := identity(Mat4);
     view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
@@ -177,21 +178,21 @@ get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
 }
 
 get_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
-    if current_camera.is_perspective {
-        return perspective(to_radians(current_camera.size), current_camera.aspect, 0.01, 1000);
+    if camera.is_perspective {
+        return perspective(to_radians(camera.size), camera.aspect, 0.01, 1000);
     }
     else {
-        top    : f32 =  1 * current_camera.size;
-        bottom : f32 = -1 * current_camera.size;
-        left   : f32 = -1 * current_camera.aspect * current_camera.size;
-        right  : f32 =  1 * current_camera.aspect * current_camera.size;
+        top    : f32 =  1 * camera.size;
+        bottom : f32 = -1 * camera.size;
+        left   : f32 = -1 * camera.aspect * camera.size;
+        right  : f32 =  1 * camera.aspect * camera.size;
         return ortho3d(left, right, bottom, top, -1, 1);
     }
 }
 
 get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
     #complete
-    switch current_camera.current_rendermode {
+    switch camera.current_rendermode {
         case .World: {
             return get_projection_matrix(camera);
         }
@@ -206,7 +207,7 @@ get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
             pixel = translate(pixel, Vec3{-1, -1, 0});
             return pixel;
         }
-        case: panic(tprint(current_camera.current_rendermode));
+        case: panic(tprint(camera.current_rendermode));
     }
 
     unreachable();
