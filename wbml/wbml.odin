@@ -2,7 +2,7 @@ package wbml
 
 import rt "core:runtime"
 import "core:mem"
-import "core:types"
+import "core:reflect"
 
       import "../reflection"
 
@@ -70,7 +70,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			do_newline = false;
 
 			get_str :: proc(i: $T, e: rt.Type_Info_Enum) -> (string, bool) {
-				if types.is_string(e.base) {
+				if reflect.is_string(e.base) {
 					for val, idx in e.values {
 						if v, ok := val.(T); ok && v == i {
 							return e.names[idx], true;
