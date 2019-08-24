@@ -22,9 +22,9 @@ using import wbm "../math"
 	push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera
 	pop_camera               :: proc(old_camera: ^Camera)
 
-	get_view_matrix       :: proc(camera: ^Camera) -> Mat4
-	get_projection_matrix :: proc(camera: ^Camera) -> Mat4
-	get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4
+	construct_view_matrix       :: proc(camera: ^Camera) -> Mat4
+	construct_projection_matrix :: proc(camera: ^Camera) -> Mat4
+	construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4
 
 	rendermode_world :: proc()
 	rendermode_unit  :: proc()
@@ -169,7 +169,7 @@ delete_camera :: proc(camera: ^Camera) {
 }
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
-get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
+construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
     view_matrix := identity(Mat4);
     view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
     rotation_matrix := quat_to_mat4(inverse(camera.rotation));
@@ -177,7 +177,7 @@ get_view_matrix :: proc(camera: ^Camera) -> Mat4 {
     return view_matrix;
 }
 
-get_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
+construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
     if camera.is_perspective {
         return perspective(to_radians(camera.size), camera.aspect, 0.01, 1000);
     }
@@ -190,11 +190,11 @@ get_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
     }
 }
 
-get_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
+construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
     #complete
     switch camera.current_rendermode {
         case .World: {
-            return get_projection_matrix(camera);
+            return construct_projection_matrix(camera);
         }
         case .Unit: {
             unit := translate(identity(Mat4), Vec3{-1, -1, 0});
@@ -288,10 +288,10 @@ update_mesh :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indic
 
 draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool, loc := #caller_location) {
 	// projection matrix
-	projection_matrix := get_rendermode_matrix(current_camera);
+	projection_matrix := construct_rendermode_matrix(current_camera);
 
 	// view matrix
-	view_matrix := get_view_matrix(current_camera);
+	view_matrix := construct_view_matrix(current_camera);
 
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
@@ -501,7 +501,7 @@ get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) ->
 	// todo(josh): should probably make this 0.5 because I think directx is 0 -> 1 instead of -1 -> 1 like opengl
 	cursor_viewport_position.z = 0.1; // just some way down the frustum
 
-	inv := mat4_inverse_(mul(get_projection_matrix(camera), get_view_matrix(camera)));
+	inv := mat4_inverse_(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
 
 	cursor_world_position4 := mul(inv, cursor_viewport_position);
 	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
@@ -521,9 +521,9 @@ get_mouse_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: V
 }
 
 world_to_viewport :: inline proc(position: Vec3, camera: ^Camera) -> Vec3 {
-	proj := get_projection_matrix(camera);
+	proj := construct_projection_matrix(camera);
 	if camera.is_perspective {
-		mv := mul(proj, get_view_matrix(camera));
+		mv := mul(proj, construct_view_matrix(camera));
 		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
 		if result.w > 0 do result /= result.w;
 		new_result := Vec3{result.x, result.y, result.z};
