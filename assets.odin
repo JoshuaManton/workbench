@@ -19,7 +19,7 @@ Asset_Catalog :: struct {
 
 delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 	for _, texture in catalog.textures {
-		gpu.delete_texture(texture);
+		gpu.delete_texture(texture.gpu_id);
 	}
 	for _, model in catalog.models {
 		gpu.delete_model(model);

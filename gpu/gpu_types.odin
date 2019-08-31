@@ -62,6 +62,21 @@ Framebuffer :: struct {
 
 
 
+Texture :: struct {
+    gpu_id: TextureId,
+
+    width, height: int,
+
+    target: Texture_Target,
+    format: Pixel_Data_Format,
+    element_type: Texture2D_Data_Type,
+}
+
+
+
+
+
+
 Vertex2D :: struct {
 	position: Vec2,
 	tex_coord: Vec2,

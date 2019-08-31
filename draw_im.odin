@@ -201,7 +201,7 @@ push_text :: proc(
 				uv1 := Vec2{quad.s0, quad.t0};
 				uv2 := Vec2{quad.s1, quad.t0};
 				uv3 := Vec2{quad.s1, quad.t1};
-				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture_id};
+				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture};
 			}
 
 			if !is_space && actually_draw {
@@ -234,7 +234,7 @@ IM_PUSH_CAMERA :: proc(camera: ^gpu.Camera) -> ^gpu.Camera {
 
 @private
 im_pop_camera :: proc(old_camera: ^gpu.Camera) {
-	im_flush(buffered_draw_commands[:]);
+	im_flush(&buffered_draw_commands);
 	gpu.pop_camera(old_camera);
 }
 
@@ -282,10 +282,15 @@ current_scissor_rect: [4]int;
 
 current_render_layer: int;
 
-im_flush :: proc(cmds: []Draw_Command) {
+im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
+	if cmds == nil do return;
+
 	pf.TIMED_SECTION(&wb_profiler);
 
+	defer clear(cmds);
+
 	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
+
 
 	if !gpu.current_camera.is_perspective {
 		sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {
@@ -300,14 +305,14 @@ im_flush :: proc(cmds: []Draw_Command) {
 	current_rendermode : gpu.Rendermode_Proc = nil;
 	is_scissor := false;
 	current_shader := gpu.Shader_Program(0);
-	current_texture := gpu.Texture(0);
+	current_texture: gpu.Texture;
 
 	command_loop:
 	for cmd in cmds {
-		shader_mismatch     := cmd.shader     != current_shader;
-		texture_mismatch    := cmd.texture    != current_texture;
-		scissor_mismatch    := cmd.scissor    != is_scissor;
-		rendermode_mismatch := cmd.rendermode != current_rendermode;
+		shader_mismatch     := cmd.shader          != current_shader;
+		texture_mismatch    := cmd.texture.gpu_id  != current_texture.gpu_id;
+		scissor_mismatch    := cmd.scissor         != is_scissor;
+		rendermode_mismatch := cmd.rendermode      != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
 			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture);
 			clear(&im_queued_for_drawing);

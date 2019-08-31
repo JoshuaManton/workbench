@@ -5,6 +5,7 @@ using import "core:fmt"
 
 using import "../types"
 using import "../basic"
+using import "../external/stb"
 using import "../logging"
 using import wbm "../math"
 
@@ -113,26 +114,8 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := current_camera;
 	current_camera = camera;
 
-	enable(Capabilities.Blend);
-	blend_func(Blend_Factors.Src_Alpha, Blend_Factors.One_Minus_Src_Alpha);
-	viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
+	camera_prerender(camera);
 
-	if current_camera.framebuffer.fbo != 0 {
-		bind_framebuffer(&current_camera.framebuffer);
-	}
-	else {
-		unbind_framebuffer();
-	}
-
-	set_clear_color(camera.clear_color);
-	if current_camera.is_perspective {
-		enable(Capabilities.Depth_Test);
-		clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
-	}
-	else {
-		disable(Capabilities.Depth_Test);
-		clear_screen(Clear_Flags.Color_Buffer);
-	}
 	return old_camera;
 }
 
@@ -145,6 +128,31 @@ pop_camera :: proc(old_camera: ^Camera) {
 	}
 	else {
 		unbind_framebuffer();
+	}
+}
+
+camera_prerender :: proc(camera: ^Camera) {
+	enable(Capabilities.Blend);
+	blend_func(Blend_Factors.Src_Alpha, Blend_Factors.One_Minus_Src_Alpha);
+	viewport(0, 0, cast(int)camera.pixel_width, cast(int)camera.pixel_height);
+
+	if camera.framebuffer.fbo != 0 {
+		bind_framebuffer(&camera.framebuffer);
+	}
+	else {
+		unbind_framebuffer();
+	}
+
+
+
+	set_clear_color(camera.clear_color);
+	if camera.is_perspective {
+		enable(Capabilities.Depth_Test);
+		clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
+	}
+	else {
+		disable(Capabilities.Depth_Test);
+		clear_screen(Clear_Flags.Color_Buffer);
 	}
 }
 
@@ -220,12 +228,33 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
 // Textures
 //
 
+create_texture :: proc(w, h: int, gpu_format: Internal_Color_Format, pixel_format: Pixel_Data_Format, element_type: Texture2D_Data_Type, initial_data: ^u8 = nil, texture_target := Texture_Target.Texture2D) -> Texture {
+	texture := gen_texture();
+	bind_texture2d(texture);
+
+	tex_image2d(texture_target, 0, gpu_format, cast(i32)w, cast(i32)h, 0, pixel_format, element_type, initial_data);
+	tex_parameteri(texture_target, .Mag_Filter, .Nearest);
+	tex_parameteri(texture_target, .Min_Filter, .Nearest);
+
+	return Texture{texture, w, h, texture_target, pixel_format, element_type};
+}
+
 draw_texture :: proc(texture: Texture, shader: Shader_Program, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
 	rendermode_pixel();
 	use_program(shader);
 	center := to_vec3(pixel1 + ((pixel2 - pixel1) / 2));
 	size   := to_vec3(pixel2 - pixel1);
 	draw_model(_internal_quad_model, center, size, {0, 0, 0, 1}, texture, {1, 1, 1, 1}, false);
+}
+
+write_texture_to_file :: proc(filepath: string, texture: Texture) {
+	assert(texture.target == .Texture2D, "Not sure if this is an error, delete this if it isn't");
+	data := make([]u8, 4 * texture.width * texture.height);
+	defer delete(data);
+	bind_texture2d(texture.gpu_id);
+	odingl.GetTexImage(cast(u32)texture.target, 0, cast(u32)Pixel_Data_Format.RGBA, cast(u32)Texture2D_Data_Type.Unsigned_Byte, &data[0]);
+	stb.write_png(filepath, texture.width, texture.height, 4, data, 4 * texture.width);
+	log_errors(#procedure);
 }
 
 
@@ -303,7 +332,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 		bind_vao(mesh.vao);
 		bind_vbo(mesh.vbo);
 		bind_ibo(mesh.ibo);
-		bind_texture2d(texture);
+		bind_texture2d(texture.gpu_id);
 
 		set_vertex_format(mesh.vertex_type);
 
@@ -311,7 +340,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 		uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
 
-		uniform1i(program, "has_texture", texture != 0 ? 1 : 0);
+		uniform1i(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
 		uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
 
 		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
@@ -438,11 +467,11 @@ create_framebuffer :: proc(width, height: int) -> Framebuffer {
 	fbo := gen_framebuffer();
 	bind_fbo(fbo);
 
+	// texture := create_texture(width, height, .RGBA32F, .RGBA, .Unsigned_Byte);
 	texture := gen_texture();
 	bind_texture2d(texture);
 
 	tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
-	// tex_image2d(Texture_Target.Texture2D, 0, Internal_Color_Format.RGBA32F, cast(i32)width, cast(i32)height, 0, Pixel_Data_Format.RGB, Texture2D_Data_Type.Unsigned_Byte, nil);
 	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Mag_Filter, Texture_Parameter_Value.Nearest);
 	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Min_Filter, Texture_Parameter_Value.Nearest);
 
@@ -463,7 +492,7 @@ create_framebuffer :: proc(width, height: int) -> Framebuffer {
 	bind_rbo(0);
 	bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, texture, rbo, width, height};
+	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte}, rbo, width, height};
 	return framebuffer;
 }
 
@@ -477,7 +506,7 @@ unbind_framebuffer :: proc() {
 
 delete_framebuffer :: proc(framebuffer: Framebuffer) {
 	delete_rbo(framebuffer.rbo);
-	delete_texture(framebuffer.texture);
+	delete_texture(framebuffer.texture.gpu_id);
 	delete_fbo(framebuffer.fbo);
 }
 
@@ -596,11 +625,17 @@ init_gpu :: proc(screen_width, screen_height: int, version_major, version_minor:
 	odingl.load_up_to(version_major, version_minor, set_proc_address);
 
 	init_camera(&default_camera, true, 85, screen_width, screen_height);
-	default_camera.clear_color = {1, 1, 0, 1};
+	default_camera.clear_color = {1, 0, 1, 1};
 	push_camera_non_deferred(&default_camera);
 
 	_internal_cube_model = create_cube_model();
 	_internal_quad_model = create_quad_model();
+}
+
+prerender :: proc(screen_width, screen_height: f32) {
+	assert(current_camera == &default_camera);
+	update_camera_pixel_size(&default_camera, screen_width, screen_height);
+	camera_prerender(current_camera);
 }
 
 _internal_delete_mesh :: proc(mesh: Mesh) {

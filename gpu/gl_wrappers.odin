@@ -18,7 +18,7 @@ FBO :: distinct u32;
 VAO :: distinct u32;
 VBO :: distinct u32;
 EBO :: distinct u32;
-Texture :: distinct u32;
+TextureId :: distinct u32;
 RBO :: distinct u32;
 Location :: distinct i32;
 
@@ -259,24 +259,24 @@ use_program :: inline proc(program: Shader_Program, loc := #caller_location) {
 
 
 
-gen_texture :: inline proc(loc := #caller_location) -> Texture {
+gen_texture :: inline proc(loc := #caller_location) -> TextureId {
 	texture: u32;
 	odingl.GenTextures(1, &texture);
 	log_errors(#procedure, loc);
-	return cast(Texture)texture;
+	return cast(TextureId)texture;
 }
 
-bind_texture1d :: inline proc(texture: Texture, loc := #caller_location) {
+bind_texture1d :: inline proc(texture: TextureId, loc := #caller_location) {
 	odingl.BindTexture(odingl.TEXTURE_1D, cast(u32)texture);
 	log_errors(#procedure, loc);
 }
 
-bind_texture2d :: inline proc(texture: Texture, loc := #caller_location) {
+bind_texture2d :: inline proc(texture: TextureId, loc := #caller_location) {
 	odingl.BindTexture(odingl.TEXTURE_2D, cast(u32)texture);
 	log_errors(#procedure, loc);
 }
 
-delete_texture :: inline proc(_texture: Texture, loc := #caller_location) {
+delete_texture :: inline proc(_texture: TextureId, loc := #caller_location) {
 	t := _texture;
 	odingl.DeleteTextures(1, cast(^u32)&t);
 	log_errors(#procedure, loc);
@@ -322,7 +322,7 @@ tex_sub_image2d :: proc(target: Texture_Target,
 }
 
 
-framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: Texture) {
+framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId) {
 	odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
 }
 

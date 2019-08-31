@@ -25,12 +25,8 @@ create_texture_from_png_data :: proc(pixels_rgba: []byte) -> gpu.Texture {
 	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
-	tex := gpu.gen_texture();
-	gpu.bind_texture2d(tex);
 	assert(channels == 3); // for the .RGB in the following tex_image2d call
-	gpu.tex_image2d(.Texture2D, 0, .RGB, width, height, 0, .RGB, .Unsigned_Byte, pixel_data);
-	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+	tex := gpu.create_texture(cast(int)width, cast(int)height, .RGB, .RGB, .Unsigned_Byte, pixel_data);
 
 	return tex;
 }
@@ -41,7 +37,7 @@ update_texture :: proc(texture: gpu.Texture, new_data: []byte) {
 	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
-	gpu.bind_texture2d(texture);
+	gpu.bind_texture2d(texture.gpu_id);
 	gpu.tex_image2d(.Texture2D, 0, .RGB, width, height, 0, .RGB, .Unsigned_Byte, pixel_data);
 }
 
@@ -52,7 +48,7 @@ update_texture :: proc(texture: gpu.Texture, new_data: []byte) {
 //
 
 Texture_Atlas :: struct {
-	id: gpu.Texture,
+	texture: gpu.Texture,
 	width: i32,
 	height: i32,
 	atlas_x: i32,
@@ -68,19 +64,18 @@ Sprite :: struct {
 }
 
 create_atlas :: inline proc(width, height: int) -> Texture_Atlas {
-	texture := gpu.gen_texture();
-	gpu.bind_texture2d(texture);
-	gpu.tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+	panic("I dont know if this works. I changed the create_texture API so if it breaks you'll have to fix it, sorry :^)");
+	texture := gpu.create_texture(width, height, .RGBA, .RGBA, .Unsigned_Byte);
 	data := Texture_Atlas{texture, cast(i32)width, cast(i32)height, 0, 0, 0};
 	return data;
 }
 
 delete_atlas :: inline proc(atlas: ^Texture_Atlas) {
-	gpu.delete_texture(atlas.id);
+	gpu.delete_texture(atlas.texture.gpu_id);
 	free(atlas);
 }
 
-add_sprite_to_atlas :: proc(texture: ^Texture_Atlas, pixels_rgba: []byte, pixels_per_world_unit : f32 = 32) -> (Sprite, bool) {
+add_sprite_to_atlas :: proc(atlas: ^Texture_Atlas, pixels_rgba: []byte, pixels_per_world_unit : f32 = 32) -> (Sprite, bool) {
 	stb.set_flip_vertically_on_load(1);
 	sprite_width, sprite_height, channels: i32;
 	pixel_data := stb.load_from_memory(&pixels_rgba[0], cast(i32)len(pixels_rgba), &sprite_width, &sprite_height, &channels, 0);
@@ -88,25 +83,25 @@ add_sprite_to_atlas :: proc(texture: ^Texture_Atlas, pixels_rgba: []byte, pixels
 
 	defer stb.image_free(pixel_data);
 
-	gpu.bind_texture2d(texture.id);
+	gpu.bind_texture2d(atlas.texture.gpu_id);
 
-	if texture.atlas_x + sprite_width > texture.width {
-		texture.atlas_y += texture.biggest_height;
-		texture.biggest_height = 0;
-		texture.atlas_x = 0;
+	if atlas.atlas_x + sprite_width > atlas.width {
+		atlas.atlas_y += atlas.biggest_height;
+		atlas.biggest_height = 0;
+		atlas.atlas_x = 0;
 	}
 
-	if sprite_height > texture.biggest_height do texture.biggest_height = sprite_height;
-	gpu.tex_sub_image2d(.Texture2D, 0, texture.atlas_x, texture.atlas_y, sprite_width, sprite_height, .RGBA, .Unsigned_Byte, pixel_data);
+	if sprite_height > atlas.biggest_height do atlas.biggest_height = sprite_height;
+	gpu.tex_sub_image2d(.Texture2D, 0, atlas.atlas_x, atlas.atlas_y, sprite_width, sprite_height, .RGBA, .Unsigned_Byte, pixel_data);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Mirrored_Repeat);
 	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Mirrored_Repeat);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
-	bottom_left_x := cast(f32)texture.atlas_x / cast(f32)texture.width;
-	bottom_left_y := cast(f32)texture.atlas_y / cast(f32)texture.height;
+	bottom_left_x := cast(f32)atlas.atlas_x / cast(f32)atlas.width;
+	bottom_left_y := cast(f32)atlas.atlas_y / cast(f32)atlas.height;
 
-	width_fraction  := cast(f32)sprite_width  / cast(f32)texture.width;
-	height_fraction := cast(f32)sprite_height / cast(f32)texture.height;
+	width_fraction  := cast(f32)sprite_width  / cast(f32)atlas.width;
+	height_fraction := cast(f32)sprite_height / cast(f32)atlas.height;
 
 	coords := [4]Vec2 {
 		{bottom_left_x,                  bottom_left_y},
@@ -115,9 +110,9 @@ add_sprite_to_atlas :: proc(texture: ^Texture_Atlas, pixels_rgba: []byte, pixels
 		{bottom_left_x + width_fraction, bottom_left_y},
 	};
 
-	texture.atlas_x += sprite_width;
+	atlas.atlas_x += sprite_width;
 
-	sprite := Sprite{coords, cast(f32)sprite_width / pixels_per_world_unit, cast(f32)sprite_height / pixels_per_world_unit, texture.id};
+	sprite := Sprite{coords, cast(f32)sprite_width / pixels_per_world_unit, cast(f32)sprite_height / pixels_per_world_unit, atlas.texture};
 	return sprite, true;
 }
 
@@ -283,7 +278,7 @@ Font :: struct {
 	dim: int,
 	pixel_height: f32,
 	chars: []stb.Baked_Char,
-	texture_id: gpu.Texture,
+	texture: gpu.Texture,
 }
 
 load_font :: proc(data: []byte, pixel_height: f32) -> Font {
@@ -304,11 +299,7 @@ load_font :: proc(data: []byte, pixel_height: f32) -> Font {
 		}
 	}
 
-	texture := gpu.gen_texture();
-	gpu.bind_texture2d(texture);
-	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
-	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
-	gpu.tex_image2d(.Texture2D, 0, .RGBA, cast(i32)dim, cast(i32)dim, 0, .Red, .Unsigned_Byte, &pixels[0]);
+	texture := gpu.create_texture(dim, dim, .RGBA, .Red, .Unsigned_Byte, &pixels[0]);
 
 	font := Font{dim, pixel_height, chars, texture};
 	return font;
@@ -316,5 +307,5 @@ load_font :: proc(data: []byte, pixel_height: f32) -> Font {
 
 delete_font :: proc(font: Font) {
 	delete(font.chars);
-	gpu.delete_texture(font.texture_id);
+	gpu.delete_texture(font.texture.gpu_id);
 }

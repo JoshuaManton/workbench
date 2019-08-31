@@ -390,7 +390,7 @@ imgui_render :: proc(render_to_screen : bool) {
 
         for j : i32 = 0; j < imgui.draw_list_get_cmd_size(list); j += 1 {
             cmd := imgui.draw_list_get_cmd_ptr(list, j);
-            gpu.bind_texture2d(gpu.Texture(uint(uintptr(cmd.texture_id))));
+            gpu.bind_texture2d(gpu.TextureId(uint(uintptr(cmd.texture_id))));
             gl.Scissor(i32(cmd.clip_rect.x), height - i32(cmd.clip_rect.w), i32(cmd.clip_rect.z - cmd.clip_rect.x), i32(cmd.clip_rect.w - cmd.clip_rect.y));
             gl.DrawElements(gl.TRIANGLES, i32(cmd.elem_count), gl.UNSIGNED_SHORT, idx_buffer_offset);
             //idx_buffer_offset += cmd.elem_count;

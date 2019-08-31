@@ -102,7 +102,7 @@ update_draw :: proc() {
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
 
-		imgui.image(rawptr(uintptr(wb_camera.framebuffer.texture)),
+		imgui.image(rawptr(uintptr(wb_camera.framebuffer.texture.gpu_id)),
 			imgui.Vec2{window_size.x - 10, window_size.y - 30},
 			imgui.Vec2{0,1},
 			imgui.Vec2{1,0});
@@ -114,7 +114,8 @@ render_workspaces :: proc() {
 	clear(&debug_cubes);
 	clear(&buffered_draw_commands);
 
-	gpu.update_camera_pixel_size(&gpu.default_camera, platform.current_window_width, platform.current_window_height);
+	gpu.prerender(platform.current_window_width, platform.current_window_height);
+
 	gpu.update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
 
 	for id, workspace in all_workspaces {
@@ -132,7 +133,7 @@ render_workspaces :: proc() {
 			}
 
 			// post-render
-			im_flush(buffered_draw_commands[:]);
+			im_flush(&buffered_draw_commands);
 
 			// draw debug lines
 			{
