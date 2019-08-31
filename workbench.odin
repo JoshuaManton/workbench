@@ -52,6 +52,7 @@ make_simple_window :: proc(window_name: string,
                            opengl_version_major, opengl_version_minor: int,
                            target_framerate: f32,
                            workspace: Workspace) {
+	startup_start_time := glfw.GetTime();
 
 	wb_profiler = pf.make_profiler(proc() -> f64 {
 		return glfw.GetTime();
@@ -59,7 +60,6 @@ make_simple_window :: proc(window_name: string,
 	defer pf.destroy_profiler(&wb_profiler);
 
 	client_target_framerate = target_framerate;
-
 
 	platform.init_platform(&main_window, window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	init_draw(window_width, window_height, opengl_version_major, opengl_version_minor);
@@ -75,15 +75,18 @@ make_simple_window :: proc(window_name: string,
 	start_workspace(workspace);
 	init_new_workspaces();
 
-	last_update_start_time: f32;
+	startup_end_time := glfw.GetTime();
+	logln("Startup time: ", startup_end_time - startup_start_time);
+
+	last_frame_start_time: f32;
 
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close && (len(all_workspaces) > 0 || len(new_workspaces) > 0) {
 		pf.profiler_new_frame(&wb_profiler);
 		pf.TIMED_SECTION(&wb_profiler, "full engine frame");
-		new_update_start_time := cast(f32)glfw.GetTime();
-		lossy_delta_time = new_update_start_time - last_update_start_time;
-		last_update_start_time = new_update_start_time;
+		frame_start_time := cast(f32)glfw.GetTime();
+		lossy_delta_time = frame_start_time - last_frame_start_time;
+		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
 
 		if acc >= fixed_delta_time {
@@ -124,7 +127,6 @@ make_simple_window :: proc(window_name: string,
 		}
 
 		update_loop_end_time := cast(f32)glfw.GetTime();
-		rolling_average_push_sample(&whole_frame_time_ra, update_loop_end_time - last_update_start_time);
 
 		render_workspaces();
 
@@ -133,6 +135,8 @@ make_simple_window :: proc(window_name: string,
 		gpu.log_errors("after SwapBuffers()");
 
 		remove_ended_workspaces();
+		
+		rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 	}
 
 	_end_all_workspaces();

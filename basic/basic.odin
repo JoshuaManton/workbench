@@ -4,6 +4,7 @@ package basic
       import "core:strings"
 using import "core:fmt"
       import "core:mem"
+      import rt "core:runtime"
 using import "core:math"
 
 //
@@ -130,7 +131,10 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 		hnd := win32.find_first_file_a(query_path, &ffd);
 		defer win32.find_close(hnd);
 
-		assert(hnd != win32.INVALID_HANDLE, tprint("Path not found: ", query_path));
+		if hnd == win32.INVALID_HANDLE {
+			println(pretty_location(#location()), "Path not found: ", query_path);
+			return;
+		}
 
 		for {
 			file_name := cast(cstring)&ffd.file_name[0];
@@ -153,6 +157,15 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 	}
 
 	return results[:];
+}
+
+//
+// Location
+//
+
+pretty_location :: inline proc(location: rt.Source_Code_Location) -> string {
+	file := file_from_path(location.file_path);
+	return fmt.tprintf("<%s.%s():%d> ", file, location.procedure, location.line);
 }
 
 //

@@ -98,11 +98,10 @@ TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) 
 
 	h: u64;
 	if name == "" {
-		bytes := transmute([size_of(rt.Source_Code_Location)]byte)loc;
-		h = hash_bytes(bytes[:]);
+		h = loc.hash;
 	}
 	else {
-		h = hash_bytes(cast([]byte)name);
+		h = hash.fnv64(cast([]byte)name);
 	}
 
 	if h notin profiler.all_sections {
@@ -142,14 +141,6 @@ END_TIMED_SECTION :: proc(using info: _Timed_Section_Info, _valid: bool) {
 	average_time = total_time / cast(f64)num_times;
 
 	profiler.all_sections[id] = section_info;
-}
-
-hash_bytes :: inline proc(bytes: []byte) -> u64 {
-	h: u64 = 0xcbf29ce484222325;
-	for b in bytes {
-		h = (h * 0x100000001b3) ~ u64(b);
-	}
-	return h;
 }
 
 main :: proc() {
