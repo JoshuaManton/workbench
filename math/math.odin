@@ -205,6 +205,7 @@ degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 }
 
 direction_to_quaternion :: proc(v: Vec3) -> Quat {
+	assert(length(v) != 0);
 	angle : f32 = cast(f32)atan2(cast(f64)v.x, cast(f64)v.z); // Note: I expected atan2(z,x) but OP reported success with atan2(x,z) instead! Switch around if you see 90° off.
 	qx : f32 = 0;
 	qy : f32 = cast(f32)1 * sin(angle/2);
