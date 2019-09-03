@@ -19,8 +19,55 @@ using import    "shared:workbench/logging"
       import    "shared:workbench/reflection"
       import    "shared:workbench/external/imgui"
 
+/*
+
+--- Lifetime
+{
+	init   :: proc()
+	deinit :: proc()
+}
+
+--- Scenes
+{
+	load_scene   :: proc(folder_path: string)
+	save_scene   :: proc()
+	unload_scene :: proc()
+	update       :: proc(dt: f32)
+	render       :: proc()
+
+	draw_scene_window :: proc()
+}
+
+--- Components and Entities
+{
+	add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_proc: proc(^Type), init_proc: proc(^Type) = nil, deinit_proc: proc(^Type) = nil)
+
+	make_entity    :: proc(name := "Entity", requested_id: Entity = 0) -> Entity
+	destroy_entity :: proc(eid: Entity)
+	destroy_entity_immediate :: proc(eid: Entity)
+
+	add_component    :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> ^T
+	get_component    :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> (^T, bool)
+	remove_component :: proc(eid: Entity, $T: typeid) -> bool
+
+	get_component_storage :: proc($T: typeid) -> []T
+
+	load_entity_from_file :: proc(filepath: string) -> Entity
+}
+
+*/
+
 init :: proc() {
 	add_component_type(Transform, nil, nil);
+}
+
+deinit :: proc() {
+	unload_scene();
+	for id, type in component_types {
+		delete_component_type(type^);
+		free(type);
+	}
+	delete(component_types);
 }
 
 
@@ -110,9 +157,13 @@ unload_scene :: proc() {
 		clear(&comp_type.reusable_indices);
 	}
 
-	assert(scene != nil);
+	if scene == nil do return;
+
 	delete(scene.folder_path);
-	for eid, data in scene.entity_datas do free(data);
+	for eid, data in scene.entity_datas {
+		delete_entity_data(data^);
+		free(data);
+	}
 	delete(scene.entity_datas);
 	for data in scene.entity_datas_pool do free(data);
 	delete(scene.entity_datas_pool);
@@ -177,211 +228,7 @@ render :: proc() {
 	}
 }
 
-
-
-//
-// Components and Entities
-//
-
-Entity :: int;
-
-Component_Base :: struct {
-	e: Entity "wbml_unserialized",
-	enabled: bool,
-}
-
-Transform :: struct {
-	using base: Component_Base,
-	position: Vec3,
-	rotation: Quat,
-	scale: Vec3,
-}
-
-add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_proc: proc(^Type), init_proc: proc(^Type) = nil, deinit_proc: proc(^Type) = nil) {
-	when DEVELOPER {
-		t: Type;
-		assert(&t.base == &t);
-	}
-
-	if component_types == nil {
-		component_types = make(map[typeid]^Component_Type, 1);
-	}
-	id := typeid_of(Type);
-	assert(id notin component_types);
-	component_types[id] = new_clone(Component_Type{type_info_of(Type), transmute(mem.Raw_Dynamic_Array)make([dynamic]Type, 0, 1), make([dynamic]int, 0, 1), cast(proc(rawptr, f32))update_proc, cast(proc(rawptr))render_proc, cast(proc(rawptr))init_proc, cast(proc(rawptr))deinit_proc});
-}
-
-make_entity :: proc(name := "Entity", requested_id: Entity = 0) -> Entity {
-	assert(scene != nil);
-
-	@static _last_entity_id: int;
-	eid: Entity;
-	if requested_id != 0 {
-		eid = requested_id;
-		_last_entity_id = max(_last_entity_id, requested_id);
-	}
-	else {
-		_last_entity_id += 1;
-		eid = _last_entity_id;
-	}
-
-	when DEVELOPER {
-		for e in scene.active_entities {
-			assert(e != eid, tprint("Duplicate entity ID!!!: ", e));
-		}
-		_, ok := scene.entity_datas[eid];
-		assert(!ok, tprint("Duplicate entity ID that the previous check should have caught!!!: ", eid));
-	}
-
-	append(&scene.active_entities, eid);
-
-	data: ^Entity_Data;
-	if len(scene.entity_datas_pool) > 0 {
-		data = pop(&scene.entity_datas_pool);
-		data^ = {};
-	}
-	else {
-		data = new(Entity_Data);
-	}
-
-	component_list: [dynamic]typeid;
-	if len(scene.entity_component_list_pool) > 0 {
-		component_list = pop(&scene.entity_component_list_pool);
-		clear(&component_list);
-	}
-	else {
-		component_list = make([dynamic]typeid, 0, 5);
-	}
-	assert(component_list != nil);
-	data^ = Entity_Data{name, true, component_list, ""};
-	scene.entity_datas[eid] = data;
-
-	tf := add_component(eid, Transform);
-	tf.rotation = Quat{0, 0, 0, 1};
-	tf.scale = Vec3{1, 1, 1};
-
-	return eid;
-}
-
-destroy_entity :: proc(eid: Entity) {
-	assert(scene != nil);
-	append(&scene.entities_to_destroy, eid);
-}
-
-destroy_entity_immediate :: proc(eid: Entity) {
-	assert(scene != nil);
-
-	data, ok := scene.entity_datas[eid];
-	assert(ok); // todo(josh): maybe remove this assert and just return
-
-	logln("destroying ", data.name);
-
-	if data.serialized_file_on_disk != "" {
-		append(&scene.entity_files_to_destroy_on_save, data.serialized_file_on_disk);
-	}
-
-	for c in data.components {
-		component_data, ok := component_types[c];
-		assert(ok);
-
-		for i in 0..<component_data.storage.len {
-			ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)component_data.storage.data, i * component_data.ti.size);
-			if ptr.e == eid {
-				append(&component_data.reusable_indices, i);
-				ptr.e = 0;
-			}
-		}
-	}
-
-	assert(data.components != nil, "Entity didn't have any components??");
-	clear(&data.components);
-	append(&scene.entity_component_list_pool, data.components);
-
-
-
-	for active, active_idx in scene.active_entities {
-		if active == eid {
-			unordered_remove(&scene.active_entities, active_idx);
-			break;
-		}
-	}
-
-	delete_key(&scene.entity_datas, eid);
-	append(&scene.entity_datas_pool, data);
-}
-
-add_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> ^T { // note(josh): volatile return value, do not store
-	ptr := _add_component_internal(eid, typeid_of(T), loc);
-	assert(ptr != nil);
-	return cast(^T)ptr;
-}
-
-get_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> (^T, bool) {
-	ptr, ok := _get_component_internal(eid, typeid_of(T));
-	return cast(^T)ptr, ok;
-}
-
-remove_component :: proc(eid: Entity, $T: typeid) -> bool {
-	unimplemented();
-	return {};
-}
-
-get_all_components :: proc($T: typeid) -> []T {
-	data, ok := component_types[typeid_of(T)];
-	assert(ok, tprint("Couldn't find component type: ", type_info_of(T)));
-	da := transmute([dynamic]T)data.storage;
-	return da[:];
-}
-
-load_entity_from_file :: proc(filepath: string) -> Entity {
-	// load file
-	data, ok := os.read_entire_file(filepath);
-	assert(ok);
-	defer delete(data);
-
-	// eat entity id
-	lexer := laas.make_lexer(cast(string)data);
-	eid_token, ok2 := laas.expect(&lexer, laas.Number);
-	eid := transmute(Entity)eid_token.int_value;
-
-	// eat entity name
-	name_token, name_ok := laas.expect(&lexer, laas.Identifier);
-	entity_name := "Entity";
-	if !name_ok {
-		logln("Entity ", eid, " didn't have a name in the file.");
-	}
-	else {
-		entity_name = strings.clone(name_token.value);
-	}
-
-	// make it
-	make_entity(entity_name, eid);
-
-	// load the component data
-	for {
-		for laas.is_token(&lexer, laas.New_Line) do laas.eat(&lexer);
-		component_name_ident, ok := laas.expect(&lexer, laas.Identifier);
-		if !ok do break;
-
-		nl, ok2 := laas.expect(&lexer, laas.New_Line);
-		assert(ok2);
-
-		ti := _get_component_ti_from_name(component_name_ident.value);
-		comp, found := _get_component_internal(eid, ti.id);
-		if !found do comp = _add_component_internal(eid, ti.id);
-
-		root: laas.Token;
-		ok4 := laas.get_next_token(&lexer, &root); assert(ok4);
-		wbml.parse_value(&lexer, root, comp, ti);
-	}
-
-	entity_data, ok4 := scene.entity_datas[eid];
-	entity_data.serialized_file_on_disk = filepath;
-
-	return eid;
-}
-
-draw_entity_window :: proc() {
+draw_scene_window :: proc() {
 	if imgui.begin("Scene") {
 		// save/load panel
 		{
@@ -605,6 +452,210 @@ draw_entity_window :: proc() {
 
 
 //
+// Components and Entities
+//
+
+Entity :: int;
+
+Component_Base :: struct {
+	e: Entity "wbml_unserialized",
+	enabled: bool,
+}
+
+Transform :: struct {
+	using base: Component_Base,
+	position: Vec3,
+	rotation: Quat,
+	scale: Vec3,
+}
+
+add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_proc: proc(^Type), init_proc: proc(^Type) = nil, deinit_proc: proc(^Type) = nil) {
+	when DEVELOPER {
+		t: Type;
+		assert(&t.base == &t);
+	}
+
+	if component_types == nil {
+		component_types = make(map[typeid]^Component_Type, 1);
+	}
+	id := typeid_of(Type);
+	assert(id notin component_types);
+	component_types[id] = new_clone(Component_Type{type_info_of(Type), transmute(mem.Raw_Dynamic_Array)make([dynamic]Type, 0, 1), make([dynamic]int, 0, 1), cast(proc(rawptr, f32))update_proc, cast(proc(rawptr))render_proc, cast(proc(rawptr))init_proc, cast(proc(rawptr))deinit_proc});
+}
+
+make_entity :: proc(name := "Entity", requested_id: Entity = 0) -> Entity {
+	assert(scene != nil);
+
+	@static _last_entity_id: int;
+	eid: Entity;
+	if requested_id != 0 {
+		eid = requested_id;
+		_last_entity_id = max(_last_entity_id, requested_id);
+	}
+	else {
+		_last_entity_id += 1;
+		eid = _last_entity_id;
+	}
+
+	when DEVELOPER {
+		for e in scene.active_entities {
+			assert(e != eid, tprint("Duplicate entity ID!!!: ", e));
+		}
+		_, ok := scene.entity_datas[eid];
+		assert(!ok, tprint("Duplicate entity ID that the previous check should have caught!!!: ", eid));
+	}
+
+	append(&scene.active_entities, eid);
+
+	data: ^Entity_Data;
+	if len(scene.entity_datas_pool) > 0 {
+		data = pop(&scene.entity_datas_pool);
+		data^ = {};
+	}
+	else {
+		data = new(Entity_Data);
+	}
+
+	component_list: [dynamic]typeid;
+	if len(scene.entity_component_list_pool) > 0 {
+		component_list = pop(&scene.entity_component_list_pool);
+		clear(&component_list);
+	}
+	else {
+		component_list = make([dynamic]typeid, 0, 5);
+	}
+	assert(component_list != nil);
+	data^ = Entity_Data{name, true, component_list, ""};
+	scene.entity_datas[eid] = data;
+
+	tf := add_component(eid, Transform);
+	tf.rotation = Quat{0, 0, 0, 1};
+	tf.scale = Vec3{1, 1, 1};
+
+	return eid;
+}
+
+destroy_entity :: proc(eid: Entity) {
+	assert(scene != nil);
+	append(&scene.entities_to_destroy, eid);
+}
+
+destroy_entity_immediate :: proc(eid: Entity) {
+	assert(scene != nil);
+
+	data, ok := scene.entity_datas[eid];
+	assert(ok); // todo(josh): maybe remove this assert and just return
+
+	logln("destroying ", data.name);
+
+	if data.serialized_file_on_disk != "" {
+		append(&scene.entity_files_to_destroy_on_save, data.serialized_file_on_disk);
+	}
+
+	for c in data.components {
+		component_data, ok := component_types[c];
+		assert(ok);
+
+		for i in 0..<component_data.storage.len {
+			ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)component_data.storage.data, i * component_data.ti.size);
+			if ptr.e == eid {
+				append(&component_data.reusable_indices, i);
+				ptr.e = 0;
+			}
+		}
+	}
+
+	assert(data.components != nil, "Entity didn't have any components??");
+	clear(&data.components);
+	append(&scene.entity_component_list_pool, data.components);
+
+
+
+	for active, active_idx in scene.active_entities {
+		if active == eid {
+			unordered_remove(&scene.active_entities, active_idx);
+			break;
+		}
+	}
+
+	delete_key(&scene.entity_datas, eid);
+	append(&scene.entity_datas_pool, data);
+}
+
+add_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> ^T { // note(josh): volatile return value, do not store
+	ptr := _add_component_internal(eid, typeid_of(T), loc);
+	assert(ptr != nil);
+	return cast(^T)ptr;
+}
+
+get_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> (^T, bool) {
+	ptr, ok := _get_component_internal(eid, typeid_of(T));
+	return cast(^T)ptr, ok;
+}
+
+remove_component :: proc(eid: Entity, $T: typeid) -> bool {
+	unimplemented();
+	return {};
+}
+
+get_component_storage :: proc($T: typeid) -> []T {
+	data, ok := component_types[typeid_of(T)];
+	assert(ok, tprint("Couldn't find component type: ", type_info_of(T)));
+	da := transmute([dynamic]T)data.storage;
+	return da[:];
+}
+
+load_entity_from_file :: proc(filepath: string) -> Entity {
+	// load file
+	data, ok := os.read_entire_file(filepath);
+	assert(ok);
+	defer delete(data);
+
+	// eat entity id
+	lexer := laas.make_lexer(cast(string)data);
+	eid_token, ok2 := laas.expect(&lexer, laas.Number);
+	eid := transmute(Entity)eid_token.int_value;
+
+	// eat entity name
+	name_token, name_ok := laas.expect(&lexer, laas.Identifier);
+	entity_name := "Entity";
+	if !name_ok {
+		logln("Entity ", eid, " didn't have a name in the file.");
+	}
+	else {
+		entity_name = strings.clone(name_token.value);
+	}
+
+	// make it
+	make_entity(entity_name, eid);
+
+	// load the component data
+	for {
+		for laas.is_token(&lexer, laas.New_Line) do laas.eat(&lexer);
+		component_name_ident, ok := laas.expect(&lexer, laas.Identifier);
+		if !ok do break;
+
+		nl, ok2 := laas.expect(&lexer, laas.New_Line);
+		assert(ok2);
+
+		ti := _get_component_ti_from_name(component_name_ident.value);
+		comp, found := _get_component_internal(eid, ti.id);
+		if !found do comp = _add_component_internal(eid, ti.id);
+
+		root: laas.Token;
+		ok4 := laas.get_next_token(&lexer, &root); assert(ok4);
+		wbml.parse_value(&lexer, root, comp, ti);
+	}
+
+	entity_data, ok4 := scene.entity_datas[eid];
+	entity_data.serialized_file_on_disk = filepath;
+
+	return eid;
+}
+
+
+
+//
 // Internal
 //
 
@@ -628,6 +679,9 @@ Entity_Data :: struct {
 	components: [dynamic]typeid,
 	serialized_file_on_disk: string,
 }
+delete_entity_data :: proc(data: Entity_Data) {
+	delete(data.components);
+}
 
 Component_Type :: struct {
 	ti: ^rt.Type_Info,
@@ -638,6 +692,10 @@ Component_Type :: struct {
 	render_proc: proc(rawptr),
 	init_proc:   proc(rawptr),
 	deinit_proc: proc(rawptr),
+}
+delete_component_type :: proc(type: Component_Type) {
+	free(type.storage.data);
+	delete(type.reusable_indices);
 }
 
 scene: ^Scene;
