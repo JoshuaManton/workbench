@@ -235,6 +235,43 @@ quat_mul_vec3 :: proc(quat: Quat, vec: Vec3) -> Vec3 {
 	return result;
 }
 
+slerp :: proc(q1: Quat, q2: Quat, t: f32) -> Quat {
+	q1 := q1;
+	d := dot(q1, q2);
+	if d < 0 {
+		q1.x = -q1.x;
+		q1.y = -q1.y;
+		q1.z = -q1.z;
+		q1.w = -q1.w;
+		d = -d;
+	}
+
+	theta  := abs(acos(d));
+	halft  := t / 2;
+	st     := sin(theta);
+	sut    := sin(halft * theta);
+	sout   := sin((1-halft)*theta);
+	coeff1 := sout / st;
+	coeff2 := sut / st;
+
+	x := coeff1 * q1.x + coeff2 * q2.x;
+	y := coeff1 * q1.y + coeff2 * q2.y;
+	z := coeff1 * q1.z + coeff2 * q2.z;
+	w := coeff1 * q1.w + coeff2 * q2.w;
+
+	return Quat{x, y, z, w};
+}
+
+acos :: proc(x: f32) -> f32 {
+	// todo(josh): this approximation has a potential error of about 10 degrees according to stack overflow, maybe look into a more accurate implementation
+	// return (-0.69813170079773212 * x * x - 0.87266462599716477) * x + 1.5707963267948966;
+
+	a := 1.43+0.59*x; a = (a+(2+2*x)/a)/2;
+	b := 1.65-1.41*x; b = (b+(2-2*x)/b)/2;
+	c := 0.88-0.77*x; c = (c+(2-a)/c)/2;
+	return (8*(c+(2-a)/c)-(b+(2-2*x)/b))/6;
+}
+
 atan2 :: proc(y, x: f64) -> f64 {
     // special cases
     switch {

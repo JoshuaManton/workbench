@@ -135,7 +135,7 @@ make_simple_window :: proc(window_name: string,
 		gpu.log_errors("after SwapBuffers()");
 
 		remove_ended_workspaces();
-		
+
 		rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 	}
 

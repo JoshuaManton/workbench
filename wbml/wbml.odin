@@ -250,7 +250,7 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						}
 
 						variable_name, ok2 := token.kind.(laas.Identifier);
-						assert(ok2);
+						assert(ok2, tprint(token));
 
 						struct_kind: ^rt.Type_Info_Struct;
 						switch ti_kind in &ti.variant {
@@ -260,8 +260,10 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 						}
 						assert(struct_kind != nil);
 
+						found := false;
 						for name, idx in struct_kind.names {
 							if name == variable_name.value {
+								found = true;
 								value_token: Token;
 								ok3 := get_next_token(lexer, &value_token); assert(ok3);
 								field_ptr := mem.ptr_offset(cast(^byte)data, cast(int)struct_kind.offsets[idx]);
@@ -277,6 +279,8 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 								break;
 							}
 						}
+
+						assert(found, tprint("Cound't find field '", variable_name.value, "' in type ", ti));
 					}
 				}
 

@@ -67,7 +67,6 @@ Symbol :: struct {
 }
 
 New_Line :: struct {
-	value: rune,
 }
 
 EOF :: struct {
@@ -134,7 +133,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 		}
 
 		case '\n': {
-			token^ = Token{lexer_text[lex_idx:lex_idx], New_Line{r}};
+			token^ = Token{lexer_text[lex_idx:lex_idx], New_Line{}};
 		}
 
 		case 'A'..'Z', 'a'..'z', '_': {

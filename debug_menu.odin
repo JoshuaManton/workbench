@@ -65,15 +65,15 @@ update_debug_menu :: proc() {
 		imgui.end();
 
 
-		console.update_console_window(debug_console);
+		// console.update_console_window(debug_console);
 	}
 }
 
 
 
 debug_programs: [dynamic]Debug_Program;
-register_debug_program :: proc(name: string, procedure: proc(rawptr), userdata: rawptr) {
-	append(&debug_programs, Debug_Program{name, procedure, userdata, false});
+register_debug_program :: proc(name: string, procedure: proc(rawptr), userdata: rawptr, is_open := false) {
+	append(&debug_programs, Debug_Program{name, procedure, userdata, is_open});
 }
 
 Debug_Program :: struct {
