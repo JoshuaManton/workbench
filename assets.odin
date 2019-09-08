@@ -3,6 +3,7 @@ package workbench
       import "core:sys/win32"
       import "core:strings"
       import "core:os"
+      import "core:mem"
 using import "core:fmt"
 using import "logging"
       import "gpu"
@@ -41,7 +42,7 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 	delete(catalog.filepaths);
 }
 
-load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types: ..string) {
+load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types: ..string, loc := #caller_location) {
 	files := get_all_filepaths_recursively(path);
 	defer delete(files);
 

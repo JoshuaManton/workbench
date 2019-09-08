@@ -112,6 +112,19 @@ buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
 
 
 
+draw_arrays :: inline proc(draw_mode: Draw_Mode, first: int, count: int) {
+	odingl.DrawArrays(cast(u32)draw_mode, cast(i32)first, cast(i32)count);
+	log_errors(#procedure);
+}
+
+draw_elements :: inline proc(draw_mode: Draw_Mode, count: int, type: Draw_Elements_Type, indices: rawptr) { // todo(josh): this is a pretty shitty wrapper
+	odingl.DrawElements(cast(u32)draw_mode, i32(count), cast(u32)type, indices);
+	log_errors(#procedure);
+}
+draw_elephants :: draw_elements;
+
+
+
 scissor :: proc(rect: [4]int, loc := #caller_location) {
 	odingl.Enable(odingl.SCISSOR_TEST);
 	odingl.Scissor(rect[0], rect[1], rect[2], rect[3]);
@@ -124,13 +137,19 @@ unscissor :: proc(screen_width, screen_height: f32, loc := #caller_location) {
 }
 
 
-enable :: proc(bits: Capabilities, loc := #caller_location) {
+enable :: inline proc(bits: Capabilities, loc := #caller_location) {
 	odingl.Enable(transmute(u32)bits);
 	log_errors(#procedure, loc);
 }
-disable :: proc(bits: Capabilities, loc := #caller_location) {
+disable :: inline proc(bits: Capabilities, loc := #caller_location) {
 	odingl.Disable(transmute(u32)bits);
 	log_errors(#procedure, loc);
+}
+
+is_enabled :: inline proc(bits: Capabilities, loc := #caller_location) -> bool {
+	b := odingl.IsEnabled(transmute(u32)bits);
+	log_errors(#procedure, loc);
+	return b == odingl.TRUE;
 }
 
 
@@ -254,6 +273,11 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
 
 use_program :: inline proc(program: Shader_Program, loc := #caller_location) {
 	odingl.UseProgram(cast(u32)program);
+	log_errors(#procedure, loc);
+}
+
+delete_shader :: inline proc(program: Shader_Program, loc := #caller_location) {
+	odingl.DeleteShader(cast(u32)program);
 	log_errors(#procedure, loc);
 }
 

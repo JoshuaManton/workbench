@@ -13,6 +13,13 @@ using import wbm "../math"
 
 /*
 
+--- Lifetime
+{
+	init_gpu  :: proc(screen_width, screen_height: int, version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type)
+	prerender :: proc(screen_width, screen_height: f32)
+	deinit    :: proc()
+}
+
 --- Cameras
 {
 	init_camera              :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false)
@@ -39,9 +46,9 @@ using import wbm "../math"
 
 --- Models and Meshes
 {
-	add_mesh_to_model      :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32)
+	add_mesh_to_model      :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indices: []u32)
 	remove_mesh_from_model :: proc(model: ^Model, name: string) -> bool
-	update_mesh            :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) -> bool
+	update_mesh            :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indices: []u32) -> bool
 	draw_model             :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool)
 	delete_model           :: proc(model: Model)
 }
@@ -81,6 +88,36 @@ using import wbm "../math"
 }
 
 */
+
+
+
+//
+// Lifetime
+//
+
+init :: proc(screen_width, screen_height: int, version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
+	odingl.load_up_to(version_major, version_minor, set_proc_address);
+
+	init_camera(&default_camera, true, 85, screen_width, screen_height);
+	default_camera.clear_color = {1, 0, 1, 1};
+	push_camera_non_deferred(&default_camera);
+
+	_internal_cube_model = create_cube_model();
+	_internal_quad_model = create_quad_model();
+}
+
+prerender :: proc(screen_width, screen_height: f32) {
+	assert(current_camera == &default_camera);
+	update_camera_pixel_size(&default_camera, screen_width, screen_height);
+	camera_prerender(current_camera);
+}
+
+deinit :: proc() {
+	delete_model(_internal_quad_model);
+	delete_model(_internal_cube_model);
+
+	delete_camera(default_camera);
+}
 
 
 
@@ -170,7 +207,7 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
     }
 }
 
-delete_camera :: proc(camera: ^Camera) {
+delete_camera :: proc(camera: Camera) {
     if camera.framebuffer.fbo != 0 {
         delete_framebuffer(camera.framebuffer);
     }
@@ -264,55 +301,44 @@ write_texture_to_file :: proc(filepath: string, texture: Texture) {
 //
 
 // todo(josh): maybe shouldn't use strings for mesh names, not sure
-add_mesh_to_model :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) {
+add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, loc := #caller_location) -> int {
 	vao := gen_vao();
 	vbo := gen_vbo();
 	ibo := gen_ebo();
 
-	mesh := Mesh{name, vao, vbo, ibo, type_info_of(Vertex_Type), len(indicies), len(vertices)};
-	append(&model.meshes, mesh);
+	idx := len(model.meshes);
+	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices)};
+	append(&model.meshes, mesh, loc);
 
-	update_mesh(model, name, vertices, indicies);
+	update_mesh(model, idx, vertices, indices);
+
+	return idx;
 }
 
-remove_mesh_from_model :: proc(model: ^Model, name: string) -> bool {
-	for mesh, idx in model.meshes {
-		if mesh.name != name do continue;
-		_internal_delete_mesh(mesh);
-		unordered_remove(&model.meshes, idx);
-		return true;
-	}
-
-	// todo(josh): maybe remove this log? idk
-	logln("Couldn't find mesh '", name, "'.");
-	return false;
+remove_mesh_from_model :: proc(model: ^Model, idx: int) {
+	assert(idx < len(model.meshes));
+	mesh := model.meshes[idx];
+	_internal_delete_mesh(mesh);
+	unordered_remove(&model.meshes, idx);
 }
 
-update_mesh :: proc(model: ^Model, name: string, vertices: []$Vertex_Type, indicies: []u32) -> bool {
-	for _, i in model.meshes {
-		mesh := &model.meshes[i];
-		if mesh.name != name do continue;
+update_mesh :: proc(model: ^Model, idx: int, vertices: []$Vertex_Type, indices: []u32) {
+	assert(idx < len(model.meshes));
+	mesh := &model.meshes[idx];
 
-		bind_vao(mesh.vao);
+	bind_vao(mesh.vao);
 
-		bind_vbo(mesh.vbo);
-		buffer_vertices(vertices);
+	bind_vbo(mesh.vbo);
+	buffer_vertices(vertices);
 
-		bind_ibo(mesh.ibo);
-		buffer_elements(indicies);
+	bind_ibo(mesh.ibo);
+	buffer_elements(indices);
 
-		bind_vao(cast(VAO)0);
+	bind_vao(cast(VAO)0);
 
-		mesh.vertex_type  = type_info_of(Vertex_Type);
-		mesh.index_count  = len(indicies);
-		mesh.vertex_count = len(vertices);
-
-		return true;
-	}
-
-	// todo(josh): maybe remove this log? idk
-	logln("Couldn't find mesh '", name, "'.");
-	return false;
+	mesh.vertex_type  = type_info_of(Vertex_Type);
+	mesh.index_count  = len(indices);
+	mesh.vertex_count = len(vertices);
 }
 
 draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool, loc := #caller_location) {
@@ -328,44 +354,41 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	model_r := quat_to_mat4(rotation);
 	model_matrix := mul(mul(model_p, model_r), model_s);
 
+	// shader stuff
+	program := get_current_shader();
+
+	uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
+	uniform1i(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
+	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
+
+	uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
+	uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
+	uniform_matrix4fv(program, "projection_matrix", 1, false, &projection_matrix[0][0]);
+
 	for mesh in model.meshes {
 		bind_vao(mesh.vao);
 		bind_vbo(mesh.vbo);
 		bind_ibo(mesh.ibo);
 		bind_texture2d(texture.gpu_id);
 
+		log_errors(#procedure);
+
 		set_vertex_format(mesh.vertex_type);
-
-		program := get_current_shader();
-
-		uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
-
-		uniform1i(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
-		uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
-
-		uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
-		uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-		uniform_matrix4fv(program, "projection_matrix", 1, false, &projection_matrix[0][0]);
-
-		// todo(josh): remove all this depth test stuff? since we take it as a parameter we can just set it every time I think
-
-		old_depth_test := odingl.IsEnabled(odingl.DEPTH_TEST);
-		defer if old_depth_test == odingl.TRUE {
-			odingl.Enable(odingl.DEPTH_TEST);
-		}
+		log_errors(#procedure);
 
 		if depth_test {
-			odingl.Enable(odingl.DEPTH_TEST);
+			enable(.Depth_Test);
 		}
 		else {
-			odingl.Disable(odingl.DEPTH_TEST);
+			disable(.Depth_Test);
 		}
+		log_errors(#procedure);
 
 		if mesh.index_count > 0 {
-			odingl.DrawElements(cast(u32)current_camera.draw_mode, i32(mesh.index_count), odingl.UNSIGNED_INT, nil);
+			draw_elephants(current_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 		}
 		else {
-			odingl.DrawArrays(cast(u32)current_camera.draw_mode, 0, cast(i32)mesh.vertex_count);
+			draw_arrays(current_camera.draw_mode, 0, mesh.vertex_count);
 		}
 	}
 }
@@ -418,7 +441,7 @@ create_cube_model :: proc() -> Model {
     };
 
     model: Model;
-    add_mesh_to_model(&model, "cube", verts, {});
+    add_mesh_to_model(&model, verts, {});
     return model;
 }
 
@@ -433,7 +456,7 @@ create_quad_model :: proc() -> Model {
     };
 
     model: Model;
-    add_mesh_to_model(&model, "quad", verts, {});
+    add_mesh_to_model(&model, verts, {});
     return model;
 }
 
@@ -620,23 +643,6 @@ _internal_cube_model: Model;
 
 default_camera: Camera;
 current_camera: ^Camera;
-
-init_gpu :: proc(screen_width, screen_height: int, version_major, version_minor: int, set_proc_address: odingl.Set_Proc_Address_Type) {
-	odingl.load_up_to(version_major, version_minor, set_proc_address);
-
-	init_camera(&default_camera, true, 85, screen_width, screen_height);
-	default_camera.clear_color = {1, 0, 1, 1};
-	push_camera_non_deferred(&default_camera);
-
-	_internal_cube_model = create_cube_model();
-	_internal_quad_model = create_quad_model();
-}
-
-prerender :: proc(screen_width, screen_height: f32) {
-	assert(current_camera == &default_camera);
-	update_camera_pixel_size(&default_camera, screen_width, screen_height);
-	camera_prerender(current_camera);
-}
 
 _internal_delete_mesh :: proc(mesh: Mesh) {
 	delete_vao(mesh.vao);

@@ -52,6 +52,8 @@ make_simple_window :: proc(window_name: string,
                            opengl_version_major, opengl_version_minor: int,
                            target_framerate: f32,
                            workspace: Workspace) {
+	defer logln("workbench successfully shutdown.");
+
 	startup_start_time := glfw.GetTime();
 
 	wb_profiler = pf.make_profiler(proc() -> f64 {
@@ -63,6 +65,7 @@ make_simple_window :: proc(window_name: string,
 
 	platform.init_platform(&main_window, window_name, window_width, window_height, opengl_version_major, opengl_version_minor);
 	init_draw(window_width, window_height, opengl_version_major, opengl_version_minor);
+	defer deinit_draw();
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
 	init_default_fonts();
@@ -140,7 +143,6 @@ make_simple_window :: proc(window_name: string,
 	}
 
 	_end_all_workspaces();
-	logln("workbench successfully shutdown.");
 }
 
 wb_should_close: bool;

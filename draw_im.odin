@@ -400,7 +400,7 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 		}
 	}
 
-	gpu.update_mesh(&im_model, "im_model", list, []u32{});
+	gpu.update_mesh(&im_model, 0, list, []u32{});
 	gpu.use_program(shader);
 	gpu.draw_model(im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
 	num_draw_calls += 1;

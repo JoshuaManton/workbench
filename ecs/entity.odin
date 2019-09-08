@@ -228,6 +228,10 @@ render :: proc() {
 	}
 }
 
+
+
+selected_entity: Entity;
+
 draw_scene_window :: proc() {
 	if imgui.begin("Scene") {
 		// save/load panel
@@ -343,17 +347,16 @@ draw_scene_window :: proc() {
 				append(&entity_names, cast(^u8)str);
 			}
 
-			@static selected_entity: i32;
-    		imgui.list_box("Entities", &selected_entity, &entity_names[0], cast(i32)len(entity_names), 30);
+			@static _selected_entity: i32;
+    		imgui.list_box("Entities", &_selected_entity, &entity_names[0], cast(i32)len(entity_names), 30);
+    		selected_entity = scene.active_entities[_selected_entity];
 
     		if imgui.begin("Inspector") {
-				eid := scene.active_entities[selected_entity];
-
 				entity_to_clone: Entity;
-				e_data, ok := scene.entity_datas[eid];
+				e_data, ok := scene.entity_datas[selected_entity];
 				assert(ok);
 
-				imgui.push_id(tprint(e_data.name," - ", eid)); defer imgui.pop_id();
+				imgui.push_id(tprint(e_data.name," - ", selected_entity)); defer imgui.pop_id();
 
 
 				@static entity_name_buffer: [64]u8;
@@ -367,12 +370,12 @@ draw_scene_window :: proc() {
 				imgui.checkbox("Enabled", &e_data.enabled);
 				imgui.same_line();
 				if imgui.button("Clone") {
-					entity_to_clone = eid;
+					entity_to_clone = selected_entity;
 				}
 
 				imgui.same_line();
 				if imgui.button("Destroy") {
-					destroy_entity(eid);
+					destroy_entity(selected_entity);
 				}
 
 				for c in e_data.components {
@@ -383,7 +386,7 @@ draw_scene_window :: proc() {
 
 					for i in 0..<component_data.storage.len {
 						ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)component_data.storage.data, i * component_data.ti.size);
-						if ptr.e == eid {
+						if ptr.e == selected_entity {
 							wb.imgui_struct_ti("", ptr, component_data.ti);
 							break;
 						}
@@ -412,7 +415,7 @@ draw_scene_window :: proc() {
 
 						if len(input_lower) > 0 && string_starts_with(name_lower, input_lower) {
 							if imgui.button(name) {
-								comp := cast(^Component_Base)_add_component_internal(eid, tid);
+								comp := cast(^Component_Base)_add_component_internal(selected_entity, tid);
 								imgui.close_current_popup();
 							}
 						}
@@ -680,7 +683,9 @@ Entity_Data :: struct {
 	serialized_file_on_disk: string,
 }
 delete_entity_data :: proc(data: Entity_Data) {
+	delete(data.name);
 	delete(data.components);
+	delete(data.serialized_file_on_disk);
 }
 
 Component_Type :: struct {

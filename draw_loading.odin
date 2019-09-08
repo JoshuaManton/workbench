@@ -122,7 +122,7 @@ add_sprite_to_atlas :: proc(atlas: ^Texture_Atlas, pixels_rgba: []byte, pixels_p
 // Meshes
 //
 
-load_model_from_file :: proc(path: string) -> gpu.Model {
+load_model_from_file :: proc(path: string, loc := #caller_location) -> gpu.Model {
 	path_c := strings.clone_to_cstring(path);
 	defer delete(path_c);
 
@@ -131,7 +131,11 @@ load_model_from_file :: proc(path: string) -> gpu.Model {
 		cast(u32) ai.Post_Process_Steps.Triangulate |
 		cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
 		cast(u32) ai.Post_Process_Steps.Sort_By_PType |
-		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order|
+		cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
+		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
+		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
+		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
+		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
@@ -140,14 +144,18 @@ load_model_from_file :: proc(path: string) -> gpu.Model {
 	return model;
 }
 
-load_model_from_memory :: proc(data: []byte) -> gpu.Model {
+load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> gpu.Model {
 	hint := "fbx\x00";
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
 		cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
 		cast(u32) ai.Post_Process_Steps.Triangulate |
 		cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
 		cast(u32) ai.Post_Process_Steps.Sort_By_PType |
-		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order|
+		cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
+		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
+		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
+		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
+		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs, &hint[0]);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
@@ -156,81 +164,60 @@ load_model_from_memory :: proc(data: []byte) -> gpu.Model {
 	return model;
 }
 
-// load_model_to_gpu :: proc(model: ^Model) {
-// 	assert(model.gpu_meshes == nil);
-// 	meshes := make([dynamic]gpu.Mesh, 0, len(model.cpu_meshes));
-// 	for mesh in model.cpu_meshes {
-// 		append(&meshes, gpu.create_mesh(mesh.vertices, mesh.indicies, mesh.name));
-// 	}
-// 	model.gpu_meshes = meshes[:];
-// }
 
-// free_model_from_gpu :: proc(model: ^Model) {
-// 	assert(model != nil);
-// 	for _, i in model.gpu_meshes {
-// 		mesh := &model.gpu_meshes[i];
-// 		gpu.delete_mesh(mesh);
-// 	}
-// 	delete(model.gpu_meshes);
-// }
 
-// free_model_cpu_memory :: proc(model: ^Model) {
-// 	assert(model != nil);
-// 	for _, i in model.cpu_meshes {
-// 		mesh := &model.cpu_meshes[i];
-// 		delete(mesh.vertices);
-// 		delete(mesh.indicies);
-// 		if mesh.name != "" do delete(mesh.name);
-// 	}
-// 	delete(model.cpu_meshes);
-// }
-
-// delete_model :: proc(model: Model) {
-// 	free_model_from_gpu(&model);
-// 	free_model_cpu_memory(&model);
-// }
-
-_load_model_internal :: proc(scene: ^ai.Scene) -> gpu.Model {
+_load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> gpu.Model {
 	mesh_count := cast(int) scene.num_meshes;
 	model: gpu.Model;
-	model.meshes = make([dynamic]gpu.Mesh, 0, mesh_count);
+	model.meshes = make([dynamic]gpu.Mesh, 0, mesh_count, context.allocator, loc);
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
 		mesh := meshes[i];
 
 		verts := mem.slice_ptr(mesh.vertices, cast(int) mesh.num_vertices);
-		norms := mem.slice_ptr(mesh.normals, cast(int) mesh.num_vertices);
+		norms: []ai.Vector3D;
+		if mesh.normals != nil {
+			norms = mem.slice_ptr(mesh.normals, cast(int) mesh.num_vertices);
+		}
+		if norms == nil {
+			logln("nil norms, ", cast(string)mesh.name.data[:mesh.name.length]);
+			continue;
+		}
 
-		colours : []ai.Color4D;
-		if mesh.colors[0] != nil {
-			colours = mem.slice_ptr(mesh.colors[0], cast(int) mesh.num_vertices);
+
+		colors : []ai.Color4D;
+		if ai.has_vertex_colors(mesh, 0) {
+			colors = mem.slice_ptr(mesh.colors[0], cast(int) mesh.num_vertices);
 		}
 
 		texture_coords : []ai.Vector3D;
-		if mesh.texture_coords[0] != nil {
+		if ai.has_texture_coords(mesh, 0) {
 			texture_coords = mem.slice_ptr(mesh.texture_coords[0], cast(int) mesh.num_vertices);
 		}
 
-		processedVerts := make([dynamic]gpu.Vertex3D, 0, mesh.num_vertices);
+		processed_verts := make([dynamic]gpu.Vertex3D, 0, mesh.num_vertices);
+		defer delete(processed_verts);
 
 		// process vertices into Vertex3D struct
-		// TODO (jake): support vertex colours
 		for i in 0..mesh.num_vertices-1 {
-			normal := norms[i];
+			normal := ai.Vector3D{0, 0, 1};
+			if norms != nil {
+				normal = norms[i];
+			}
 			position := verts[i];
 
-			colour: Colorf;
-			if mesh.colors[0] != nil {
-				colour = Colorf(colours[i]);
+			color: Colorf;
+			if colors != nil {
+				color = Colorf(colors[i]);
 			}
 			else {
-				rnd := (cast(f32)i / cast(f32)len(verts)) * 0.75 + 0.25;
-				colour = Colorf{rnd, 0, rnd, 1};
+				assert(len(colors) == 0);
+				color = Colorf{1, 0, 1, 1};
 			}
 
 			texture_coord: Vec3;
-			if mesh.texture_coords[0] != nil {
+			if texture_coords != nil {
 				texture_coord = Vec3{texture_coords[i].x, texture_coords[i].y, texture_coords[i].z};
 			}
 			else {
@@ -240,27 +227,26 @@ _load_model_internal :: proc(scene: ^ai.Scene) -> gpu.Model {
 			vert := gpu.Vertex3D{
 				Vec3{position.x, position.y, position.z},
 				texture_coord,
-				colour,
+				color,
 				Vec3{normal.x, normal.y, normal.z}};
 
-			append(&processedVerts, vert);
+			append(&processed_verts, vert);
 		}
 
 		indices := make([dynamic]u32, 0, mesh.num_vertices);
+		defer delete(indices);
 
 		faces := mem.slice_ptr(mesh.faces, cast(int)mesh.num_faces);
-		for i in 0..mesh.num_faces-1 {
-			face := faces[i];
-			faceIndicies := mem.slice_ptr(face.indices, cast(int) face.num_indices);
-			for j in 0 .. face.num_indices-1 {
-				append(&indices, faceIndicies[j]);
+		for face in faces {
+			face_indicies := mem.slice_ptr(face.indices, cast(int) face.num_indices);
+			for face_index in face_indicies {
+				append(&indices, face_index);
 			}
 		}
 
 		// create mesh
 		gpu.add_mesh_to_model(&model,
-			string(mesh.name.data[:mesh.name.length]),
-			processedVerts[:],
+			processed_verts[:],
 			indices[:]
 		);
 	}
@@ -283,6 +269,8 @@ Font :: struct {
 
 load_font :: proc(data: []byte, pixel_height: f32) -> Font {
 	pixels: []u8;
+	defer delete(pixels);
+
 	chars:  []stb.Baked_Char;
 	dim := 128;
 

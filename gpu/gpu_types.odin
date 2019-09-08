@@ -34,6 +34,7 @@ Camera :: struct {
 
     framebuffer: Framebuffer,
 }
+
 Debug_Draw_Call_Data :: struct {
     mesh_name: string,
     vertex_type: ^rt.Type_Info,
@@ -98,8 +99,6 @@ Model :: struct {
 }
 
 Mesh :: struct {
-    name: string,
-
     vao: VAO,
     vbo: VBO,
     ibo: EBO,
@@ -108,6 +107,8 @@ Mesh :: struct {
     index_count:  int,
     vertex_count: int,
 }
+
+MeshID :: distinct int;
 
 
 
@@ -122,6 +123,24 @@ Draw_Mode :: enum u32 {
     Line_Loop  = odingl.LINE_LOOP,
 	Line_Strip = odingl.LINE_STRIP,
 	Triangles  = odingl.TRIANGLES,
+}
+
+Draw_Elements_Type :: enum i32 {
+    Unsigned_Byte  = odingl.UNSIGNED_BYTE,
+    Unsigned_Short = odingl.UNSIGNED_SHORT,
+    Unsigned_Int   = odingl.UNSIGNED_INT,
+}
+
+Buffer_Data_Usage :: enum i32 {
+    Stream_Draw                         = odingl.STREAM_DRAW,
+    Stream_Read                         = odingl.STREAM_READ,
+    Stream_Copy                         = odingl.STREAM_COPY,
+    Static_Draw                         = odingl.STATIC_DRAW,
+    Static_Read                         = odingl.STATIC_READ,
+    Static_Copy                         = odingl.STATIC_COPY,
+    Dynamic_Draw                        = odingl.DYNAMIC_DRAW,
+    Dynamic_Read                        = odingl.DYNAMIC_READ,
+    Dynamic_Copy                        = odingl.DYNAMIC_COPY,
 }
 
 Clear_Flags :: enum u32 {

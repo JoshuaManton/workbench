@@ -146,7 +146,8 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 					recurse(nested_path, results);
 				}
 				else {
-					append(results, strings.clone(tprint(path, "/", file_name)));
+					str := strings.clone(tprint(path, "/", file_name));
+					append(results, str);
 				}
 			}
 
