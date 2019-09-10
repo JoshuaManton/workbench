@@ -78,7 +78,7 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 	gpu.init_camera(&wb_camera, true, 85, screen_width, screen_height, true);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
-	gpu.add_mesh_to_model(&im_model, []gpu.Vertex2D{}, []u32{});
+	gpu.add_mesh_to_model(&_internal_im_model, []gpu.Vertex2D{}, []u32{});
 
 	ok: bool;
 	shader_rgba_2d, ok    = gpu.load_shader_text(SHADER_RGBA_2D_VERT, SHADER_RGBA_2D_FRAG);
@@ -133,7 +133,7 @@ render_workspaces :: proc() {
 			}
 
 			// post-render
-			im_flush(&buffered_draw_commands);
+			im_flush();
 
 			// draw debug lines
 			{

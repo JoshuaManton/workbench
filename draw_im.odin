@@ -23,11 +23,12 @@ using import        "logging"
 // API
 //
 
-push_quad :: inline proc(
+im_quad :: inline proc(
 	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	color: Colorf,
+	texture: gpu.Texture, // note(josh): can be empty
 	auto_cast render_order: int = current_render_layer) {
 
 		cmd := Draw_Command{
@@ -35,11 +36,11 @@ push_quad :: inline proc(
 			serial_number = len(buffered_draw_commands),
 			rendermode = rendermode,
 			shader = shader,
-			texture = {},
+			texture = texture,
 			scissor = do_scissor,
 			scissor_rect = current_scissor_rect,
 
-			derived = Draw_Quad_Command {
+			kind = Draw_Quad_Command {
 				min = min,
 				max = max,
 				color = color,
@@ -48,17 +49,18 @@ push_quad :: inline proc(
 
 		append(&buffered_draw_commands, cmd);
 }
-push_quad_pos :: inline proc(
+im_quad_pos :: inline proc(
 	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	pos, size: Vec2,
 	color: Colorf,
+	texture: gpu.Texture, // note(josh): can be empty
 	auto_cast render_order: int = current_render_layer) {
 
-		push_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, render_order);
+		im_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, texture, render_order);
 }
 
-push_sprite :: inline proc(
+im_sprite :: inline proc(
 	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	position, scale: Vec2,
@@ -73,9 +75,9 @@ push_sprite :: inline proc(
 		min -= size * pivot;
 		max -= size * pivot;
 
-		push_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
+		im_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
 }
-push_sprite_minmax :: inline proc(
+im_sprite_minmax :: inline proc(
 	rendermode: gpu.Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
@@ -92,7 +94,7 @@ push_sprite_minmax :: inline proc(
 			scissor = do_scissor,
 			scissor_rect = current_scissor_rect,
 
-			derived = Draw_Sprite_Command{
+			kind = Draw_Sprite_Command{
 				min = min,
 				max = max,
 				color = color,
@@ -103,7 +105,8 @@ push_sprite_minmax :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 
-push_mesh :: inline proc(
+im_model :: inline proc(
+	rendermode: gpu.Rendermode_Proc,
 	model: gpu.Model,
 	position: Vec3,
 	scale: Vec3,
@@ -116,13 +119,13 @@ push_mesh :: inline proc(
 		cmd := Draw_Command{
 			render_order = render_order,
 			serial_number = len(buffered_draw_commands),
-			rendermode = gpu.rendermode_world,
+			rendermode = rendermode,
 			shader = shader,
 			texture = texture,
 			scissor = do_scissor,
 			scissor_rect = current_scissor_rect,
 
-			derived = Draw_Model_Command{
+			kind = Draw_Model_Command{
 				model = model,
 				position = position,
 				scale = scale,
@@ -205,7 +208,7 @@ push_text :: proc(
 			}
 
 			if !is_space && actually_draw {
-				push_sprite_minmax(rendermode, shader_text, min, max, sprite, color, layer);
+				im_sprite_minmax(rendermode, shader_text, min, max, sprite, color, layer);
 			}
 
 			width := max.x - min.x;
@@ -234,7 +237,7 @@ IM_PUSH_CAMERA :: proc(camera: ^gpu.Camera) -> ^gpu.Camera {
 
 @private
 im_pop_camera :: proc(old_camera: ^gpu.Camera) {
-	im_flush(&buffered_draw_commands);
+	im_flush();
 	gpu.pop_camera(old_camera);
 }
 
@@ -274,7 +277,7 @@ im_scissor_end :: proc() {
 // Internal
 //
 
-im_model: gpu.Model;
+_internal_im_model: gpu.Model;
 buffered_draw_commands: [dynamic]Draw_Command;
 
 do_scissor: bool;
@@ -282,25 +285,24 @@ current_scissor_rect: [4]int;
 
 current_render_layer: int;
 
-im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
-	if cmds == nil do return;
-
+im_flush :: proc() {
 	pf.TIMED_SECTION(&wb_profiler);
+
+	cmds := &buffered_draw_commands;
+
+	if cmds == nil do return;
+	if len(cmds) == 0 do return;
 
 	defer clear(cmds);
 
+
+	sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {
+			diff := a.render_order - b.render_order;
+			if diff != 0 do return diff;
+			return a.serial_number - b.serial_number;
+		});
+
 	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
-
-
-	if !gpu.current_camera.is_perspective {
-		sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {
-				diff := a.render_order - b.render_order;
-				if diff != 0 do return diff;
-				return a.serial_number - b.serial_number;
-			});
-	}
-
-
 
 	current_rendermode : gpu.Rendermode_Proc = nil;
 	is_scissor := false;
@@ -313,7 +315,8 @@ im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
 		texture_mismatch    := cmd.texture.gpu_id  != current_texture.gpu_id;
 		scissor_mismatch    := cmd.scissor         != is_scissor;
 		rendermode_mismatch := cmd.rendermode      != current_rendermode;
-		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
+		_, is_draw_model    := cmd.kind.(Draw_Model_Command); // todo(josh): mesh batching?
+		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch || is_draw_model {
 			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture);
 			clear(&im_queued_for_drawing);
 		}
@@ -321,7 +324,6 @@ im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
 		if shader_mismatch     do current_shader  = cmd.shader;
 		if texture_mismatch    do current_texture = cmd.texture;
 		if rendermode_mismatch {
-			// todo(josh): do we need a flush here??
 			current_rendermode = cmd.rendermode;
 			cmd.rendermode();
 		}
@@ -337,7 +339,7 @@ im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
 		}
 
 		#complete
-		switch kind in cmd.derived {
+		switch kind in cmd.kind {
 			case Draw_Quad_Command: {
 				p1, p2, p3, p4 := kind.min, Vec2{kind.min.x, kind.max.y}, kind.max, Vec2{kind.max.x, kind.min.y};
 
@@ -364,6 +366,10 @@ im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
 
+			case Draw_Texture_Command: {
+				unimplemented();
+			}
+
 			case Draw_Model_Command: {
 				// todo(josh): mesh batching, right now it's a draw call per mesh
 
@@ -374,7 +380,6 @@ im_flush :: proc(cmds: ^[dynamic]Draw_Command) {
 					}
 				}
 
-				gpu.rendermode_world();
 				gpu.use_program(cmd.shader);
 				gpu.draw_model(kind.model, kind.position, kind.scale, kind.rotation, kind.texture, kind.color, true);
 			}
@@ -400,9 +405,9 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 		}
 	}
 
-	gpu.update_mesh(&im_model, 0, list, []u32{});
+	gpu.update_mesh(&_internal_im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	gpu.draw_model(im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
+	gpu.draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
 	num_draw_calls += 1;
 }
 

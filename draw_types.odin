@@ -15,8 +15,9 @@ Draw_Command :: struct {
 	scissor:      bool,
 	scissor_rect: [4]int,
 
-	derived: union {
+	kind: union {
 		Draw_Quad_Command,
+		Draw_Texture_Command,
 		Draw_Sprite_Command,
 		Draw_Model_Command,
 	},
@@ -24,6 +25,11 @@ Draw_Command :: struct {
 }
 Draw_Quad_Command :: struct {
 	min, max: Vec2,
+	color: Colorf,
+}
+Draw_Texture_Command :: struct {
+	position: Vec2,
+	scale: Vec2,
 	color: Colorf,
 }
 Draw_Sprite_Command :: struct {

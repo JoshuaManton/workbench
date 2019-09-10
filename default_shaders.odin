@@ -28,7 +28,7 @@ SHADER_RGBA_2D_FRAG ::
 
 in vec4 desired_color;
 
-layout(location = 0) out vec4 color;
+out vec4 color;
 
 void main() {
     color = desired_color;

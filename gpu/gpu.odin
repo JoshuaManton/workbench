@@ -215,13 +215,13 @@ delete_camera :: proc(camera: Camera) {
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
-    view_matrix := identity(Mat4);
-    view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
-    rotation_matrix: Mat4;
-    if camera.current_rendermode == .World {
+	view_matrix := identity(Mat4);
+   	rotation_matrix: Mat4;
+	if camera.current_rendermode == .World {
+    	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
 	    rotation_matrix = quat_to_mat4(inverse(camera.rotation));
-    }
-    else {
+	}
+	else {
 	    rotation_matrix = quat_to_mat4(inverse(Quat{0, 0, 0, 1}));
     }
     view_matrix = mul(rotation_matrix, view_matrix);
