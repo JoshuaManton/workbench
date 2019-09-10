@@ -347,104 +347,114 @@ draw_scene_window :: proc() {
 				append(&entity_names, cast(^u8)str);
 			}
 
-			@static _selected_entity: i32;
+			@static _selected_entity: i32 = -1;
     		imgui.list_box("Entities", &_selected_entity, &entity_names[0], cast(i32)len(entity_names), 30);
-    		selected_entity = scene.active_entities[_selected_entity];
+    		if cast(int)_selected_entity > len(scene.active_entities) {
+    			_selected_entity = -1;
+    		}
+
+    		if _selected_entity >= 0 && cast(int)_selected_entity < len(scene.active_entities) {
+	    		selected_entity = scene.active_entities[_selected_entity];
+    		}
+    		else {
+    			selected_entity = 0;
+    		}
 
     		if imgui.begin("Inspector") {
-				entity_to_clone: Entity;
-				e_data, ok := scene.entity_datas[selected_entity];
-				assert(ok);
-
-				imgui.push_id(tprint(e_data.name," - ", selected_entity)); defer imgui.pop_id();
-
-
-				@static entity_name_buffer: [64]u8;
-				if imgui.input_text("Name", entity_name_buffer[:], .EnterReturnsTrue) {
-					entity_name_buffer[len(entity_name_buffer)-1] = 0;
-					// note(josh): @Leak @Alloc, we stomp on the current name and leak it but that should be fine because this is debug only!!
-					e_data.name = aprint(cast(string)cast(cstring)&entity_name_buffer[0]);
-					entity_name_buffer = {};
-				}
-
-				imgui.checkbox("Enabled", &e_data.enabled);
-				imgui.same_line();
-				if imgui.button("Clone") {
-					entity_to_clone = selected_entity;
-				}
-
-				imgui.same_line();
-				if imgui.button("Destroy") {
-					destroy_entity(selected_entity);
-				}
-
-				for c in e_data.components {
-					component_data, ok := component_types[c];
+    			if selected_entity != 0 {
+    				entity_to_clone: Entity;
+					e_data, ok := scene.entity_datas[selected_entity];
 					assert(ok);
 
-					imgui.push_id(tprint(component_data.ti)); defer imgui.pop_id();
+					imgui.push_id(tprint(e_data.name," - ", selected_entity)); defer imgui.pop_id();
 
-					for i in 0..<component_data.storage.len {
-						ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)component_data.storage.data, i * component_data.ti.size);
-						if ptr.e == selected_entity {
-							wb.imgui_struct_ti("", ptr, component_data.ti);
-							break;
-						}
+					@static entity_name_buffer: [64]u8;
+					if imgui.input_text("Name", entity_name_buffer[:], .EnterReturnsTrue) {
+						entity_name_buffer[len(entity_name_buffer)-1] = 0;
+						// note(josh): @Leak @Alloc, we stomp on the current name and leak it but that should be fine because this is debug only!!
+						e_data.name = aprint(cast(string)cast(cstring)&entity_name_buffer[0]);
+						entity_name_buffer = {};
 					}
-				}
 
+					imgui.checkbox("Enabled", &e_data.enabled);
+					imgui.same_line();
+					if imgui.button("Clone") {
+						entity_to_clone = selected_entity;
+					}
 
+					imgui.same_line();
+					if imgui.button("Destroy") {
+						destroy_entity(selected_entity);
+					}
 
-				@static comp_name_buffer: [64]byte;
-				just_opened := false;
-				if imgui.button("+") {
-					comp_name_buffer = {};
-					imgui.open_popup("Add component");
-					just_opened = true;
-				}
+					for c in e_data.components {
+						component_data, ok := component_types[c];
+						assert(ok);
 
-				if imgui.begin_popup("Add component") {
-					if just_opened do imgui.set_keyboard_focus_here(0);
-					imgui.input_text("Component", comp_name_buffer[:]);
+						imgui.push_id(tprint(component_data.ti)); defer imgui.pop_id();
 
-					for tid, data in component_types {
-						name := tprint(data.ti);
-						input := cast(string)cast(cstring)&comp_name_buffer[0];
-						name_lower  := string_to_lower(name);
-						input_lower := string_to_lower(input);
-
-						if len(input_lower) > 0 && string_starts_with(name_lower, input_lower) {
-							if imgui.button(name) {
-								comp := cast(^Component_Base)_add_component_internal(selected_entity, tid);
-								imgui.close_current_popup();
+						for i in 0..<component_data.storage.len {
+							ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)component_data.storage.data, i * component_data.ti.size);
+							if ptr.e == selected_entity {
+								wb.imgui_struct_ti("", ptr, component_data.ti);
+								break;
 							}
 						}
 					}
-					imgui.end_popup();
-				}
 
-				if entity_to_clone != 0 {
-					new_entity := make_entity();
-					to_clone_entity_data, ok := scene.entity_datas[entity_to_clone];
-					if !ok {
-						logln("entity_to_clone got deleted or something?");
+
+
+					@static comp_name_buffer: [64]byte;
+					just_opened := false;
+					if imgui.button("+") {
+						comp_name_buffer = {};
+						imgui.open_popup("Add component");
+						just_opened = true;
 					}
-					else {
-						for c in to_clone_entity_data.components {
-							comp: ^Component_Base;
-							if c == type_info_of(Transform).id {
-								comp, ok = _get_component_internal(new_entity, c);
+
+					if imgui.begin_popup("Add component") {
+						if just_opened do imgui.set_keyboard_focus_here(0);
+						imgui.input_text("Component", comp_name_buffer[:]);
+
+						for tid, data in component_types {
+							name := tprint(data.ti);
+							input := cast(string)cast(cstring)&comp_name_buffer[0];
+							name_lower  := string_to_lower(name);
+							input_lower := string_to_lower(input);
+
+							if len(input_lower) > 0 && string_starts_with(name_lower, input_lower) {
+								if imgui.button(name) {
+									comp := cast(^Component_Base)_add_component_internal(selected_entity, tid);
+									imgui.close_current_popup();
+								}
+							}
+						}
+						imgui.end_popup();
+					}
+
+					if entity_to_clone != 0 {
+						new_entity := make_entity();
+						to_clone_entity_data, ok := scene.entity_datas[entity_to_clone];
+						if !ok {
+							logln("entity_to_clone got deleted or something?");
+						}
+						else {
+							for c in to_clone_entity_data.components {
+								comp: ^Component_Base;
+								if c == type_info_of(Transform).id {
+									comp, ok = _get_component_internal(new_entity, c);
+									assert(ok);
+								}
+								else {
+									comp = _add_component_internal(new_entity, c);
+								}
+								to_clone_component, ok := _get_component_internal(entity_to_clone, c);
 								assert(ok);
+								_copy_component_internal(comp, to_clone_component, type_info_of(c));
 							}
-							else {
-								comp = _add_component_internal(new_entity, c);
-							}
-							to_clone_component, ok := _get_component_internal(entity_to_clone, c);
-							assert(ok);
-							_copy_component_internal(comp, to_clone_component, type_info_of(c));
 						}
 					}
-				}
+    			}
     		}
     		imgui.end();
 		}
@@ -799,14 +809,20 @@ _copy_component_internal :: proc(dst: ^Component_Base, src: ^Component_Base, ti:
 			case rt.Type_Info_Dynamic_Array: {
 				array := (cast(^mem.Raw_Dynamic_Array)src)^;
 				size := kind.elem_size * array.len;
-				n := make([dynamic]u8, size);
-				mem.copy(&n[0], array.data, size);
+				if size > 0 {
+					n := make([dynamic]u8, size);
+					mem.copy(&n[0], array.data, size);
+					(cast(^mem.Raw_Dynamic_Array)dst)^ = transmute(mem.Raw_Dynamic_Array)n;
+				}
 			}
 			case rt.Type_Info_Slice: {
 				slice := (cast(^mem.Raw_Slice)src)^;
 				size := kind.elem_size * slice.len;
-				n := make([dynamic]u8, size);
-				mem.copy(&n[0], slice.data, size);
+				if size > 0 {
+					n := make([]u8, size);
+					mem.copy(&n[0], slice.data, size);
+					(cast(^mem.Raw_Slice)dst)^ = transmute(mem.Raw_Slice)n;
+				}
 			}
 			case rt.Type_Info_String: {
 				str := strings.clone((cast(^string)src)^);
@@ -814,6 +830,9 @@ _copy_component_internal :: proc(dst: ^Component_Base, src: ^Component_Base, ti:
 			}
 			case rt.Type_Info_Struct: {
 				for t, i in kind.types {
+					tag := kind.tags[i];
+					if strings.contains(tag, "ecs_dontcopyonclone") do continue;
+
 					offset := kind.offsets[i];
 					deep_copy_except_pointers(mem.ptr_offset(cast(^u8)dst, cast(int)offset), mem.ptr_offset(cast(^u8)src, cast(int)offset), t);
 				}

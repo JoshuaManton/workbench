@@ -217,7 +217,13 @@ delete_camera :: proc(camera: Camera) {
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
     view_matrix := identity(Mat4);
     view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
-    rotation_matrix := quat_to_mat4(inverse(camera.rotation));
+    rotation_matrix: Mat4;
+    if camera.current_rendermode == .World {
+	    rotation_matrix = quat_to_mat4(inverse(camera.rotation));
+    }
+    else {
+	    rotation_matrix = quat_to_mat4(inverse(Quat{0, 0, 0, 1}));
+    }
     view_matrix = mul(rotation_matrix, view_matrix);
     return view_matrix;
 }
@@ -365,6 +371,14 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
 	uniform_matrix4fv(program, "projection_matrix", 1, false, &projection_matrix[0][0]);
 
+	if depth_test {
+		enable(.Depth_Test);
+	}
+	else {
+		disable(.Depth_Test);
+	}
+	log_errors(#procedure);
+
 	for mesh in model.meshes {
 		bind_vao(mesh.vao);
 		bind_vbo(mesh.vbo);
@@ -374,14 +388,6 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 		log_errors(#procedure);
 
 		set_vertex_format(mesh.vertex_type);
-		log_errors(#procedure);
-
-		if depth_test {
-			enable(.Depth_Test);
-		}
-		else {
-			disable(.Depth_Test);
-		}
 		log_errors(#procedure);
 
 		if mesh.index_count > 0 {
