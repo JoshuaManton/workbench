@@ -251,6 +251,13 @@ overlap_point_circle :: inline proc(origin: Vec3, circle_position: Vec3, circle_
 	return sqr_magnitude(origin - circle_position) < (circle_radius * circle_radius);
 }
 
+overlap_box_box_2d :: proc(min1, max1: Vec2, min2, max2: Vec2) -> bool {
+	if min1.x > max2.x || min1.y > max2.y || max1.x < min2.x || max1.y < min2.y {
+		return false;
+	}
+	return true;
+}
+
 
 
 
