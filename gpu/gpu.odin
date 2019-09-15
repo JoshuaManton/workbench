@@ -387,6 +387,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 		log_errors(#procedure);
 
+		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
 		set_vertex_format(mesh.vertex_type);
 		log_errors(#procedure);
 
