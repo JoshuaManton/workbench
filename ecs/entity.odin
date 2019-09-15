@@ -655,9 +655,8 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
 		comp, found := _get_component_internal(eid, ti.id);
 		if !found do comp = _add_component_internal(eid, ti.id);
 
-		root: laas.Token;
-		ok4 := laas.get_next_token(&lexer, &root); assert(ok4);
-		wbml.parse_value(&lexer, root, comp, ti);
+		value := wbml.parse_value(&lexer);
+		wbml.write_value(value, comp, ti);
 	}
 
 	entity_data, ok4 := scene.entity_datas[eid];

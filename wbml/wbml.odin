@@ -191,6 +191,8 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 	}
 }
 
+
+
 deserialize :: proc{deserialize_to_value, deserialize_into_pointer};
 
 deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
@@ -205,180 +207,82 @@ deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	_lexer := laas.make_lexer(text);
 	lexer := &_lexer;
 
-	token: Token;
-	ok := get_next_token(lexer, &token);
-	if !ok do panic("empty text");
-
-	parse_value(lexer, token, ptr, ti);
+	root := parse_value(lexer);
+	write_value(root, ptr, ti);
 }
 
 deserialize_into_pointer_with_type_info :: proc(text: string, ptr: rawptr, ti: ^rt.Type_Info) {
 	_lexer := laas.make_lexer(text);
 	lexer := &_lexer;
 
-	token: Token;
-	ok := get_next_token(lexer, &token);
-	if !ok do panic("empty text");
-
-	parse_value(lexer, token, ptr, ti);
+	root := parse_value(lexer);
+	write_value(root, ptr, ti);
 }
 
-parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Type_Info, is_negative_number := false) {
-	parent_token := parent_token;
-	ti := ti;
-	if symbol, ok := parent_token.kind.(laas.Symbol); ok {
+parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
+	eat_newlines(lexer);
+	root_token: Token;
+	ok := get_next_token(lexer, &root_token);
+	assert(ok, "End of text when expecting a value.");
+
+	if symbol, ok := root_token.kind.(laas.Symbol); ok {
 		if symbol.value == '-' {
-			ok := get_next_token(lexer, &parent_token);
-			assert(ok, "End of text when expecting negative number");
-			parse_value(lexer, parent_token, data, ti, !is_negative_number);
-			return;
+			return parse_value(lexer, !is_negative_number);
 		}
 	}
 
-	switch value_kind in parent_token.kind {
+	switch value_kind in root_token.kind {
 		case laas.Symbol: {
 			switch value_kind.value {
 				case '{': {
-					token: Token;
-					for get_next_token(lexer, &token) {
-						if _, is_newline := token.kind.(laas.New_Line); is_newline {
-							continue;
-						}
+					fields: [dynamic]Object_Field;
+					for {
+						eat_newlines(lexer);
 
-						if right_curly, ok2 := token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
-							break;
-						}
-
-						variable_name, ok2 := token.kind.(laas.Identifier);
-						assert(ok2, tprint(token));
-
-						struct_kind: ^rt.Type_Info_Struct;
-						switch ti_kind in &ti.variant {
-							case rt.Type_Info_Named:  struct_kind = &ti_kind.base.variant.(rt.Type_Info_Struct);
-							case rt.Type_Info_Struct: struct_kind = ti_kind;
-							case: panic(tprint(ti_kind));
-						}
-						assert(struct_kind != nil);
-
-						found := false;
-						for name, idx in struct_kind.names {
-							if name == variable_name.value {
-								found = true;
-								value_token: Token;
-								ok3 := get_next_token(lexer, &value_token); assert(ok3);
-								field_ptr := mem.ptr_offset(cast(^byte)data, cast(int)struct_kind.offsets[idx]);
-								field_ti  := struct_kind.types[idx];
-								parse_value(lexer, value_token, field_ptr, field_ti);
-
-								tag := struct_kind.tags[idx];
-								if strings.contains(tag, "wbml_unserialized") {
-									// todo(josh): "wbml_unserialized". probably need to have some intermediate representation to get it working systemically :(
-									println("`wbml_unserialized` doesn't currently work in the deserializer. Field:", name);
-								}
-
+						// check for end
+						{
+							next_token: Token;
+							ok := peek(lexer, &next_token);
+							assert(ok, "end of text from within object");
+							if right_curly, ok2 := next_token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
+								eat(lexer);
 								break;
 							}
 						}
 
-						assert(found, tprint("Cound't find field '", variable_name.value, "' in type ", ti));
+						var_name_token: Token;
+						ok := get_next_token(lexer, &var_name_token);
+						assert(ok, "end of text from within object");
+
+						variable_name, ok2 := var_name_token.kind.(laas.Identifier);
+						assert(ok2, tprint(var_name_token));
+
+						value := parse_value(lexer);
+						append(&fields, Object_Field{variable_name.value, value});
 					}
+					return new_clone(Node{Node_Object{fields[:]}});
 				}
 
 				case '[': {
-					original_ti: ^rt.Type_Info;
-					if named, ok := ti.variant.(rt.Type_Info_Named); ok {
-						original_ti = ti;
-						ti = named.base;
+					elements: [dynamic]^Node;
+					for {
+						eat_newlines(lexer);
+
+						// check for end
+						{
+							next_token: Token;
+							ok := peek(lexer, &next_token);
+							assert(ok, "end of text from within array");
+							if right_square, ok2 := next_token.kind.(laas.Symbol); ok2 && right_square.value == ']' {
+								eat(lexer);
+								break;
+							}
+						}
+
+						element := parse_value(lexer);
+						append(&elements, element);
 					}
-
-					switch array_kind in ti.variant {
-						case rt.Type_Info_Array: {
-							num_entries: int;
-							for {
-								if num_entries > array_kind.count {
-									assert(false, "Too many array elements");
-								}
-
-								array_value_token: Token;
-								ok := get_next_token(lexer, &array_value_token);
-								if !ok do assert(false, "End of text from within array");
-
-								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
-								defer num_entries += 1;
-
-								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
-									if symbol.value == ']' do break;
-								}
-
-								parse_value(lexer, array_value_token, mem.ptr_offset(cast(^byte)data, array_kind.elem_size * num_entries), array_kind.elem);
-							}
-						}
-						case rt.Type_Info_Dynamic_Array: {
-							memory := make([]byte, 1024);
-							byte_index := 0;
-
-							num_entries: int;
-							for {
-								array_value_token: Token;
-								ok := get_next_token(lexer, &array_value_token);
-								if !ok do assert(false, "End of text from within array");
-
-								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
-								defer num_entries += 1;
-
-								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
-									if symbol.value == ']' do break;
-								}
-
-								// todo(josh): kinda weird that this is a loop, we could probably figure out
-								// the size we need to fit things in
-								for byte_index + array_kind.elem_size > len(memory) {
-									old_mem := memory;
-									memory = make([]byte, len(old_mem) * 2);
-									mem.copy(&memory[0], &old_mem[0], len(old_mem));
-									delete(old_mem);
-								}
-
-								parse_value(lexer, array_value_token, &memory[byte_index], array_kind.elem);
-								byte_index += array_kind.elem_size;
-							}
-
-							(cast(^mem.Raw_Dynamic_Array)data)^ = mem.Raw_Dynamic_Array{&memory[0], num_entries-1, len(memory) / array_kind.elem_size, {}};
-						}
-						case rt.Type_Info_Slice: {
-							memory := make([]byte, 1024);
-							byte_index := 0;
-
-							num_entries: int;
-							for {
-								array_value_token: Token;
-								ok := get_next_token(lexer, &array_value_token);
-								assert(ok, "End of text from within array");
-
-								if _, is_newline := array_value_token.kind.(laas.New_Line); is_newline do continue;
-								defer num_entries += 1;
-
-								if symbol, is_symbol := array_value_token.kind.(laas.Symbol); is_symbol {
-									if symbol.value == ']' do break;
-								}
-
-								// todo(josh): kinda weird that this is a loop, we could probably figure out
-								// the size we need to fit things in
-								for byte_index + array_kind.elem_size > len(memory) {
-									old_mem := memory;
-									memory = make([]byte, len(old_mem) * 2);
-									mem.copy(&memory[0], &old_mem[0], len(old_mem));
-									delete(old_mem);
-								}
-
-								parse_value(lexer, array_value_token, &memory[byte_index], array_kind.elem);
-								byte_index += array_kind.elem_size;
-							}
-
-							(cast(^mem.Raw_Slice)data)^ = mem.Raw_Slice{&memory[0], num_entries-1};
-						}
-						case: panic(tprint("Unhandled case: ", array_kind, "original ti: ", original_ti));
-					}
+					return new_clone(Node{Node_Array{elements[:]}});
 				}
 
 				case '.': {
@@ -387,20 +291,9 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 					assert(ok);
 					ident, ok2 := type_token.kind.(Identifier);
 					assert(ok2, "Only single identifier types are currently supported for tagged unions");
-					union_ti := ti.variant.(rt.Type_Info_Union);
-					assert(union_ti.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
 
-					for v in union_ti.variants {
-						name := tprint(v);
-						if ident.value == name {
-							val_token: Token;
-							ok3 := get_next_token(lexer, &val_token);
-							assert(ok3, "End of text from within field");
-							parse_value(lexer, val_token, data, v);
-							reflection.set_union_type_info(any{data, ti.id}, v);
-							break;
-						}
-					}
+					value := parse_value(lexer);
+					return new_clone(Node{Node_Union{ident.value, value}});
 				}
 
 				case: {
@@ -411,97 +304,245 @@ parse_value :: proc(lexer: ^Lexer, parent_token: Token, data: rawptr, ti: ^rt.Ty
 
 		// primitives
 		case laas.String: {
-			(cast(^string)data)^ = strings.clone(value_kind.value);
+			return new_clone(Node{Node_String{value_kind.value}});
 		}
 
 		case laas.Identifier: {
-			switch kind in ti.variant {
-				case rt.Type_Info_Boolean: {
-					switch value_kind.value {
-						case "true", "True", "TRUE":    (cast(^bool)data)^ = true;
-						case "false", "False", "FALSE": (cast(^bool)data)^ = false;
-						case: {
-							assert(false, value_kind.value);
-						}
-					}
-				}
-
-				case rt.Type_Info_Named: {
-					parse_value(lexer, parent_token, data, kind.base);
-				}
-
-				case rt.Type_Info_Enum: {
-					get_val_for_name :: proc(name: string, $Type: typeid, e: rt.Type_Info_Enum) -> (Type, bool) {
-						for enum_member_name, idx in e.names {
-							if enum_member_name == name {
-								return e.values[idx].(Type), true;
-							}
-						}
-						return Type{}, false;
-					}
-
-					a := any{data, rt.type_info_base(kind.base).id};
-					switch v in a {
-					case rune:    val, ok := get_val_for_name(value_kind.value, rune,    kind); assert(ok); (cast(^rune)   data)^ = val;
-					case i8:      val, ok := get_val_for_name(value_kind.value, i8,      kind); assert(ok); (cast(^i8)     data)^ = val;
-					case i16:     val, ok := get_val_for_name(value_kind.value, i16,     kind); assert(ok); (cast(^i16)    data)^ = val;
-					case i32:     val, ok := get_val_for_name(value_kind.value, i32,     kind); assert(ok); (cast(^i32)    data)^ = val;
-					case i64:     val, ok := get_val_for_name(value_kind.value, i64,     kind); assert(ok); (cast(^i64)    data)^ = val;
-					case int:     val, ok := get_val_for_name(value_kind.value, int,     kind); assert(ok); (cast(^int)    data)^ = val;
-					case u8:      val, ok := get_val_for_name(value_kind.value, u8,      kind); assert(ok); (cast(^u8)     data)^ = val;
-					case u16:     val, ok := get_val_for_name(value_kind.value, u16,     kind); assert(ok); (cast(^u16)    data)^ = val;
-					case u32:     val, ok := get_val_for_name(value_kind.value, u32,     kind); assert(ok); (cast(^u32)    data)^ = val;
-					case u64:     val, ok := get_val_for_name(value_kind.value, u64,     kind); assert(ok); (cast(^u64)    data)^ = val;
-					case uint:    val, ok := get_val_for_name(value_kind.value, uint,    kind); assert(ok); (cast(^uint)   data)^ = val;
-					case uintptr: val, ok := get_val_for_name(value_kind.value, uintptr, kind); assert(ok); (cast(^uintptr)data)^ = val;
-					}
-				}
-				case rt.Type_Info_Map: {
-
-				}
-				case: {
-					assert(false, tprint(kind));
-				}
+			switch value_kind.value {
+				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
+				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
 			}
+
+			// assume it's an enum
+			return new_clone(Node{Node_Enum{value_kind.value}});
 		}
 
 		case laas.Number: {
-			sign := is_negative_number ? -1 : 1;
-			switch num_kind in ti.variant {
-				case rt.Type_Info_Integer: {
-					if num_kind.signed {
-						switch ti.size {
-							case 1: (cast(^i8)data)^  = cast(i8) value_kind.int_value * cast(i8) sign;
-							case 2: (cast(^i16)data)^ = cast(i16)value_kind.int_value * cast(i16)sign;
-							case 4: (cast(^i32)data)^ = cast(i32)value_kind.int_value * cast(i32)sign;
-							case 8: (cast(^i64)data)^ =          value_kind.int_value * cast(i64)sign;
-							case: panic(tprint(ti.size));
-						}
+			sign : i64 = is_negative_number ? -1 : 1;
+			return new_clone(Node{Node_Number{value_kind.int_value * sign, value_kind.unsigned_int_value, value_kind.float_value * cast(f64)sign}});
+		}
+
+		case: {
+			panic(tprint(value_kind));
+		}
+	}
+	unreachable();
+	return nil;
+}
+
+write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
+	switch variant in ti.variant {
+		case rt.Type_Info_Named: {
+			write_value(node, ptr, variant.base);
+		}
+
+		case rt.Type_Info_Struct: {
+			object := &node.kind.(Node_Object);
+			found := false;
+			for field in object.fields {
+				for name, idx in variant.names {
+					if name == field.name {
+						// todo(josh): wbml_unserialized
+						found = true;
+						field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
+						field_ti  := variant.types[idx];
+						write_value(field.value, field_ptr, field_ti);
 					}
-					else {
-						switch ti.size {
-							case 1: (cast(^u8)data)^  = cast(u8) value_kind.unsigned_int_value * cast(u8) sign;
-							case 2: (cast(^u16)data)^ = cast(u16)value_kind.unsigned_int_value * cast(u16)sign;
-							case 4: (cast(^u32)data)^ = cast(u32)value_kind.unsigned_int_value * cast(u32)sign;
-							case 8: (cast(^u64)data)^ =          value_kind.unsigned_int_value * cast(u64)sign;
-							case: panic(tprint(ti.size));
-						}
-					}
-				}
-				case rt.Type_Info_Float: {
-					switch ti.size {
-						case 4: (cast(^f32)data)^ = cast(f32)value_kind.float_value * cast(f32)sign;
-						case 8: (cast(^f64)data)^ =          value_kind.float_value * cast(f64)sign;
-						case: panic(tprint(ti.size));
-					}
-				}
-				case rt.Type_Info_Named: {
-					parse_value(lexer, parent_token, data, num_kind.base);
-				}
-				case: {
-					assert(false, tprint(num_kind));
 				}
 			}
 		}
+
+		case rt.Type_Info_Array: {
+			array := &node.kind.(Node_Array);
+			assert(len(array.elements) == variant.count);
+			for element, idx in array.elements {
+				element_ptr := mem.ptr_offset(cast(^byte)ptr, variant.elem_size * idx);
+				write_value(element, element_ptr, variant.elem);
+			}
+		}
+
+		case rt.Type_Info_Dynamic_Array: {
+			array := &node.kind.(Node_Array);
+			size_needed := len(array.elements) * variant.elem_size;
+			memory := make([]byte, size_needed);
+			byte_index: int;
+			for element, idx in array.elements {
+				assert(byte_index + variant.elem_size <= len(memory));
+				write_value(element, &memory[byte_index], variant.elem);
+				byte_index += variant.elem_size;
+			}
+
+			(cast(^mem.Raw_Dynamic_Array)ptr)^ = mem.Raw_Dynamic_Array{&memory[0], len(array.elements), len(array.elements), {}};
+		}
+
+		case rt.Type_Info_Slice: {
+			array := &node.kind.(Node_Array);
+			size_needed := len(array.elements) * variant.elem_size;
+			memory := make([]byte, size_needed);
+			byte_index: int;
+			for element, idx in array.elements {
+				assert(byte_index + variant.elem_size <= len(memory));
+				write_value(element, &memory[byte_index], variant.elem);
+				byte_index += variant.elem_size;
+			}
+
+			(cast(^mem.Raw_Slice)ptr)^ = mem.Raw_Slice{&memory[0], len(array.elements)};
+		}
+
+		case rt.Type_Info_Integer: {
+			number := &node.kind.(Node_Number);
+			if variant.signed {
+				switch ti.size {
+					case 1: (cast(^i8)ptr)^  = cast(i8) number.int_value;
+					case 2: (cast(^i16)ptr)^ = cast(i16)number.int_value;
+					case 4: (cast(^i32)ptr)^ = cast(i32)number.int_value;
+					case 8: (cast(^i64)ptr)^ =          number.int_value;
+					case: panic(tprint(ti.size));
+				}
+			}
+			else {
+				switch ti.size {
+					case 1: (cast(^u8)ptr)^  = cast(u8) number.uint_value;
+					case 2: (cast(^u16)ptr)^ = cast(u16)number.uint_value;
+					case 4: (cast(^u32)ptr)^ = cast(u32)number.uint_value;
+					case 8: (cast(^u64)ptr)^ =          number.uint_value;
+					case: panic(tprint(ti.size));
+				}
+			}
+		}
+
+		case rt.Type_Info_Float: {
+			number := &node.kind.(Node_Number);
+			switch ti.size {
+				case 4: (cast(^f32)ptr)^ = cast(f32)number.float_value;
+				case 8: (cast(^f64)ptr)^ =          number.float_value;
+				case: panic(tprint(ti.size));
+			}
+		}
+
+		case rt.Type_Info_String: {
+			str := &node.kind.(Node_String);
+			if variant.is_cstring {
+				(cast(^cstring)ptr)^ = strings.clone_to_cstring(str.value);
+			}
+			else {
+				(cast(^string)ptr)^ = strings.clone(str.value);
+			}
+		}
+
+		case rt.Type_Info_Boolean: {
+			b := &node.kind.(Node_Bool);
+			switch ti.size {
+				case 1: (cast(^bool)ptr)^ =          b.value;
+				case 2: (cast(^b16)ptr)^  = cast(b16)b.value;
+				case 4: (cast(^b32)ptr)^  = cast(b32)b.value;
+				case 8: (cast(^b64)ptr)^  = cast(b64)b.value;
+				case: panic(tprint(ti.size));
+			}
+		}
+
+		case rt.Type_Info_Union: {
+			u := &node.kind.(Node_Union);
+			for v in variant.variants {
+				name := tprint(v);
+				if u.variant_name == name {
+					reflection.set_union_type_info(any{ptr, ti.id}, v);
+					write_value(u.value, ptr, v);
+					break;
+				}
+			}
+		}
+
+		case rt.Type_Info_Enum: {
+			get_val_for_name :: proc(name: string, $Type: typeid, e: rt.Type_Info_Enum) -> (Type, bool) {
+				for enum_member_name, idx in e.names {
+					if enum_member_name == name {
+						return e.values[idx].(Type), true;
+					}
+				}
+				return Type{}, false;
+			}
+
+			e := &node.kind.(Node_Enum);
+			a := any{ptr, rt.type_info_base(variant.base).id};
+			switch v in a {
+			case rune:    val, ok := get_val_for_name(e.value, rune,    variant); assert(ok); (cast(^rune)   ptr)^ = val;
+			case i8:      val, ok := get_val_for_name(e.value, i8,      variant); assert(ok); (cast(^i8)     ptr)^ = val;
+			case i16:     val, ok := get_val_for_name(e.value, i16,     variant); assert(ok); (cast(^i16)    ptr)^ = val;
+			case i32:     val, ok := get_val_for_name(e.value, i32,     variant); assert(ok); (cast(^i32)    ptr)^ = val;
+			case i64:     val, ok := get_val_for_name(e.value, i64,     variant); assert(ok); (cast(^i64)    ptr)^ = val;
+			case int:     val, ok := get_val_for_name(e.value, int,     variant); assert(ok); (cast(^int)    ptr)^ = val;
+			case u8:      val, ok := get_val_for_name(e.value, u8,      variant); assert(ok); (cast(^u8)     ptr)^ = val;
+			case u16:     val, ok := get_val_for_name(e.value, u16,     variant); assert(ok); (cast(^u16)    ptr)^ = val;
+			case u32:     val, ok := get_val_for_name(e.value, u32,     variant); assert(ok); (cast(^u32)    ptr)^ = val;
+			case u64:     val, ok := get_val_for_name(e.value, u64,     variant); assert(ok); (cast(^u64)    ptr)^ = val;
+			case uint:    val, ok := get_val_for_name(e.value, uint,    variant); assert(ok); (cast(^uint)   ptr)^ = val;
+			case uintptr: val, ok := get_val_for_name(e.value, uintptr, variant); assert(ok); (cast(^uintptr)ptr)^ = val;
+			}
+		}
+
+		case: panic(tprint(variant));
 	}
+}
+
+eat_newlines :: proc(lexer: ^Lexer, loc := #caller_location) {
+	token: Token;
+	for {
+		ok := peek(lexer, &token);
+		if !ok do return;
+
+		if _, is_newline := token.kind.(New_Line); is_newline {
+			eat(lexer);
+		}
+		else {
+			return;
+		}
+	}
+}
+
+Node :: struct {
+	kind: union {
+		Node_Number,
+		Node_Bool,
+		Node_String,
+		Node_Enum,
+		Node_Object,
+		Node_Array,
+		Node_Union,
+	},
+}
+
+Node_Number :: struct {
+	int_value: i64,
+	uint_value: u64,
+	float_value: f64,
+}
+
+Node_String :: struct {
+	value: string,
+}
+
+Node_Bool :: struct {
+	value: bool,
+}
+
+Node_Enum :: struct {
+	value: string,
+}
+
+Node_Object :: struct {
+	fields: []Object_Field,
+}
+Object_Field :: struct {
+	name: string,
+	value: ^Node,
+}
+
+Node_Array :: struct {
+	elements: []^Node,
+}
+
+Node_Union :: struct {
+	variant_name: string,
+	value: ^Node,
 }
