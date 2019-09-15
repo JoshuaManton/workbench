@@ -471,7 +471,7 @@ draw_scene_window :: proc() {
 Entity :: int;
 
 Component_Base :: struct {
-	e: Entity "wbml_unserialized",
+	e: Entity "wbml_noserialize",
 	enabled: bool,
 }
 
@@ -830,7 +830,7 @@ _copy_component_internal :: proc(dst: ^Component_Base, src: ^Component_Base, ti:
 			case rt.Type_Info_Struct: {
 				for t, i in kind.types {
 					tag := kind.tags[i];
-					if strings.contains(tag, "ecs_dontcopyonclone") do continue;
+					if strings.contains(tag, "ecs_nocopyonclone") do continue;
 
 					offset := kind.offsets[i];
 					deep_copy_except_pointers(mem.ptr_offset(cast(^u8)dst, cast(int)offset), mem.ptr_offset(cast(^u8)src, cast(int)offset), t);

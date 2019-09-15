@@ -47,7 +47,7 @@ run_tests :: proc() {
 			Foo,
 			Bar,
 		},
-		some_unserialized_thing: int "wbml_unserialized",
+		some_unserialized_thing: int "wbml_noserialize",
 		enum1: Int_Enum,
 		enum2: Byte_Enum,
 		some_nested_thing: struct {
@@ -145,8 +145,7 @@ run_tests :: proc() {
 		assert(false, tprint("union_bar wasn't a Bar: ", a.union_bar));
 	}
 
-	// todo(josh): support for `wbml_unserialized` in the deserializer
-	// assert(a.some_unserialized_thing == 0);
+	assert(a.some_unserialized_thing == 0);
 
 	assert(a.some_nested_thing.asd == 432.500, tprintf("%.8f", a.some_nested_thing.asd));
 	assert(a.some_nested_thing.super_nested.blah == "super nested string", tprint(a.some_nested_thing.super_nested.blah));

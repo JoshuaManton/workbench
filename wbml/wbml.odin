@@ -125,7 +125,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			print_to_buf(sb, "{\n"); indent_level += 1;
 			for name, idx in kind.names {
 				tag := kind.tags[idx];
-				if strings.contains(tag, "wbml_unserialized") do continue;
+				if strings.contains(tag, "wbml_noserialize") do continue;
 
 				print_indents(indent_level, sb);
 				serialize_with_type_info(name, mem.ptr_offset(cast(^byte)value, cast(int)kind.offsets[idx]), kind.types[idx], sb, indent_level);
@@ -338,15 +338,15 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 
 		case rt.Type_Info_Struct: {
 			object := &node.kind.(Node_Object);
-			found := false;
 			for field in object.fields {
 				for name, idx in variant.names {
 					if name == field.name {
-						// todo(josh): wbml_unserialized
-						found = true;
-						field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
-						field_ti  := variant.types[idx];
-						write_value(field.value, field_ptr, field_ti);
+						tag := variant.tags[idx];
+						if !strings.contains(tag, "wbml_noserialize") {
+							field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
+							field_ti  := variant.types[idx];
+							write_value(field.value, field_ptr, field_ti);
+						}
 					}
 				}
 			}
