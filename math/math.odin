@@ -119,14 +119,18 @@ sqr :: inline proc(x: $T) -> T {
 	return x * x;
 }
 
-distance :: inline proc(x, y: $T) -> f32 {
-	diff := x - y;
-	return sqrt(sqr(diff.x) + sqr(diff.y));
+distance :: inline proc(x, y: $T/[$N]$E) -> E {
+	sqr_dist := sqr_distance(x, y);
+	return sqrt(sqr_dist);
 }
 
-sqr_distance :: inline proc(x, y: $T) -> f32 {
+sqr_distance :: inline proc(x, y: $T/[$N]$E) -> E {
 	diff := x - y;
-	return sqr(diff.x) + sqr(diff.y);
+	sum: E;
+	for i in 0..<N {
+		sum += sqr(diff[i]);
+	}
+	return sum;
 }
 
 minv :: inline proc(args: ..$T) -> T {
