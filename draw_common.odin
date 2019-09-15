@@ -171,7 +171,7 @@ deinit_draw :: proc() {
 	gpu.delete_model(wb_cube_model);
 	gpu.delete_model(wb_quad_model);
 
-	gpu.delete_shader(shader_rgba_2d);
+	gpu.delete_shader(shader_rgba_3d);
 	gpu.delete_shader(shader_rgba_2d);
 	gpu.delete_shader(shader_text);
 
