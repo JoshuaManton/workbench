@@ -1,11 +1,22 @@
 package workbench
 
+using import "core:math"
+
 Colorf :: struct {
 	r, g, b, a: f32,
 }
 
 Colori :: struct {
 	r, g, b, a: u8,
+}
+
+color_lerp :: proc(c1, c2: $T, t: f32) -> T where T == Colorf || T == Colori {
+	return T {
+		r = lerp(c1.r, c2.r, t),
+		g = lerp(c1.g, c2.g, t),
+		b = lerp(c1.b, c2.b, t),
+		a = lerp(c1.a, c2.a, t),
+	};
 }
 
 COLOR_WHITE  := Colorf{1, 1, 1, 1};
