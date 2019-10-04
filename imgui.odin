@@ -671,6 +671,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, type_name: s
             }
         }
         case Type_Info_Union: {
+
             tag_ptr := uintptr(data) + kind.tag_offset;
             tag_any := any{rawptr(tag_ptr), kind.tag_type.id};
 
