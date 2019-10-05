@@ -6,19 +6,14 @@ using import "core:math"
       import "gpu"
       import wbm "math"
 
-do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32, fast : f32 = -1, slow : f32 = -1) {
-	speed := speed;
-	fast := fast;
-	slow := slow;
-
-	if fast < 0 do fast = speed;
-	if slow < 0 do slow = speed;
+do_camera_movement :: proc(camera: ^gpu.Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
+	speed := normal_speed;
 
 	if platform.get_input(.Left_Shift) {
-		speed = fast;
+		speed = fast_speed;
 	}
 	else if platform.get_input(.Left_Alt) {
-		speed = slow;
+		speed = slow_speed;
 	}
 
     up      := wbm.quaternion_up(camera.rotation);
@@ -29,12 +24,12 @@ do_camera_movement :: proc(camera: ^gpu.Camera, speed: f32, fast : f32 = -1, slo
     back := -forward;
     left := -right;
 
-	if platform.get_input(.E) { camera.position += up      * speed * fixed_delta_time; }
-	if platform.get_input(.Q) { camera.position += down    * speed * fixed_delta_time; }
-	if platform.get_input(.W) { camera.position += forward * speed * fixed_delta_time; }
-	if platform.get_input(.S) { camera.position += back    * speed * fixed_delta_time; }
-	if platform.get_input(.A) { camera.position += left    * speed * fixed_delta_time; }
-	if platform.get_input(.D) { camera.position += right   * speed * fixed_delta_time; }
+	if platform.get_input(.E) { camera.position += up      * speed * dt; }
+	if platform.get_input(.Q) { camera.position += down    * speed * dt; }
+	if platform.get_input(.W) { camera.position += forward * speed * dt; }
+	if platform.get_input(.S) { camera.position += back    * speed * dt; }
+	if platform.get_input(.A) { camera.position += left    * speed * dt; }
+	if platform.get_input(.D) { camera.position += right   * speed * dt; }
 
 	if platform.get_input(.Mouse_Right) {
 		SENSITIVITY :: 0.1;

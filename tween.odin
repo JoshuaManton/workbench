@@ -94,7 +94,7 @@ tween_queue :: inline proc(a, b: ^Tweener) {
 	a.queued_tween = b;
 }
 
-update_tween :: proc() {
+update_tween :: proc(dt: f32) {
 	tweener_idx := len(tweeners)-1;
 	updating_tweens = true;
 	defer updating_tweens = false;
@@ -108,10 +108,10 @@ update_tween :: proc() {
 		if time < tweener.start_time do continue;
 
 		switch kind in tweener.ptr {
-			case ^f32:  kind^ = _update_one_tweener(f32,  tweener, fixed_delta_time);
-			case ^Vec2: kind^ = _update_one_tweener(Vec2, tweener, fixed_delta_time);
-			case ^Vec3: kind^ = _update_one_tweener(Vec3, tweener, fixed_delta_time);
-			case ^Vec4: kind^ = _update_one_tweener(Vec4, tweener, fixed_delta_time);
+			case ^f32:  kind^ = _update_one_tweener(f32,  tweener, dt);
+			case ^Vec2: kind^ = _update_one_tweener(Vec2, tweener, dt);
+			case ^Vec3: kind^ = _update_one_tweener(Vec3, tweener, dt);
+			case ^Vec4: kind^ = _update_one_tweener(Vec4, tweener, dt);
 		}
 
 		if !tweener.loop && tweener.cur_time >= tweener.duration {

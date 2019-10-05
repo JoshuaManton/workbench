@@ -112,7 +112,7 @@ update_draw :: proc() {
 	} imgui.end();
 }
 
-render_workspaces :: proc() {
+render_workspace :: proc(workspace: Workspace) {
 	clear(&debug_lines);
 	clear(&debug_cubes);
 	clear(&buffered_draw_commands);
@@ -121,52 +121,48 @@ render_workspaces :: proc() {
 
 	gpu.update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
 
-	for id, workspace in all_workspaces {
-		current_workspace = workspace.id;
+	// this scope is important because of the PUSH_CAMERA() call
+	{
+		// pre-render
+		gpu.log_errors(#procedure);
+		num_draw_calls = 0;
+		gpu.PUSH_CAMERA(&wb_camera);
 
-		{
-			// pre-render
-			gpu.log_errors(#procedure);
-			num_draw_calls = 0;
-			gpu.PUSH_CAMERA(&wb_camera);
-
-			if workspace.render != nil {
-				workspace.render(lossy_delta_time);
-				gpu.log_errors(tprint("workspace_name: ", workspace.name));
-			}
-
-			// post-render
-			im_flush();
-
-			// draw debug lines
-			{
-				old_draw_mode := gpu.current_camera.draw_mode;
-				defer gpu.current_camera.draw_mode = old_draw_mode;
-				gpu.current_camera.draw_mode = .Line_Strip;
-
-				// todo(josh): support all rendermodes
-				gpu.rendermode_world();
-
-				gpu.use_program(shader_rgba_3d);
-				for line in debug_lines {
-					verts: [2]gpu.Vertex3D;
-					verts[0] = gpu.Vertex3D{line.a, {}, line.color, {}};
-					verts[1] = gpu.Vertex3D{line.b, {}, line.color, {}};
-					gpu.update_mesh(&debug_line_model, 0, verts[:], []u32{});
-					gpu.draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
-				}
-
-				for cube in debug_cubes {
-					gpu.draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, {1, 1, 1, 1}, true);
-				}
-			}
+		if workspace.render != nil {
+			workspace.render(lossy_delta_time);
+			gpu.log_errors(workspace.name);
 		}
 
-		gpu.draw_texture(wb_camera.framebuffer.texture, shader_texture_unlit, {0, 0}, {platform.current_window_width, platform.current_window_height});
+		// post-render
+		im_flush();
 
-		imgui_render(true);
+		// draw debug lines
+		{
+			old_draw_mode := gpu.current_camera.draw_mode;
+			defer gpu.current_camera.draw_mode = old_draw_mode;
+			gpu.current_camera.draw_mode = .Line_Strip;
+
+			// todo(josh): support all rendermodes
+			gpu.rendermode_world();
+
+			gpu.use_program(shader_rgba_3d);
+			for line in debug_lines {
+				verts: [2]gpu.Vertex3D;
+				verts[0] = gpu.Vertex3D{line.a, {}, line.color, {}};
+				verts[1] = gpu.Vertex3D{line.b, {}, line.color, {}};
+				gpu.update_mesh(&debug_line_model, 0, verts[:], []u32{});
+				gpu.draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+			}
+
+			for cube in debug_cubes {
+				gpu.draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, {1, 1, 1, 1}, true);
+			}
+		}
 	}
-	current_workspace = -1;
+
+	gpu.draw_texture(wb_camera.framebuffer.texture, shader_texture_unlit, {0, 0}, {platform.current_window_width, platform.current_window_height});
+
+	imgui_render(true);
 }
 
 deinit_draw :: proc() {

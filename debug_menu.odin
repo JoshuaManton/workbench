@@ -10,7 +10,7 @@ using import "core:math"
       import     "console"
 
 debug_window_open: bool;
-update_debug_menu :: proc() {
+update_debug_menu :: proc(dt: f32) {
 	if platform.get_input_down(.F1) {
 		debug_window_open = !debug_window_open;
 	}
@@ -20,8 +20,7 @@ update_debug_menu :: proc() {
 			camera_position: Vec3,
 			camera_rotation: Quat,
 			precise_lossy_delta_time_ms: f32,
-			fixed_delta_time: f32,
-			client_target_framerate: f32,
+			dt: f32,
 			draw_calls: i32,
 		}
 
@@ -29,8 +28,7 @@ update_debug_menu :: proc() {
 			wb_camera.position,
 			wb_camera.rotation,
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
-			fixed_delta_time,
-			client_target_framerate,
+			dt,
 			num_draw_calls,
 		};
 

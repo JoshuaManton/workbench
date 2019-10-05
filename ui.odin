@@ -309,7 +309,7 @@ Scroll_View_Kind :: enum {
 	Both,
 }
 
-ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_location) {
+ui_start_scroll_view :: proc(scroll_speed: f32, kind := Scroll_View_Kind.Vertical, loc := #caller_location) {
 	assert(current_scroll_view == nil, "no nested scroll views!");
 
 	// scroll view id
@@ -324,8 +324,6 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 	svv := _current_scroll_view;
 
 	size := Vec2{cast(f32)svv.total_rect.x2 - cast(f32)svv.total_rect.x1, cast(f32)svv.total_rect.y2 - cast(f32)svv.total_rect.y1};
-
-	using Scroll_View_Kind;
 
 	rect := ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0, IMGUI_Rect_Kind.Scroll_View, loc);
 
@@ -345,9 +343,9 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 
 		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.mouse_screen_position);
 		#complete switch kind {
-			case Vertical:   sv.scroll_offset_target.y = offset.y;
-			case Horizontal: sv.scroll_offset_target.x = offset.x;
-			case Both:       sv.scroll_offset_target   = offset;
+			case .Vertical:   sv.scroll_offset_target.y = offset.y;
+			case .Horizontal: sv.scroll_offset_target.x = offset.x;
+			case .Both:       sv.scroll_offset_target   = offset;
 		}
 	}
 	else {
@@ -363,7 +361,7 @@ ui_start_scroll_view :: proc(kind := Scroll_View_Kind.Vertical, loc := #caller_l
 		sv.scroll_offset_target.y -= platform.mouse_scroll * 50;
 	}
 
-	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, 20 * fixed_delta_time);
+	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, scroll_speed);
 }
 
 ui_end_scroll_view :: proc(loc := #caller_location) {

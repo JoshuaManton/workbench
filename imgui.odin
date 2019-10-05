@@ -266,7 +266,7 @@ init_dear_imgui :: proc() {
     // style.colors[imgui.Color.ModalWindowDarkening] = imgui.Vec4{1.00, 0.98, 0.95, 0.73};
 }
 
-imgui_begin_new_frame :: proc() {
+imgui_begin_new_frame :: proc(dt: f32) {
     io := imgui.get_io();
     io.display_size.x = current_window_width;
     io.display_size.y = current_window_height;
@@ -305,7 +305,7 @@ imgui_begin_new_frame :: proc() {
     }
 
     // ctx.imgui_state.mouse_wheel_delta = 0;
-    io.delta_time = fixed_delta_time;
+    io.delta_time = dt;
     imgui.new_frame();
 }
 
