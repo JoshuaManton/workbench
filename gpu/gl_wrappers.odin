@@ -346,6 +346,17 @@ tex_sub_image2d :: proc(target: Texture_Target,
 }
 
 
+// this is a shitty wrapper
+draw_buffer :: proc(thing: u32) {
+	thing := thing;
+	odingl.DrawBuffer(thing);
+}
+// this is a shitty wrapper
+read_buffer :: proc(thing: u32) {
+	thing := thing;
+	odingl.ReadBuffer(thing);
+}
+
 framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId) {
 	odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
 }

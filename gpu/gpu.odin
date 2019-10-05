@@ -513,9 +513,7 @@ create_framebuffer :: proc(width, height: int) -> Framebuffer {
 
 	framebuffer_texture2d(Framebuffer_Attachment.Color0, texture);
 
-	draw_buffer := Framebuffer_Attachment.Color0;
-	odingl.DrawBuffers(1, transmute(^u32)&draw_buffer);
-
+	draw_buffer(cast(u32)Framebuffer_Attachment.Color0);
 	assert_framebuffer_complete();
 
 	bind_texture2d(0);

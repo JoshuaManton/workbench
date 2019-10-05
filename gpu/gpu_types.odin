@@ -278,8 +278,8 @@ Texture_Target :: enum i32 {
 
 Internal_Color_Format :: enum i32 {
     //Base
-    DepthComponent                     = odingl.DEPTH_COMPONENT,
-    DepthStencil                       = odingl.DEPTH_STENCIL,
+    Depth_Component                    = odingl.DEPTH_COMPONENT,
+    Depth_Stencil                      = odingl.DEPTH_STENCIL,
     RED                                = odingl.RED,
     RG                                 = odingl.RG,
     RGB                                = odingl.RGB,
@@ -372,15 +372,15 @@ Pixel_Data_Format :: enum i32 {
     BGR                                = odingl.BGR,
     RGBA                               = odingl.RGBA,
     BGRA                               = odingl.BGRA,
-    RedInteger                         = odingl.RED_INTEGER,
-    RGInteger                          = odingl.RG_INTEGER,
-    RGBInteger                         = odingl.RGB_INTEGER,
-    BGRInteger                         = odingl.BGR_INTEGER,
-    RGBAInteger                        = odingl.RGBA_INTEGER,
-    BGRAInteger                        = odingl.BGRA_INTEGER,
-    StencilIndex                       = odingl.STENCIL_INDEX,
-    DepthComponent                     = odingl.DEPTH_COMPONENT,
-    DepthStencil                       = odingl.DEPTH_STENCIL,
+    Red_Integer                        = odingl.RED_INTEGER,
+    RG_Integer                         = odingl.RG_INTEGER,
+    RGB_Integer                        = odingl.RGB_INTEGER,
+    BGR_Integer                        = odingl.BGR_INTEGER,
+    RGBA_Integer                       = odingl.RGBA_INTEGER,
+    BGRA_Integer                       = odingl.BGRA_INTEGER,
+    Stencil_Index                      = odingl.STENCIL_INDEX,
+    Depth_Component                    = odingl.DEPTH_COMPONENT,
+    Depth_Stencil                      = odingl.DEPTH_STENCIL,
 }
 
 Texture2D_Data_Type :: enum i32 {
