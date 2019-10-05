@@ -153,6 +153,7 @@ maxv :: inline proc(args: ..$T) -> T {
 			current = arg;
 		}
 	}
+	return current;
 }
 
 degrees_to_vector :: inline proc(degrees: f32) -> Vec2 {
