@@ -143,10 +143,6 @@ out vec3 frag_position;
 void main() {
     vec4 result = ((projection_matrix * view_matrix) * model_matrix) * vec4(vbo_vertex_position, 1);
 
-    // commenting this out fixes specularity, hopefully it wasn't here for a reason :DDDDDDDD
-    // https://i.imgur.com/UqXbIMe.png
-    // if (result.w > 0) { result /= result.w; }
-
     gl_Position = result;
     tex_coord = vbo_tex_coord;
     normal = mat3(transpose(inverse(model_matrix))) * vbo_normal;
@@ -185,10 +181,16 @@ uniform int has_texture;
 uniform Material material;
 
 #define MAX_LIGHTS 100
-uniform vec3  light_positions  [MAX_LIGHTS];
-uniform vec4  light_colors     [MAX_LIGHTS];
-uniform float light_intensities[MAX_LIGHTS];
-uniform int   num_lights;
+
+uniform vec3  point_light_positions  [MAX_LIGHTS];
+uniform vec4  point_light_colors     [MAX_LIGHTS];
+uniform float point_light_intensities[MAX_LIGHTS];
+uniform int   num_point_lights;
+
+uniform vec3  directional_light_directions [MAX_LIGHTS];
+uniform vec4  directional_light_colors     [MAX_LIGHTS];
+uniform float directional_light_intensities[MAX_LIGHTS];
+uniform int   num_directional_lights;
 
 
 
@@ -197,6 +199,7 @@ out vec4 out_color;
 
 
 vec4 calculate_point_light(int, vec3, vec4);
+vec4 calculate_directional_light(int, vec3, vec4);
 
 void main() {
     vec3 norm = normalize(normal);
@@ -207,15 +210,18 @@ void main() {
         unlit_color *= texture(atlas_texture, tex_coord);
     }
     out_color = unlit_color;
-    for (int i = 0; i < num_lights; i++) {
+    for (int i = 0; i < num_point_lights; i++) {
         out_color += calculate_point_light(i, norm, unlit_color);
+    }
+    for (int i = 0; i < num_directional_lights; i++) {
+        out_color += calculate_directional_light(i, norm, unlit_color);
     }
 }
 
 vec4 calculate_point_light(int light_index, vec3 norm, vec4 unlit_color) {
-    vec3  position  = light_positions  [light_index];
-    vec4  color     = light_colors     [light_index];
-    float intensity = light_intensities[light_index];
+    vec3  position  = point_light_positions  [light_index];
+    vec4  color     = point_light_colors     [light_index];
+    float intensity = point_light_intensities[light_index];
 
     float distance = length(position - frag_position);
     vec3  light_dir = normalize(position - frag_position);
@@ -236,6 +242,22 @@ vec4 calculate_point_light(int light_index, vec3 norm, vec4 unlit_color) {
     specular *= attenuation;
 
     return unlit_color * vec4((diffuse + specular).xyz, 1.0);
+}
+
+vec4 calculate_directional_light(int light_index, vec3 norm, vec4 unlit_color) {
+    vec3  direction = directional_light_directions [light_index];
+    vec4  color     = directional_light_colors     [light_index];
+    float intensity = directional_light_intensities[light_index];
+
+    vec3  view_dir  = normalize(camera_position - frag_position);
+
+    // diffuse
+    float diff    = max(dot(norm, -direction), 0.0);
+    vec4  diffuse = color * diff * material.diffuse;
+
+    diffuse  *= intensity;
+
+    return unlit_color * vec4(diffuse.xyz, 1.0);
 }
 `;
 
