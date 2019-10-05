@@ -134,6 +134,9 @@ render_workspace :: proc(workspace: Workspace) {
 		}
 
 		// post-render
+		draw_render_scene();
+		clear_render_scene();
+
 		im_flush();
 
 		// draw debug lines
