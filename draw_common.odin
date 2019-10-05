@@ -112,6 +112,9 @@ update_draw :: proc() {
 	} imgui.end();
 }
 
+// todo(josh): maybe put this in the Workspace?
+post_render_proc: proc();
+
 render_workspace :: proc(workspace: Workspace) {
 	clear(&debug_lines);
 	clear(&debug_cubes);
@@ -138,6 +141,10 @@ render_workspace :: proc(workspace: Workspace) {
 		clear_render_scene();
 
 		im_flush();
+
+		if post_render_proc != nil {
+			post_render_proc();
+		}
 
 		// draw debug lines
 		{
