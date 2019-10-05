@@ -118,11 +118,12 @@ MeshID :: distinct int;
 
 
 Draw_Mode :: enum u32 {
-	Points     = odingl.POINTS,
-    Lines      = odingl.LINES,
-    Line_Loop  = odingl.LINE_LOOP,
-	Line_Strip = odingl.LINE_STRIP,
-	Triangles  = odingl.TRIANGLES,
+	Points       = odingl.POINTS,
+    Lines        = odingl.LINES,
+    Line_Loop    = odingl.LINE_LOOP,
+	Line_Strip   = odingl.LINE_STRIP,
+    Triangles    = odingl.TRIANGLES,
+	Triangle_Fan = odingl.TRIANGLE_FAN,
 }
 
 Draw_Elements_Type :: enum i32 {
