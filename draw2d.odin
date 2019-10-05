@@ -105,40 +105,7 @@ im_sprite_minmax :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 
-im_model :: inline proc(
-	rendermode: gpu.Rendermode_Proc,
-	model: gpu.Model,
-	position: Vec3,
-	scale: Vec3,
-	rotation: Quat,
-	shader: gpu.Shader_Program,
-	texture: gpu.Texture,
-	color: Colorf,
-	auto_cast render_order: int = current_render_layer) {
-
-		cmd := Draw_Command{
-			render_order = render_order,
-			serial_number = len(buffered_draw_commands),
-			rendermode = rendermode,
-			shader = shader,
-			texture = texture,
-			scissor = do_scissor,
-			scissor_rect = current_scissor_rect,
-
-			kind = Draw_Model_Command{
-				model = model,
-				position = position,
-				scale = scale,
-				rotation = rotation,
-				texture = texture,
-				color = color,
-			},
-		};
-
-		append(&buffered_draw_commands, cmd);
-}
-
-push_text :: proc(
+im_text :: proc(
 	rendermode: gpu.Rendermode_Proc,
 	font: Font,
 	str: string,
@@ -225,7 +192,7 @@ get_string_width :: inline proc(
 	str: string,
 	size: f32) -> f32 {
 
-		return push_text(rendermode, font, str, {}, {}, size, 0, false);
+		return im_text(rendermode, font, str, {}, {}, size, 0, false);
 }
 
 // Camera utilities
@@ -315,8 +282,7 @@ im_flush :: proc() {
 		texture_mismatch    := cmd.texture.gpu_id  != current_texture.gpu_id;
 		scissor_mismatch    := cmd.scissor         != is_scissor;
 		rendermode_mismatch := cmd.rendermode      != current_rendermode;
-		_, is_draw_model    := cmd.kind.(Draw_Model_Command); // todo(josh): mesh batching?
-		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch || is_draw_model {
+		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
 			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture);
 			clear(&im_queued_for_drawing);
 		}
@@ -352,7 +318,6 @@ im_flush :: proc() {
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
-
 			case Draw_Sprite_Command: {
 				p1, p2, p3, p4 := kind.min, Vec2{kind.min.x, kind.max.y}, kind.max, Vec2{kind.max.x, kind.min.y};
 
@@ -365,23 +330,8 @@ im_flush :: proc() {
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
-
 			case Draw_Texture_Command: {
 				unimplemented();
-			}
-
-			case Draw_Model_Command: {
-				// todo(josh): mesh batching, right now it's a draw call per mesh
-
-				when DEVELOPER {
-					if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
-						num_draw_calls += 1;
-						continue command_loop;
-					}
-				}
-
-				gpu.use_program(cmd.shader);
-				gpu.draw_model(kind.model, kind.position, kind.scale, kind.rotation, kind.texture, kind.color, true);
 			}
 			case: panic(tprint("unhandled case: ", kind));
 		}
@@ -419,4 +369,38 @@ when DEVELOPER {
 	debug_will_issue_next_draw_call :: proc() -> bool {
 		return debugging_rendering_max_draw_calls == -1 || num_draw_calls < debugging_rendering_max_draw_calls;
 	}
+}
+
+
+
+Draw_Command :: struct {
+	render_order:  int,
+	serial_number: int,
+
+	rendermode:   gpu.Rendermode_Proc,
+	shader:       gpu.Shader_Program,
+	texture:      gpu.Texture,
+	scissor:      bool,
+	scissor_rect: [4]int,
+
+	kind: union {
+		Draw_Quad_Command,
+		Draw_Texture_Command,
+		Draw_Sprite_Command,
+	},
+
+}
+Draw_Quad_Command :: struct {
+	min, max: Vec2,
+	color: Colorf,
+}
+Draw_Texture_Command :: struct {
+	position: Vec2,
+	scale: Vec2,
+	color: Colorf,
+}
+Draw_Sprite_Command :: struct {
+	min, max: Vec2,
+	color: Colorf,
+	uvs: [4]Vec2,
 }
