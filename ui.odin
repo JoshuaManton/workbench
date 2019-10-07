@@ -596,7 +596,7 @@ late_update_ui :: proc() {
 			if len(all_imgui_rects) > 0 {
 				UI_Debug_Info :: struct {
 					pushed_rects: i32,
-				}
+				};
 
 				debug := UI_Debug_Info{cast(i32)len(all_imgui_rects)};
 				imgui_struct(&debug, "ui_debug_info");

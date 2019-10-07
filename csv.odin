@@ -128,7 +128,7 @@ csv_catalog_subscribe :: proc(item: ^Catalog_Item, $Record: typeid, list: ^[dyna
 	List_And_Callback :: struct {
 		list: ^[dynamic]T,
 		callback: proc(),
-	}
+	};
 
 	catalog_subscribe(item, /* @Alloc */ new_clone(List_And_Callback{list, callback}), proc(using list_callback: ^List_And_Callback, text: string) {
 		records := parse_csv(Record, text);
@@ -185,7 +185,7 @@ Fire Sword,60,60,,7,7,7,,false
 			dexterity_scaling: f32,
 			fire_scaling:      f32,
 			lightning_scaling: f32,
-		}
+		};
 
 		weapons := parse_csv(Weapon_Record, WEAPONS_CSV_TEXT);
 

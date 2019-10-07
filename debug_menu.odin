@@ -22,7 +22,7 @@ update_debug_menu :: proc(dt: f32) {
 			precise_lossy_delta_time_ms: f32,
 			dt: f32,
 			draw_calls: i32,
-		}
+		};
 
 		data := WB_Debug_Data{
 			wb_camera.position,
