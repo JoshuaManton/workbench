@@ -55,15 +55,15 @@ flush_lights_to_shader :: proc(program: gpu.Shader_Program) {
 		gpu.uniform3fv(program, "point_light_positions",   num_point_lights, &point_light_positions[0].x);
 		gpu.uniform4fv(program, "point_light_colors",      num_point_lights, &point_light_colors[0].r);
 		gpu.uniform1fv(program, "point_light_intensities", num_point_lights, &point_light_intensities[0]);
-		gpu.uniform1i (program, "num_point_lights",        num_point_lights);
 	}
+	gpu.uniform1i (program, "num_point_lights",        num_point_lights);
 
 	if num_directional_lights > 0 {
 		gpu.uniform3fv(program, "directional_light_directions",  num_directional_lights, &directional_light_directions[0].x);
 		gpu.uniform4fv(program, "directional_light_colors",      num_directional_lights, &directional_light_colors[0].r);
 		gpu.uniform1fv(program, "directional_light_intensities", num_directional_lights, &directional_light_intensities[0]);
-		gpu.uniform1i (program, "num_directional_lights",        num_directional_lights);
 	}
+	gpu.uniform1i (program, "num_directional_lights",        num_directional_lights);
 }
 
 set_current_material :: proc(program: gpu.Shader_Program, material: Material) {
@@ -76,41 +76,4 @@ set_current_material :: proc(program: gpu.Shader_Program, material: Material) {
 clear_lights :: proc() {
 	num_point_lights = 0;
 	num_directional_lights = 0;
-}
-
-
-
-Shadow_Map :: struct {
-	fbo: gpu.FBO,
-}
-
-SHADOW_DIM :: 1024;
-
-make_shadow_map :: proc() -> Shadow_Map {
-	depth_map := gpu.gen_texture();
-	gpu.bind_texture2d(depth_map);
-	gpu.tex_image2d(.Texture2D, 0, .Depth_Component, SHADOW_DIM, SHADOW_DIM, 0, .Depth_Component, .Float, nil);
-	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
-	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
-
-	fbo := gpu.gen_framebuffer();
-	gpu.bind_fbo(fbo);
-	gpu.framebuffer_texture2d(.Depth, depth_map);
-	gpu.draw_buffer(0);
-	gpu.read_buffer(0);
-	gpu.assert_framebuffer_complete();
-
-	gpu.bind_fbo(0);
-	gpu.bind_texture2d(0);
-
-	sm := Shadow_Map{fbo};
-	return sm;
-}
-
-shadow_prerender :: proc(sm: Shadow_Map) {
-	gpu.viewport(0, 0, SHADOW_DIM, SHADOW_DIM);
-	gpu.bind_fbo(sm.fbo);
-	gpu.clear_screen(.Depth_Buffer);
 }

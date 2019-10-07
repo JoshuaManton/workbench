@@ -65,11 +65,17 @@ shader_rgba_3d: gpu.Shader_Program;
 shader_texture_unlit: gpu.Shader_Program;
 shader_texture_lit: gpu.Shader_Program;
 
+shader_shadow_depth: gpu.Shader_Program;
+shader_depth: gpu.Shader_Program;
+
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: gpu.Model;
 
 debugging_rendering: bool;
+
+SHADOW_MAP_DIM :: 2048;
+shadow_map_camera: gpu.Camera;
 
 init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl_version_minor: int) {
 	gpu.init(screen_width, screen_height, opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
@@ -82,15 +88,19 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 	gpu.add_mesh_to_model(&_internal_im_model, []gpu.Vertex2D{}, []u32{});
 
 	ok: bool;
-	shader_rgba_2d, ok    = gpu.load_shader_text(SHADER_RGBA_2D_VERT, SHADER_RGBA_2D_FRAG);
+	shader_rgba_2d, ok       = gpu.load_shader_text(SHADER_RGBA_2D_VERT, SHADER_RGBA_2D_FRAG);
 	assert(ok);
 	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_TEXTURE_3D_UNLIT_VERT, SHADER_TEXTURE_3D_UNLIT_FRAG);
 	assert(ok);
-	shader_texture_lit, ok = gpu.load_shader_text(SHADER_TEXTURE_3D_LIT_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
+	shader_texture_lit, ok   = gpu.load_shader_text(SHADER_TEXTURE_3D_LIT_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
 	assert(ok);
-	shader_text, ok    = gpu.load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
+	shader_text, ok          = gpu.load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
 	assert(ok);
-	shader_rgba_3d, ok = gpu.load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
+	shader_rgba_3d, ok       = gpu.load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
+	assert(ok);
+	shader_shadow_depth, ok  = gpu.load_shader_text(SHADER_SHADOW_VERT, SHADER_SHADOW_FRAG);
+	assert(ok);
+	shader_depth, ok         = gpu.load_shader_text(SHADER_TEXTURE_3D_UNLIT_VERT, SHADER_DEPTH_FRAG);
 	assert(ok);
 
 	register_debug_program("Rendering", _debug_rendering, nil);
@@ -98,6 +108,14 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 	wb_cube_model = gpu.create_cube_model();
 	wb_quad_model = gpu.create_quad_model();
 	gpu.add_mesh_to_model(&debug_line_model, []gpu.Vertex3D{}, []u32{});
+
+	gpu.init_camera(&shadow_map_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, false);
+	assert(shadow_map_camera.framebuffer.fbo == 0);
+	shadow_map_camera.framebuffer = gpu.create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, gpu.Framebuffer_Settings{.Depth_Component, .Depth_Component, .Float, .Depth, false});
+	shadow_map_camera.position = Vec3{0, 10, 0};
+	shadow_map_camera.rotation = rotate_quat_by_degrees({0, 0, 0, 1}, Vec3{-45, -45, 0});
+	shadow_map_camera.near_plane = 0.01;
+	shadow_map_camera.far_plane = 20;
 }
 
 update_draw :: proc() {
@@ -120,6 +138,7 @@ render_workspace :: proc(workspace: Workspace) {
 	clear(&debug_cubes);
 	clear(&buffered_draw_commands);
 
+	gpu.enable(.Cull_Face);
 	gpu.prerender(platform.current_window_width, platform.current_window_height);
 
 	gpu.update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
@@ -136,8 +155,20 @@ render_workspace :: proc(workspace: Workspace) {
 			gpu.log_errors(workspace.name);
 		}
 
-		// post-render
-		draw_render_scene();
+		// draw scene to shadow map
+		{
+			if len(directional_light_directions) > 0 {
+				shadow_map_camera.rotation = degrees_to_quaternion(Vec3{-60, time * 20, 0});
+				gpu.PUSH_CAMERA(&shadow_map_camera);
+				// gpu.cull_face(.Front);
+				draw_render_scene(false, true, shader_shadow_depth);
+				gpu.cull_face(.Back);
+			}
+		}
+
+		// draw scene for real
+		draw_render_scene(true, false);
+
 		clear_render_scene();
 
 		im_flush();
@@ -171,6 +202,7 @@ render_workspace :: proc(workspace: Workspace) {
 	}
 
 	gpu.draw_texture(wb_camera.framebuffer.texture, shader_texture_unlit, {0, 0}, {platform.current_window_width, platform.current_window_height});
+	// gpu.draw_texture(shadow_map_camera.framebuffer.texture, shader_depth, {0, 0}, {500, 500});
 
 	imgui_render(true);
 }
@@ -185,6 +217,8 @@ deinit_draw :: proc() {
 	gpu.delete_shader(shader_text);
 
 	gpu.delete_shader(shader_texture_unlit);
+	gpu.delete_shader(shader_texture_lit);
+	gpu.delete_shader(shader_shadow_depth);
 
 	gpu.delete_model(debug_line_model);
 	gpu.deinit();

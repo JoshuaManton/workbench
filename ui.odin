@@ -50,7 +50,7 @@ ui_push_rect :: proc(x1, y1, x2, y2: f32, _top := 0, _right := 0, _bottom := 0, 
 	right  := _right;
 	bottom := _bottom;
 	left   := _left;
-	if len(ui_rect_stack) > 0 && last(ui_rect_stack).kind == IMGUI_Rect_Kind.Scroll_View {
+	if len(ui_rect_stack) > 0 && last(ui_rect_stack[:]).kind == IMGUI_Rect_Kind.Scroll_View {
 		top    -= cast(int)(current_scroll_view.scroll_offset.y);
 		right  -= cast(int)(current_scroll_view.scroll_offset.x);
 		bottom += cast(int)(current_scroll_view.scroll_offset.y);

@@ -128,12 +128,17 @@ deinit :: proc() {
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false) {
     camera.is_perspective = is_perspective;
     camera.size = size;
+    camera.near_plane = 0.01;
+    camera.far_plane = 1000;
     camera.position = Vec3{};
     camera.rotation = Quat{0, 0, 0, 1};
     camera.draw_mode = .Triangles;
+    camera.clear_color = {1, 0, 1, 1};
     camera.pixel_width = cast(f32)pixel_width;
     camera.pixel_height = cast(f32)pixel_height;
     camera.aspect = camera.pixel_width / camera.pixel_height;
+
+    assert(camera.framebuffer.fbo == 0);
 
     if make_framebuffer {
         assert(pixel_width > 0);
@@ -180,17 +185,8 @@ camera_prerender :: proc(camera: ^Camera) {
 		unbind_framebuffer();
 	}
 
-
-
 	set_clear_color(camera.clear_color);
-	if camera.is_perspective {
-		enable(Capabilities.Depth_Test);
-		clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
-	}
-	else {
-		disable(Capabilities.Depth_Test);
-		clear_screen(Clear_Flags.Color_Buffer);
-	}
+	clear_screen(Clear_Flags.Color_Buffer | Clear_Flags.Depth_Buffer);
 }
 
 update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
@@ -215,29 +211,27 @@ delete_camera :: proc(camera: Camera) {
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
-	view_matrix := identity(Mat4);
-   	rotation_matrix: Mat4;
-	if camera.current_rendermode == .World {
-    	view_matrix = translate(view_matrix, Vec3{-camera.position.x, -camera.position.y, -camera.position.z});
-	    rotation_matrix = quat_to_mat4(inverse(camera.rotation));
+	view_matrix := translate(identity(Mat4), -camera.position);
+
+	rotation := camera.rotation;
+	if camera.current_rendermode != .World {
+		rotation = {0, 0, 0, 1};
 	}
-	else {
-	    rotation_matrix = quat_to_mat4(inverse(Quat{0, 0, 0, 1}));
-    }
+    rotation_matrix := quat_to_mat4(inverse(rotation));
     view_matrix = mul(rotation_matrix, view_matrix);
     return view_matrix;
 }
 
 construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
     if camera.is_perspective {
-        return perspective(to_radians(camera.size), camera.aspect, 0.01, 1000);
+        return perspective(to_radians(camera.size), camera.aspect, camera.near_plane, camera.far_plane);
     }
     else {
         top    : f32 =  1 * camera.size;
         bottom : f32 = -1 * camera.size;
         left   : f32 = -1 * camera.aspect * camera.size;
         right  : f32 =  1 * camera.aspect * camera.size;
-        return ortho3d(left, right, bottom, top, -1, 1);
+        return ortho3d(left, right, bottom, top, camera.near_plane, camera.far_plane);
     }
 }
 
@@ -363,6 +357,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	// shader stuff
 	program := get_current_shader();
 
+	uniform1i(program, "texture_handle", 0);
 	uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
 	uniform1i(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
 	uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
@@ -383,7 +378,8 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 		bind_vao(mesh.vao);
 		bind_vbo(mesh.vbo);
 		bind_ibo(mesh.ibo);
-		bind_texture2d(texture.gpu_id);
+		active_texture0();
+		bind_texture2d(texture.gpu_id); // todo(josh): handle multiple textures per model
 
 		log_errors(#procedure);
 
@@ -408,62 +404,103 @@ delete_model :: proc(model: Model) {
 }
 
 create_cube_model :: proc() -> Model {
+	indices := []u32 {
+		 0,  2,  1,  0,  3,  2,
+		 4,  5,  6,  4,  6,  7,
+		 8, 10,  9,  8, 11, 10,
+		12, 13, 14, 12, 14, 15,
+		16, 17, 18, 16, 18, 19,
+		20, 22, 21, 20, 23, 22,
+	};
+
     verts := []Vertex3D {
-        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
-        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
-        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
-        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
-        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
-        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0, -1.0}},
-        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
-        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
-        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
-        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
-        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
-        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  0.0,  1.0}},
-        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
-        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
-        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
-        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
-        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
-        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1.0,  0.0,  0.0}},
-        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
-        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
-        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
-        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
-        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
-        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1.0,  0.0,  0.0}},
-        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
-        {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
-        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
-        {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
-        {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
-        {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0, -1.0,  0.0}},
-        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
-        {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
-        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
-        {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
-        {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
-        {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0.0,  1.0,  0.0}},
+    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+
+    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+
+    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+
+    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+
+    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+
+    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+
+        // {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+        // {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+        // {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+        // {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+        // {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+        // {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+        // {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+        // {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+        // {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+        // {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+        // {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+        // {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+        // {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+        // {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+        // {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+        // {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+        // {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+        // {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+        // {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+        // {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+        // {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+        // {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+        // {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+        // {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+        // {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+        // {{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+        // {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+        // {{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+        // {{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+        // {{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+        // {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+        // {{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+        // {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+        // {{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+        // {{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+        // {{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
     };
 
     model: Model;
-    add_mesh_to_model(&model, verts, {});
+    add_mesh_to_model(&model, verts, indices);
     return model;
 }
 
 create_quad_model :: proc() -> Model {
     verts := []Vertex3D {
-        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
-        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
-        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
-        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
-        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
-        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, -1}},
+        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
+        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
+        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
+        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
+    };
+
+    indices := []u32 {
+    	0, 2, 1, 0, 3, 2
     };
 
     model: Model;
-    add_mesh_to_model(&model, verts, {});
+    add_mesh_to_model(&model, verts, indices);
     return model;
 }
 
@@ -493,7 +530,21 @@ rendermode_pixel :: proc() {
 // Framebuffers
 //
 
-create_framebuffer :: proc(width, height: int) -> Framebuffer {
+Framebuffer_Settings :: struct {
+	internal_format: Internal_Color_Format,
+	format: Pixel_Data_Format,
+	element_type: Texture2D_Data_Type,
+	attachment_type: Framebuffer_Attachment,
+	make_renderbuffer: bool,
+}
+
+default_framebuffer_settings :: proc() -> Framebuffer_Settings {
+	return Framebuffer_Settings{.RGBA, .RGBA, .Unsigned_Byte, .Color0, true};
+}
+
+_default_framebuffer_settings := default_framebuffer_settings();
+
+create_framebuffer :: proc(width, height: int, settings := _default_framebuffer_settings) -> Framebuffer {
 	fbo := gen_framebuffer();
 	bind_fbo(fbo);
 
@@ -501,26 +552,35 @@ create_framebuffer :: proc(width, height: int) -> Framebuffer {
 	texture := gen_texture();
 	bind_texture2d(texture);
 
-	tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
-	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Mag_Filter, Texture_Parameter_Value.Nearest);
-	tex_parameteri(Texture_Target.Texture2D, Texture_Parameter.Min_Filter, Texture_Parameter_Value.Nearest);
+	tex_image2d(.Texture2D, 0, settings.internal_format, cast(i32)width, cast(i32)height, 0, settings.format, settings.element_type, nil);
+	tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+	tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+	tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
+	tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
 
-	rbo := gen_renderbuffer();
-	bind_rbo(rbo);
+	framebuffer_texture2d(settings.attachment_type, texture);
 
-	renderbuffer_storage(Renderbuffer_Storage.Depth24_Stencil8, cast(i32)width, cast(i32)height);
-	framebuffer_renderbuffer(Framebuffer_Attachment.Depth_Stencil, rbo);
+	rbo: RBO;
+	if settings.make_renderbuffer {
+		rbo := gen_renderbuffer();
+		bind_rbo(rbo);
 
-	framebuffer_texture2d(Framebuffer_Attachment.Color0, texture);
+		renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
+		framebuffer_renderbuffer(.Depth_Stencil, rbo);
+		draw_buffer(cast(u32)Framebuffer_Attachment.Color0);
+	}
+	else {
+		draw_buffer(0);
+		read_buffer(0);
+	}
 
-	draw_buffer(cast(u32)Framebuffer_Attachment.Color0);
 	assert_framebuffer_complete();
 
 	bind_texture2d(0);
 	bind_rbo(0);
 	bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte}, rbo, width, height};
+	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, settings.format, settings.element_type}, rbo, width, height};
 	return framebuffer;
 }
 
@@ -579,15 +639,9 @@ get_mouse_direction_from_camera :: proc(camera: ^Camera, cursor_unit_position: V
 
 world_to_viewport :: inline proc(position: Vec3, camera: ^Camera) -> Vec3 {
 	proj := construct_projection_matrix(camera);
-	if camera.is_perspective {
-		mv := mul(proj, construct_view_matrix(camera));
-		result := mul(mv, Vec4{position.x, position.y, position.z, 1});
-		if result.w > 0 do result /= result.w;
-		new_result := Vec3{result.x, result.y, result.z};
-		return new_result;
-	}
-
-	result := mul(proj, Vec4{position.x, position.y, position.z, 1});
+	mv := mul(proj, construct_view_matrix(camera));
+	result := mul(mv, Vec4{position.x, position.y, position.z, 1});
+	if result.w > 0 do result /= result.w;
 	return Vec3{result.x, result.y, result.z};
 }
 world_to_pixel :: inline proc(a: Vec3, camera: ^Camera, pixel_width: f32, pixel_height: f32) -> Vec3 {

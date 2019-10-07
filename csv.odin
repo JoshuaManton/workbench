@@ -96,8 +96,8 @@ parse_csv :: proc($Record: typeid, _text: string) -> [dynamic]Record {
 		for header_name, column_idx in headers.values {
 			str_value := row.values[column_idx];
 
-			selector_buffer: [10]string;
-			selectors := split_by_rune(header_name, '.', &selector_buffer);
+			selectors := strings.split(header_name, ".");
+			defer delete(selectors);
 
 			offset: int;
 			ti := type_info_of(Record);

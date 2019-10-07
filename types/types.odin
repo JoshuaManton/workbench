@@ -29,3 +29,7 @@ COLOR_YELLOW := Colorf{1, 1, 0, 1};
 Maybe :: union(T: typeid) {
 	T,
 }
+
+getval :: inline proc(m: Maybe($T)) -> (T, bool) {
+	return m.(T);
+}

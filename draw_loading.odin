@@ -135,7 +135,7 @@ load_model_from_file :: proc(path: string, loc := #caller_location) -> gpu.Model
 		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
 		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
 		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
-		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
+		//cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
@@ -155,7 +155,7 @@ load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> gpu.Mod
 		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
 		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
 		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
-		cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
+		//cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs, &hint[0]);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);

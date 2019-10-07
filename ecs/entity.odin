@@ -87,7 +87,7 @@ load_scene :: proc(folder_path: string) {
 	// note(josh): contents of filepaths get given to entities
 
 	for filepath in filepaths {
-		if !string_ends_in(filepath, ".e") {
+		if !string_ends_with(filepath, ".e") {
 			delete(filepath);
 		}
 		else {

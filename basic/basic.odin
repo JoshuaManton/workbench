@@ -12,16 +12,16 @@ using import "core:math"
 //
 
 instantiate :: proc{instantiate_no_value, instantiate_value};
-instantiate_no_value :: inline proc(array: ^[dynamic]$T) -> ^T {
-	length := append(array, T{});
+instantiate_no_value :: inline proc(array: ^[dynamic]$E) -> ^E {
+	length := append(array, E{});
 	return &array[length-1];
 }
-instantiate_value :: inline proc(array: ^[dynamic]$T, value: T) -> ^T {
+instantiate_value :: inline proc(array: ^[dynamic]$E, value: E) -> ^E {
 	append(array, value);
 	return &array[len(array)-1];
 }
 
-array_contains :: proc(array: $T/[]$E, val: E) -> bool {
+array_contains :: proc(array: []$E, val: E) -> bool {
 	for elem in array {
 		if elem == val {
 			return true;
@@ -30,47 +30,29 @@ array_contains :: proc(array: $T/[]$E, val: E) -> bool {
 	return false;
 }
 
-// get_by_name :: proc(array: []$T, name: string) -> ^T {
-// 	for _, i in array {
-// 		thing := &array[i];
-// 		if thing.name == name do return thing;
-// 	}
-// 	return nil;
-// }
-// get_by_id :: proc(array: []$T, id: string) -> ^T {
-// 	for _, i in array {
-// 		thing := &array[i];
-// 		if thing.id == id do return thing;
-// 	}
-// 	return nil;
-// }
+unordered_remove_value :: proc(array: ^[dynamic]$E, to_remove: E) {
+	for item, idx in array {
+		if item == to_remove {
+			array[idx] = array[len(array)-1];
+			pop(&array);
+			return;
+		}
+	}
+}
+remove_ptr :: proc(array: ^[dynamic]^$E, to_remove: ^E) {
+	for _, i in array {
+		item := array[i];
+		if item == to_remove {
+			array[i] = array[len(array)-1];
+			pop(array);
+			return;
+		}
+	}
+}
 
-// remove :: proc{remove_value, remove_ptr};
-// remove_value :: proc(array: ^[dynamic]$T, to_remove: ^T) {
-// 	for _, i in array {
-// 		item := &array[i];
-// 		if item == to_remove {
-// 			array[i] = array[len(array)-1];
-// 			pop(array);
-// 			return;
-// 		}
-// 	}
-// }
-// remove_ptr :: proc(array: ^[dynamic]^$T, to_remove: ^T) {
-// 	for _, i in array {
-// 		item := array[i];
-// 		if item == to_remove {
-// 			array[i] = array[len(array)-1];
-// 			pop(array);
-// 			return;
-// 		}
-// 	}
-// }
-
-last :: proc{last_dyn, last_slice, last_array};
-last_dyn   :: inline proc(list: [dynamic]$T) -> ^T do return &list[len(list)-1];
-last_slice :: inline proc(list: []$T)        -> ^T do return &list[len(list)-1];
-last_array :: inline proc(list: [$N]$T)      -> ^T do return &list[N-1];
+last :: inline proc(slice: []$E) -> ^E {
+	return &slice[len(slice)-1];
+}
 
 //
 // Paths
@@ -99,7 +81,7 @@ get_file_extension :: proc(filepath: string) -> (string, bool) {
 	return "", false;
 }
 
-// "filename.txt" -> "txt"
+// "path/to/filename.txt" -> "filename.txt"
 get_file_name_and_extension :: proc(filepath: string) -> (string, bool) {
 	if slash_idx, ok := find_from_right(filepath, '/'); ok {
 		filename := filepath[slash_idx+1:];
@@ -165,22 +147,9 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 //
 
 pretty_location :: inline proc(location: rt.Source_Code_Location) -> string {
-	file := file_from_path(location.file_path);
+	file, ok := get_file_name(location.file_path);
+	assert(ok);
 	return fmt.tprintf("<%s.%s():%d> ", file, location.procedure, location.line);
-}
-
-//
-// Enums
-//
-
-enum_length :: inline proc($Enum_Type: typeid) -> int {
-	info := type_info_base(type_info_of(Enum_Type));
-	return len(info.variant.(Type_Info_Enum).names);
-}
-
-enum_names :: inline proc($Enum_Type: typeid) -> []string {
-	info := type_info_base(type_info_of(Enum_Type));
-	return info.variant.(Type_Info_Enum).names;
 }
 
 //
@@ -203,7 +172,7 @@ trim_whitespace :: proc(text: string) -> string {
 	start := 0;
 	for is_whitespace(text[start]) do start += 1;
 	end := len(text);
-	for is_whitespace(text[end - 1]) do end -= 1;
+	for is_whitespace(text[end-1]) do end -= 1;
 
 	new_str := text[start:end];
 	return new_str;
@@ -212,15 +181,6 @@ trim_whitespace :: proc(text: string) -> string {
 is_digit :: proc{is_digit_u8, is_digit_rune};
 is_digit_u8 :: inline proc(r: u8) -> bool { return '0' <= r && r <= '9' }
 is_digit_rune :: inline proc(r: rune) -> bool { return '0' <= r && r <= '9' }
-
-MAX_C_STR_LENGTH :: 1024;
-to_c_string :: proc(str: string) -> [MAX_C_STR_LENGTH]byte {
-	assert(len(str) < MAX_C_STR_LENGTH);
-	result: [MAX_C_STR_LENGTH]byte;
-	mem.copy(&result[0], &str[0], len(str));
-	result[len(str)] = 0;
-	return result;
-}
 
 find_from_right :: proc(str: string, c: rune) -> (int, bool) {
 	u := cast(u8)c;
@@ -266,7 +226,7 @@ string_to_lower :: proc(str: string) -> string {
 	return lower;
 }
 
-string_ends_in :: proc(str: string, end: string) -> bool {
+string_ends_with :: proc(str: string, end: string) -> bool {
 	if len(str) < len(end) do return false;
 	j := len(str)-1;
 	for i := len(end)-1; i >= 0; i -= 1 {
@@ -275,73 +235,6 @@ string_ends_in :: proc(str: string, end: string) -> bool {
 	}
 	return true;
 }
-
-split_by_rune :: proc(str: string, split_on: rune, _buffer: ^[$N]string) -> []string {
-	buffer := _buffer;
-	cur_slice := 0;
-	start := 0;
-	for b, i in str {
-		if b == split_on {
-			assert(cur_slice < len(buffer));
-			section := str[start:i];
-			buffer[cur_slice] = section;
-			cur_slice += 1;
-			start = i + 1;
-		}
-	}
-
-	assert(cur_slice < len(buffer));
-	section := str[start:];
-	buffer[cur_slice] = section;
-	cur_slice += 1;
-
-	return buffer[:cur_slice];
-}
-
-split_by_lines :: proc(str: string) -> []string /* @Alloc */ {
-	array: [dynamic]string;
-	start := -1;
-	for _, i in str {
-		if str[i] == '\n' || str[i] == '\r' {
-			if start != -1 {
-				append(&array, cast(string)str[start:i]);
-			}
-			start = -1;
-		}
-		else {
-			if start == -1 {
-				start = i;
-			}
-		}
-	}
-
-	return array[:];
-}
-
-file_from_path :: proc(path: string) -> string {
-	file := path;
-	start := 0;
-	end := len(file);
-
-	if last_slash_idx, ok := find_from_right(file, '/'); ok {
-		start = last_slash_idx;
-	}
-
-	if dot, ok := find_from_right(file, '.'); ok {
-		end = dot;
-	}
-
-	file = file[start+1:end];
-
-	return file;
-}
-
-
-
-
-
-
-
 
 
 

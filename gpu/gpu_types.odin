@@ -19,6 +19,9 @@ Camera :: struct {
     // perspective  -> fov
     size: f32,
 
+    near_plane: f32,
+    far_plane:  f32,
+
     clear_color: Colorf,
 
     current_rendermode: Rendermode,
@@ -186,6 +189,12 @@ Capabilities :: enum u32 {
     Stencil_Test                = odingl.STENCIL_TEST,
     Texture_Cube_Map_Seamless   = odingl.TEXTURE_CUBE_MAP_SEAMLESS,
     Program_Point_Size          = odingl.PROGRAM_POINT_SIZE,
+}
+
+Polygon_Face :: enum i32 {
+    Front        = odingl.FRONT,
+    Back         = odingl.BACK,
+    FrontAndBack = odingl.FRONT_AND_BACK,
 }
 
 Blend_Factors :: enum u32 {

@@ -154,6 +154,13 @@ is_enabled :: inline proc(bits: Capabilities, loc := #caller_location) -> bool {
 
 
 
+cull_face :: inline proc(face: Polygon_Face, loc := #caller_location) {
+	odingl.CullFace(transmute(u32)face);
+	log_errors(#procedure, loc);
+}
+
+
+
 blend_func :: proc(sfactor, dfactor: Blend_Factors, loc := #caller_location) {
 	odingl.BlendFunc(transmute(u32)sfactor, transmute(u32)dfactor);
 	log_errors(#procedure, loc);
@@ -214,7 +221,7 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
             defer delete(error_message);
 
             log_func(id, i32(info_log_length), nil, &error_message[0]);
-            fmt.printf_err("Error in %v:\n%s", type_, string(error_message[0:len(error_message)-1]));
+            fmt.eprintf("Error in %v:\n%s", type_, string(error_message[0:len(error_message)-1]));
 
             return true;
         }

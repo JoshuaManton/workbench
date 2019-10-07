@@ -5,7 +5,8 @@ import "core:fmt"
 using import "../basic"
 
 logln :: proc(args: ..any, location := #caller_location) {
-	file := file_from_path(location.file_path);
+	file, ok := get_file_name(location.file_path);
+	assert(ok);
 
 	fmt.print(pretty_location(location));
 	fmt.print(..args);
