@@ -19,12 +19,13 @@ Model_Draw_Info :: struct {
 	scale: Vec3,
 	rotation: Quat,
 	color: Colorf,
+	cast_shadows: bool,
 }
 
 render_scene: Render_Scene;
 
-submit_model :: proc(model: gpu.Model, shader: gpu.Shader_Program, texture: gpu.Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf) {
-	append(&render_scene.queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color});
+submit_model :: proc(model: gpu.Model, shader: gpu.Shader_Program, texture: gpu.Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, cast_shadows := true) {
+	append(&render_scene.queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, cast_shadows});
 }
 
 draw_render_scene :: proc($do_lighting: bool, $do_shader_override: bool, shader_override: gpu.Shader_Program = 0) {
