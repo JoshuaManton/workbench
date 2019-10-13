@@ -112,32 +112,33 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 	gpu.init_camera(&shadow_map_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, false);
 	assert(shadow_map_camera.framebuffer.fbo == 0);
 	shadow_map_camera.framebuffer = gpu.create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, gpu.Framebuffer_Settings{.Depth_Component, .Depth_Component, .Float, .Depth, false});
-	shadow_map_camera.position = Vec3{0, 10, 0};
+	shadow_map_camera.position = Vec3{0, 5, 0};
 	shadow_map_camera.rotation = rotate_quat_by_degrees({0, 0, 0, 1}, Vec3{-45, -45, 0});
 	shadow_map_camera.near_plane = 0.01;
 	shadow_map_camera.far_plane = 20;
 }
 
 update_draw :: proc() {
-	if !debug_window_open do return;
-	if imgui.begin("Scene View") {
-	    window_size := imgui.get_window_size();
+	clear(&debug_lines);
+	clear(&debug_cubes);
+	clear(&buffered_draw_commands);
 
-		imgui.image(rawptr(uintptr(wb_camera.framebuffer.texture.gpu_id)),
-			imgui.Vec2{window_size.x - 10, window_size.y - 30},
-			imgui.Vec2{0,1},
-			imgui.Vec2{1,0});
-	} imgui.end();
+	if debug_window_open {
+		if imgui.begin("Scene View") {
+		    window_size := imgui.get_window_size();
+
+			imgui.image(rawptr(uintptr(wb_camera.framebuffer.texture.gpu_id)),
+				imgui.Vec2{window_size.x - 10, window_size.y - 30},
+				imgui.Vec2{0,1},
+				imgui.Vec2{1,0});
+		} imgui.end();
+	}
 }
 
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
 
 render_workspace :: proc(workspace: Workspace) {
-	clear(&debug_lines);
-	clear(&debug_cubes);
-	clear(&buffered_draw_commands);
-
 	gpu.enable(.Cull_Face);
 	gpu.prerender(platform.current_window_width, platform.current_window_height);
 
