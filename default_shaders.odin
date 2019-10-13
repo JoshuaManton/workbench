@@ -9,6 +9,8 @@ layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
 
+uniform vec4 mesh_color;
+
 uniform mat4 model_matrix;
 uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
@@ -18,7 +20,7 @@ out vec4 desired_color;
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     gl_Position = result;
-    desired_color = vbo_color;
+    desired_color = vbo_color * mesh_color;
 }
 `;
 
@@ -266,11 +268,11 @@ vec4 calculate_directional_light(int light_index, vec3 norm, vec4 unlit_color) {
 }
 
 float calculate_shadow(vec3 light_direction) {
-    vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w;
+    vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
     proj_coords = proj_coords * 0.5 + 0.5;
     float closest_depth = texture(shadow_map, proj_coords.xy).r;
     float current_depth = proj_coords.z;
-    float bias = max(0.05 * (1.0 - dot(normal, -light_direction)), 0.005);
+    float bias = max(0.005 * (1.0 - dot(normal, -light_direction)), 0.001);
     float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
     return shadow;
 }
