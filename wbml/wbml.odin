@@ -39,21 +39,63 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 	switch kind in ti.variant {
 		case rt.Type_Info_Integer: {
 			if kind.signed {
-				switch ti.size {
-					case 1: print_to_buf(sb, (cast(^i8 )value)^);
-					case 2: print_to_buf(sb, (cast(^i16)value)^);
-					case 4: print_to_buf(sb, (cast(^i32)value)^);
-					case 8: print_to_buf(sb, (cast(^i64)value)^);
-					case: panic(tprint(ti.size));
+				#complete
+				switch kind.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: print_to_buf(sb, (cast(^i8 )value)^);
+							case 2: print_to_buf(sb, (cast(^i16)value)^);
+							case 4: print_to_buf(sb, (cast(^i32)value)^);
+							case 8: print_to_buf(sb, (cast(^i64)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^i16le)value)^);
+							case 4: print_to_buf(sb, (cast(^i32le)value)^);
+							case 8: print_to_buf(sb, (cast(^i64le)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^i16be)value)^);
+							case 4: print_to_buf(sb, (cast(^i32be)value)^);
+							case 8: print_to_buf(sb, (cast(^i64be)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 			else {
-				switch ti.size {
-					case 1: print_to_buf(sb, (cast(^u8 )value)^);
-					case 2: print_to_buf(sb, (cast(^u16)value)^);
-					case 4: print_to_buf(sb, (cast(^u32)value)^);
-					case 8: print_to_buf(sb, (cast(^u64)value)^);
-					case: panic(tprint(ti.size));
+				#complete
+				switch kind.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: print_to_buf(sb, (cast(^u8 )value)^);
+							case 2: print_to_buf(sb, (cast(^u16)value)^);
+							case 4: print_to_buf(sb, (cast(^u32)value)^);
+							case 8: print_to_buf(sb, (cast(^u64)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^u16le)value)^);
+							case 4: print_to_buf(sb, (cast(^u32le)value)^);
+							case 8: print_to_buf(sb, (cast(^u64le)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^u16be)value)^);
+							case 4: print_to_buf(sb, (cast(^u32be)value)^);
+							case 8: print_to_buf(sb, (cast(^u64be)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 		}
@@ -181,6 +223,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 
 		case rt.Type_Info_Map: {
 			// todo(josh): support map
+			unimplemented();
 		}
 
 		case: panic(tprint(kind));
@@ -392,21 +435,63 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		case rt.Type_Info_Integer: {
 			number := &node.kind.(Node_Number);
 			if variant.signed {
-				switch ti.size {
-					case 1: (cast(^i8)ptr)^  = cast(i8) number.int_value;
-					case 2: (cast(^i16)ptr)^ = cast(i16)number.int_value;
-					case 4: (cast(^i32)ptr)^ = cast(i32)number.int_value;
-					case 8: (cast(^i64)ptr)^ =          number.int_value;
-					case: panic(tprint(ti.size));
+				#complete
+				switch variant.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: (cast(^i8 )ptr)^ = cast(i8) number.int_value;
+							case 2: (cast(^i16)ptr)^ = cast(i16)number.int_value;
+							case 4: (cast(^i32)ptr)^ = cast(i32)number.int_value;
+							case 8: (cast(^i64)ptr)^ =          number.int_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: (cast(^i16le)ptr)^ = cast(i16le)number.int_value;
+							case 4: (cast(^i32le)ptr)^ = cast(i32le)number.int_value;
+							case 8: (cast(^i64le)ptr)^ = cast(i64le)number.int_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: (cast(^i16be)ptr)^ = cast(i16be)number.int_value;
+							case 4: (cast(^i32be)ptr)^ = cast(i32be)number.int_value;
+							case 8: (cast(^i64be)ptr)^ = cast(i64be)number.int_value;
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 			else {
-				switch ti.size {
-					case 1: (cast(^u8)ptr)^  = cast(u8) number.uint_value;
-					case 2: (cast(^u16)ptr)^ = cast(u16)number.uint_value;
-					case 4: (cast(^u32)ptr)^ = cast(u32)number.uint_value;
-					case 8: (cast(^u64)ptr)^ =          number.uint_value;
-					case: panic(tprint(ti.size));
+				#complete
+				switch variant.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: (cast(^u8 )ptr)^ = cast(u8) number.uint_value;
+							case 2: (cast(^u16)ptr)^ = cast(u16)number.uint_value;
+							case 4: (cast(^u32)ptr)^ = cast(u32)number.uint_value;
+							case 8: (cast(^u64)ptr)^ =          number.uint_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: (cast(^u16le)ptr)^ = cast(u16le)number.uint_value;
+							case 4: (cast(^u32le)ptr)^ = cast(u32le)number.uint_value;
+							case 8: (cast(^u64le)ptr)^ = cast(u64le)number.uint_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: (cast(^u16be)ptr)^ = cast(u16be)number.uint_value;
+							case 4: (cast(^u32be)ptr)^ = cast(u32be)number.uint_value;
+							case 8: (cast(^u64be)ptr)^ = cast(u64be)number.uint_value;
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 		}
