@@ -183,6 +183,6 @@ init_default_fonts :: proc() {
 
 main :: proc() {
 	when DEVELOPER {
-		_test_csv();
+		// _test_csv();
 	}
 }
