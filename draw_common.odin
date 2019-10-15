@@ -159,7 +159,7 @@ render_workspace :: proc(workspace: Workspace) {
 		// draw scene to shadow map
 		{
 			if len(directional_light_directions) > 0 {
-				shadow_map_camera.rotation = degrees_to_quaternion(Vec3{-60, time * 20, 0});
+				// shadow_map_camera.rotation = degrees_to_quaternion(Vec3{-60, time * 20, 0});
 				gpu.PUSH_CAMERA(&shadow_map_camera);
 				// gpu.cull_face(.Front);
 				draw_render_scene(false, true, shader_shadow_depth);
