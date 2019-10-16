@@ -36,7 +36,7 @@ get_union_tag :: proc(v : any) -> i64 {
         case: panic(fmt.tprint("Invalid union tag type: ", i));
     }
 
-    assert(tag > 0);
+    assert(tag >= 0);
     return tag;
 }
 
