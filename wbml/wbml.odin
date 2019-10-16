@@ -12,13 +12,17 @@ using import "../laas"
 
 serialize :: proc(value: ^$Type) -> string {
 	sb: Builder;
-	ti := type_info_of(Type);
-	serialize_with_type_info("", value, ti, &sb, 0);
-
+	serialize_string_builder(value, &sb);
 	return to_string(sb);
 }
 
+serialize_string_builder :: proc(value: ^$Type, sb: ^Builder) {
+	ti := type_info_of(Type);
+	serialize_with_type_info("", value, ti, sb, 0);
+}
+
 serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int, loc := #caller_location) {
+	assert(ti != nil);
 	indent_level := indent_level;
 
 	print_indents :: inline proc(indent_level: int, sb: ^Builder) {
@@ -179,8 +183,13 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			assert(kind.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
 			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
 			union_ti := reflection.get_union_type_info(any{value, ti.id});
-			print_to_buf(sb, ".", tprint(union_ti), " ");
-			serialize_with_type_info("", value, union_ti, sb, indent_level);
+			if union_ti == nil {
+				print_to_buf(sb, "nil");
+			}
+			else {
+				print_to_buf(sb, ".", tprint(union_ti), " ");
+				serialize_with_type_info("", value, union_ti, sb, indent_level);
+			}
 		}
 
 		case rt.Type_Info_Array: {
@@ -236,7 +245,11 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 
 
 
-deserialize :: proc{deserialize_to_value, deserialize_into_pointer};
+deserialize :: proc{
+	deserialize_to_value,
+	deserialize_into_pointer,
+	deserialize_into_pointer_with_type_info,
+};
 
 deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
 	t: Type;
@@ -266,7 +279,7 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 	eat_newlines(lexer);
 	root_token: Token;
 	ok := get_next_token(lexer, &root_token);
-	assert(ok, "End of text when expecting a value.");
+	if !ok do return nil;
 
 	if symbol, ok := root_token.kind.(laas.Symbol); ok {
 		if symbol.value == '-' {
@@ -354,6 +367,7 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 			switch value_kind.value {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
+				case "nil":                     return new_clone(Node{Node_Nil{}});
 			}
 
 			// assume it's an enum
@@ -527,14 +541,21 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		}
 
 		case rt.Type_Info_Union: {
-			u := &node.kind.(Node_Union);
-			for v in variant.variants {
-				name := tprint(v);
-				if u.variant_name == name {
-					reflection.set_union_type_info(any{ptr, ti.id}, v);
-					write_value(u.value, ptr, v);
-					break;
+			switch node_kind in node.kind {
+				case Node_Nil: {
+					// note(josh): Do nothing!
 				}
+				case Node_Union: {
+					for v in variant.variants {
+						name := tprint(v);
+						if node_kind.variant_name == name {
+							reflection.set_union_type_info(any{ptr, ti.id}, v);
+							write_value(node_kind.value, ptr, v);
+							break;
+						}
+					}
+				}
+				case: panic(tprint(node_kind));
 			}
 		}
 
@@ -590,6 +611,7 @@ Node :: struct {
 		Node_Number,
 		Node_Bool,
 		Node_String,
+		Node_Nil,
 		Node_Enum,
 		Node_Object,
 		Node_Array,
@@ -613,6 +635,9 @@ Node_Bool :: struct {
 
 Node_Enum :: struct {
 	value: string,
+}
+
+Node_Nil :: struct {
 }
 
 Node_Object :: struct {
