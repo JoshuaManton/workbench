@@ -49,7 +49,7 @@ insert :: proc(using table: ^Hashtable($Key, $Value), key: Key, value: Value) #n
 		old_length := len(old_key_headers);
 		old_count := count;
 
-		INITIAL_SIZE :: 32;
+		INITIAL_SIZE :: 31;
 		new_len := next_power_of_2(INITIAL_SIZE + old_length);
 		key_headers = make([]Key_Header(Key), new_len);
 		values = make([]Key_Value(Key, Value), new_len);
@@ -253,6 +253,27 @@ main :: proc() {
 		}
 		lookup_end := get_time();
 		logln("Odin map retrieving ", NUM_ELEMS, " elements: ", (lookup_end-lookup_start)/freq, "s");
+	}
+
+	{
+		iterate_start := get_time();
+		for header, idx in my_table.key_headers {
+			if !header.filled do continue;
+			key := header.key;
+			value := my_table.values[idx].value;
+			assert(value == key * 3);
+		}
+		iterate_end := get_time();
+		logln("My map iterating ", NUM_ELEMS, " elements:   ", (iterate_end-iterate_start)/freq, "s");
+	}
+
+	{
+		iterate_start := get_time();
+		for key, value in odin_table {
+			assert(value == key * 3);
+		}
+		iterate_end := get_time();
+		logln("Odin map iterating ", NUM_ELEMS, " elements: ", (iterate_end-iterate_start)/freq, "s");
 	}
 
 	{
