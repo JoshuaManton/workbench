@@ -240,6 +240,7 @@ vec4 calculate_point_light(int light_index, vec3 norm, vec4 unlit_color) {
     vec4  diffuse = color * diff * material.diffuse;
 
     // specular
+    // todo(josh): blinn-phong specularity?
     vec3  reflect_dir = reflect(-light_dir, norm);
     float spec        = pow(max(dot(view_dir, reflect_dir), 0.0), material.shine);
     vec4  specular    = color * spec * material.specular;

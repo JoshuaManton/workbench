@@ -9,7 +9,7 @@ using import "../external/stb"
 using import "../logging"
 using import wbm "../math"
 
-      import odingl "../external/gl"
+      import odingl "../external/gl" // todo(josh): there should be no direct gl calls in this file
 
 /*
 
@@ -315,10 +315,10 @@ add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u3
 	return idx;
 }
 
-remove_mesh_from_model :: proc(model: ^Model, idx: int) {
+remove_mesh_from_model :: proc(model: ^Model, idx: int, loc := #caller_location) {
 	assert(idx < len(model.meshes));
 	mesh := model.meshes[idx];
-	_internal_delete_mesh(mesh);
+	_internal_delete_mesh(mesh, loc);
 	unordered_remove(&model.meshes, idx);
 }
 
@@ -396,9 +396,9 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	}
 }
 
-delete_model :: proc(model: Model) {
+delete_model :: proc(model: Model, loc := #caller_location) {
 	for mesh in model.meshes {
-		_internal_delete_mesh(mesh);
+		_internal_delete_mesh(mesh, loc);
 	}
 	delete(model.meshes);
 }
@@ -703,8 +703,9 @@ _internal_cube_model: Model;
 default_camera: Camera;
 current_camera: ^Camera;
 
-_internal_delete_mesh :: proc(mesh: Mesh) {
+_internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	delete_vao(mesh.vao);
 	delete_buffer(mesh.vbo);
 	delete_buffer(mesh.ibo);
+	log_errors(#procedure, loc);
 }

@@ -313,14 +313,16 @@ delete_texture :: inline proc(_texture: TextureId, loc := #caller_location) {
 	log_errors(#procedure, loc);
 }
 
-delete_fbo :: proc(_fbo: FBO) {
+delete_fbo :: proc(_fbo: FBO, loc := #caller_location) {
 	fbo := _fbo;
 	odingl.DeleteFramebuffers(1, cast(^u32)&fbo);
+	log_errors(#procedure, loc);
 }
 
-delete_rbo :: proc(_rbo: RBO) {
+delete_rbo :: proc(_rbo: RBO, loc := #caller_location) {
 	rbo := _rbo;
 	odingl.DeleteRenderbuffers(1, cast(^u32)&rbo);
+	log_errors(#procedure, loc);
 }
 
 tex_image2d :: proc(target: Texture_Target,
