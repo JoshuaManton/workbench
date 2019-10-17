@@ -12,13 +12,17 @@ using import "../laas"
 
 serialize :: proc(value: ^$Type) -> string {
 	sb: Builder;
-	ti := type_info_of(Type);
-	serialize_with_type_info("", value, ti, &sb, 0);
-
+	serialize_string_builder(value, &sb);
 	return to_string(sb);
 }
 
+serialize_string_builder :: proc(value: ^$Type, sb: ^Builder) {
+	ti := type_info_of(Type);
+	serialize_with_type_info("", value, ti, sb, 0);
+}
+
 serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int, loc := #caller_location) {
+	assert(ti != nil);
 	indent_level := indent_level;
 
 	print_indents :: inline proc(indent_level: int, sb: ^Builder) {
@@ -39,21 +43,63 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 	switch kind in ti.variant {
 		case rt.Type_Info_Integer: {
 			if kind.signed {
-				switch ti.size {
-					case 1: print_to_buf(sb, (cast(^i8 )value)^);
-					case 2: print_to_buf(sb, (cast(^i16)value)^);
-					case 4: print_to_buf(sb, (cast(^i32)value)^);
-					case 8: print_to_buf(sb, (cast(^i64)value)^);
-					case: panic(tprint(ti.size));
+				#complete
+				switch kind.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: print_to_buf(sb, (cast(^i8 )value)^);
+							case 2: print_to_buf(sb, (cast(^i16)value)^);
+							case 4: print_to_buf(sb, (cast(^i32)value)^);
+							case 8: print_to_buf(sb, (cast(^i64)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^i16le)value)^);
+							case 4: print_to_buf(sb, (cast(^i32le)value)^);
+							case 8: print_to_buf(sb, (cast(^i64le)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^i16be)value)^);
+							case 4: print_to_buf(sb, (cast(^i32be)value)^);
+							case 8: print_to_buf(sb, (cast(^i64be)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 			else {
-				switch ti.size {
-					case 1: print_to_buf(sb, (cast(^u8 )value)^);
-					case 2: print_to_buf(sb, (cast(^u16)value)^);
-					case 4: print_to_buf(sb, (cast(^u32)value)^);
-					case 8: print_to_buf(sb, (cast(^u64)value)^);
-					case: panic(tprint(ti.size));
+				#complete
+				switch kind.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: print_to_buf(sb, (cast(^u8 )value)^);
+							case 2: print_to_buf(sb, (cast(^u16)value)^);
+							case 4: print_to_buf(sb, (cast(^u32)value)^);
+							case 8: print_to_buf(sb, (cast(^u64)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^u16le)value)^);
+							case 4: print_to_buf(sb, (cast(^u32le)value)^);
+							case 8: print_to_buf(sb, (cast(^u64le)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: print_to_buf(sb, (cast(^u16be)value)^);
+							case 4: print_to_buf(sb, (cast(^u32be)value)^);
+							case 8: print_to_buf(sb, (cast(^u64be)value)^);
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 		}
@@ -137,8 +183,13 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			assert(kind.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
 			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
 			union_ti := reflection.get_union_type_info(any{value, ti.id});
-			print_to_buf(sb, ".", tprint(union_ti), " ");
-			serialize_with_type_info("", value, union_ti, sb, indent_level);
+			if union_ti == nil {
+				print_to_buf(sb, "nil");
+			}
+			else {
+				print_to_buf(sb, ".", tprint(union_ti), " ");
+				serialize_with_type_info("", value, union_ti, sb, indent_level);
+			}
 		}
 
 		case rt.Type_Info_Array: {
@@ -181,6 +232,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 
 		case rt.Type_Info_Map: {
 			// todo(josh): support map
+			unimplemented();
 		}
 
 		case: panic(tprint(kind));
@@ -193,7 +245,11 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 
 
 
-deserialize :: proc{deserialize_to_value, deserialize_into_pointer};
+deserialize :: proc{
+	deserialize_to_value,
+	deserialize_into_pointer,
+	deserialize_into_pointer_with_type_info,
+};
 
 deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
 	t: Type;
@@ -223,7 +279,7 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 	eat_newlines(lexer);
 	root_token: Token;
 	ok := get_next_token(lexer, &root_token);
-	assert(ok, "End of text when expecting a value.");
+	if !ok do return nil;
 
 	if symbol, ok := root_token.kind.(laas.Symbol); ok {
 		if symbol.value == '-' {
@@ -311,6 +367,7 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 			switch value_kind.value {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
+				case "nil":                     return new_clone(Node{Node_Nil{}});
 			}
 
 			// assume it's an enum
@@ -392,21 +449,63 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		case rt.Type_Info_Integer: {
 			number := &node.kind.(Node_Number);
 			if variant.signed {
-				switch ti.size {
-					case 1: (cast(^i8)ptr)^  = cast(i8) number.int_value;
-					case 2: (cast(^i16)ptr)^ = cast(i16)number.int_value;
-					case 4: (cast(^i32)ptr)^ = cast(i32)number.int_value;
-					case 8: (cast(^i64)ptr)^ =          number.int_value;
-					case: panic(tprint(ti.size));
+				#complete
+				switch variant.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: (cast(^i8 )ptr)^ = cast(i8) number.int_value;
+							case 2: (cast(^i16)ptr)^ = cast(i16)number.int_value;
+							case 4: (cast(^i32)ptr)^ = cast(i32)number.int_value;
+							case 8: (cast(^i64)ptr)^ =          number.int_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: (cast(^i16le)ptr)^ = cast(i16le)number.int_value;
+							case 4: (cast(^i32le)ptr)^ = cast(i32le)number.int_value;
+							case 8: (cast(^i64le)ptr)^ = cast(i64le)number.int_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: (cast(^i16be)ptr)^ = cast(i16be)number.int_value;
+							case 4: (cast(^i32be)ptr)^ = cast(i32be)number.int_value;
+							case 8: (cast(^i64be)ptr)^ = cast(i64be)number.int_value;
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 			else {
-				switch ti.size {
-					case 1: (cast(^u8)ptr)^  = cast(u8) number.uint_value;
-					case 2: (cast(^u16)ptr)^ = cast(u16)number.uint_value;
-					case 4: (cast(^u32)ptr)^ = cast(u32)number.uint_value;
-					case 8: (cast(^u64)ptr)^ =          number.uint_value;
-					case: panic(tprint(ti.size));
+				#complete
+				switch variant.endianness {
+					case .Platform: {
+						switch ti.size {
+							case 1: (cast(^u8 )ptr)^ = cast(u8) number.uint_value;
+							case 2: (cast(^u16)ptr)^ = cast(u16)number.uint_value;
+							case 4: (cast(^u32)ptr)^ = cast(u32)number.uint_value;
+							case 8: (cast(^u64)ptr)^ =          number.uint_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Little: {
+						switch ti.size {
+							case 2: (cast(^u16le)ptr)^ = cast(u16le)number.uint_value;
+							case 4: (cast(^u32le)ptr)^ = cast(u32le)number.uint_value;
+							case 8: (cast(^u64le)ptr)^ = cast(u64le)number.uint_value;
+							case: panic(tprint(ti.size));
+						}
+					}
+					case .Big: {
+						switch ti.size {
+							case 2: (cast(^u16be)ptr)^ = cast(u16be)number.uint_value;
+							case 4: (cast(^u32be)ptr)^ = cast(u32be)number.uint_value;
+							case 8: (cast(^u64be)ptr)^ = cast(u64be)number.uint_value;
+							case: panic(tprint(ti.size));
+						}
+					}
 				}
 			}
 		}
@@ -442,14 +541,21 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		}
 
 		case rt.Type_Info_Union: {
-			u := &node.kind.(Node_Union);
-			for v in variant.variants {
-				name := tprint(v);
-				if u.variant_name == name {
-					reflection.set_union_type_info(any{ptr, ti.id}, v);
-					write_value(u.value, ptr, v);
-					break;
+			switch node_kind in node.kind {
+				case Node_Nil: {
+					// note(josh): Do nothing!
 				}
+				case Node_Union: {
+					for v in variant.variants {
+						name := tprint(v);
+						if node_kind.variant_name == name {
+							reflection.set_union_type_info(any{ptr, ti.id}, v);
+							write_value(node_kind.value, ptr, v);
+							break;
+						}
+					}
+				}
+				case: panic(tprint(node_kind));
 			}
 		}
 
@@ -505,6 +611,7 @@ Node :: struct {
 		Node_Number,
 		Node_Bool,
 		Node_String,
+		Node_Nil,
 		Node_Enum,
 		Node_Object,
 		Node_Array,
@@ -528,6 +635,9 @@ Node_Bool :: struct {
 
 Node_Enum :: struct {
 	value: string,
+}
+
+Node_Nil :: struct {
 }
 
 Node_Object :: struct {

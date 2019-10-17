@@ -87,6 +87,8 @@ make_simple_window :: proc(window_width, window_height: int,
 
 		if acc >= dt {
 			for {
+				acc -= dt;
+
 				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
@@ -112,25 +114,23 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	    		imgui.pop_font();
 
-				acc -= dt;
 				if acc >= dt {
 					imgui_render(false);
+					continue;
 				}
 				else {
 					break;
 				}
 			}
+
+			render_workspace(workspace);
+
+			glfw.SwapBuffers(main_window);
+
+			gpu.log_errors("after SwapBuffers()");
+
+			rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 		}
-
-		update_loop_end_time := cast(f32)glfw.GetTime();
-
-		render_workspace(workspace);
-
-		glfw.SwapBuffers(main_window);
-
-		gpu.log_errors("after SwapBuffers()");
-
-		rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 	}
 
 	end_workspace(workspace);
@@ -183,6 +183,6 @@ init_default_fonts :: proc() {
 
 main :: proc() {
 	when DEVELOPER {
-		_test_csv();
+		// _test_csv();
 	}
 }

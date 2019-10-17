@@ -90,7 +90,7 @@ make_lexer :: inline proc(text: string) -> Lexer {
 	return Lexer{text, 0, 0, 0, nil};
 }
 
-get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_location) -> bool {
+get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := false, loc := #caller_location) -> bool {
 	if lex_idx >= len(lexer_text) {
 		token^ = Token{"", EOF{}};
 		return false;
@@ -207,6 +207,17 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, loc := #caller_locati
 	}
 
 	_inc(lexer);
+
+	for ignore_newline {
+		if _, is_newline := token.kind.(New_Line); !is_newline {
+			break;
+		}
+		ok := get_next_token(lexer, token, ignore_newline);
+		if !ok {
+			token ^= {};
+			return false;
+		}
+	}
 
 	assert(token.kind != nil);
 	return true;

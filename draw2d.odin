@@ -255,15 +255,13 @@ current_render_layer: int;
 im_flush :: proc() {
 	pf.TIMED_SECTION(&wb_profiler);
 
-	cmds := &buffered_draw_commands;
+	if buffered_draw_commands == nil do return;
+	if len(buffered_draw_commands) == 0 do return;
 
-	if cmds == nil do return;
-	if len(cmds) == 0 do return;
-
-	defer clear(cmds);
+	defer clear(&buffered_draw_commands);
 
 
-	sort.quick_sort_proc(cmds[:], proc(a, b: Draw_Command) -> int {
+	sort.quick_sort_proc(buffered_draw_commands[:], proc(a, b: Draw_Command) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
 			return a.serial_number - b.serial_number;
@@ -277,11 +275,11 @@ im_flush :: proc() {
 	current_texture: gpu.Texture;
 
 	command_loop:
-	for cmd in cmds {
-		shader_mismatch     := cmd.shader          != current_shader;
-		texture_mismatch    := cmd.texture.gpu_id  != current_texture.gpu_id;
-		scissor_mismatch    := cmd.scissor         != is_scissor;
-		rendermode_mismatch := cmd.rendermode      != current_rendermode;
+	for cmd in buffered_draw_commands {
+		shader_mismatch     := cmd.shader         != current_shader;
+		texture_mismatch    := cmd.texture.gpu_id != current_texture.gpu_id;
+		scissor_mismatch    := cmd.scissor        != is_scissor;
+		rendermode_mismatch := cmd.rendermode     != current_rendermode;
 		if shader_mismatch || texture_mismatch || scissor_mismatch || rendermode_mismatch {
 			draw_vertex_list(im_queued_for_drawing[:], current_shader, current_texture);
 			clear(&im_queued_for_drawing);
@@ -307,7 +305,8 @@ im_flush :: proc() {
 		#complete
 		switch kind in cmd.kind {
 			case Draw_Quad_Command: {
-				p1, p2, p3, p4 := kind.min, Vec2{kind.min.x, kind.max.y}, kind.max, Vec2{kind.max.x, kind.min.y};
+				// weird order because of backface culling
+				p1, p2, p3, p4 := kind.min, Vec2{kind.max.x, kind.min.y}, kind.max, Vec2{kind.min.x, kind.max.y};
 
 				v1 := gpu.Vertex2D{p1, {}, kind.color};
 				v2 := gpu.Vertex2D{p2, {}, kind.color};
@@ -319,7 +318,8 @@ im_flush :: proc() {
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
 			case Draw_Sprite_Command: {
-				p1, p2, p3, p4 := kind.min, Vec2{kind.min.x, kind.max.y}, kind.max, Vec2{kind.max.x, kind.min.y};
+				// weird order because of backface culling
+				p1, p2, p3, p4 := kind.min, Vec2{kind.max.x, kind.min.y}, kind.max, Vec2{kind.min.x, kind.max.y};
 
 				v1 := gpu.Vertex2D{p1, kind.uvs[0], kind.color};
 				v2 := gpu.Vertex2D{p2, kind.uvs[1], kind.color};
