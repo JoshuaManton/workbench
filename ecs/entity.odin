@@ -595,6 +595,11 @@ destroy_entity_immediate :: proc(eid: Entity) {
 	append(&scene.entity_datas_pool, data);
 }
 
+add_component_by_typeid :: proc(eid: Entity, tid: typeid, loc := #caller_location) -> ^Component_Base {
+	ptr := _add_component_internal(eid, tid, loc);
+	assert(ptr != nil);
+	return ptr;
+}
 add_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> ^T { // note(josh): volatile return value, do not store
 	ptr := _add_component_internal(eid, typeid_of(T), loc);
 	assert(ptr != nil);
@@ -651,7 +656,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
 		nl, ok2 := laas.expect(&lexer, laas.New_Line);
 		assert(ok2);
 
-		ti := _get_component_ti_from_name(component_name_ident.value);
+		ti := get_component_ti_from_name(component_name_ident.value);
 		comp, found := _get_component_internal(eid, ti.id);
 		if !found do comp = _add_component_internal(eid, ti.id);
 
@@ -848,7 +853,7 @@ _copy_component_internal :: proc(dst: ^Component_Base, src: ^Component_Base, ti:
 	}
 }
 
-_get_component_ti_from_name :: proc(name: string) -> ^rt.Type_Info {
+get_component_ti_from_name :: proc(name: string) -> ^rt.Type_Info {
 	for tid, data in component_types {
 		if tprint(data.ti) == name do return data.ti;
 	}
