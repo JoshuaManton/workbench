@@ -25,8 +25,24 @@ create_texture_from_png_data :: proc(pixels_rgba: []byte) -> gpu.Texture {
 	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
-	assert(channels == 3); // for the .RGB in the following tex_image2d call
-	tex := gpu.create_texture(cast(int)width, cast(int)height, .RGB, .RGB, .Unsigned_Byte, pixel_data);
+	color_format : gpu.Internal_Color_Format;
+	pixel_format : gpu.Pixel_Data_Format;
+
+	switch channels {
+		case 3: {
+			color_format = .RGB;
+			pixel_format = .RGB;
+		}
+		case 4: {
+			color_format = .RGBA;
+			pixel_format = .RGBA;
+		}
+		case: {
+			assert(false); // RGB or RGBA
+		}
+	}
+
+	tex := gpu.create_texture(cast(int)width, cast(int)height, color_format, pixel_format, .Unsigned_Byte, pixel_data);
 
 	return tex;
 }
