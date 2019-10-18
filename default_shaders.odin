@@ -274,8 +274,15 @@ float calculate_shadow(vec3 light_direction) {
     float closest_depth = texture(shadow_map, proj_coords.xy).r;
     float current_depth = proj_coords.z;
     float bias = max(0.005 * (1.0 - dot(normal, -light_direction)), 0.001);
-    float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
-    return shadow;
+    float shadow = 0.0;
+    vec2 texel_size = 1.0 / textureSize(shadow_map, 0);
+    for (int x = -1; x <= 1; x += 1) {
+        for (int y = -1; y <= 1; y += 1) {
+            float pcf_depth = texture(shadow_map, proj_coords.xy + vec2(x, y) * texel_size).r;
+            shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0;
+        }
+    }
+    return shadow / 9.0;
 }
 `;
 
