@@ -701,7 +701,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, do_header :=
             if item != current_tag {
                 current_tag = item;
                 // todo(josh): is zeroing a good idea here?
-                // mem.zero(data, ti.size);
+                mem.zero(data, ti.size);
                 switch i in tag_any {
                     case u8:   (cast(^u8 )tag_ptr)^ = u8 (item);
                     case u16:  (cast(^u16)tag_ptr)^ = u16(item);
