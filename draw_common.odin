@@ -68,6 +68,8 @@ shader_texture_lit: gpu.Shader_Program;
 shader_shadow_depth: gpu.Shader_Program;
 shader_depth: gpu.Shader_Program;
 
+shader_framebuffer_gamma_corrected: gpu.Shader_Program;
+
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: gpu.Model;
@@ -101,6 +103,8 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 	shader_shadow_depth, ok  = gpu.load_shader_text(SHADER_SHADOW_VERT, SHADER_SHADOW_FRAG);
 	assert(ok);
 	shader_depth, ok         = gpu.load_shader_text(SHADER_TEXTURE_3D_UNLIT_VERT, SHADER_DEPTH_FRAG);
+	assert(ok);
+	shader_framebuffer_gamma_corrected, ok = gpu.load_shader_text(SHADER_FRAMEBUFFER_GAMMA_CORRECTED_VERT, SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG);
 	assert(ok);
 
 	register_debug_program("Rendering", _debug_rendering, nil);
@@ -202,24 +206,29 @@ render_workspace :: proc(workspace: Workspace) {
 		}
 	}
 
-	gpu.draw_texture(wb_camera.framebuffer.texture, shader_texture_unlit, {0, 0}, {platform.current_window_width, platform.current_window_height});
-	// gpu.draw_texture(shadow_map_camera.framebuffer.texture, shader_depth, {0, 0}, {500, 500});
+	gpu.use_program(shader_framebuffer_gamma_corrected);
+	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", 1.0/2.0);
+	gpu.draw_texture(wb_camera.framebuffer.texture, {0, 0}, {platform.current_window_width, platform.current_window_height});
+	// gpu.use_program(shader_depth);
+	// gpu.draw_texture(shadow_map_camera.framebuffer.texture, {0, 0}, {500, 500});
 
 	imgui_render(true);
 }
 
 deinit_draw :: proc() {
 	gpu.delete_camera(wb_camera);
+
 	gpu.delete_model(wb_cube_model);
 	gpu.delete_model(wb_quad_model);
 
-	gpu.delete_shader(shader_rgba_3d);
-	gpu.delete_shader(shader_rgba_2d);
-	gpu.delete_shader(shader_text);
-
-	gpu.delete_shader(shader_texture_unlit);
-	gpu.delete_shader(shader_texture_lit);
-	gpu.delete_shader(shader_shadow_depth);
+	// todo(josh): figure out why deleting shaders was causing errors
+	// gpu.delete_shader(shader_rgba_3d);
+	// gpu.delete_shader(shader_rgba_2d);
+	// gpu.delete_shader(shader_text);
+	// gpu.delete_shader(shader_texture_unlit);
+	// gpu.delete_shader(shader_texture_lit);
+	// gpu.delete_shader(shader_shadow_depth);
+	// gpu.delete_shader(shader_framebuffer_gamma_corrected);
 
 	gpu.delete_model(debug_line_model);
 	gpu.deinit();

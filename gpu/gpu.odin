@@ -276,9 +276,8 @@ create_texture :: proc(w, h: int, gpu_format: Internal_Color_Format, pixel_forma
 	return Texture{texture, w, h, texture_target, pixel_format, element_type};
 }
 
-draw_texture :: proc(texture: Texture, shader: Shader_Program, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
+draw_texture :: proc(texture: Texture, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
 	rendermode_pixel();
-	use_program(shader);
 	center := to_vec3(pixel1 + ((pixel2 - pixel1) / 2));
 	size   := to_vec3(pixel2 - pixel1);
 	draw_model(_internal_quad_model, center, size, {0, 0, 0, 1}, texture, {1, 1, 1, 1}, false);

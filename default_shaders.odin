@@ -124,6 +124,46 @@ void main() {
 
 
 
+SHADER_FRAMEBUFFER_GAMMA_CORRECTED_VERT ::
+`
+#version 330 core
+
+// from vbo
+layout(location = 0) in vec3 vbo_vertex_position;
+layout(location = 1) in vec2 vbo_tex_coord;
+
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
+
+out vec2 tex_coord;
+
+void main() {
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
+    gl_Position = result;
+    tex_coord = vbo_tex_coord;
+}
+`;
+
+SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG ::
+`
+#version 330 core
+
+in vec2 tex_coord;
+
+uniform float gamma; // 1.0 / 2.2
+uniform sampler2D texture_handle;
+
+layout(location = 0) out vec4 color;
+
+void main() {
+    color = texture(texture_handle, tex_coord);
+    color = pow(color, vec4(gamma, gamma, gamma, 1));
+}
+`;
+
+
+
 SHADER_TEXTURE_3D_LIT_VERT ::
 `
 #version 330 core
@@ -214,7 +254,9 @@ void main() {
     // vec4 unlit_color = material.ambient * vertex_color;
     vec4 unlit_color = material.ambient * mesh_color;
     if (has_texture == 1) {
-        unlit_color *= texture(texture_handle, tex_coord);
+        float gamma = 2.2;
+        vec3 tex_sample = pow(texture(texture_handle, tex_coord).rgb, vec3(gamma));
+        unlit_color *= vec4(tex_sample, 1.0);
     }
     out_color = unlit_color;
     for (int i = 0; i < num_point_lights; i++) {
@@ -245,7 +287,7 @@ vec4 calculate_point_light(int light_index, vec3 norm, vec4 unlit_color) {
     float spec        = pow(max(dot(view_dir, reflect_dir), 0.0), material.shine);
     vec4  specular    = color * spec * material.specular;
 
-    float attenuation = 1.0 / distance * intensity;
+    float attenuation = (1.0 / (distance * distance)) * intensity;
 
     diffuse  *= attenuation;
     specular *= attenuation;
