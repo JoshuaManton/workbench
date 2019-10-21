@@ -2,6 +2,8 @@ package workbench
 
 import w32 "core:sys/win32"
 
+// todo(josh): rewrite this using queryperformancecounter probably
+
 Stopwatch :: struct {
 	started: bool,
 	start_time: u32,

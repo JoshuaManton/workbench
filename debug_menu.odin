@@ -7,7 +7,6 @@ using import "core:math"
       import     "external/imgui"
       import pf  "profiler"
       import     "gpu"
-      import     "console"
 
 debug_window_open: bool;
 update_debug_menu :: proc(dt: f32) {
@@ -45,38 +44,11 @@ update_debug_menu :: proc(dt: f32) {
 			imgui.checkbox("Debug UI", &debugging_ui);
 			imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
 			imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do pf.profiler_imgui_window(&wb_profiler);
-
-			for _, idx in debug_programs {
-				program := &debug_programs[idx];
-				imgui.checkbox(program.name, &program.is_open);
-				if program.is_open {
-					if imgui.begin(program.name) {
-						program.procedure(program.userdata);
-					}
-					imgui.end();
-				}
-			}
-
 			imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 			imgui.im_slider_int("max_draw_calls", &debugging_rendering_max_draw_calls, -1, num_draw_calls, nil);
 		}
 		imgui.end();
 
-
-		// console.update_console_window(debug_console);
+		draw_rendering_debug_window();
 	}
-}
-
-
-
-debug_programs: [dynamic]Debug_Program;
-register_debug_program :: proc(name: string, procedure: proc(rawptr), userdata: rawptr, is_open := false) {
-	append(&debug_programs, Debug_Program{name, procedure, userdata, is_open});
-}
-
-Debug_Program :: struct {
-	name:      string,
-	procedure: proc(rawptr),
-	userdata:  rawptr,
-	is_open:   bool,
 }

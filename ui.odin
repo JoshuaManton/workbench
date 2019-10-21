@@ -631,6 +631,8 @@ late_update_ui :: proc() {
 	}
 }
 
+// todo(josh): use Source_Code_Location.hash and a hashmap probably. this is so old
+
 Location_ID_Mapping :: struct {
 	id: IMGUI_ID,
 	using loc: Source_Code_Location,

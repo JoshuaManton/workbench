@@ -111,8 +111,6 @@ init_draw :: proc(screen_width, screen_height: int) {
 	shader_framebuffer_gamma_corrected, ok = gpu.load_shader_text(SHADER_FRAMEBUFFER_GAMMA_CORRECTED_VERT, SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG);
 	assert(ok);
 
-	register_debug_program("Rendering", _debug_rendering, nil);
-
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{});
@@ -245,13 +243,16 @@ deinit_draw :: proc() {
 	delete(debug_cubes);
 }
 
-_debug_rendering :: proc(_: rawptr) {
-	// todo(josh): make this a combo box
-	imgui.checkbox("Debug Rendering", &debugging_rendering);
-	if debugging_rendering {
-		wb_camera.draw_mode = .Lines;
+draw_rendering_debug_window :: proc() {
+	if imgui.begin("Rendering") {
+		// todo(josh): make this a combo box
+		imgui.checkbox("Debug Rendering", &debugging_rendering);
+		if debugging_rendering {
+			wb_camera.draw_mode = .Lines;
+		}
+		else {
+			wb_camera.draw_mode = .Triangles;
+		}
 	}
-	else {
-		wb_camera.draw_mode = .Triangles;
-	}
+	imgui.end();
 }

@@ -104,7 +104,6 @@ make_simple_window :: proc(window_width, window_height: int,
 	    		imgui.push_font(imgui_font_default);
 
 	    		update_draw();
-				update_catalog();
 				update_tween(dt);
 				update_ui();
 				update_debug_menu(dt);
