@@ -170,7 +170,7 @@ SHADER_TEXTURE_3D_LIT_VERT ::
 
 layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
-// layout(location = 2) in vec4 vbo_color;
+layout(location = 2) in vec4 vbo_color;
 layout(location = 3) in vec3 vbo_normal;
 
 uniform mat4 model_matrix;
@@ -182,7 +182,7 @@ out vec2 tex_coord;
 out vec3 normal;
 out vec3 frag_position;
 out vec4 frag_position_light_space;
-// out vec4 vertex_color;
+out vec4 vertex_color;
 
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
@@ -192,7 +192,7 @@ void main() {
     normal = mat3(transpose(inverse(model_matrix))) * vbo_normal;
     frag_position = vec3(model_matrix * vec4(vbo_vertex_position, 1.0));
     frag_position_light_space = light_space_matrix * vec4(frag_position, 1.0);
-    // vertex_color = vbo_color;
+    vertex_color = vbo_color;
 }
 `;
 
@@ -213,7 +213,7 @@ in vec2 tex_coord;
 in vec3 normal;
 in vec3 frag_position;
 in vec4 frag_position_light_space;
-// in vec4 vertex_color;
+in vec4 vertex_color;
 
 
 
@@ -252,7 +252,7 @@ void main() {
     vec3 norm = normalize(normal);
 
     // vec4 unlit_color = material.ambient * vertex_color;
-    vec4 unlit_color = material.ambient * mesh_color;
+    vec4 unlit_color = material.ambient * vertex_color * mesh_color;
     if (has_texture == 1) {
         float gamma = 2.2;
         vec3 tex_sample = pow(texture(texture_handle, tex_coord).rgb, vec3(gamma));

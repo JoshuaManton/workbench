@@ -52,8 +52,6 @@ draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0,
 // Internal
 //
 
-DEVELOPER :: true;
-
 wb_camera: gpu.Camera;
 wb_cube_model: gpu.Model;
 wb_quad_model: gpu.Model;

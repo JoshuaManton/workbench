@@ -23,6 +23,8 @@ using import        "types"
 	  import        "console"
       import pf     "profiler"
 
+DEVELOPER :: true;
+
 //
 // Game loop stuff
 //

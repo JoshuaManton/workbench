@@ -265,17 +265,6 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
 // Textures
 //
 
-create_texture :: proc(w, h: int, gpu_format: Internal_Color_Format, pixel_format: Pixel_Data_Format, element_type: Texture2D_Data_Type, initial_data: ^u8 = nil, texture_target := Texture_Target.Texture2D) -> Texture {
-	texture := gen_texture();
-	bind_texture2d(texture);
-
-	tex_image2d(texture_target, 0, gpu_format, cast(i32)w, cast(i32)h, 0, pixel_format, element_type, initial_data);
-	tex_parameteri(texture_target, .Mag_Filter, .Nearest);
-	tex_parameteri(texture_target, .Min_Filter, .Nearest);
-
-	return Texture{texture, w, h, texture_target, pixel_format, element_type};
-}
-
 draw_texture :: proc(texture: Texture, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
 	rendermode_pixel();
 	center := to_vec3(pixel1 + ((pixel2 - pixel1) / 2));

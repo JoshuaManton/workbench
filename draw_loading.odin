@@ -19,9 +19,9 @@ using import "logging"
 // Textures
 //
 
-create_texture_from_png_data :: proc(pixels_rgba: []byte) -> gpu.Texture {
+create_texture_from_png_data :: proc(png_data: []byte) -> gpu.Texture {
 	width, height, channels: i32;
-	pixel_data := stb.load_from_memory(&pixels_rgba[0], cast(i32)len(pixels_rgba), &width, &height, &channels, 0);
+	pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
 	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
@@ -42,14 +42,28 @@ create_texture_from_png_data :: proc(pixels_rgba: []byte) -> gpu.Texture {
 		}
 	}
 
-	tex := gpu.create_texture(cast(int)width, cast(int)height, color_format, pixel_format, .Unsigned_Byte, pixel_data);
-
+	assert(mem.is_power_of_two(cast(uintptr)cast(int)width), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
+	assert(mem.is_power_of_two(cast(uintptr)cast(int)height), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
+	tex := create_texture(cast(int)width, cast(int)height, color_format, pixel_format, .Unsigned_Byte, pixel_data);
 	return tex;
 }
 
-update_texture :: proc(texture: gpu.Texture, new_data: []byte) {
+create_texture :: proc(w, h: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil, texture_target := gpu.Texture_Target.Texture2D) -> gpu.Texture {
+	texture := gpu.gen_texture();
+	gpu.bind_texture2d(texture);
+
+	assert(initial_data != nil);
+	gpu.tex_image2d(texture_target, 0, gpu_format, cast(i32)w, cast(i32)h, 0, pixel_format, element_type, initial_data);
+	gpu.tex_parameteri(texture_target, .Mag_Filter, .Nearest);
+	gpu.tex_parameteri(texture_target, .Min_Filter, .Nearest);
+
+	return gpu.Texture{texture, w, h, texture_target, pixel_format, element_type};
+}
+
+// todo(josh): check `channels` like we do above and don't hardcode the .RGB's passed to tex_image2d
+update_texture :: proc(texture: gpu.Texture, png_data: []byte) {
 	width, height, channels: i32;
-	pixel_data := stb.load_from_memory(&new_data[0], cast(i32)len(new_data), &width, &height, &channels, 0);
+	pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
 	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
@@ -81,7 +95,7 @@ Sprite :: struct {
 
 create_atlas :: inline proc(width, height: int) -> Texture_Atlas {
 	panic("I dont know if this works. I changed the create_texture API so if it breaks you'll have to fix it, sorry :^)");
-	texture := gpu.create_texture(width, height, .RGBA, .RGBA, .Unsigned_Byte);
+	texture := create_texture(width, height, .RGBA, .RGBA, .Unsigned_Byte);
 	data := Texture_Atlas{texture, cast(i32)width, cast(i32)height, 0, 0, 0};
 	return data;
 }
@@ -151,6 +165,7 @@ load_model_from_file :: proc(path: string, loc := #caller_location) -> gpu.Model
 		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
 		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
 		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
+		cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
 		//cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs);
 	assert(scene != nil, tprint(ai.get_error_string()));
@@ -171,6 +186,7 @@ load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> gpu.Mod
 		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
 		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
 		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
+		cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
 		//cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs, &hint[0]);
 	assert(scene != nil, tprint(ai.get_error_string()));
@@ -192,23 +208,22 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> gpu.M
 		mesh := meshes[i];
 
 		verts := mem.slice_ptr(mesh.vertices, cast(int) mesh.num_vertices);
-		norms: []ai.Vector3D;
-		if mesh.normals != nil {
-			norms = mem.slice_ptr(mesh.normals, cast(int) mesh.num_vertices);
-		}
-		if norms == nil {
-			logln("nil norms, ", cast(string)mesh.name.data[:mesh.name.length]);
-			continue;
-		}
 
+		normals: []ai.Vector3D;
+		if ai.has_normals(mesh) {
+			assert(mesh.normals != nil);
+			normals = mem.slice_ptr(mesh.normals, cast(int) mesh.num_vertices);
+		}
 
 		colors : []ai.Color4D;
 		if ai.has_vertex_colors(mesh, 0) {
+			assert(mesh.colors != nil);
 			colors = mem.slice_ptr(mesh.colors[0], cast(int) mesh.num_vertices);
 		}
 
 		texture_coords : []ai.Vector3D;
 		if ai.has_texture_coords(mesh, 0) {
+			assert(mesh.texture_coords != nil);
 			texture_coords = mem.slice_ptr(mesh.texture_coords[0], cast(int) mesh.num_vertices);
 		}
 
@@ -217,27 +232,21 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> gpu.M
 
 		// process vertices into Vertex3D struct
 		for i in 0..mesh.num_vertices-1 {
-			normal := ai.Vector3D{0, 0, 1};
-			if norms != nil {
-				normal = norms[i];
-			}
 			position := verts[i];
 
-			color: Colorf;
+			normal := ai.Vector3D{0, 0, 0};
+			if normals != nil {
+				normal = normals[i];
+			}
+
+			color := Colorf{1, 1, 1, 1};
 			if colors != nil {
 				color = Colorf(colors[i]);
 			}
-			else {
-				assert(len(colors) == 0);
-				color = Colorf{1, 0, 1, 1};
-			}
 
-			texture_coord: Vec3;
+			texture_coord := Vec3{0, 0, 0};
 			if texture_coords != nil {
 				texture_coord = Vec3{texture_coords[i].x, texture_coords[i].y, texture_coords[i].z};
-			}
-			else {
-				texture_coord = Vec3{0, 0, 0};
 			}
 
 			vert := gpu.Vertex3D{
@@ -254,8 +263,8 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> gpu.M
 
 		faces := mem.slice_ptr(mesh.faces, cast(int)mesh.num_faces);
 		for face in faces {
-			face_indicies := mem.slice_ptr(face.indices, cast(int) face.num_indices);
-			for face_index in face_indicies {
+			face_indices := mem.slice_ptr(face.indices, cast(int) face.num_indices);
+			for face_index in face_indices {
 				append(&indices, face_index);
 			}
 		}
@@ -303,7 +312,7 @@ load_font :: proc(data: []byte, pixel_height: f32) -> Font {
 		}
 	}
 
-	texture := gpu.create_texture(dim, dim, .RGBA, .Red, .Unsigned_Byte, &pixels[0]);
+	texture := create_texture(dim, dim, .RGBA, .Red, .Unsigned_Byte, &pixels[0]);
 
 	font := Font{dim, pixel_height, chars, texture};
 	return font;
