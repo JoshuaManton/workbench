@@ -1,5 +1,7 @@
 package gpu
 
+when GPU_BACKEND == "OPENGL" {
+
 using import "core:runtime"
       import "core:fmt"
       import "core:mem"
@@ -11,6 +13,10 @@ using import "../basic"
 using import "../logging"
 
       import odingl "../external/gl"
+
+init_opengl :: proc(version_major, version_minor: int, set_proc_address: proc(rawptr, cstring)) {
+	odingl.load_up_to(version_major, version_minor, set_proc_address);
+}
 
 Shader_Program :: distinct u32;
 Graphics_Buffer :: distinct u32;
@@ -332,13 +338,21 @@ tex_image2d :: proc(target: Texture_Target,
 					border: i32,
 					format: Pixel_Data_Format,
 					type: Texture2D_Data_Type,
-					data: rawptr) {
+					data: rawptr,
+					loc := #caller_location) {
 
     odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
+	log_errors(#procedure, loc);
 }
 
-tex_parameteri :: proc(target: Texture_Target, pname: Texture_Parameter, param: Texture_Parameter_Value) {
+get_tex_image :: proc(target: Texture_Target, format: Pixel_Data_Format, type: Texture2D_Data_Type, data: rawptr, loc := #caller_location) {
+	odingl.GetTexImage(cast(u32)target, 0, cast(u32)format, cast(u32)type, data);
+	log_errors(#procedure, loc);
+}
+
+tex_parameteri :: proc(target: Texture_Target, pname: Texture_Parameter, param: Texture_Parameter_Value, loc := #caller_location) {
     odingl.TexParameteri(cast(u32)target, cast(u32)pname, cast(i32)param);
+	log_errors(#procedure, loc);
 }
 
 tex_sub_image2d :: proc(target: Texture_Target,
@@ -349,9 +363,11 @@ tex_sub_image2d :: proc(target: Texture_Target,
 	                    height: i32,
 	                    format: Pixel_Data_Format,
 	                    type: Texture2D_Data_Type,
-	                    pixels: rawptr) {
+	                    pixels: rawptr,
+						loc := #caller_location) {
 
 	odingl.TexSubImage2D(cast(u32)target, lod, xoffset, yoffset, width, height, cast(u32)format, cast(u32)type, pixels);
+	log_errors(#procedure, loc);
 }
 
 
@@ -679,4 +695,6 @@ log_errors :: proc(caller_context: string, location := #caller_location) -> bool
 		fmt.printf("[%s] OpenGL Error at %s:%d: %d\n", caller_context, file, location.line, err);
 	}
 	return did_error;
+}
+
 }

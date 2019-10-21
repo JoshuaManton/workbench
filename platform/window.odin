@@ -39,11 +39,9 @@ _new_mouse_scroll: f32;
 _new_mouse_screen_position: Vec2;
 _new_window_is_focused := true;
 
-init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _window_height: int, _opengl_version_major, _opengl_version_minor: int) -> bool {
+init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _window_height: int) -> bool {
 	window_width := cast(i32)_window_width;
 	window_height := cast(i32)_window_height;
-	opengl_version_major := cast(i32)_opengl_version_major;
-	opengl_version_minor := cast(i32)_opengl_version_minor;
 
 	glfw_size_callback :: proc"c"(window: glfw.Window_Handle, w, h: i32) {
 		_new_window_width  = cast(f32)w;
@@ -71,8 +69,8 @@ init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _
 	glfw.SetErrorCallback(glfw_error_callback);
 
 	if glfw.Init() == 0 do return false;
-	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, opengl_version_major);
-	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, opengl_version_minor);
+	glfw.WindowHint(glfw.CONTEXT_VERSION_MAJOR, gpu.OPENGL_VERSION_MAJOR);
+	glfw.WindowHint(glfw.CONTEXT_VERSION_MINOR, gpu.OPENGL_VERSION_MINOR);
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE);
 	window := glfw.CreateWindow(window_width, window_height, window_name, nil, nil);
 	if window == nil do return false;

@@ -10,8 +10,8 @@ using import "logging"
 using import "basic"
 
 Asset_Catalog :: struct {
-	textures:   map[string]gpu.Texture,
-	models:     map[string]gpu.Model,
+	textures:   map[string]Texture,
+	models:     map[string]Model,
 	fonts:      map[string]Font,
 	text_files: map[string]string,
 }
@@ -19,11 +19,11 @@ Asset_Catalog :: struct {
 delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 	for key, texture in catalog.textures {
 		delete(key);
-		gpu.delete_texture(texture.gpu_id);
+		delete_texture(texture);
 	}
 	for key, model in catalog.models {
 		delete(key);
-		gpu.delete_model(model);
+		delete_model(model);
 	}
 	for key, font in catalog.fonts {
 		delete(key);

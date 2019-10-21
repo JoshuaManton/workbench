@@ -47,7 +47,6 @@ lossy_delta_time: f32;
 precise_lossy_delta_time: f64;
 
 make_simple_window :: proc(window_width, window_height: int,
-                           opengl_version_major, opengl_version_minor: int,
                            target_framerate: f32,
                            workspace: Workspace) {
 	defer logln("workbench successfully shutdown.");
@@ -59,8 +58,8 @@ make_simple_window :: proc(window_width, window_height: int,
 	});
 	defer pf.destroy_profiler(&wb_profiler);
 
-	platform.init_platform(&main_window, workspace.name, window_width, window_height, opengl_version_major, opengl_version_minor);
-	init_draw(window_width, window_height, opengl_version_major, opengl_version_minor);
+	platform.init_platform(&main_window, workspace.name, window_width, window_height);
+	init_draw(window_width, window_height);
 	defer deinit_draw();
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();

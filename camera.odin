@@ -6,7 +6,7 @@ using import "core:math"
       import "gpu"
       import wbm "math"
 
-do_camera_movement :: proc(camera: ^gpu.Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
+do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
 	speed := normal_speed;
 
 	if platform.get_input(.Left_Shift) {

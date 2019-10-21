@@ -52,9 +52,12 @@ draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0,
 // Internal
 //
 
-wb_camera: gpu.Camera;
-wb_cube_model: gpu.Model;
-wb_quad_model: gpu.Model;
+screen_camera: Camera;
+wb_camera: Camera;
+current_camera: ^Camera;
+
+wb_cube_model: Model;
+wb_quad_model: Model;
 
 shader_rgba_2d: gpu.Shader_Program;
 shader_text: gpu.Shader_Program;
@@ -70,22 +73,25 @@ shader_framebuffer_gamma_corrected: gpu.Shader_Program;
 
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
-debug_line_model: gpu.Model;
+debug_line_model: Model;
 
 debugging_rendering: bool;
 
 SHADOW_MAP_DIM :: 2048;
-shadow_map_camera: gpu.Camera;
+shadow_map_camera: Camera;
 
-init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl_version_minor: int) {
-	gpu.init(screen_width, screen_height, opengl_version_major, opengl_version_minor, proc(p: rawptr, name: cstring) {
+init_draw :: proc(screen_width, screen_height: int) {
+	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	gpu.init_camera(&wb_camera, true, 85, screen_width, screen_height, true);
+	init_camera(&screen_camera, true, 85, screen_width, screen_height);
+	screen_camera.clear_color = {1, 0, 1, 1};
+	push_camera_non_deferred(&screen_camera);
+	init_camera(&wb_camera, true, 85, screen_width, screen_height, true);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
-	gpu.add_mesh_to_model(&_internal_im_model, []gpu.Vertex2D{}, []u32{});
+	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{});
 
 	ok: bool;
 	shader_rgba_2d, ok       = gpu.load_shader_text(SHADER_RGBA_2D_VERT, SHADER_RGBA_2D_FRAG);
@@ -107,13 +113,13 @@ init_draw :: proc(screen_width, screen_height: int, opengl_version_major, opengl
 
 	register_debug_program("Rendering", _debug_rendering, nil);
 
-	wb_cube_model = gpu.create_cube_model();
-	wb_quad_model = gpu.create_quad_model();
-	gpu.add_mesh_to_model(&debug_line_model, []gpu.Vertex3D{}, []u32{});
+	wb_cube_model = create_cube_model();
+	wb_quad_model = create_quad_model();
+	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{});
 
-	gpu.init_camera(&shadow_map_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, false);
+	init_camera(&shadow_map_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, false);
 	assert(shadow_map_camera.framebuffer.fbo == 0);
-	shadow_map_camera.framebuffer = gpu.create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, gpu.Framebuffer_Settings{.Depth_Component, .Depth_Component, .Float, .Depth, false});
+	shadow_map_camera.framebuffer = create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, Framebuffer_Settings{.Depth_Component, .Depth_Component, .Float, .Depth, false});
 	shadow_map_camera.position = Vec3{0, 5, 0};
 	shadow_map_camera.rotation = rotate_quat_by_degrees({0, 0, 0, 1}, Vec3{-45, -45, 0});
 	shadow_map_camera.near_plane = 0.01;
@@ -142,16 +148,20 @@ post_render_proc: proc();
 
 render_workspace :: proc(workspace: Workspace) {
 	gpu.enable(.Cull_Face);
-	gpu.prerender(platform.current_window_width, platform.current_window_height);
 
-	gpu.update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
+	assert(current_camera == &screen_camera);
+	update_camera_pixel_size(&screen_camera, platform.current_window_width, platform.current_window_height);
+	camera_prerender(&screen_camera);
+
+	update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
+	camera_prerender(current_camera);
 
 	// this scope is important because of the PUSH_CAMERA() call
 	{
 		// pre-render
 		gpu.log_errors(#procedure);
 		num_draw_calls = 0;
-		gpu.PUSH_CAMERA(&wb_camera);
+		PUSH_CAMERA(&wb_camera);
 
 		if workspace.render != nil {
 			workspace.render(lossy_delta_time);
@@ -162,7 +172,7 @@ render_workspace :: proc(workspace: Workspace) {
 		{
 			if len(directional_light_directions) > 0 {
 				// shadow_map_camera.rotation = degrees_to_quaternion(Vec3{-60, time * 20, 0});
-				gpu.PUSH_CAMERA(&shadow_map_camera);
+				PUSH_CAMERA(&shadow_map_camera);
 				// gpu.cull_face(.Front);
 				draw_render_scene(false, true, shader_shadow_depth);
 				gpu.cull_face(.Back);
@@ -182,42 +192,42 @@ render_workspace :: proc(workspace: Workspace) {
 
 		// draw debug lines
 		{
-			old_draw_mode := gpu.current_camera.draw_mode;
-			defer gpu.current_camera.draw_mode = old_draw_mode;
-			gpu.current_camera.draw_mode = .Line_Strip;
+			old_draw_mode := current_camera.draw_mode;
+			defer current_camera.draw_mode = old_draw_mode;
+			current_camera.draw_mode = .Line_Strip;
 
 			// todo(josh): support all rendermodes
-			gpu.rendermode_world();
+			rendermode_world();
 
 			gpu.use_program(shader_rgba_3d);
 			for line in debug_lines {
-				verts: [2]gpu.Vertex3D;
-				verts[0] = gpu.Vertex3D{line.a, {}, line.color, {}};
-				verts[1] = gpu.Vertex3D{line.b, {}, line.color, {}};
-				gpu.update_mesh(&debug_line_model, 0, verts[:], []u32{});
-				gpu.draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+				verts: [2]Vertex3D;
+				verts[0] = Vertex3D{line.a, {}, line.color, {}};
+				verts[1] = Vertex3D{line.b, {}, line.color, {}};
+				update_mesh(&debug_line_model, 0, verts[:], []u32{});
+				draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
 			}
 
 			for cube in debug_cubes {
-				gpu.draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, {1, 1, 1, 1}, true);
+				draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, {1, 1, 1, 1}, true);
 			}
 		}
 	}
 
 	gpu.use_program(shader_framebuffer_gamma_corrected);
 	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", 1.0/2.0);
-	gpu.draw_texture(wb_camera.framebuffer.texture, {0, 0}, {platform.current_window_width, platform.current_window_height});
+	draw_texture(wb_camera.framebuffer.texture, {0, 0}, {platform.current_window_width, platform.current_window_height});
 	// gpu.use_program(shader_depth);
-	// gpu.draw_texture(shadow_map_camera.framebuffer.texture, {0, 0}, {500, 500});
+	// draw_texture(shadow_map_camera.framebuffer.texture, {0, 0}, {256, 256});
 
 	imgui_render(true);
 }
 
 deinit_draw :: proc() {
-	gpu.delete_camera(wb_camera);
+	delete_camera(wb_camera);
 
-	gpu.delete_model(wb_cube_model);
-	gpu.delete_model(wb_quad_model);
+	delete_model(wb_cube_model);
+	delete_model(wb_quad_model);
 
 	// todo(josh): figure out why deleting shaders was causing errors
 	// gpu.delete_shader(shader_rgba_3d);
@@ -228,7 +238,7 @@ deinit_draw :: proc() {
 	// gpu.delete_shader(shader_shadow_depth);
 	// gpu.delete_shader(shader_framebuffer_gamma_corrected);
 
-	gpu.delete_model(debug_line_model);
+	delete_model(debug_line_model);
 	gpu.deinit();
 
 	delete(debug_lines);

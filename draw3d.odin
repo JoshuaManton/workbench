@@ -11,9 +11,9 @@ Render_Scene :: struct {
 }
 
 Model_Draw_Info :: struct {
-	model: gpu.Model,
+	model: Model,
 	shader: gpu.Shader_Program,
-	texture: gpu.Texture,
+	texture: Texture,
 	material: Material,
 	position: Vec3,
 	scale: Vec3,
@@ -24,7 +24,7 @@ Model_Draw_Info :: struct {
 
 render_scene: Render_Scene;
 
-submit_model :: proc(model: gpu.Model, shader: gpu.Shader_Program, texture: gpu.Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, cast_shadows := true) {
+submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, cast_shadows := true) {
 	append(&render_scene.queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, cast_shadows});
 }
 
@@ -37,7 +37,7 @@ draw_render_scene :: proc($do_lighting: bool, $do_shader_override: bool, shader_
 		assert(shader_override == 0);
 	}
 
-	gpu.rendermode_world();
+	rendermode_world();
 
 	for info in render_scene.queue {
 		using info;
@@ -55,13 +55,13 @@ draw_render_scene :: proc($do_lighting: bool, $do_shader_override: bool, shader_
 			gpu.active_texture1();
 			gpu.bind_texture2d(shadow_map_camera.framebuffer.texture.gpu_id);
 
-			light_view := gpu.construct_view_matrix(&shadow_map_camera);
-			light_proj := gpu.construct_projection_matrix(&shadow_map_camera);
+			light_view := construct_view_matrix(&shadow_map_camera);
+			light_proj := construct_projection_matrix(&shadow_map_camera);
 			light_space := mul(light_proj, light_view);
 			gpu.uniform_matrix4fv(program, "light_space_matrix", 1, false, &light_space[0][0]);
 		}
 
-		gpu.draw_model(model, position, scale, rotation, texture, color, true);
+		draw_model(model, position, scale, rotation, texture, color, true);
 	}
 }
 

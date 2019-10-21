@@ -24,11 +24,11 @@ using import        "logging"
 //
 
 im_quad :: inline proc(
-	rendermode: gpu.Rendermode_Proc,
+	rendermode: Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	color: Colorf,
-	texture: gpu.Texture, // note(josh): can be empty
+	texture: Texture, // note(josh): can be empty
 	auto_cast render_order: int = current_render_layer) {
 
 		cmd := Draw_Command{
@@ -50,18 +50,18 @@ im_quad :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 im_quad_pos :: inline proc(
-	rendermode: gpu.Rendermode_Proc,
+	rendermode: Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	pos, size: Vec2,
 	color: Colorf,
-	texture: gpu.Texture, // note(josh): can be empty
+	texture: Texture, // note(josh): can be empty
 	auto_cast render_order: int = current_render_layer) {
 
 		im_quad(rendermode, shader, pos-(size*0.5), pos+(size*0.5), color, texture, render_order);
 }
 
 im_sprite :: inline proc(
-	rendermode: gpu.Rendermode_Proc,
+	rendermode: Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	position, scale: Vec2,
 	sprite: Sprite,
@@ -78,7 +78,7 @@ im_sprite :: inline proc(
 		im_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
 }
 im_sprite_minmax :: inline proc(
-	rendermode: gpu.Rendermode_Proc,
+	rendermode: Rendermode_Proc,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	sprite: Sprite,
@@ -106,7 +106,7 @@ im_sprite_minmax :: inline proc(
 }
 
 im_text :: proc(
-	rendermode: gpu.Rendermode_Proc,
+	rendermode: Rendermode_Proc,
 	font: Font,
 	str: string,
 	position: Vec2,
@@ -123,7 +123,7 @@ im_text :: proc(
 
 		position := position;
 
-		assert(rendermode == gpu.rendermode_unit);
+		assert(rendermode == rendermode_unit);
 
 		start := position;
 		for _, i in str {
@@ -187,7 +187,7 @@ im_text :: proc(
 }
 
 get_string_width :: inline proc(
-	rendermode: gpu.Rendermode_Proc,
+	rendermode: Rendermode_Proc,
 	font: Font,
 	str: string,
 	size: f32) -> f32 {
@@ -198,14 +198,14 @@ get_string_width :: inline proc(
 // Camera utilities
 
 @(deferred_out=im_pop_camera)
-IM_PUSH_CAMERA :: proc(camera: ^gpu.Camera) -> ^gpu.Camera {
-	return gpu.push_camera_non_deferred(camera);
+IM_PUSH_CAMERA :: proc(camera: ^Camera) -> ^Camera {
+	return push_camera_non_deferred(camera);
 }
 
 @private
-im_pop_camera :: proc(old_camera: ^gpu.Camera) {
+im_pop_camera :: proc(old_camera: ^Camera) {
 	im_flush();
-	gpu.pop_camera(old_camera);
+	pop_camera(old_camera);
 }
 
 // Render layers
@@ -244,7 +244,7 @@ im_scissor_end :: proc() {
 // Internal
 //
 
-_internal_im_model: gpu.Model;
+_internal_im_model: Model;
 buffered_draw_commands: [dynamic]Draw_Command;
 
 do_scissor: bool;
@@ -267,12 +267,12 @@ im_flush :: proc() {
 			return a.serial_number - b.serial_number;
 		});
 
-	@static im_queued_for_drawing: [dynamic]gpu.Vertex2D;
+	@static im_queued_for_drawing: [dynamic]Vertex2D;
 
-	current_rendermode : gpu.Rendermode_Proc = nil;
+	current_rendermode : Rendermode_Proc = nil;
 	is_scissor := false;
 	current_shader := gpu.Shader_Program(0);
-	current_texture: gpu.Texture;
+	current_texture: Texture;
 
 	command_loop:
 	for cmd in buffered_draw_commands {
@@ -308,12 +308,12 @@ im_flush :: proc() {
 				// weird order because of backface culling
 				p1, p2, p3, p4 := kind.min, Vec2{kind.max.x, kind.min.y}, kind.max, Vec2{kind.min.x, kind.max.y};
 
-				v1 := gpu.Vertex2D{p1, {}, kind.color};
-				v2 := gpu.Vertex2D{p2, {}, kind.color};
-				v3 := gpu.Vertex2D{p3, {}, kind.color};
-				v4 := gpu.Vertex2D{p3, {}, kind.color};
-				v5 := gpu.Vertex2D{p4, {}, kind.color};
-				v6 := gpu.Vertex2D{p1, {}, kind.color};
+				v1 := Vertex2D{p1, {}, kind.color};
+				v2 := Vertex2D{p2, {}, kind.color};
+				v3 := Vertex2D{p3, {}, kind.color};
+				v4 := Vertex2D{p3, {}, kind.color};
+				v5 := Vertex2D{p4, {}, kind.color};
+				v6 := Vertex2D{p1, {}, kind.color};
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
@@ -321,12 +321,12 @@ im_flush :: proc() {
 				// weird order because of backface culling
 				p1, p2, p3, p4 := kind.min, Vec2{kind.max.x, kind.min.y}, kind.max, Vec2{kind.min.x, kind.max.y};
 
-				v1 := gpu.Vertex2D{p1, kind.uvs[0], kind.color};
-				v2 := gpu.Vertex2D{p2, kind.uvs[1], kind.color};
-				v3 := gpu.Vertex2D{p3, kind.uvs[2], kind.color};
-				v4 := gpu.Vertex2D{p3, kind.uvs[2], kind.color};
-				v5 := gpu.Vertex2D{p4, kind.uvs[3], kind.color};
-				v6 := gpu.Vertex2D{p1, kind.uvs[0], kind.color};
+				v1 := Vertex2D{p1, kind.uvs[0], kind.color};
+				v2 := Vertex2D{p2, kind.uvs[1], kind.color};
+				v3 := Vertex2D{p3, kind.uvs[2], kind.color};
+				v4 := Vertex2D{p3, kind.uvs[2], kind.color};
+				v5 := Vertex2D{p4, kind.uvs[3], kind.color};
+				v6 := Vertex2D{p1, kind.uvs[0], kind.color};
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
@@ -343,7 +343,7 @@ im_flush :: proc() {
 	}
 }
 
-draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, texture: gpu.Texture, loc := #caller_location) {
+draw_vertex_list :: proc(list: []Vertex2D, shader: gpu.Shader_Program, texture: Texture, loc := #caller_location) {
 	if len(list) == 0 {
 		return;
 	}
@@ -355,9 +355,9 @@ draw_vertex_list :: proc(list: []gpu.Vertex2D, shader: gpu.Shader_Program, textu
 		}
 	}
 
-	gpu.update_mesh(&_internal_im_model, 0, list, []u32{});
+	update_mesh(&_internal_im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	gpu.draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
+	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
 	num_draw_calls += 1;
 }
 
@@ -377,9 +377,9 @@ Draw_Command :: struct {
 	render_order:  int,
 	serial_number: int,
 
-	rendermode:   gpu.Rendermode_Proc,
+	rendermode:   Rendermode_Proc,
 	shader:       gpu.Shader_Program,
-	texture:      gpu.Texture,
+	texture:      Texture,
 	scissor:      bool,
 	scissor_rect: [4]int,
 
