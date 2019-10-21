@@ -117,7 +117,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	init_camera(&shadow_map_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, false);
 	assert(shadow_map_camera.framebuffer.fbo == 0);
-	shadow_map_camera.framebuffer = create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, Framebuffer_Settings{.Depth_Component, .Depth_Component, .Float, .Depth, false});
+	shadow_map_camera.framebuffer = create_depth_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM);
 	shadow_map_camera.position = Vec3{0, 5, 0};
 	shadow_map_camera.rotation = rotate_quat_by_degrees({0, 0, 0, 1}, Vec3{-45, -45, 0});
 	shadow_map_camera.near_plane = 0.01;

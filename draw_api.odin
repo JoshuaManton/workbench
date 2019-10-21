@@ -46,7 +46,8 @@ using import          "basic"
 --- Framebuffers
 {
 	default_framebuffer_settings :: proc() -> Framebuffer_Settings
-	create_framebuffer           :: proc(width, height: int, settings := _default_framebuffer_settings) -> Framebuffer
+	create_color_framebuffer     :: proc(width, height: int) -> Framebuffer
+	create_depth_framebuffer     :: proc(width, height: int) -> Framebuffer
 	delete_framebuffer           :: proc(framebuffer: Framebuffer)
 	bind_framebuffer             :: proc(framebuffer: ^Framebuffer)
 	unbind_framebuffer           :: proc()
@@ -141,7 +142,7 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     if make_framebuffer {
         assert(pixel_width > 0);
         assert(pixel_height > 0);
-        camera.framebuffer = create_framebuffer(pixel_width, pixel_height);
+        camera.framebuffer = create_color_framebuffer(pixel_width, pixel_height);
     }
 }
 
@@ -202,7 +203,7 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
         if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
             logln("Rebuilding framebuffer...");
             delete_framebuffer(framebuffer);
-            framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height);
+            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height);
         }
     }
 }
@@ -273,16 +274,16 @@ Texture :: struct {
     element_type: gpu.Texture2D_Data_Type,
 }
 
-create_texture :: proc(w, h: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil, texture_target := gpu.Texture_Target.Texture2D) -> Texture {
+create_texture :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture2d(texture);
 
 	assert(initial_data != nil);
-	gpu.tex_image2d(texture_target, 0, gpu_format, cast(i32)w, cast(i32)h, 0, pixel_format, element_type, initial_data);
-	gpu.tex_parameteri(texture_target, .Mag_Filter, .Nearest);
-	gpu.tex_parameteri(texture_target, .Min_Filter, .Nearest);
+	gpu.tex_image2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, pixel_format, element_type, initial_data);
+	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 
-	return Texture{texture, w, h, texture_target, pixel_format, element_type};
+	return Texture{texture, ww, hh, .Texture2D, pixel_format, element_type};
 }
 
 delete_texture :: proc(texture: Texture) {
@@ -320,49 +321,27 @@ Framebuffer :: struct {
     width, height: int,
 }
 
-Framebuffer_Settings :: struct {
-	internal_format: gpu.Internal_Color_Format,
-	format: gpu.Pixel_Data_Format,
-	element_type: gpu.Texture2D_Data_Type,
-	attachment_type: gpu.Framebuffer_Attachment,
-	make_renderbuffer: bool,
-}
-
-default_framebuffer_settings :: proc() -> Framebuffer_Settings {
-	return Framebuffer_Settings{.RGBA, .RGBA, .Unsigned_Byte, .Color0, true};
-}
-
-_default_framebuffer_settings := default_framebuffer_settings();
-
-create_framebuffer :: proc(width, height: int, settings := _default_framebuffer_settings) -> Framebuffer {
+create_color_framebuffer :: proc(width, height: int) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
-	// texture := create_texture(width, height, .RGBA32F, .RGBA, .Unsigned_Byte);
 	texture := gpu.gen_texture();
 	gpu.bind_texture2d(texture);
 
-	gpu.tex_image2d(.Texture2D, 0, settings.internal_format, cast(i32)width, cast(i32)height, 0, settings.format, settings.element_type, nil);
+	gpu.tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
 	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
 
-	gpu.framebuffer_texture2d(settings.attachment_type, texture);
+	gpu.framebuffer_texture2d(.Color0, texture);
 
-	rbo: gpu.RBO;
-	if settings.make_renderbuffer {
-		rbo := gpu.gen_renderbuffer();
-		gpu.bind_rbo(rbo);
+	rbo := gpu.gen_renderbuffer();
+	gpu.bind_rbo(rbo);
 
-		gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
-		gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
-		gpu.draw_buffer(cast(u32)gpu.Framebuffer_Attachment.Color0);
-	}
-	else {
-		gpu.draw_buffer(0);
-		gpu.read_buffer(0);
-	}
+	gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
+	gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
+	gpu.draw_buffer(cast(u32)gpu.Framebuffer_Attachment.Color0);
 
 	gpu.assert_framebuffer_complete();
 
@@ -370,7 +349,35 @@ create_framebuffer :: proc(width, height: int, settings := _default_framebuffer_
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, settings.format, settings.element_type}, rbo, width, height};
+	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte}, rbo, width, height};
+	return framebuffer;
+}
+
+create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
+	fbo := gpu.gen_framebuffer();
+	gpu.bind_fbo(fbo);
+
+	texture := gpu.gen_texture();
+	gpu.bind_texture2d(texture);
+
+	gpu.tex_image2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
+	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
+	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
+
+	gpu.framebuffer_texture2d(.Depth, texture);
+
+	gpu.draw_buffer(0);
+	gpu.read_buffer(0);
+
+	gpu.assert_framebuffer_complete();
+
+	gpu.bind_texture2d(0);
+	gpu.bind_rbo(0);
+	gpu.bind_fbo(0);
+
+	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, .Depth_Component, .Float}, 0, width, height};
 	return framebuffer;
 }
 
