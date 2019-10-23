@@ -3,7 +3,10 @@ package workbench
 using import "core:math"
 
 Colorf :: struct {
-	r, g, b, a: f32,
+	r: f32 "imgui_range=0:1",
+	g: f32 "imgui_range=0:1",
+	b: f32 "imgui_range=0:1",
+	a: f32 "imgui_range=0:1",
 }
 
 Colori :: struct {

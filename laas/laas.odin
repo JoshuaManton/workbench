@@ -91,6 +91,12 @@ make_lexer :: inline proc(text: string) -> Lexer {
 }
 
 get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := false, loc := #caller_location) -> bool {
+	token := token;
+	_token: Token;
+	if token == nil {
+		token = &_token;
+	}
+
 	if lex_idx >= len(lexer_text) {
 		token^ = Token{"", EOF{}};
 		return false;
@@ -250,6 +256,36 @@ expect :: proc(lexer: ^Lexer, $T: typeid) -> (T, bool) {
 	if !ok do return {}, false;
 
 	return t.kind.(T);
+}
+
+expect_symbol :: proc(lexer: ^Lexer, r: rune) {
+	t: Token;
+	ok := get_next_token(lexer, &t);
+	if !ok {
+		assert(false, tprint("EOF"));
+	}
+	if s, ok := t.kind.(Symbol); ok {
+		if s.value == r {
+			return;
+		}
+		assert(false, tprint("Expected ", r, ", got ", s.value));
+	}
+	else {
+		assert(false, tprint("Expected symbol, got ", t));
+	}
+}
+
+expect_f32 :: proc(lexer: ^Lexer) -> f32 {
+	t: Token;
+	ok := get_next_token(lexer, &t);
+	if !ok {
+		assert(false, tprint("EOF"));
+	}
+	if n, ok := t.kind.(Number); ok {
+		return cast(f32)n.float_value;
+	}
+	assert(false, tprint("Expected f32, got ", t));
+	return 0;
 }
 
 _is_whitespace :: inline proc(r: u8) -> bool {

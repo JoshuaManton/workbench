@@ -153,7 +153,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 
 			color := Colorf{1, 1, 1, 1};
 			if colors != nil {
-				color = Colorf(colors[i]);
+				color = transmute(Colorf)colors[i];
 			}
 
 			texture_coord := Vec3{0, 0, 0};

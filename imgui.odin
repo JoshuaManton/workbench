@@ -11,6 +11,7 @@ using import "core:math";
 
 
       import "gpu"
+      import "laas"
 using import "platform"
 using import "logging"
 
@@ -440,7 +441,7 @@ imgui_struct :: inline proc(value: ^$T, name: string, do_header := true) {
     imgui.push_font(imgui_font_mono);
     defer imgui.pop_font();
 
-    imgui_struct_ti(name, value, type_info_of(T), do_header);
+    imgui_struct_ti(name, value, type_info_of(T), "", do_header);
 }
 
 _imgui_struct_block_field_start :: proc(name: string, typename: string) -> bool {
@@ -467,23 +468,87 @@ _imgui_struct_block_field_end :: proc(name: string) {
 }
 
 _readonly: bool;
-imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, do_header := true, type_name: string = "") {
+imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string = "", do_header := true, type_name: string = "") {
     imgui.push_id(name);
     defer imgui.pop_id();
 
-    simple_field :: proc(name: string, data: rawptr, $T: typeid) {
-        data_value := (cast(^T)data)^;
+    if strings.contains(tags, "imgui_readonly") {
+        imgui.label_text(name, tprint(any{data, ti.id}));
+        return;
+    }
 
-        if _readonly {
-            imgui.label_text(name, tprint(data_value));
-            return;
+    if strings.contains(tags, "imgui_hidden") {
+        return;
+    }
+
+    has_range_constraint: bool;
+    range_min: f32;
+    range_max: f32;
+    if strings.contains(tags, "imgui_range") {
+        has_range_constraint = true;
+        range_idx := strings.index(tags, "imgui_range");
+        assert(range_idx >= 0);
+        range_str := tags[range_idx:];
+        range_lexer := laas.make_lexer(range_str);
+        laas.get_next_token(&range_lexer, nil);
+        laas.expect_symbol(&range_lexer, '=');
+        range_min = laas.expect_f32(&range_lexer);
+        laas.expect_symbol(&range_lexer, ':');
+        range_max = laas.expect_f32(&range_lexer);
+    }
+
+    switch kind in &ti.variant {
+        case Type_Info_Integer: {
+            if kind.signed {
+                switch ti.size {
+                    case 8: new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
+                    case 4: new_data := cast(i32)(cast(^i32)data)^; imgui.input_int(name, &new_data); (cast(^i32)data)^ = cast(i32)new_data;
+                    case 2: new_data := cast(i32)(cast(^i16)data)^; imgui.input_int(name, &new_data); (cast(^i16)data)^ = cast(i16)new_data;
+                    case 1: new_data := cast(i32)(cast(^i8 )data)^; imgui.input_int(name, &new_data); (cast(^i8 )data)^ = cast(i8 )new_data;
+                    case: assert(false, tprint(ti.size));
+                }
+            }
+            else {
+                switch ti.size {
+                    case 8: new_data := cast(i32)(cast(^u64)data)^; imgui.input_int(name, &new_data); (cast(^u64)data)^ = cast(u64)new_data;
+                    case 4: new_data := cast(i32)(cast(^u32)data)^; imgui.input_int(name, &new_data); (cast(^u32)data)^ = cast(u32)new_data;
+                    case 2: new_data := cast(i32)(cast(^u16)data)^; imgui.input_int(name, &new_data); (cast(^u16)data)^ = cast(u16)new_data;
+                    case 1: new_data := cast(i32)(cast(^u8 )data)^; imgui.input_int(name, &new_data); (cast(^u8 )data)^ = cast(u8 )new_data;
+                    case: assert(false, tprint(ti.size));
+                }
+            }
         }
-
-        when T == string {
+        case Type_Info_Float: {
+            switch ti.size {
+                case 8: {
+                    new_data := cast(f32)(cast(^f64)data)^;
+                    if has_range_constraint {
+                        imgui.slider_float(name, &new_data, range_min, range_max);
+                    }
+                    else {
+                        imgui.input_float(name, &new_data);
+                    }
+                    (cast(^f64)data)^ = cast(f64)new_data;
+                }
+                case 4: {
+                    new_data := cast(f32)(cast(^f32)data)^;
+                    if has_range_constraint {
+                        imgui.slider_float(name, &new_data, range_min, range_max);
+                    }
+                    else {
+                        imgui.input_float(name, &new_data);
+                    }
+                    (cast(^f32)data)^ = cast(f32)new_data;
+                }
+                case: assert(false, tprint(ti.size));
+            }
+        }
+        case Type_Info_String: {
+            assert(ti.size == size_of(string));
             // todo(josh): arbitrary string length, right now there is a max length
             // https://github.com/ocornut/imgui/issues/1008
             text_edit_buffer: [256]u8;
-            bprint(text_edit_buffer[:], data_value);
+            bprint(text_edit_buffer[:], (cast(^string)data)^);
 
             if imgui.input_text(name, text_edit_buffer[:], .EnterReturnsTrue) {
                 result := text_edit_buffer[:];
@@ -497,77 +562,16 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, do_header :=
                 (cast(^string)data)^ = str; // @Leak
             }
         }
-        else when T == f32 || T == f64 {
-            new_data := cast(f32)data_value;
-            if imgui.input_float(name, &new_data) && (get_input_imgui(Input.Enter) || get_input_imgui(Input.KP_Enter)) {
-                (cast(^T)data)^ = cast(T)new_data;
-            }
-        }
-        else when T == i8 || T == i16 || T == i32 || T == i64 {
-            new_data := cast(i32)data_value;
-            if imgui.input_int(name, &new_data) && (get_input_imgui(Input.Enter) || get_input_imgui(Input.KP_Enter)) {
-                (cast(^T)data)^ = cast(T)new_data;
-            }
-        }
-        else when T == u8 || T == u16 || T == u32 || T == u64 {
-            new_data := cast(i32)data_value;
-            if imgui.input_int(name, &new_data) && (get_input_imgui(Input.Enter) || get_input_imgui(Input.KP_Enter)) {
-                (cast(^T)data)^ = cast(T)cast(u64)new_data;
-            }
-        }
-        else when T == bool {
-            imgui.checkbox(name, cast(^bool)data);
-        }
-        else when T == ^byte {
-            result := tprint(name, " = ", "\"", data_value, "\"");
-            imgui.text(result);
-        }
-        else {
-            #assert(false); // unhandled type
-        }
-    }
-
-    switch kind in &ti.variant {
-        case Type_Info_Integer: {
-            if kind.signed {
-                switch ti.size {
-                    case 8: simple_field(name, data, i64);
-                    case 4: simple_field(name, data, i32);
-                    case 2: simple_field(name, data, i16);
-                    case 1: simple_field(name, data, i8);
-                    case: assert(false, tprint(ti.size));
-                }
-            }
-            else {
-                switch ti.size {
-                    case 8: simple_field(name, data, u64);
-                    case 4: simple_field(name, data, u32);
-                    case 2: simple_field(name, data, u16);
-                    case 1: simple_field(name, data, u8);
-                    case: assert(false, tprint(ti.size));
-                }
-            }
-        }
-        case Type_Info_Float: {
-            switch ti.size {
-                case 8: simple_field(name, data, f64);
-                case 4: simple_field(name, data, f32);
-                case: assert(false, tprint(ti.size));
-            }
-        }
-        case Type_Info_String: {
-            assert(ti.size == size_of(string));
-            simple_field(name, data, string);
-        }
         case Type_Info_Boolean: {
             assert(ti.size == size_of(bool));
-            simple_field(name, data, bool);
+            imgui.checkbox(name, cast(^bool)data);
         }
         case Type_Info_Pointer: {
-            simple_field(name, data, ^byte);
+            result := tprint(name, " = ", "\"", data, "\"");
+            imgui.text(result);
         }
         case Type_Info_Named: {
-            imgui_struct_ti(name, data, kind.base, do_header, kind.name);
+            imgui_struct_ti(name, data, kind.base, "", do_header, kind.name);
         }
         case Type_Info_Struct: {
             if !do_header || _imgui_struct_block_field_start(name, type_name) {
@@ -578,16 +582,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, do_header :=
                     offset := kind.offsets[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
                     tag := kind.tags[i];
-
-
-                    old_readonly := _readonly;
-                    defer _readonly = old_readonly;
-                    if strings.contains(tag, "imgui_readonly") do _readonly = true;
-
-
-                    if !strings.contains(tag, "imgui_hidden") {
-                        imgui_struct_ti(field_name, data, t);
-                    }
+                    imgui_struct_ti(field_name, data, t, tag);
                 }
             }
         }
@@ -717,7 +712,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, do_header :=
 
             if current_tag > 0 {
                 data_ti := kind.variants[current_tag-1];
-                imgui_struct_ti(name, data, data_ti, true, type_name);
+                imgui_struct_ti(name, data, data_ti, "", true, type_name);
             }
         }
         case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
