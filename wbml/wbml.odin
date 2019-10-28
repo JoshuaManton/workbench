@@ -264,6 +264,7 @@ deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	lexer := &_lexer;
 
 	root := parse_value(lexer);
+	defer delete_node(root);
 	write_value(root, ptr, ti);
 }
 
@@ -272,6 +273,7 @@ deserialize_into_pointer_with_type_info :: proc(text: string, ptr: rawptr, ti: ^
 	lexer := &_lexer;
 
 	root := parse_value(lexer);
+	defer delete_node(root);
 	write_value(root, ptr, ti);
 }
 
@@ -371,7 +373,7 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 			}
 
 			// assume it's an enum
-			return new_clone(Node{Node_Enum{value_kind.value}});
+			return new_clone(Node{Node_Enum_Value{value_kind.value}});
 		}
 
 		case laas.Number: {
@@ -569,7 +571,7 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 				return Type{}, false;
 			}
 
-			e := &node.kind.(Node_Enum);
+			e := &node.kind.(Node_Enum_Value);
 			a := any{ptr, rt.type_info_base(variant.base).id};
 			switch v in a {
 			case rune:    val, ok := get_val_for_name(e.value, rune,    variant); assert(ok); (cast(^rune)   ptr)^ = val;
@@ -589,6 +591,37 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 
 		case: panic(tprint(variant));
 	}
+}
+
+delete_node :: proc(node: ^Node) {
+	#complete
+	switch kind in node.kind {
+		case Node_Number:     // do nothing
+		case Node_Bool:       // do nothing
+		case Node_Nil:        // do nothing
+		case Node_String:     // do nothing, strings are slices from source text
+		case Node_Enum_Value: // do nothing, strings are slices from source text
+
+		case Node_Object: {
+			for f in kind.fields {
+				delete_node(f.value);
+			}
+			delete(kind.fields);
+		}
+		case Node_Array: {
+			for e in kind.elements {
+				delete_node(e);
+			}
+			delete(kind.elements);
+		}
+		case Node_Union: {
+			delete_node(kind.value);
+		}
+		case: {
+			panic(tprint(kind));
+		}
+	}
+	free(node);
 }
 
 eat_newlines :: proc(lexer: ^Lexer, loc := #caller_location) {
@@ -612,7 +645,7 @@ Node :: struct {
 		Node_Bool,
 		Node_String,
 		Node_Nil,
-		Node_Enum,
+		Node_Enum_Value,
 		Node_Object,
 		Node_Array,
 		Node_Union,
@@ -626,15 +659,15 @@ Node_Number :: struct {
 }
 
 Node_String :: struct {
-	value: string,
+	value: string, // note(josh): slice of source text
 }
 
 Node_Bool :: struct {
 	value: bool,
 }
 
-Node_Enum :: struct {
-	value: string,
+Node_Enum_Value :: struct {
+	value: string, // note(josh): slice of source text
 }
 
 Node_Nil :: struct {
@@ -644,7 +677,7 @@ Node_Object :: struct {
 	fields: []Object_Field,
 }
 Object_Field :: struct {
-	name: string,
+	name: string, // note(josh): slice of source text
 	value: ^Node,
 }
 
@@ -653,6 +686,6 @@ Node_Array :: struct {
 }
 
 Node_Union :: struct {
-	variant_name: string,
+	variant_name: string, // note(josh): slice of source text
 	value: ^Node,
 }

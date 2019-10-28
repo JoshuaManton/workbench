@@ -237,9 +237,9 @@ is_token :: proc(lexer: ^Lexer, $T: typeid) -> bool {
 	return ok2;
 }
 
-peek :: proc(lexer: ^Lexer, out_token: ^Token) -> bool {
+peek :: proc(lexer: ^Lexer, out_token: ^Token, ignore_newline := false) -> bool {
 	lexer_copy := lexer^;
-	get_next_token(&lexer_copy, out_token);
+	get_next_token(&lexer_copy, out_token, ignore_newline);
 	_, is_end := out_token.kind.(EOF);
 	return !is_end;
 }

@@ -661,6 +661,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
 		if !found do comp = _add_component_internal(eid, ti.id);
 
         value := wbml.parse_value(&lexer);
+        defer wbml.delete_node(value);
         wbml.write_value(value, comp, ti);
     }
 
