@@ -1,5 +1,60 @@
 package math
 
+F32_DIG        :: 6;
+F32_EPSILON    :: 1.192092896e-07;
+F32_GUARD      :: 0;
+F32_MANT_DIG   :: 24;
+F32_MAX        :: 3.402823466e+38;
+F32_MAX_10_EXP :: 38;
+F32_MAX_EXP    :: 128;
+F32_MIN        :: 1.175494351e-38;
+F32_MIN_10_EXP :: -37;
+F32_MIN_EXP    :: -125;
+F32_NORMALIZE  :: 0;
+F32_RADIX      :: 2;
+F32_ROUNDS     :: 1;
+
+F64_DIG        :: 15;                       // # of decimal digits of precision
+F64_EPSILON    :: 2.2204460492503131e-016;  // smallest such that 1.0+F64_EPSILON != 1.0
+F64_MANT_DIG   :: 53;                       // # of bits in mantissa
+F64_MAX        :: 1.7976931348623158e+308;  // max value
+F64_MAX_10_EXP :: 308;                      // max decimal exponent
+F64_MAX_EXP    :: 1024;                     // max binary exponent
+F64_MIN        :: 2.2250738585072014e-308;  // min positive value
+F64_MIN_10_EXP :: -307;                     // min decimal exponent
+F64_MIN_EXP    :: -1021;                    // min binary exponent
+F64_RADIX      :: 2;                        // exponent radix
+F64_ROUNDS     :: 1;                        // addition rounding: near
+
+TAU          :: 6.28318530717958647692528676655900576;
+PI           :: 3.14159265358979323846264338327950288;
+
+E            :: 2.71828182845904523536;
+SQRT_TWO     :: 1.41421356237309504880168872420969808;
+SQRT_THREE   :: 1.73205080756887729352744634150587236;
+SQRT_FIVE    :: 2.23606797749978969640917366873127623;
+
+LOG_TWO      :: 0.693147180559945309417232121458176568;
+LOG_TEN      :: 2.30258509299404568401799145468436421;
+
+EPSILON      :: 1.19209290e-7;
+
+τ :: TAU;
+π :: PI;
+
+Vec2 :: distinct [2]f32;
+Vec3 :: distinct [3]f32;
+Vec4 :: distinct [4]f32;
+
+// Column major
+Mat2 :: distinct [2][2]f32;
+Mat3 :: distinct [3][3]f32;
+Mat4 :: distinct [4][4]f32;
+
+Quat :: struct {x, y, z, w: f32};
+
+QUAT_IDENTITY := Quat{x = 0, y = 0, z = 0, w = 1};
+
 Vec2i :: distinct [2]int;
 Vec3i :: distinct [3]int;
 Vec4i :: distinct [4]int;
@@ -155,8 +210,8 @@ degrees_to_vector :: inline proc(degrees: f32) -> Vec2 {
 	return vec;
 }
 
-translate :: proc(_m: Mat4, v: Vec3) -> Mat4 {
-	m := _m;
+translate :: proc(m: Mat4, v: Vec3) -> Mat4 {
+	m := m;
 	m[3][0] += v[0];
 	m[3][1] += v[1];
 	m[3][2] += v[2];
@@ -443,35 +498,6 @@ mat4_inverse:: proc(m: Mat4) -> Mat4 {
 }
 
 
-
-TAU          :: 6.28318530717958647692528676655900576;
-PI           :: 3.14159265358979323846264338327950288;
-
-E            :: 2.71828182845904523536;
-SQRT_TWO     :: 1.41421356237309504880168872420969808;
-SQRT_THREE   :: 1.73205080756887729352744634150587236;
-SQRT_FIVE    :: 2.23606797749978969640917366873127623;
-
-LOG_TWO      :: 0.693147180559945309417232121458176568;
-LOG_TEN      :: 2.30258509299404568401799145468436421;
-
-EPSILON      :: 1.19209290e-7;
-
-τ :: TAU;
-π :: PI;
-
-Vec2 :: distinct [2]f32;
-Vec3 :: distinct [3]f32;
-Vec4 :: distinct [4]f32;
-
-// Column major
-Mat2 :: distinct [2][2]f32;
-Mat3 :: distinct [3][3]f32;
-Mat4 :: distinct [4][4]f32;
-
-Quat :: struct {x, y, z, w: f32};
-
-QUAT_IDENTITY := Quat{x = 0, y = 0, z = 0, w = 1};
 
 
 @(default_calling_convention="c")
@@ -893,7 +919,7 @@ mat4_rotate :: proc(v: Vec3, angle_radians: f32) -> Mat4 {
 	return rot;
 }
 
-scale_vec3 :: proc(m: Mat4, v: Vec3) -> Mat4 {
+mat4_scale_vec3 :: proc(m: Mat4, v: Vec3) -> Mat4 {
 	mm := m;
 	mm[0][0] *= v[0];
 	mm[1][1] *= v[1];
@@ -901,7 +927,7 @@ scale_vec3 :: proc(m: Mat4, v: Vec3) -> Mat4 {
 	return mm;
 }
 
-scale_f32 :: proc(m: Mat4, s: f32) -> Mat4 {
+mat4_scale_f32 :: proc(m: Mat4, s: f32) -> Mat4 {
 	mm := m;
 	mm[0][0] *= s;
 	mm[1][1] *= s;
@@ -909,7 +935,7 @@ scale_f32 :: proc(m: Mat4, s: f32) -> Mat4 {
 	return mm;
 }
 
-scale :: proc{scale_vec3, scale_f32};
+mat4_scale :: proc{mat4_scale_vec3, mat4_scale_f32};
 
 
 look_at :: proc(eye, centre, up: Vec3) -> Mat4 {
@@ -1011,32 +1037,3 @@ quat_to_mat4 :: proc(q: Quat) -> Mat4 {
 	m[2][2] = 1 - 2*(xx + yy);
 	return m;
 }
-
-
-
-
-F32_DIG        :: 6;
-F32_EPSILON    :: 1.192092896e-07;
-F32_GUARD      :: 0;
-F32_MANT_DIG   :: 24;
-F32_MAX        :: 3.402823466e+38;
-F32_MAX_10_EXP :: 38;
-F32_MAX_EXP    :: 128;
-F32_MIN        :: 1.175494351e-38;
-F32_MIN_10_EXP :: -37;
-F32_MIN_EXP    :: -125;
-F32_NORMALIZE  :: 0;
-F32_RADIX      :: 2;
-F32_ROUNDS     :: 1;
-
-F64_DIG        :: 15;                       // # of decimal digits of precision
-F64_EPSILON    :: 2.2204460492503131e-016;  // smallest such that 1.0+F64_EPSILON != 1.0
-F64_MANT_DIG   :: 53;                       // # of bits in mantissa
-F64_MAX        :: 1.7976931348623158e+308;  // max value
-F64_MAX_10_EXP :: 308;                      // max decimal exponent
-F64_MAX_EXP    :: 1024;                     // max binary exponent
-F64_MIN        :: 2.2250738585072014e-308;  // min positive value
-F64_MIN_10_EXP :: -307;                     // min decimal exponent
-F64_MIN_EXP    :: -1021;                    // min binary exponent
-F64_RADIX      :: 2;                        // exponent radix
-F64_ROUNDS     :: 1;                        // addition rounding: near

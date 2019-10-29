@@ -241,12 +241,12 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
         }
         case .Unit: {
             unit := translate(identity(Mat4), Vec3{-1, -1, 0});
-            unit = scale(unit, 2);
+            unit = mat4_scale(unit, 2);
             return unit;
         }
         case .Pixel: {
-            pixel := scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-            pixel = scale(pixel, 2);
+            pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
+            pixel = mat4_scale(pixel, 2);
             pixel = translate(pixel, Vec3{-1, -1, 0});
             return pixel;
         }
@@ -492,7 +492,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
-	model_s := math.scale(identity(Mat4), scale);
+	model_s := mat4_scale(identity(Mat4), scale);
 	model_r := quat_to_mat4(rotation);
 	model_matrix := mul(mul(model_p, model_r), model_s);
 
