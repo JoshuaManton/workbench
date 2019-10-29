@@ -1,7 +1,6 @@
 package workbench
 
-using import "core:math"
-
+using import "math"
 using import "types"
 using import "logging"
       import "gpu"

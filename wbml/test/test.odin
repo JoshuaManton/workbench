@@ -1,7 +1,7 @@
 package wbml
 
 using import "core:fmt"
-using import "core:math"
+using import "../../math"
 
       import wbml ".."
 
@@ -14,21 +14,21 @@ run_tests :: proc() {
 		Foo,
 		Bar,
 		Baz,
-	}
+	};
 
 	Byte_Enum :: enum u8 {
 		Qwe,
 		Asd,
 		Zxc,
-	}
+	};
 
 	Foo :: struct {
 		x, y, z: f32,
-	}
+	};
 	Bar :: struct {
 		str: string,
 		big_bool: b32,
-	}
+	};
 
 	Nightmare :: struct {
 		some_int: int,
@@ -61,7 +61,7 @@ run_tests :: proc() {
 				x, y: f64,
 			},
 		}
-	}
+	};
 
 	source :=
 `{

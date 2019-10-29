@@ -1,6 +1,5 @@
 package workbench
 
-using import        "core:math"
 using import        "core:fmt"
       import        "core:os"
       import rt     "core:runtime"
@@ -9,6 +8,7 @@ using import        "core:fmt"
 
 using import "types"
 using import "logging"
+using import "math"
       import "gpu"
 
       import stb    "external/stb"

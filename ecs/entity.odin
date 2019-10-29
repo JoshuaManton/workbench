@@ -2,7 +2,6 @@ package ecs
 
 DEVELOPER :: true;
 
-using import "core:math"
 using import "core:fmt"
       import rt "core:runtime"
       import "core:mem"
@@ -10,6 +9,7 @@ using import "core:fmt"
       import "core:os"
 
       import wb "shared:workbench"
+using import    "shared:workbench/math"
       import    "shared:workbench/wbml"
       import    "shared:workbench/laas"
 using import    "shared:workbench/types"

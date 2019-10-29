@@ -1,12 +1,13 @@
 package console
 
-using import "../external/imgui"
-	import "core:fmt"
-	import "core:strings"
-	import "core:math"
-	import "core:runtime"
-	import "core:mem"
-	import "../laas"
+      import "../external/imgui"
+      import "core:fmt"
+      import "core:strings"
+      import "core:runtime"
+      import "core:mem"
+
+using import "../math"
+      import "../laas"
 
 
 when ODIN_DEBUG {
@@ -16,7 +17,7 @@ when ODIN_DEBUG {
 }
 
 Console :: struct {
-	buffer		: ^TextBuffer,
+	buffer		: ^imgui.TextBuffer,
 	commands	: Commands,
 	scroll_lock : bool
 }
@@ -31,7 +32,7 @@ Commands :: struct {
 
 new_console :: proc(input_size: int = 256, default_commands: bool = true) -> ^Console {
 	console := Console{
-		text_buffer_create(),
+		imgui.text_buffer_create(),
 		Commands{
 			make([]u8, input_size),
 			make(map[string]proc()),
@@ -57,7 +58,7 @@ setup_default_commands :: proc(console: ^Console) {
 
 		console := cast(^Console) c.user_data.data;
 
-		text_buffer_clear(console.buffer);
+		imgui.text_buffer_clear(console.buffer);
 	};
 }
 
@@ -83,14 +84,14 @@ _internal_append :: inline  proc(console: ^Console, args: ..any) {
 	im_text_buffer_appendf(console.buffer, c_string);
 }
 
-_on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
+_on_submit :: proc "c"(data : ^imgui.TextEditCallbackData) -> i32 {
 
 	assert(_active_console != nil);
 
 	switch data.event_flag {
-	case Input_Text_Flags.CallbackCompletion:
+	case .CallbackCompletion:
 		fmt.println("CallbackCompletion Invoked");
-	case Input_Text_Flags.CallbackHistory:
+	case .CallbackHistory:
 		fmt.println("CallbackHistory Invoked");
 
 		using _active_console.commands;
@@ -98,12 +99,12 @@ _on_submit :: proc "c"(data : ^TextEditCallbackData) -> i32 {
 		prev_index := history_index;
 
 		switch data.event_key {
-			case Key.UpArrow:
+			case .UpArrow:
 				// Move `cursor` up if possible
 				if history_index >= history_count do break;
 
 				history_index += 1;
-			case Key.DownArrow:
+			case .DownArrow:
 				// Move `cursor` down if possible
 				if prev_index <= 0 do break;
 
@@ -148,46 +149,46 @@ update_console_window :: proc(using console: ^Console) {
 	_active_console = console;
 	defer _active_console = nil;
 
-	set_next_window_size(Vec2{520, 600}, Set_Cond.FirstUseEver);
+	imgui.set_next_window_size(imgui.Vec2{520, 600}, imgui.Set_Cond.FirstUseEver);
 
-	io := get_io();
+	io := imgui.get_io();
 
-	if begin("Console") {
+	if imgui.begin("Console") {
 
 		{
-			footer_height := get_style().item_spacing.y + get_frame_height_with_spacing();
-			begin_child("ScrollingLog", Vec2{0, -footer_height}, true, Window_Flags.HorizontalScrollbar);
+			footer_height := imgui.get_style().item_spacing.y + imgui.get_frame_height_with_spacing();
+			imgui.begin_child("ScrollingLog", imgui.Vec2{0, -footer_height}, true, imgui.Window_Flags.HorizontalScrollbar);
 
-			str := text_buffer_c_str(buffer);
-			im_text_unformatted(str);
+			str := imgui.text_buffer_c_str(buffer);
+			imgui.im_text_unformatted(str);
 
-			if io.mouse_wheel > 0 && is_window_hovered() {
+			if io.mouse_wheel > 0 && imgui.is_window_hovered() {
 				console.scroll_lock = false;
 			}
 
 			if console.scroll_lock {
-				set_scroll_here(1);
+				imgui.set_scroll_here(1);
 			}
 
-			end_child();
+			imgui.end_child();
 		}
 
-		separator();
+		imgui.separator();
 
 		{
-			using Input_Text_Flags;
+			using imgui.Input_Text_Flags;
 
 			// OnSubmit uses the _active_console
-			if input_text("Input", commands.input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
+			if imgui.input_text("Input", commands.input, EnterReturnsTrue | CallbackCompletion | CallbackHistory, _on_submit) {
 				_process_input(console);
 			}
 
-			same_line();
+			imgui.same_line();
 
-			checkbox("ScrollLock", &console.scroll_lock);
+			imgui.checkbox("ScrollLock", &console.scroll_lock);
 		}
 	}
-	end();
+	imgui.end();
 }
 
 _process_input :: proc(using console: ^Console) {
@@ -245,5 +246,5 @@ _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 
 @(default_calling_convention="c")
 foreign cimgui {
-	@(link_name = "ImGuiTextBuffer_appendf")  im_text_buffer_appendf :: proc(buffer : ^TextBuffer, fmt_ : cstring) ---;
+	@(link_name = "ImGuiTextBuffer_appendf")  im_text_buffer_appendf :: proc(buffer : ^imgui.TextBuffer, fmt_ : cstring) ---;
 }

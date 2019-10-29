@@ -1,8 +1,8 @@
 package workbench
 
-using import "core:math"
       import rt "core:runtime"
 
+using import "math"
 using import "types"
       import "gpu"
 

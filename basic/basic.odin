@@ -5,7 +5,7 @@ package basic
 using import "core:fmt"
       import "core:mem"
       import rt "core:runtime"
-using import "core:math"
+using import "../math"
 
 //
 // Arrays

@@ -163,7 +163,7 @@ foreign glfw {
 // Odin Wrappers
 
 import "core:fmt"
-import "core:math"
+import "../../math"
 import "core:strings"
 import "core:mem"
 

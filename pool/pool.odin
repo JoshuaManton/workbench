@@ -1,7 +1,8 @@
 package pool
 
 using import "core:fmt"
-using import "core:math"
+
+using import "../math"
 
 Pool :: struct(T: typeid, POOL_BATCH_SIZE: int) {
 	batches: [dynamic]Pool_Batch(T, POOL_BATCH_SIZE),

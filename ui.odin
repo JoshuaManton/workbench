@@ -1,7 +1,6 @@
 package workbench
 
 using import "core:runtime"
-using import "core:math"
 using import "core:fmt"
       import "core:mem"
       import "core:strings"
@@ -10,6 +9,7 @@ using import "core:fmt"
 using import "logging"
 using import "basic"
 using import "types"
+using import "math"
       import "platform"
       import "wbml"
       import "gpu"

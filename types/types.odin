@@ -1,6 +1,6 @@
 package workbench
 
-using import "core:math"
+using import "../math"
 
 Colorf :: struct {
 	r: f32 "imgui_range=0:1",

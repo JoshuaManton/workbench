@@ -1,11 +1,10 @@
 package gpu
 
-using import "core:math"
 using import "core:fmt"
       import rt "core:runtime"
 
+using import "../math"
 using import "../types"
-using import wbm "../math"
 using import "../logging"
 
       import odingl "../external/gl"

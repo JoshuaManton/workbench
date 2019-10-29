@@ -22,7 +22,7 @@ when ODIN_DEBUG {
 
 import "core:fmt";
 import "core:mem";
-import "core:math";
+import "../../math";
 import "core:strings";
 
 DrawIdx    :: u16;

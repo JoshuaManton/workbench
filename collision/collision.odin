@@ -3,7 +3,7 @@ package collision
 import rt "core:runtime"
 
 using import "core:fmt"
-using import "core:math"
+using import "../math"
 
 import "core:sort"
 

@@ -1,10 +1,9 @@
 package workbench
 
-using import "core:math"
+using import "math"
 
       import "platform"
       import "gpu"
-      import wbm "math"
 
 do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
 	speed := normal_speed;
@@ -16,9 +15,9 @@ do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_spe
 		speed = slow_speed;
 	}
 
-    up      := wbm.quaternion_up(camera.rotation);
-    forward := wbm.quaternion_forward(camera.rotation);
-	right   := wbm.quaternion_right(camera.rotation);
+    up      := quaternion_up(camera.rotation);
+    forward := quaternion_forward(camera.rotation);
+	right   := quaternion_right(camera.rotation);
 
     down := -up;
     back := -forward;

@@ -1,6 +1,6 @@
 package workbench
 
-using import "core:math"
+using import "math"
 
       import "platform"
       import wbm "math"

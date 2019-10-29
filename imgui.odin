@@ -5,13 +5,13 @@ using import "core:fmt"
       import "core:mem";
       import "core:strconv"
       import "core:strings"
-using import "core:math";
       import "core:os";
       import "core:sys/win32"
 
 
       import "gpu"
       import "laas"
+using import "math";
 using import "platform"
 using import "logging"
 

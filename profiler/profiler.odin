@@ -1,12 +1,12 @@
 package profiler
 
-using import "core:fmt"
-using import "core:math"
+using import    "core:fmt"
+      import    "core:hash"
+      import rt "core:runtime"
 
-import    "core:hash"
-import rt "core:runtime"
+using import "../math"
 
-import imgui "shared:workbench/external/imgui"
+      import imgui "shared:workbench/external/imgui"
 
 Profiler :: struct {
 	is_recording: bool,

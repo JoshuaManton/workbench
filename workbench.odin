@@ -1,6 +1,5 @@
 package workbench
 
-using import        "core:math"
 using import        "core:fmt"
       import        "core:sort"
       import        "core:strings"
@@ -9,7 +8,7 @@ using import        "core:fmt"
       import        "core:sys/win32"
 	  import        "core:runtime"
 
-      import wbmath "math"
+using import        "math"
       import        "gpu"
       import        "platform"
 using import        "logging"
