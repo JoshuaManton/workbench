@@ -46,6 +46,10 @@ Vec2 :: distinct [2]f32;
 Vec3 :: distinct [3]f32;
 Vec4 :: distinct [4]f32;
 
+Vec2i :: distinct [2]int;
+Vec3i :: distinct [3]int;
+Vec4i :: distinct [4]int;
+
 // Column major
 Mat2 :: distinct [2][2]f32;
 Mat3 :: distinct [3][3]f32;
@@ -55,27 +59,12 @@ Quat :: struct {x, y, z, w: f32};
 
 QUAT_IDENTITY := Quat{x = 0, y = 0, z = 0, w = 1};
 
-Vec2i :: distinct [2]int;
-Vec3i :: distinct [3]int;
-Vec4i :: distinct [4]int;
-
 sqr_magnitude :: inline proc(a: $T/[$N]$E) -> f32 do return dot(a, a);
 magnitude :: inline proc(a: $T/[$N]$E) -> f32 do return sqrt(dot(a, a));
 
-move_towards :: proc{move_towards_vec2, move_towards_vec3, move_towards_f32};
+move_towards :: proc{move_towards_vec, move_towards_f32};
 
-move_towards_vec2 :: proc(a, b: Vec2, step: f32) -> Vec2 {
-	direction := b - a;
-	mag := magnitude(direction);
-
-	if mag <= step || mag == 0 {
-		return b;
-	}
-
-	return a + direction / mag * step;
-}
-
-move_towards_vec3 :: proc(a, b: Vec3, step: f32) -> Vec3 {
+move_towards_vec :: proc(a, b: $T/[$N]$E, step: f32) -> T {
 	direction := b - a;
 	mag := magnitude(direction);
 
@@ -427,7 +416,7 @@ atan :: proc(x: f64) -> f64 {
 
 
 
-mat4_inverse:: proc(m: Mat4) -> Mat4 {
+mat4_inverse :: proc(m: Mat4) -> Mat4 {
 	o: Mat4;
 
 	sf00 := m[2][2] * m[3][3] - m[3][2] * m[2][3];
