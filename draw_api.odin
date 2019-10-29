@@ -641,7 +641,7 @@ get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) ->
 	// todo(josh): should probably make this 0.5 because I think directx is 0 -> 1 instead of -1 -> 1 like opengl
 	cursor_viewport_position.z = 0.1; // just some way down the frustum
 
-	inv := mat4_inverse_(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
+	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
 
 	cursor_world_position4 := mul(inv, cursor_viewport_position);
 	if cursor_world_position4.w != 0 do cursor_world_position4 /= cursor_world_position4.w;
