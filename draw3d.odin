@@ -49,15 +49,18 @@ draw_render_scene :: proc($do_lighting: bool, $do_shader_override: bool, shader_
 			flush_lights_to_shader(shader);
 			set_current_material(shader, material);
 
-			program := gpu.get_current_shader();
-			gpu.uniform1i(program, "shadow_map", 1);
-			gpu.active_texture1();
-			gpu.bind_texture2d(shadow_map_camera.framebuffer.texture.gpu_id);
+			if num_directional_lights > 0 {
+				light_camera := &directional_light_cameras[0];
+				program := gpu.get_current_shader();
+				gpu.uniform1i(program, "shadow_map", 1);
+				gpu.active_texture1();
+				gpu.bind_texture2d(light_camera.framebuffer.texture.gpu_id);
 
-			light_view := construct_view_matrix(&shadow_map_camera);
-			light_proj := construct_projection_matrix(&shadow_map_camera);
-			light_space := mul(light_proj, light_view);
-			gpu.uniform_matrix4fv(program, "light_space_matrix", 1, false, &light_space[0][0]);
+				light_view := construct_view_matrix(light_camera);
+				light_proj := construct_projection_matrix(light_camera);
+				light_space := mul(light_proj, light_view);
+				gpu.uniform_matrix4fv(program, "light_space_matrix", 1, false, &light_space[0][0]);
+			}
 		}
 
 		draw_model(model, position, scale, rotation, texture, color, true);

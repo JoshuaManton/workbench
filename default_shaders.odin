@@ -313,15 +313,18 @@ vec4 calculate_directional_light(int light_index, vec3 norm, vec4 unlit_color) {
 float calculate_shadow(vec3 light_direction) {
     vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
     proj_coords = proj_coords * 0.5 + 0.5;
+    if (proj_coords.z > 1.0) {
+        proj_coords.z = 1.0;
+    }
     float closest_depth = texture(shadow_map, proj_coords.xy).r;
     float current_depth = proj_coords.z;
-    float bias = max(0.005 * (1.0 - dot(normal, -light_direction)), 0.001);
+    float bias = max(0.005 * (1.0 - dot(normal, -light_direction)), 0.0025);
     float shadow = 0.0;
     vec2 texel_size = 1.0 / textureSize(shadow_map, 0);
     for (int x = -1; x <= 1; x += 1) {
         for (int y = -1; y <= 1; y += 1) {
             float pcf_depth = texture(shadow_map, proj_coords.xy + vec2(x, y) * texel_size).r;
-            shadow += current_depth - bias > pcf_depth ? 1.0 : 0.0;
+            shadow += pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
         }
     }
     return shadow / 9.0;
@@ -356,6 +359,29 @@ void main() {
 `;
 
 
+
+SHADER_DEPTH_VERT ::
+`
+#version 330 core
+
+// from vbo
+layout(location = 0) in vec3 vbo_vertex_position;
+layout(location = 1) in vec2 vbo_tex_coord;
+
+uniform vec4 mesh_color;
+
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
+
+out vec2 tex_coord;
+
+void main() {
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
+    gl_Position = result;
+    tex_coord = vbo_tex_coord;
+}
+`;
 
 SHADER_DEPTH_FRAG ::
 `

@@ -1,6 +1,6 @@
 package gpu
 
-when GPU_BACKEND == "OPENGL" {
+when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
 
 using import "core:runtime"
       import "core:fmt"
@@ -281,6 +281,21 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
         return 0, false;
     }
 
+
+    count: i32;
+    odingl.GetProgramiv(program_id, odingl.ACTIVE_UNIFORMS, &count);
+	logln("Active Uniforms: ", count);
+
+	for i in 0..<count {
+		name: [32]byte;
+		name_len: i32;
+		size_of_uniform: i32;
+		uniform_type: u32;
+	    odingl.GetActiveUniform(program_id, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
+
+	    logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
+	}
+
     return cast(Shader_Program)program_id, true;
 }
 
@@ -352,6 +367,11 @@ get_tex_image :: proc(target: Texture_Target, format: Pixel_Data_Format, type: T
 
 tex_parameteri :: proc(target: Texture_Target, pname: Texture_Parameter, param: Texture_Parameter_Value, loc := #caller_location) {
     odingl.TexParameteri(cast(u32)target, cast(u32)pname, cast(i32)param);
+	log_errors(#procedure, loc);
+}
+
+tex_parameterfv :: proc(target: Texture_Target, pname: Texture_Parameter, floats: ^f32, loc := #caller_location) {
+    odingl.TexParameterfv(cast(u32)target, cast(u32)pname, floats);
 	log_errors(#procedure, loc);
 }
 

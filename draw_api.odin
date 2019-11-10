@@ -123,7 +123,7 @@ Camera :: struct {
     framebuffer: Framebuffer,
 }
 
-init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false) {
+init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
     camera.is_perspective = is_perspective;
     camera.size = size;
     camera.near_plane = 0.01;
@@ -137,12 +137,7 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.aspect = camera.pixel_width / camera.pixel_height;
 
     assert(camera.framebuffer.fbo == 0);
-
-    if make_framebuffer {
-        assert(pixel_width > 0);
-        assert(pixel_height > 0);
-        camera.framebuffer = create_color_framebuffer(pixel_width, pixel_height);
-    }
+    camera.framebuffer = framebuffer;
 }
 
 delete_camera :: proc(camera: Camera) {
@@ -362,8 +357,10 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.tex_image2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
-	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
+	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
+	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
+	c := Colorf{1, 1, 1, 1};
+	gpu.tex_parameterfv(.Texture2D, .Texture_Border_Color, &c.r);
 
 	gpu.framebuffer_texture2d(.Depth, texture);
 
