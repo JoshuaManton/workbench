@@ -288,6 +288,19 @@ expect_f32 :: proc(lexer: ^Lexer) -> f32 {
 	return 0;
 }
 
+expect_string :: proc(lexer: ^Lexer) -> string {
+	t: Token;
+	ok := get_next_token(lexer, &t);
+	if !ok {
+		assert(false, tprint("EOF"));
+	}
+	if n, ok := t.kind.(String); ok {
+		return n.value;
+	}
+	assert(false, tprint("Expected string, got ", t));
+	return "";
+}
+
 _is_whitespace :: inline proc(r: u8) -> bool {
 	switch cast(rune)r {
 		case ' ', '\r', '\t': {
