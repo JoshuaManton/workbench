@@ -123,7 +123,7 @@ Camera :: struct {
     framebuffer: Framebuffer,
 }
 
-init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false) {
+init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
     camera.is_perspective = is_perspective;
     camera.size = size;
     camera.near_plane = 0.01;
@@ -137,12 +137,7 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.aspect = camera.pixel_width / camera.pixel_height;
 
     assert(camera.framebuffer.fbo == 0);
-
-    if make_framebuffer {
-        assert(pixel_width > 0);
-        assert(pixel_height > 0);
-        camera.framebuffer = create_color_framebuffer(pixel_width, pixel_height);
-    }
+    camera.framebuffer = framebuffer;
 }
 
 delete_camera :: proc(camera: Camera) {
@@ -327,7 +322,8 @@ create_color_framebuffer :: proc(width, height: int) -> Framebuffer {
 	texture := gpu.gen_texture();
 	gpu.bind_texture2d(texture);
 
-	gpu.tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+	// todo(josh): is 16-bit float enough?
+	gpu.tex_image2d(.Texture2D, 0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
@@ -362,8 +358,10 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.tex_image2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
-	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
+	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
+	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
+	c := Colorf{1, 1, 1, 1};
+	gpu.tex_parameterfv(.Texture2D, .Texture_Border_Color, &c.r);
 
 	gpu.framebuffer_texture2d(.Depth, texture);
 
@@ -515,14 +513,14 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	// shader stuff
 	program := gpu.get_current_shader();
 
-	gpu.uniform1i(program, "texture_handle", 0);
-	gpu.uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
-	gpu.uniform1i(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
-	gpu.uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
+	gpu.uniform_int(program, "texture_handle", 0);
+	gpu.uniform_vec3(program, "camera_position", current_camera.position);
+	gpu.uniform_int(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
+	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
 
-	gpu.uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
-	gpu.uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-	gpu.uniform_matrix4fv(program, "projection_matrix", 1, false, &projection_matrix[0][0]);
+	gpu.uniform_mat4(program, "model_matrix",      &model_matrix);
+	gpu.uniform_mat4(program, "view_matrix",       &view_matrix);
+	gpu.uniform_mat4(program, "projection_matrix", &projection_matrix);
 
 	if depth_test {
 		gpu.enable(.Depth_Test);

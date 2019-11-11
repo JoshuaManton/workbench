@@ -26,14 +26,13 @@ create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
 
 	color_format : gpu.Internal_Color_Format;
 	pixel_format : gpu.Pixel_Data_Format;
-
 	switch channels {
 		case 3: {
-			color_format = .RGB;
+			color_format = .RGB16F;
 			pixel_format = .RGB;
 		}
 		case 4: {
-			color_format = .RGBA;
+			color_format = .RGBA16F;
 			pixel_format = .RGBA;
 		}
 		case: {
@@ -54,8 +53,24 @@ update_texture_from_png_data :: proc(texture: Texture, png_data: []byte) {
 	assert(pixel_data != nil);
 	defer stb.image_free(pixel_data);
 
+	color_format : gpu.Internal_Color_Format;
+	pixel_format : gpu.Pixel_Data_Format;
+	switch channels {
+		case 3: {
+			color_format = .RGB16F;
+			pixel_format = .RGB;
+		}
+		case 4: {
+			color_format = .RGBA16F;
+			pixel_format = .RGBA;
+		}
+		case: {
+			assert(false); // RGB or RGBA
+		}
+	}
+
 	gpu.bind_texture2d(texture.gpu_id);
-	gpu.tex_image2d(.Texture2D, 0, .RGB, width, height, 0, .RGB, .Unsigned_Byte, pixel_data);
+	gpu.tex_image2d(.Texture2D, 0, color_format, width, height, 0, pixel_format, .Unsigned_Byte, pixel_data);
 }
 
 

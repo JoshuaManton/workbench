@@ -55,7 +55,9 @@ Mat2 :: distinct [2][2]f32;
 Mat3 :: distinct [3][3]f32;
 Mat4 :: distinct [4][4]f32;
 
-Quat :: struct {x, y, z, w: f32};
+Quat :: struct {
+	x: f32 `imgui_range="-1":"1"`, y: f32 `imgui_range="-1":"1"`, z: f32 `imgui_range="-1":"1"`, w: f32 `imgui_range="-1":"1"`,
+}
 
 QUAT_IDENTITY := Quat{x = 0, y = 0, z = 0, w = 1};
 
@@ -246,6 +248,22 @@ degrees_to_quaternion :: proc(v: Vec3) -> Quat {
 	return orientation;
 }
 
+quaternion_to_euler :: proc(q: Quat) -> Vec3 {
+	sqw := q.w * q.w;
+	sqx := q.x * q.x;
+	sqy := q.y * q.y;
+	sqz := q.z * q.z;
+
+	rotxrad := cast(f32)atan2(f64(2.0 * ( q.y * q.z + q.x * q.w )) , f64( -sqx - sqy + sqz + sqw ));
+	rotyrad := cast(f32)asin(-2.0 * ( q.x * q.z - q.y * q.w ));
+	rotzrad := cast(f32)atan2(f64(2.0 * ( q.x * q.y + q.z * q.w )) , f64(  sqx - sqy - sqz + sqw ));
+
+	x := to_degrees(rotxrad);
+	y := to_degrees(rotyrad);
+	z := to_degrees(rotzrad);
+	return Vec3{x, y, z};
+}
+
 direction_to_quaternion :: proc(v: Vec3) -> Quat {
 	assert(length(v) != 0);
 	angle : f32 = cast(f32)atan2(cast(f64)v.x, cast(f64)v.z); // Note: I expected atan2(z,x) but OP reported success with atan2(x,z) instead! Switch around if you see 90° off.
@@ -302,6 +320,11 @@ slerp :: proc(q1: Quat, q2: Quat, t: f32) -> Quat {
 	w := coeff1 * q1.w + coeff2 * q2.w;
 
 	return Quat{x, y, z, w};
+}
+
+asin :: proc(x: f32) -> f32 {
+	return cast(f32)atan(cast(f64)(x/sqrt(1-(x*x))));
+	// return x*(1+x*x*(1/6+ x*x*(3/(2*4*5) + x*x*((1*3*5)/(2*4*6*7)))));
 }
 
 acos :: proc(x: f32) -> f32 {
@@ -386,8 +409,8 @@ xatan :: proc(x: f64) -> f64 {
 // satan reduces its argument (known to be positive)
 // to the range [0, 0.66] and calls xatan.
 satan :: proc(x: f64) -> f64 {
-	Morebits := 6.123233995736765886130e-17; // pi/2 = PIO2 + Morebits
-	Tan3pio8 := 2.41421356237309504880;      // tan(3*pi/8)
+	Morebits :: 6.123233995736765886130e-17; // pi/2 = PIO2 + Morebits
+	Tan3pio8 :: 2.41421356237309504880;      // tan(3*pi/8)
 
 	if x <= 0.66 {
 		return xatan(x);

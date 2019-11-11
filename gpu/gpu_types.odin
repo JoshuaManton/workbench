@@ -322,6 +322,7 @@ Texture_Parameter :: enum i32 {
     Wrap_S                     = odingl.TEXTURE_WRAP_S,
     Wrap_T                     = odingl.TEXTURE_WRAP_T,
     Wrap_R                     = odingl.TEXTURE_WRAP_R,
+    Texture_Border_Color       = odingl.TEXTURE_BORDER_COLOR,
 }
 
 Texture_Parameter_Value :: enum i32 {
@@ -333,7 +334,8 @@ Texture_Parameter_Value :: enum i32 {
     Linear_Mipmap_Linear   = odingl.LINEAR_MIPMAP_LINEAR,
 
     Repeat                 = odingl.REPEAT,
-    ClampToEdge            = odingl.CLAMP_TO_EDGE,
+    Clamp_To_Edge          = odingl.CLAMP_TO_EDGE,
+    Clamp_To_Border        = odingl.CLAMP_TO_BORDER,
 
     Mirrored_Repeat        = odingl.MIRRORED_REPEAT,
 }

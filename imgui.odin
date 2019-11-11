@@ -359,7 +359,7 @@ imgui_render :: proc(render_to_screen : bool) {
 
     gpu.use_program(imgui_program);
     gpu.uniform_int(imgui_program, "Texture", i32(0));
-    gpu.uniform_matrix4fv(imgui_program, "ProjMtx", 1, false, &ortho_projection[0][0]);
+    gpu.uniform_mat4(imgui_program, "ProjMtx", &ortho_projection);
 
     vao_handle := gpu.gen_vao();
     gpu.bind_vao(vao_handle);
@@ -492,9 +492,12 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
         range_lexer := laas.make_lexer(range_str);
         laas.get_next_token(&range_lexer, nil);
         laas.expect_symbol(&range_lexer, '=');
-        range_min = laas.expect_f32(&range_lexer);
+        range_min_str := laas.expect_string(&range_lexer);
         laas.expect_symbol(&range_lexer, ':');
-        range_max = laas.expect_f32(&range_lexer);
+        range_max_str := laas.expect_string(&range_lexer);
+
+        range_min = parse_f32(range_min_str);
+        range_max = parse_f32(range_max_str);
     }
 
     switch kind in &ti.variant {
@@ -522,21 +525,27 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
             switch ti.size {
                 case 8: {
                     new_data := cast(f32)(cast(^f64)data)^;
+                    imgui.push_item_width(100);
+                    imgui.input_float(tprint(name, "##non_range"), &new_data);
+                    imgui.pop_item_width();
                     if has_range_constraint {
+                        imgui.same_line();
+                        imgui.push_item_width(200);
                         imgui.slider_float(name, &new_data, range_min, range_max);
-                    }
-                    else {
-                        imgui.input_float(name, &new_data);
+                        imgui.pop_item_width();
                     }
                     (cast(^f64)data)^ = cast(f64)new_data;
                 }
                 case 4: {
                     new_data := cast(f32)(cast(^f32)data)^;
+                    imgui.push_item_width(100);
+                    imgui.input_float(tprint(name, "##non_range"), &new_data);
+                    imgui.pop_item_width();
                     if has_range_constraint {
+                        imgui.same_line();
+                        imgui.push_item_width(200);
                         imgui.slider_float(name, &new_data, range_min, range_max);
-                    }
-                    else {
-                        imgui.input_float(name, &new_data);
+                        imgui.pop_item_width();
                     }
                     (cast(^f32)data)^ = cast(f32)new_data;
                 }
@@ -576,6 +585,20 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
         case Type_Info_Struct: {
             if !do_header || _imgui_struct_block_field_start(name, type_name) {
                 defer if do_header do _imgui_struct_block_field_end(name);
+
+                // if kind == &type_info_of(Quat).variant.(Type_Info_Named).base.variant.(Type_Info_Struct) {
+                //     q := cast(^Quat)data;
+                //     dir := quaternion_to_euler(q^);
+                //     if imgui.input_float("##782783", &dir.x, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
+                //         q^ = euler_angles(expand_to_tuple(dir));
+                //     }
+                //     if imgui.input_float("##42424", &dir.y, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
+                //         q^ = euler_angles(expand_to_tuple(dir));
+                //     }
+                //     if imgui.input_float("##54512", &dir.z, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
+                //         q^ = euler_angles(expand_to_tuple(dir));
+                //     }
+                // }
 
                 for field_name, i in kind.names {
                     t := kind.types[i];
