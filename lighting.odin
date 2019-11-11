@@ -16,12 +16,12 @@ Material :: struct {
 
 MAX_LIGHTS :: 100;
 point_light_positions:   [MAX_LIGHTS]Vec3;
-point_light_colors:      [MAX_LIGHTS]Colorf;
+point_light_colors:      [MAX_LIGHTS]Vec4;
 point_light_intensities: [MAX_LIGHTS]f32;
 num_point_lights: i32;
 
 directional_light_directions:  [MAX_LIGHTS]Vec3;
-directional_light_colors:      [MAX_LIGHTS]Colorf;
+directional_light_colors:      [MAX_LIGHTS]Vec4;
 directional_light_intensities: [MAX_LIGHTS]f32;
 directional_light_cameras:     [MAX_LIGHTS]Camera;
 num_directional_lights: i32;
@@ -36,7 +36,7 @@ push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
 	}
 
 	point_light_positions  [num_point_lights] = position;
-	point_light_colors     [num_point_lights] = color;
+	point_light_colors     [num_point_lights] = transmute(Vec4)color;
 	point_light_intensities[num_point_lights] = intensity;
 	num_point_lights += 1;
 }
@@ -48,7 +48,7 @@ push_directional_light :: proc(position: Vec3, rotation: Quat, color: Colorf, in
 	}
 
 	directional_light_directions [num_directional_lights] = quaternion_forward(rotation);
-	directional_light_colors     [num_directional_lights] = color;
+	directional_light_colors     [num_directional_lights] = transmute(Vec4)color;
 	directional_light_intensities[num_directional_lights] = intensity;
 
 	camera := get_directional_light_camera();
@@ -60,18 +60,18 @@ push_directional_light :: proc(position: Vec3, rotation: Quat, color: Colorf, in
 
 flush_lights_to_shader :: proc(program: gpu.Shader_Program) {
 	if num_point_lights > 0 {
-		gpu.uniform3fv(program, "point_light_positions",   num_point_lights, &point_light_positions[0].x);
-		gpu.uniform4fv(program, "point_light_colors",      num_point_lights, &point_light_colors[0].r);
-		gpu.uniform1fv(program, "point_light_intensities", num_point_lights, &point_light_intensities[0]);
+		gpu.uniform_vec3_array(program,  "point_light_positions",   point_light_positions[:num_point_lights]);
+		gpu.uniform_vec4_array(program,  "point_light_colors",      point_light_colors[:num_point_lights]);
+		gpu.uniform_float_array(program, "point_light_intensities", point_light_intensities[:num_point_lights]);
 	}
-	gpu.uniform1i (program, "num_point_lights",        num_point_lights);
+	gpu.uniform_int(program, "num_point_lights", num_point_lights);
 
 	if num_directional_lights > 0 {
-		gpu.uniform3fv(program, "directional_light_directions",  num_directional_lights, &directional_light_directions[0].x);
-		gpu.uniform4fv(program, "directional_light_colors",      num_directional_lights, &directional_light_colors[0].r);
-		gpu.uniform1fv(program, "directional_light_intensities", num_directional_lights, &directional_light_intensities[0]);
+		gpu.uniform_vec3_array(program,  "directional_light_directions",  directional_light_directions[:num_directional_lights]);
+		gpu.uniform_vec4_array(program,  "directional_light_colors",      directional_light_colors[:num_directional_lights]);
+		gpu.uniform_float_array(program, "directional_light_intensities", directional_light_intensities[:num_directional_lights]);
 	}
-	gpu.uniform1i (program, "num_directional_lights",        num_directional_lights);
+	gpu.uniform_int(program, "num_directional_lights", num_directional_lights);
 }
 
 set_current_material :: proc(program: gpu.Shader_Program, material: Material) {

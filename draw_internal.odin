@@ -76,6 +76,8 @@ debug_line_model: Model;
 
 debugging_rendering: bool;
 
+render_settings: Render_Settings;
+
 init_draw :: proc(screen_width, screen_height: int) {
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
@@ -110,6 +112,11 @@ init_draw :: proc(screen_width, screen_height: int) {
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{});
+
+	render_settings = Render_Settings{
+		gamma = 2.2,
+		exposure = 1.0,
+	};
 }
 
 update_draw :: proc() {
@@ -131,6 +138,11 @@ update_draw :: proc() {
 
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
+
+Render_Settings :: struct {
+	gamma: f32,
+	exposure: f32,
+}
 
 render_workspace :: proc(workspace: Workspace) {
 	gpu.enable(.Cull_Face);
@@ -202,7 +214,8 @@ render_workspace :: proc(workspace: Workspace) {
 	}
 
 	gpu.use_program(shader_framebuffer_gamma_corrected);
-	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", 1.0/2.2);
+	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
+	gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
 	draw_texture(wb_camera.framebuffer.texture, {0, 0}, {platform.current_window_width, platform.current_window_height});
 	if num_directional_lights > 0 {
 		gpu.use_program(shader_depth);
@@ -244,6 +257,8 @@ draw_rendering_debug_window :: proc() {
 		else {
 			wb_camera.draw_mode = .Triangles;
 		}
+
+		imgui_struct(&render_settings, "Render Settings");
 	}
 	imgui.end();
 }

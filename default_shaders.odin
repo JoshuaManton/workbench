@@ -151,14 +151,22 @@ SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG ::
 
 in vec2 tex_coord;
 
-uniform float gamma; // 1.0 / 2.2
+uniform float gamma;
+uniform float exposure;
 uniform sampler2D texture_handle;
 
-layout(location = 0) out vec4 color;
+layout(location = 0) out vec4 out_color;
 
 void main() {
-    color = texture(texture_handle, tex_coord);
-    color = pow(color, vec4(gamma, gamma, gamma, 1));
+    vec3 color = texture(texture_handle, tex_coord).rgb;
+
+    // exposure tone mapping
+    color = vec3(1.0) - exp(-color * exposure);
+
+    // gamma correction
+    color = pow(color, vec3(1.0 / gamma));
+
+    out_color = vec4(color, 1.0);
 }
 `;
 
@@ -244,8 +252,8 @@ out vec4 out_color;
 
 
 
-vec4 calculate_point_light(int, vec3, vec4);
-vec4 calculate_directional_light(int, vec3, vec4);
+vec3 calculate_point_light(int, vec3);
+vec3 calculate_directional_light(int, vec3);
 float calculate_shadow(vec3);
 
 void main() {
@@ -254,21 +262,21 @@ void main() {
     // vec4 unlit_color = material.ambient * vertex_color;
     vec4 unlit_color = material.ambient * vertex_color * mesh_color;
     if (has_texture == 1) {
-        float gamma = 2.2;
+        float gamma = 2.2; // todo(josh): dont hardcode this. not sure if it needs to change per texture?
         vec3 tex_sample = pow(texture(texture_handle, tex_coord).rgb, vec3(gamma));
         unlit_color *= vec4(tex_sample, 1.0);
     }
     out_color = unlit_color;
     for (int i = 0; i < num_point_lights; i++) {
-        out_color += calculate_point_light(i, norm, unlit_color);
+        out_color.xyz += unlit_color.xyz * calculate_point_light(i, norm);
     }
     for (int i = 0; i < num_directional_lights; i++) {
         float shadow = (1.0 - calculate_shadow(directional_light_directions[i]));
-        out_color += shadow * calculate_directional_light(i, norm, unlit_color);
+        out_color.xyz += unlit_color.xyz * calculate_directional_light(i, norm) * shadow;
     }
 }
 
-vec4 calculate_point_light(int light_index, vec3 norm, vec4 unlit_color) {
+vec3 calculate_point_light(int light_index, vec3 norm) {
     vec3  position  = point_light_positions  [light_index];
     vec4  color     = point_light_colors     [light_index];
     float intensity = point_light_intensities[light_index];
@@ -292,10 +300,10 @@ vec4 calculate_point_light(int light_index, vec3 norm, vec4 unlit_color) {
     diffuse  *= attenuation;
     specular *= attenuation;
 
-    return unlit_color * vec4((diffuse + specular).xyz, 1.0);
+    return (diffuse + specular).xyz;
 }
 
-vec4 calculate_directional_light(int light_index, vec3 norm, vec4 unlit_color) {
+vec3 calculate_directional_light(int light_index, vec3 norm) {
     vec3  direction = directional_light_directions [light_index];
     vec4  color     = directional_light_colors     [light_index];
     float intensity = directional_light_intensities[light_index];
@@ -307,7 +315,7 @@ vec4 calculate_directional_light(int light_index, vec3 norm, vec4 unlit_color) {
     vec4  diffuse = color * diff * material.diffuse;
 
     diffuse *= intensity;
-    return unlit_color * vec4(diffuse.xyz, 1.0);
+    return diffuse.xyz;
 }
 
 float calculate_shadow(vec3 light_direction) {

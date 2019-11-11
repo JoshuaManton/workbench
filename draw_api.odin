@@ -322,7 +322,8 @@ create_color_framebuffer :: proc(width, height: int) -> Framebuffer {
 	texture := gpu.gen_texture();
 	gpu.bind_texture2d(texture);
 
-	gpu.tex_image2d(.Texture2D, 0, .RGBA, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+	// todo(josh): is 16-bit float enough?
+	gpu.tex_image2d(.Texture2D, 0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);

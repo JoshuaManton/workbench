@@ -562,14 +562,40 @@ get_current_shader :: inline proc(loc := #caller_location) -> Shader_Program {
 
 
 
-uniform_float :: uniform1f;
-uniform_int   :: uniform1i;
-uniorm_vec3 :: inline proc(program: Shader_Program, name: string, v: Vec3, loc := #caller_location) {
-	uniform3f(program, name, expand_to_tuple(v), loc);
+uniform_int :: inline proc(program: Shader_Program, name: string, p: i32, loc := #caller_location) {
+	uniform1i(program, name, p, loc);
 }
-uniform_vec4 :: inline proc(program: Shader_Program, name: string, v: Vec4, loc := #caller_location) {
-	uniform4f(program, name, expand_to_tuple(v), loc);
+uniform_int_array :: inline proc(program: Shader_Program, name: string, p: []i32, loc := #caller_location) {
+	uniform1iv(program, name, cast(i32)len(p), &p[0], loc);
 }
+
+uniform_float :: inline proc(program: Shader_Program, name: string, p: f32, loc := #caller_location) {
+	uniform1f(program, name, p, loc);
+}
+uniform_float_array :: inline proc(program: Shader_Program, name: string, p: []f32, loc := #caller_location) {
+	uniform1fv(program, name, cast(i32)len(p), &p[0], loc);
+}
+
+uniform_vec2 :: inline proc(program: Shader_Program, name: string, p: Vec2, loc := #caller_location) {
+	uniform2f(program, name, expand_to_tuple(p), loc);
+}
+uniform_vec2_array :: inline proc(program: Shader_Program, name: string, p: []Vec2, loc := #caller_location) {
+	uniform2fv(program, name, cast(i32)len(p), &p[0].x, loc);
+}
+uniform_vec3 :: inline proc(program: Shader_Program, name: string, p: Vec3, loc := #caller_location) {
+	uniform3f(program, name, expand_to_tuple(p), loc);
+}
+uniform_vec3_array :: inline proc(program: Shader_Program, name: string, p: []Vec3, loc := #caller_location) {
+	uniform3fv(program, name, cast(i32)len(p), &p[0].x, loc);
+}
+uniform_vec4 :: inline proc(program: Shader_Program, name: string, p: Vec4, loc := #caller_location) {
+	uniform4f(program, name, expand_to_tuple(p), loc);
+}
+uniform_vec4_array :: inline proc(program: Shader_Program, name: string, p: []Vec4, loc := #caller_location) {
+	uniform4fv(program, name, cast(i32)len(p), &p[0].x, loc);
+}
+
+
 
 uniform1f :: inline proc(program: Shader_Program, name: string, v0: f32, loc := #caller_location) {
 	location := get_uniform_location(program, name, loc);
@@ -614,9 +640,6 @@ uniform4i :: inline proc(program: Shader_Program, name: string, v0: i32, v1: i32
 
 
 
-uniform1 :: proc{uniform1fv,
-				 uniform1iv,
-				 };
 uniform1fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32, loc := #caller_location) {
 	location := get_uniform_location(program, name, loc);
 	odingl.Uniform1fv(cast(i32)location, count, value);
@@ -630,9 +653,6 @@ uniform1iv :: inline proc(program: Shader_Program, name: string, count: i32, val
 
 
 
-uniform2 :: proc{uniform2fv,
-				 uniform2iv,
-				 };
 uniform2fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32, loc := #caller_location) {
 	location := get_uniform_location(program, name, loc);
 	odingl.Uniform2fv(cast(i32)location, count, value);
@@ -646,9 +666,6 @@ uniform2iv :: inline proc(program: Shader_Program, name: string, count: i32, val
 
 
 
-uniform3 :: proc{uniform3fv,
-				 uniform3iv,
-				 };
 uniform3fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32, loc := #caller_location) {
 	location := get_uniform_location(program, name, loc);
 	odingl.Uniform3fv(cast(i32)location, count, value);
@@ -662,9 +679,6 @@ uniform3iv :: inline proc(program: Shader_Program, name: string, count: i32, val
 
 
 
-uniform4 :: proc{uniform4fv,
-				 uniform4iv,
-				 };
 uniform4fv :: inline proc(program: Shader_Program, name: string, count: i32, value: ^f32, loc := #caller_location) {
 	location := get_uniform_location(program, name, loc);
 	odingl.Uniform4fv(cast(i32)location, count, value);
