@@ -69,17 +69,19 @@ load_model_from_file :: proc(path: string, loc := #caller_location) -> Model {
 	defer delete(path_c);
 
 	scene := ai.import_file(path_c,
-		cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
+		// cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
 		cast(u32) ai.Post_Process_Steps.Triangulate |
-		cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
-		cast(u32) ai.Post_Process_Steps.Sort_By_PType |
-		cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
-		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
-		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
-		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
-		cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
-		//cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
-		cast(u32) ai.Post_Process_Steps.Flip_UVs);
+		// cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
+		// cast(u32) ai.Post_Process_Steps.Sort_By_PType |
+		// cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
+		// cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
+		// cast(u32) ai.Post_Process_Steps.Find_Degenerates |
+		// cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
+		// cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
+		cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
+		// cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
+		cast(u32) ai.Post_Process_Steps.Flip_UVs
+		);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
@@ -90,16 +92,17 @@ load_model_from_file :: proc(path: string, loc := #caller_location) -> Model {
 load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> Model {
 	hint := "fbx\x00";
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
-		cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
+		// cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
 		cast(u32) ai.Post_Process_Steps.Triangulate |
-		cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
-		cast(u32) ai.Post_Process_Steps.Sort_By_PType |
-		cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
-		cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
-		cast(u32) ai.Post_Process_Steps.Find_Degenerates |
-		cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
-		cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
-		//cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
+		// cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
+		// cast(u32) ai.Post_Process_Steps.Sort_By_PType |
+		// cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
+		// cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
+		// cast(u32) ai.Post_Process_Steps.Find_Degenerates |
+		// cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
+		// cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
+		cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
+		// cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs, &hint[0]);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
@@ -114,6 +117,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 	mesh_count := cast(int) scene.num_meshes;
 	model: Model;
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
+	base_vert := 0;
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
@@ -142,6 +146,8 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 		processed_verts := make([dynamic]Vertex3D, 0, mesh.num_vertices);
 		defer delete(processed_verts);
 
+		defer base_vert += int(mesh.num_vertices);
+
 		// process vertices into Vertex3D struct
 		for i in 0..mesh.num_vertices-1 {
 			position := verts[i];
@@ -165,7 +171,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 				Vec3{position.x, position.y, position.z},
 				texture_coord,
 				color,
-				Vec3{normal.x, normal.y, normal.z}};
+				Vec3{normal.x, normal.y, normal.z}, {}, {}};
 
 			append(&processed_verts, vert);
 		}
@@ -181,16 +187,92 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 			}
 		}
 
+		skin : Skinned_Mesh;
+		if mesh.num_bones > 0 {
+
+			// @alloc needs to be freed when the mesh is destroyed
+			bone_mapping := make(map[string]int, cast(int)mesh.num_bones);
+			bone_info := make([dynamic]Bone, 0, cast(int)mesh.num_bones);
+
+			num_bones := 0;
+			bones := mem.slice_ptr(mesh.bones, cast(int)mesh.num_bones);
+			for bone in bones {
+				bone_name := strings.string_from_ptr(&bone.name.data[0], cast(int)bone.name.length);
+
+				bone_index := 0;
+				if bone_name in bone_mapping {
+					bone_index = bone_mapping[bone_name];
+				} else {
+					bone_index = num_bones;
+					bone_mapping[bone_name] = bone_index;
+					num_bones += 1;
+				}
+
+				offset := ai_to_wb(bone.offset_matrix);
+				append(&bone_info, Bone{ offset, offset, bone_name });
+
+				if bone.num_weights == 0 do continue;
+
+				weights := mem.slice_ptr(bone.weights, cast(int)bone.num_weights);
+				for weight in weights {
+					vertex_id := base_vert + int(weight.vertex_id);
+					vert := processed_verts[vertex_id];
+					for j := 0; j < gpu.BONES_PER_VERTEX; j += 1 {
+						if vert.bone_weights[j] == 0 {
+							vert.bone_weights[j] = weight.weight;
+							vert.bone_indicies[j] = u32(bone_index);
+
+							processed_verts[vertex_id] = vert;
+							break;
+						}
+					}
+				} // end weights
+			} // end bones loop
+
+			skin = Skinned_Mesh{
+				bone_info[:],
+				bone_mapping,
+			};
+
+		} // end bone if
 		// create mesh
-		add_mesh_to_model(&model,
+		idx := add_mesh_to_model(&model,
 			processed_verts[:],
-			indices[:]
+			indices[:],
+			skin
 		);
+
+		read_node_hierarchy(&model.meshes[idx], scene.root_node, identity(Mat4), ai_to_wb(scene.root_node.transformation));
+
 	}
 
 	return model;
 }
 
+ai_to_wb :: proc (m : ai.Matrix4x4) -> Mat4 {
+	return Mat4{
+		{m.a1, m.b1, m.c1, m.d1},
+		{m.a2, m.b2, m.c2, m.d2},
+		{m.a3, m.b3, m.c3, m.d3},
+		{m.a4, m.b4, m.c4, m.d4},
+	};
+}
+
+read_node_hierarchy :: proc(using mesh: ^Mesh, node : ^ai.Node, parent_transform, global_inverse : Mat4) {
+	node_name := strings.string_from_ptr(&node.name.data[0], cast(int)node.name.length);
+	node_transform := ai_to_wb(node.transformation);
+	global_transform := mul(parent_transform, node_transform);
+
+	if node_name in skin.name_mapping {
+		bone_idx := skin.name_mapping[node_name];
+		skin.bones[bone_idx].final_transformation = mul(global_inverse, mul(global_transform, skin.bones[bone_idx].offset));
+	}
+
+	children := mem.slice_ptr(node.children, cast(int)node.num_children);
+	for _, i in children {
+		read_node_hierarchy(mesh, children[i], global_transform, global_inverse);
+	}
+}
 
 
 //

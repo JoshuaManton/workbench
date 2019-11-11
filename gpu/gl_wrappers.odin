@@ -463,6 +463,7 @@ set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
 		offset_in_struct := rawptr(uintptr(offset));
 		num_elements: i32;
 		type_of_elements: u32;
+		is_int := false;
 
 		switch ti.types[i].id {
 			case Vec2: {
@@ -492,26 +493,41 @@ set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
 			case i32: {
 				num_elements = 1;
 				type_of_elements = odingl.INT;
+				is_int = true;
 			}
 			case u32: {
 				num_elements = 1;
 				type_of_elements = odingl.UNSIGNED_INT;
+				is_int = true;
 			}
 			case i16: {
 				num_elements = 1;
 				type_of_elements = odingl.SHORT;
+				is_int = true;
 			}
 			case u16: {
 				num_elements = 1;
 				type_of_elements = odingl.UNSIGNED_SHORT;
+				is_int = true;
 			}
 			case i8: {
 				num_elements = 1;
 				type_of_elements = odingl.BYTE;
+				is_int = true;
 			}
 			case u8: {
 				num_elements = 1;
 				type_of_elements = odingl.UNSIGNED_BYTE;
+				is_int = true;
+			}
+			case [BONES_PER_VERTEX]u32: {
+				num_elements = BONES_PER_VERTEX;
+				type_of_elements = odingl.UNSIGNED_INT;
+				is_int = true;
+			}
+			case [BONES_PER_VERTEX]f32: {
+				num_elements = BONES_PER_VERTEX;
+				type_of_elements = odingl.FLOAT;
 			}
 			case: {
 				panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
@@ -521,7 +537,12 @@ set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
 		odingl.EnableVertexAttribArray(i);
 		log_errors("set_vertex_format: EnableVertexAttribArray", loc);
 		// logln(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
-		odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, cast(i32)_ti.size, offset_in_struct);
+		if is_int {
+			odingl.VertexAttribIPointer(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
+		} else {
+			odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, cast(i32)_ti.size, offset_in_struct);
+		}
+
 		log_errors("set_vertex_format: VertexAttribPointer", loc);
 	}
 }

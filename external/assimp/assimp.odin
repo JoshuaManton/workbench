@@ -1,6 +1,6 @@
 package assimp
 
-foreign import lib "assimp-vc140-mt.lib";
+foreign import lib "assimp-vc141-mt.lib";
 
 @(default_calling_convention="c")
 foreign lib {
@@ -80,7 +80,7 @@ Bool :: enum int {
 }
 
 String :: struct {
-	length : int,
+	length : u32,
 	data : [1024]u8,
 }
 
@@ -273,6 +273,8 @@ Vertex_Weight :: struct {
 Bone :: struct {
 	name : String,
 	num_weights : u32,
+	armature: ^Node,
+	node: ^Node,
 	weights : ^Vertex_Weight,
 	offset_matrix : Matrix4x4,
 }

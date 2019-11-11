@@ -413,6 +413,13 @@ Mesh :: struct {
 
     index_count:  int,
     vertex_count: int,
+
+	skin: Skinned_Mesh,
+}
+
+Skinned_Mesh :: struct {
+	bones: []Bone,
+	name_mapping: map[string]int,
 }
 
 Vertex2D :: struct {
@@ -426,16 +433,25 @@ Vertex3D :: struct {
 	tex_coord: Vec3, // todo(josh): should this be a Vec2?
 	color: Colorf,
 	normal: Vec3,
+
+	bone_indicies: [gpu.BONES_PER_VERTEX]u32,
+	bone_weights: [gpu.BONES_PER_VERTEX]f32,
+}
+
+Bone :: struct {
+	offset: Mat4,
+	final_transformation: Mat4,
+	name: string,
 }
 
 // todo(josh): maybe shouldn't use strings for mesh names, not sure
-add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, loc := #caller_location) -> int {
+add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, skin: Skinned_Mesh, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();
 	vbo := gpu.gen_vbo();
 	ibo := gpu.gen_ebo();
 
 	idx := len(model.meshes);
-	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices)};
+	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices), skin};
 	append(&model.meshes, mesh, loc);
 
 	update_mesh(model, idx, vertices, indices);
@@ -525,6 +541,13 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 		gpu.log_errors(#procedure);
 
+		if len(mesh.skin.bones) > 0 {
+			for bone, i in mesh.skin.bones {
+				offset := bone.final_transformation;
+				gpu.uniform_matrix4fv(program, tprint("bones[", i, "]"), 1, false, &offset[0][0]);
+			}
+		}
+
 		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
 		gpu.set_vertex_format(mesh.vertex_type);
 		gpu.log_errors(#procedure);
@@ -581,48 +604,48 @@ create_cube_model :: proc() -> Model {
 	};
 
     verts := []Vertex3D {
-    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
-    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
-    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
-    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}},
+    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
+    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
+    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
+    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
 
-    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
-    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
-    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
-    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}},
+    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
+    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
+    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
+    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
 
-    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
-    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
-    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
-    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}},
+    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
+    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
+    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
+    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
 
-    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
-    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
-    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
-    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}},
+    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
+    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
+    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
+    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
 
-    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
-    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
-    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
-    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}},
+    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
+    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
+    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
+    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
 
-    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
-    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
-    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
-    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}},
+    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
+    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
+    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
+    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
     };
 
     model: Model;
-    add_mesh_to_model(&model, verts, indices);
+    add_mesh_to_model(&model, verts, indices, {});
     return model;
 }
 
 create_quad_model :: proc() -> Model {
     verts := []Vertex3D {
-        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
-        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}},
+        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
     };
 
     indices := []u32 {
@@ -630,7 +653,7 @@ create_quad_model :: proc() -> Model {
     };
 
     model: Model;
-    add_mesh_to_model(&model, verts, indices);
+    add_mesh_to_model(&model, verts, indices, {});
     return model;
 }
 

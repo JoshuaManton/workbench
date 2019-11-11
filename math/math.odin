@@ -760,12 +760,16 @@ identity :: proc($T: typeid/[$N][N]$E) -> T {
 }
 
 transpose :: proc(m: $M/[$N][N]f32) -> M {
+
+	nm : M;
+
 	for j in 0..<N {
 		for i in 0..<N {
-			m[i][j], m[j][i] = m[j][i], m[i][j];
+			nm[i][j] = m[j][i];
+			nm[j][i] = m[i][j];
 		}
 	}
-	return m;
+	return nm;
 }
 
 mat3_mul :: proc(a, b: Mat3) -> Mat3 {
