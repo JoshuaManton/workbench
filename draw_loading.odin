@@ -136,9 +136,20 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
-		mesh := meshes[i];
 
+		mesh := meshes[i];
+		mesh_name := strings.string_from_ptr(&mesh.name.data[0], cast(int)mesh.name.length);
 		verts := mem.slice_ptr(mesh.vertices, cast(int) mesh.num_vertices);
+
+		mesh_transform := identity(Mat4);
+		children := mem.slice_ptr(scene.root_node.children, cast(int)scene.root_node.num_children);
+		for child in children {
+			child_name := strings.string_from_ptr(&child.name.data[0], cast(int)child.name.length);
+			if child_name == mesh_name {
+				mesh_transform = ai_to_wb(child.transformation);
+				break;
+			}
+		}
 
 		normals: []ai.Vector3D;
 		if ai.has_normals(mesh) {
@@ -182,8 +193,9 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 				texture_coord = Vec3{texture_coords[i].x, texture_coords[i].y, texture_coords[i].z};
 			}
 
+			pos := mul(mesh_transform, Vec4{position.x, position.y, position.z, 1});
 			vert := Vertex3D{
-				Vec3{position.x, position.y, position.z},
+				Vec3{pos.x, pos.y, pos.z},
 				texture_coord,
 				color,
 				Vec3{normal.x, normal.y, normal.z}, {}, {}};
@@ -212,7 +224,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 			num_bones := 0;
 			bones := mem.slice_ptr(mesh.bones, cast(int)mesh.num_bones);
 			for bone in bones {
-				bone_name := strings.string_from_ptr(&bone.name.data[0], cast(int)bone.name.length);
+				bone_name := strings.clone(strings.string_from_ptr(&bone.name.data[0], cast(int)bone.name.length));
 
 				bone_index := 0;
 				if bone_name in bone_mapping {

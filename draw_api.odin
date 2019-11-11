@@ -495,6 +495,12 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	gpu.delete_buffer(mesh.vbo);
 	gpu.delete_buffer(mesh.ibo);
 	gpu.log_errors(#procedure, loc);
+
+	for name in mesh.skin.name_mapping {
+		delete(name);
+	}
+	delete(mesh.skin.name_mapping);
+	delete(mesh.skin.bones);
 }
 
 draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool, loc := #caller_location) {
