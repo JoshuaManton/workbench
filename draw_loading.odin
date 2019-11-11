@@ -141,15 +141,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 		mesh_name := strings.string_from_ptr(&mesh.name.data[0], cast(int)mesh.name.length);
 		verts := mem.slice_ptr(mesh.vertices, cast(int) mesh.num_vertices);
 
-		mesh_transform := identity(Mat4);
-		children := mem.slice_ptr(scene.root_node.children, cast(int)scene.root_node.num_children);
-		for child in children {
-			child_name := strings.string_from_ptr(&child.name.data[0], cast(int)child.name.length);
-			if child_name == mesh_name {
-				mesh_transform = ai_to_wb(child.transformation);
-				break;
-			}
-		}
+		mesh_transform := get_mesh_transform(scene.root_node, mesh_name);
 
 		normals: []ai.Vector3D;
 		if ai.has_normals(mesh) {
@@ -299,6 +291,25 @@ read_node_hierarchy :: proc(using mesh: ^Mesh, node : ^ai.Node, parent_transform
 	for _, i in children {
 		read_node_hierarchy(mesh, children[i], global_transform, global_inverse);
 	}
+}
+
+get_mesh_transform :: proc(node: ^ai.Node, mesh_name: string) -> Mat4 {
+
+	ret := identity(Mat4);
+
+	children := mem.slice_ptr(node.children, cast(int)node.num_children);
+	for _, i in children {
+		child := children[i];
+
+		child_name := strings.string_from_ptr(&child.name.data[0], cast(int)child.name.length);
+		if child_name == mesh_name {
+			return ai_to_wb(child.transformation);
+		}
+
+		ret = get_mesh_transform(child, mesh_name);
+	}
+
+	return ret;
 }
 
 
