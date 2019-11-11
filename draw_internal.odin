@@ -202,7 +202,7 @@ render_workspace :: proc(workspace: Workspace) {
 	}
 
 	gpu.use_program(shader_framebuffer_gamma_corrected);
-	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", 1.0/2.0);
+	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", 1.0/2.2);
 	draw_texture(wb_camera.framebuffer.texture, {0, 0}, {platform.current_window_width, platform.current_window_height});
 	if num_directional_lights > 0 {
 		gpu.use_program(shader_depth);
