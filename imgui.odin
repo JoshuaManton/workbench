@@ -359,7 +359,7 @@ imgui_render :: proc(render_to_screen : bool) {
 
     gpu.use_program(imgui_program);
     gpu.uniform_int(imgui_program, "Texture", i32(0));
-    gpu.uniform_matrix4fv(imgui_program, "ProjMtx", 1, false, &ortho_projection[0][0]);
+    gpu.uniform_mat4(imgui_program, "ProjMtx", &ortho_projection);
 
     vao_handle := gpu.gen_vao();
     gpu.bind_vao(vao_handle);

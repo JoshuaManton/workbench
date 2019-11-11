@@ -497,14 +497,14 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	// shader stuff
 	program := gpu.get_current_shader();
 
-	gpu.uniform1i(program, "texture_handle", 0);
-	gpu.uniform3f(program, "camera_position", expand_to_tuple(current_camera.position));
-	gpu.uniform1i(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
-	gpu.uniform4f(program, "mesh_color", color.r, color.g, color.b, color.a);
+	gpu.uniform_int(program, "texture_handle", 0);
+	gpu.uniform_vec3(program, "camera_position", current_camera.position);
+	gpu.uniform_int(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
+	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
 
-	gpu.uniform_matrix4fv(program, "model_matrix",      1, false, &model_matrix[0][0]);
-	gpu.uniform_matrix4fv(program, "view_matrix",       1, false, &view_matrix[0][0]);
-	gpu.uniform_matrix4fv(program, "projection_matrix", 1, false, &projection_matrix[0][0]);
+	gpu.uniform_mat4(program, "model_matrix",      &model_matrix);
+	gpu.uniform_mat4(program, "view_matrix",       &view_matrix);
+	gpu.uniform_mat4(program, "projection_matrix", &projection_matrix);
 
 	if depth_test {
 		gpu.enable(.Depth_Test);

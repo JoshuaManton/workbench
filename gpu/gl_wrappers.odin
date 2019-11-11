@@ -595,6 +595,13 @@ uniform_vec4_array :: inline proc(program: Shader_Program, name: string, p: []Ve
 	uniform4fv(program, name, cast(i32)len(p), &p[0].x, loc);
 }
 
+uniform_mat4 :: inline proc(program: Shader_Program, name: string, p: ^Mat4, transpose := false, loc := #caller_location) {
+	uniform_matrix4fv(program, name, 1, transpose, &p[0][0]);
+}
+uniform_mat4_array :: inline proc(program: Shader_Program, name: string, p: []Mat4, transpose := false, loc := #caller_location) {
+	uniform_matrix4fv(program, name, cast(i32)len(p), transpose, &p[0][0][0]);
+}
+
 
 
 uniform1f :: inline proc(program: Shader_Program, name: string, v0: f32, loc := #caller_location) {
