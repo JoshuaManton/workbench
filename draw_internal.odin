@@ -70,6 +70,7 @@ shader_depth: gpu.Shader_Program;
 
 shader_skinned: gpu.Shader_Program;
 
+shader_blur: gpu.Shader_Program;
 shader_framebuffer_gamma_corrected: gpu.Shader_Program;
 
 debug_lines: [dynamic]Debug_Line;
@@ -88,7 +89,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 	init_camera(&screen_camera, true, 85, screen_width, screen_height);
 	screen_camera.clear_color = {1, 0, 1, 1};
 	push_camera_non_deferred(&screen_camera);
-	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height));
+	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height, 2));
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
@@ -112,6 +113,8 @@ init_draw :: proc(screen_width, screen_height: int) {
 	assert(ok);
 	shader_skinned, ok       = gpu.load_shader_text(SHADER_SKINNING_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
 	assert(ok);
+	shader_blur, ok          = gpu.load_shader_text(SHADER_GAUSSIAN_BLUR_VERT, SHADER_GAUSSIAN_BLUR_FRAG);
+	assert(ok);
 
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
@@ -120,6 +123,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 	render_settings = Render_Settings{
 		gamma = 2.2,
 		exposure = 1.0,
+		bloom_threshhold = 5.0,
 	};
 }
 
@@ -132,7 +136,7 @@ update_draw :: proc() {
 		if imgui.begin("Scene View") {
 		    window_size := imgui.get_window_size();
 
-			imgui.image(rawptr(uintptr(wb_camera.framebuffer.texture.gpu_id)),
+			imgui.image(rawptr(uintptr(wb_camera.framebuffer.textures[0].gpu_id)),
 				imgui.Vec2{window_size.x - 10, window_size.y - 30},
 				imgui.Vec2{0,1},
 				imgui.Vec2{1,0});
@@ -146,6 +150,7 @@ post_render_proc: proc();
 Render_Settings :: struct {
 	gamma: f32,
 	exposure: f32,
+	bloom_threshhold: f32,
 }
 
 render_workspace :: proc(workspace: Workspace) {
@@ -220,11 +225,14 @@ render_workspace :: proc(workspace: Workspace) {
 	gpu.use_program(shader_framebuffer_gamma_corrected);
 	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
-	draw_texture(wb_camera.framebuffer.texture, {0, 0}, {platform.current_window_width, platform.current_window_height});
+	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 	if num_directional_lights > 0 {
 		gpu.use_program(shader_depth);
-		draw_texture(directional_light_cameras[0].framebuffer.texture, {0, 0}, {256, 256});
+		// draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
 	}
+
+	gpu.use_program(shader_blur);
+	draw_texture(wb_camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	imgui_render(true);
 }

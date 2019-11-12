@@ -392,14 +392,18 @@ tex_sub_image2d :: proc(target: Texture_Target,
 
 
 // this is a shitty wrapper
-draw_buffer :: proc(thing: u32) {
-	thing := thing;
+draw_buffer :: proc(thing: u32, loc := #caller_location) {
 	odingl.DrawBuffer(thing);
+	log_errors(#procedure, loc);
+}
+draw_buffers :: proc(bufs: []u32, loc := #caller_location) {
+	odingl.DrawBuffers(cast(i32)len(bufs), &bufs[0]);
+	log_errors(#procedure, loc);
 }
 // this is a shitty wrapper
-read_buffer :: proc(thing: u32) {
-	thing := thing;
+read_buffer :: proc(thing: u32, loc := #caller_location) {
 	odingl.ReadBuffer(thing);
+	log_errors(#procedure, loc);
 }
 
 framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId) {

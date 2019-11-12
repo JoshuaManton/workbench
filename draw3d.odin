@@ -54,7 +54,7 @@ draw_render_scene :: proc($do_lighting: bool, $do_shader_override: bool, shader_
 				program := gpu.get_current_shader();
 				gpu.uniform_int(program, "shadow_map", 1);
 				gpu.active_texture1();
-				gpu.bind_texture2d(light_camera.framebuffer.texture.gpu_id);
+				gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
 
 				light_view := construct_view_matrix(light_camera);
 				light_proj := construct_projection_matrix(light_camera);

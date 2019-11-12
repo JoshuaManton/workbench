@@ -309,34 +309,44 @@ write_texture_to_file :: proc(filepath: string, texture: Texture) {
 
 Framebuffer :: struct {
     fbo: gpu.FBO,
-    texture: Texture,
+    textures: []Texture,
     rbo: gpu.RBO,
 
     width, height: int,
 }
 
-create_color_framebuffer :: proc(width, height: int) -> Framebuffer {
+create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
-	texture := gpu.gen_texture();
-	gpu.bind_texture2d(texture);
+	textures: [dynamic]Texture;
+	attachments: [dynamic]u32;
+	defer delete(attachments); // todo(josh): this is kinda dumb but oh well
+	for buf_idx in 0..<num_color_buffers {
+		texture := gpu.gen_texture();
+		append(&textures, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte});
+		gpu.bind_texture2d(texture);
 
-	// todo(josh): is 16-bit float enough?
-	gpu.tex_image2d(.Texture2D, 0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
-	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
-	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
+		// todo(josh): is 16-bit float enough?
+		gpu.tex_image2d(.Texture2D, 0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
+		gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
 
-	gpu.framebuffer_texture2d(.Color0, texture);
+		attachment := cast(u32)gpu.Framebuffer_Attachment.Color0 + cast(u32)buf_idx;
+		gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, texture);
 
+		append(&attachments, attachment);
+	}
+		
 	rbo := gpu.gen_renderbuffer();
 	gpu.bind_rbo(rbo);
 
 	gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
 	gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
-	gpu.draw_buffer(cast(u32)gpu.Framebuffer_Attachment.Color0);
+
+	gpu.draw_buffers(attachments[:]);
 
 	gpu.assert_framebuffer_complete();
 
@@ -344,7 +354,7 @@ create_color_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte}, rbo, width, height};
+	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height};
 	return framebuffer;
 }
 
@@ -352,7 +362,10 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
+	textures: [dynamic]Texture;
+
 	texture := gpu.gen_texture();
+	append(&textures, Texture{texture, width, height, .Texture2D, .Depth_Component, .Float});
 	gpu.bind_texture2d(texture);
 
 	gpu.tex_image2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
@@ -374,13 +387,16 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, Texture{texture, width, height, .Texture2D, .Depth_Component, .Float}, 0, width, height};
+	framebuffer := Framebuffer{fbo, textures[:], 0, width, height};
 	return framebuffer;
 }
 
 delete_framebuffer :: proc(framebuffer: Framebuffer) {
 	gpu.delete_rbo(framebuffer.rbo);
-	delete_texture(framebuffer.texture);
+	for t in framebuffer.textures {
+		delete_texture(t);
+	}
+	delete(framebuffer.textures);
 	gpu.delete_fbo(framebuffer.fbo);
 }
 
@@ -519,10 +535,11 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	// shader stuff
 	program := gpu.get_current_shader();
 
-	gpu.uniform_int(program, "texture_handle", 0);
+	gpu.uniform_int (program, "texture_handle", 0);
 	gpu.uniform_vec3(program, "camera_position", current_camera.position);
-	gpu.uniform_int(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
+	gpu.uniform_int (program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
 	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
+	gpu.uniform_float(program, "bloom_threshhold", render_settings.bloom_threshhold);
 
 	gpu.uniform_mat4(program, "model_matrix",      &model_matrix);
 	gpu.uniform_mat4(program, "view_matrix",       &view_matrix);

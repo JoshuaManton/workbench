@@ -220,6 +220,51 @@ void main() {
 }
 `;
 
+SHADER_GAUSSIAN_BLUR_VERT ::
+`
+#version 330 core
+
+// from vbo
+layout(location = 0) in vec3 vbo_vertex_position;
+layout(location = 1) in vec2 vbo_tex_coord;
+
+uniform mat4 model_matrix;
+uniform mat4 view_matrix;
+uniform mat4 projection_matrix;
+
+out vec2 tex_coord;
+
+void main() {
+    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
+    gl_Position = result;
+    tex_coord = vbo_tex_coord;
+}
+`;
+
+SHADER_GAUSSIAN_BLUR_FRAG ::
+`
+#version 330 core
+
+in vec2 tex_coord;
+
+uniform sampler2D texture_handle;
+uniform float weights[5] = float[] (0.25, 0.2, 0.12, 0.05, 0.01);
+
+layout(location = 0) out vec4 out_color;
+
+void main() {
+    float shadow = 0.0;
+    vec2 texel_size = 1.0 / textureSize(texture_handle, 0);
+    vec3 result = vec3(0);
+    for (int x = -2; x <= 2; x += 1) {
+        for (int y = -2; y <= 2; y += 1) {
+            result += texture(texture_handle, tex_coord + (texel_size * vec2(x, y))).rgb;
+        }
+    }
+    out_color = vec4(result/25, 1.0);
+}
+`;
+
 
 
 SHADER_TEXTURE_3D_LIT_VERT ::
@@ -296,9 +341,11 @@ uniform vec4  directional_light_colors     [MAX_LIGHTS];
 uniform float directional_light_intensities[MAX_LIGHTS];
 uniform int   num_directional_lights;
 
+uniform float bloom_threshhold;
 
 
-out vec4 out_color;
+layout (location = 0) out vec4 out_color;
+layout (location = 1) out vec4 bloom_color;
 
 
 
@@ -323,6 +370,14 @@ void main() {
     for (int i = 0; i < num_directional_lights; i++) {
         float shadow = (1.0 - calculate_shadow(directional_light_directions[i]));
         out_color.xyz += unlit_color.xyz * calculate_directional_light(i, norm) * shadow;
+    }
+
+    float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
+    if (brightness > bloom_threshhold) {
+        bloom_color = vec4(out_color.rgb, 1.0);
+    }
+    else {
+        bloom_color = vec4(0.0, 0.0, 0.0, 1.0);
     }
 }
 
