@@ -121,6 +121,12 @@ Camera :: struct {
     draw_mode: gpu.Draw_Mode,
 
     framebuffer: Framebuffer,
+
+    bloom_data: Maybe(Bloom_Data),
+}
+
+Bloom_Data :: struct {
+	pingpong_fbos: [2]Framebuffer,
 }
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
@@ -144,6 +150,31 @@ delete_camera :: proc(camera: Camera) {
     if camera.framebuffer.fbo != 0 {
         delete_framebuffer(camera.framebuffer);
     }
+    // todo(josh): delete bloom data
+}
+
+add_bloom_data :: proc(camera: ^Camera) {
+	// todo(josh): maybe maybe this use create_color_framebuffer()?
+	fbos: [2]Framebuffer;
+	for _, idx in fbos {
+		// todo(josh): apparently these should use Linear and Clamp_To_Border, not Nearest and Repeat as is hardcoded in create_color_framebuffer
+		fbos[idx] = create_color_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1, false);
+
+		// fbo := gpu.gen_framebuffer();
+		// tex := gpu.gen_texture();
+		// gpu.bind_fbo(fbo);
+		// gpu.bind_texture2d(tex);
+		// // todo(josh): rgb or rgba?
+		// // todo(josh): update bloom textures on window resize
+		// gpu.tex_image2d(.Texture2D, 0, .RGB16F, cast(i32)camera.pixel_width, cast(i32)camera.pixel_height, 0, .RGB, .Unsigned_Byte, nil);
+		// gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
+		// gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
+		// gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
+		// gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
+		// gpu.framebuffer_texture2d(.Color0, tex);
+		// fbos[idx] = fbo;
+	}
+	camera.bloom_data = Bloom_Data{fbos};
 }
 
 @(deferred_out=pop_camera)
@@ -165,7 +196,7 @@ pop_camera :: proc(old_camera: ^Camera) {
 
 	gpu.viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
 	if current_camera.framebuffer.fbo != 0 {
-		bind_framebuffer(&current_camera.framebuffer);
+		bind_framebuffer(current_camera.framebuffer);
 	}
 	else {
 		unbind_framebuffer();
@@ -178,7 +209,7 @@ camera_prerender :: proc(camera: ^Camera) {
 	gpu.viewport(0, 0, cast(int)camera.pixel_width, cast(int)camera.pixel_height);
 
 	if camera.framebuffer.fbo != 0 {
-		bind_framebuffer(&camera.framebuffer);
+		bind_framebuffer(camera.framebuffer);
 	}
 	else {
 		unbind_framebuffer();
@@ -204,12 +235,12 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
-	view_matrix := translate(identity(Mat4), -camera.position);
-
-	rotation := camera.rotation;
 	if camera.current_rendermode != .World {
-		rotation = {0, 0, 0, 1};
+		return identity(Mat4);
 	}
+
+	view_matrix := translate(identity(Mat4), -camera.position);
+	rotation := camera.rotation;
     rotation_matrix := quat_to_mat4(inverse(rotation));
     view_matrix = mul(rotation_matrix, view_matrix);
     return view_matrix;
@@ -285,6 +316,8 @@ delete_texture :: proc(texture: Texture) {
 }
 
 draw_texture :: proc(texture: Texture, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
+	old := current_camera.current_rendermode;
+	defer current_camera.current_rendermode = old;
 	rendermode_pixel();
 	center := to_vec3(pixel1 + ((pixel2 - pixel1) / 2));
 	size   := to_vec3(pixel2 - pixel1);
@@ -315,7 +348,7 @@ Framebuffer :: struct {
     width, height: int,
 }
 
-create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1) -> Framebuffer {
+create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, create_renderbuffer := true) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
@@ -339,12 +372,15 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1) -> 
 
 		append(&attachments, attachment);
 	}
-		
-	rbo := gpu.gen_renderbuffer();
-	gpu.bind_rbo(rbo);
 
-	gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
-	gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
+	rbo: gpu.RBO;
+	if create_renderbuffer {
+		rbo := gpu.gen_renderbuffer();
+		gpu.bind_rbo(rbo);
+
+		gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
+		gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
+	}
 
 	gpu.draw_buffers(attachments[:]);
 
@@ -400,7 +436,7 @@ delete_framebuffer :: proc(framebuffer: Framebuffer) {
 	gpu.delete_fbo(framebuffer.fbo);
 }
 
-bind_framebuffer :: proc(framebuffer: ^Framebuffer) {
+bind_framebuffer :: proc(framebuffer: Framebuffer) {
 	gpu.bind_fbo(framebuffer.fbo);
 }
 

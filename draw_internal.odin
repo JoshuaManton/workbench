@@ -90,6 +90,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 	screen_camera.clear_color = {1, 0, 1, 1};
 	push_camera_non_deferred(&screen_camera);
 	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height, 2));
+	add_bloom_data(&wb_camera);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
@@ -122,7 +123,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	render_settings = Render_Settings{
 		gamma = 2.2,
-		exposure = 1.0,
+		exposure = 1.5,
 		bloom_threshhold = 5.0,
 	};
 }
@@ -220,19 +221,59 @@ render_workspace :: proc(workspace: Workspace) {
 				draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, true);
 			}
 		}
+
+		// draw bloom
+		last_bloom_fbo: Maybe(Framebuffer);
+		if bloom_data, ok := getval(wb_camera.bloom_data); ok {
+			for fbo in bloom_data.pingpong_fbos {
+				bind_framebuffer(fbo);
+				gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
+			}
+
+			horizontal := true;
+			first := true;
+			amount := 10;
+			gpu.use_program(shader_blur);
+			for i in 0..<amount {
+				bind_framebuffer(bloom_data.pingpong_fbos[cast(int)horizontal]);
+				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
+				if first {
+					draw_texture(wb_camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
+				}
+				else {
+					bloom_fbo := bloom_data.pingpong_fbos[cast(int)(!horizontal)];
+					draw_texture(bloom_fbo.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+					last_bloom_fbo = bloom_fbo;
+				}
+				horizontal = !horizontal;
+				first = false;
+			}
+			bind_framebuffer(wb_camera.framebuffer); // todo(josh): this is too important, maybe need a push_framebuffer()?
+			draw_texture(bloom_data.pingpong_fbos[0].textures[0], {100, 100}, {400, 400});
+		}
+
+		// do final gamma correction and draw to screen!
+		gpu.use_program(shader_framebuffer_gamma_corrected);
+		gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
+		gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
+
+		if fbo, ok := getval(last_bloom_fbo); ok {
+			gpu.uniform_int(shader_framebuffer_gamma_corrected, "bloom_texture", 1);
+			gpu.active_texture1();
+			gpu.bind_texture2d(fbo.textures[0].gpu_id);
+		}
 	}
 
-	gpu.use_program(shader_framebuffer_gamma_corrected);
-	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
-	gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
-	if num_directional_lights > 0 {
-		gpu.use_program(shader_depth);
-		// draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
-	}
+	// draw_texture(wb_camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
-	gpu.use_program(shader_blur);
-	draw_texture(wb_camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
+	// visualize depth buffer
+	if false {
+		if num_directional_lights > 0 {
+			gpu.use_program(shader_depth);
+			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
+		}
+	}
 
 	imgui_render(true);
 }
