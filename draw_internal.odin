@@ -55,6 +55,9 @@ Render_Settings :: struct {
 	gamma: f32,
 	exposure: f32,
 	bloom_threshhold: f32,
+
+	visualize_bloom_texture: bool,
+	visualize_shadow_texture: bool,
 }
 
 init_draw :: proc(screen_width, screen_height: int) {
@@ -196,9 +199,10 @@ render_workspace :: proc(workspace: Workspace) {
 				gpu.bind_texture2d(last_bloom_fbo.textures[0].gpu_id);
 				draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
-				// visualize bloom
-				gpu.use_program(shader_texture_unlit);
-				draw_texture(last_bloom_fbo.textures[0], {100, 100}, {400, 400});
+				if render_settings.visualize_bloom_texture {
+					gpu.use_program(shader_texture_unlit);
+					draw_texture(last_bloom_fbo.textures[0], {256, 0}, {512, 256});
+				}
 			}
 		}
 
@@ -217,7 +221,7 @@ render_workspace :: proc(workspace: Workspace) {
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
-	if true {
+	if render_settings.visualize_shadow_texture {
 		if num_directional_lights > 0 {
 			gpu.use_program(shader_depth);
 			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
