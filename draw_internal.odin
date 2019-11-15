@@ -72,27 +72,27 @@ init_draw :: proc(screen_width, screen_height: int) {
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
 
 	ok: bool;
-	shader_rgba_2d, ok       = gpu.load_shader_text(SHADER_RGBA_2D_VERT, SHADER_RGBA_2D_FRAG);
+	shader_rgba_2d, ok       = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEFAULT_FRAG);
 	assert(ok);
-	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_TEXTURE_3D_UNLIT_VERT, SHADER_TEXTURE_3D_UNLIT_FRAG);
+	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEFAULT_FRAG);
 	assert(ok);
 	shader_texture_lit, ok   = gpu.load_shader_text(SHADER_TEXTURE_3D_LIT_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
 	assert(ok);
-	shader_text, ok          = gpu.load_shader_text(SHADER_TEXT_VERT, SHADER_TEXT_FRAG);
+	shader_text, ok          = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_TEXT_FRAG);
 	assert(ok);
-	shader_rgba_3d, ok       = gpu.load_shader_text(SHADER_RGBA_3D_VERT, SHADER_RGBA_3D_FRAG);
+	shader_rgba_3d, ok       = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEFAULT_FRAG);
 	assert(ok);
-	shader_shadow_depth, ok  = gpu.load_shader_text(SHADER_SHADOW_VERT, SHADER_SHADOW_FRAG);
+	shader_shadow_depth, ok  = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_SHADOW_FRAG);
 	assert(ok);
-	shader_depth, ok         = gpu.load_shader_text(SHADER_DEPTH_VERT, SHADER_DEPTH_FRAG);
+	shader_depth, ok         = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEPTH_FRAG);
 	assert(ok);
-	shader_framebuffer_gamma_corrected, ok = gpu.load_shader_text(SHADER_FRAMEBUFFER_GAMMA_CORRECTED_VERT, SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG);
+	shader_framebuffer_gamma_corrected, ok = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG);
 	assert(ok);
 	shader_skinned, ok       = gpu.load_shader_text(SHADER_SKINNING_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
 	assert(ok);
-	shader_bloom, ok          = gpu.load_shader_text(SHADER_BLOOM_VERT, SHADER_BLOOM_FRAG);
+	shader_bloom, ok          = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_BLOOM_FRAG);
 	assert(ok);
-	shader_blur, ok          = gpu.load_shader_text(SHADER_GAUSSIAN_BLUR_VERT, SHADER_GAUSSIAN_BLUR_FRAG);
+	shader_blur, ok          = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_GAUSSIAN_BLUR_FRAG);
 	assert(ok);
 
 	wb_cube_model = create_cube_model();
@@ -217,7 +217,7 @@ render_workspace :: proc(workspace: Workspace) {
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
-	if false {
+	if true {
 		if num_directional_lights > 0 {
 			gpu.use_program(shader_depth);
 			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});

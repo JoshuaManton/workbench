@@ -456,8 +456,8 @@ PUSH_FRAMEBUFFER :: proc(framebuffer: Framebuffer) -> Framebuffer {
 
 push_framebuffer_non_deferred :: proc(framebuffer: Framebuffer) -> Framebuffer {
 	old := current_framebuffer;
+	gpu.bind_fbo(framebuffer.fbo); // note(josh): can be 0
 	current_framebuffer = framebuffer;
-	gpu.bind_fbo(current_framebuffer.fbo); // note(josh): can be 0
 	return old;
 }
 

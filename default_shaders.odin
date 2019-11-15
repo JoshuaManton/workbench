@@ -1,6 +1,6 @@
 package workbench
 
-SHADER_RGBA_2D_VERT ::
+SHADER_DEFAULT_VERT ::
 `
 #version 330 core
 
@@ -8,6 +8,7 @@ SHADER_RGBA_2D_VERT ::
 layout(location = 0) in vec3 vbo_vertex_position;
 layout(location = 1) in vec2 vbo_tex_coord;
 layout(location = 2) in vec4 vbo_color;
+layout(location = 3) in vec3 vbo_normal;
 
 uniform vec4 mesh_color;
 
@@ -15,27 +16,42 @@ uniform mat4 model_matrix;
 uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
 
-out vec4 desired_color;
+out vec4 vert_color;
+out vec3 vert_normal;
+out vec2 tex_coord;
 
 void main() {
     vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     gl_Position = result;
-    desired_color = vbo_color * mesh_color;
+    vert_color = vbo_color * mesh_color;
+    vert_normal = vbo_normal;
+    tex_coord = vbo_tex_coord;
 }
 `;
 
-SHADER_RGBA_2D_FRAG ::
+SHADER_DEFAULT_FRAG ::
 `
 #version 330 core
 
-in vec4 desired_color;
+in vec4 vert_color;
+in vec3 vert_normal;
+in vec2 tex_coord;
 
-out vec4 color;
+uniform sampler2D texture_handle;
+uniform int has_texture;
+
+out vec4 out_color;
 
 void main() {
-    color = desired_color;
+    vec4 tex_color = vec4(1, 1, 1, 1);
+    if (has_texture == 1) {
+        tex_color = texture(texture_handle, tex_coord);
+    }
+    out_color = vert_color * tex_color;
 }
 `;
+
+
 
 SHADER_SKINNING_VERT ::
 `
@@ -86,231 +102,6 @@ void main()
 
     vertex_color = vbo_color;
     tex_coord = vbo_tex_coord;
-}
-`;
-
-SHADER_RGBA_3D_VERT ::
-`
-#version 330 core
-
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-layout(location = 2) in vec4 vbo_color;
-layout(location = 3) in vec4 vbo_normal;
-
-uniform vec4 mesh_color;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec4 desired_color;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    desired_color = vbo_color * mesh_color;
-}
-`;
-
-SHADER_RGBA_3D_FRAG ::
-`
-#version 330 core
-
-in vec4 desired_color;
-
-out vec4 color;
-
-void main() {
-    color = desired_color;
-}
-`;
-
-
-
-SHADER_TEXTURE_3D_UNLIT_VERT ::
-`
-#version 330 core
-
-// from vbo
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-
-// note(josh): mesh vert colors are broken right now
-// layout(location = 2) in vec4 vbo_color;
-
-uniform vec4 mesh_color;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec2 tex_coord;
-out vec4 desired_color;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    tex_coord = vbo_tex_coord;
-    desired_color = mesh_color;
-}
-`;
-
-SHADER_TEXTURE_3D_UNLIT_FRAG ::
-`
-#version 330 core
-
-in vec2 tex_coord;
-in vec4 desired_color;
-
-uniform sampler2D texture_handle;
-
-layout(location = 0) out vec4 color;
-
-void main() {
-    color = texture(texture_handle, tex_coord) * desired_color;
-}
-`;
-
-
-
-SHADER_BLOOM_FRAG ::
-`
-#version 330 core
-
-in vec2 tex_coord;
-
-uniform sampler2D texture_handle;
-uniform sampler2D bloom_texture;
-
-layout(location = 0) out vec4 out_color;
-
-void main() {
-    vec3 color = texture(texture_handle, tex_coord).rgb;
-    vec3 bloom_color = texture(bloom_texture, tex_coord).rgb;
-    color += bloom_color;
-
-    out_color = vec4(color, 1.0);
-}
-`;
-
-SHADER_BLOOM_VERT ::
-`
-#version 330 core
-
-// from vbo
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec2 tex_coord;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    tex_coord = vbo_tex_coord;
-}
-`;
-
-SHADER_FRAMEBUFFER_GAMMA_CORRECTED_VERT ::
-`
-#version 330 core
-
-// from vbo
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec2 tex_coord;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    tex_coord = vbo_tex_coord;
-}
-`;
-
-SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG ::
-`
-#version 330 core
-
-in vec2 tex_coord;
-
-uniform float gamma;
-uniform float exposure;
-
-uniform sampler2D texture_handle;
-
-layout(location = 0) out vec4 out_color;
-
-void main() {
-    vec3 color = texture(texture_handle, tex_coord).rgb;
-
-    // exposure tone mapping
-    color = vec3(1.0) - exp(-color * exposure);
-
-    // gamma correction
-    color = pow(color, vec3(1.0 / gamma));
-
-    out_color = vec4(color, 1.0);
-}
-`;
-
-SHADER_GAUSSIAN_BLUR_VERT ::
-`
-#version 330 core
-
-// from vbo
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec2 tex_coord;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    tex_coord = vbo_tex_coord;
-}
-`;
-
-SHADER_GAUSSIAN_BLUR_FRAG ::
-`
-#version 330 core
-
-in vec2 tex_coord;
-
-uniform sampler2D texture_handle;
-uniform bool horizontal;
-uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
-
-layout(location = 0) out vec4 out_color;
-
-void main() {
-    vec2 tex_offset = 1.0 / textureSize(texture_handle, 0); // gets size of single texel
-    vec3 result = texture(texture_handle, tex_coord).rgb * weight[0]; // current fragment's contribution
-    if (horizontal) {
-        for (int i = 1; i < 5; ++i) {
-            result += texture(texture_handle, tex_coord + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
-            result += texture(texture_handle, tex_coord - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
-        }
-    }
-    else {
-        for (int i = 1; i < 5; ++i) {
-            result += texture(texture_handle, tex_coord + vec2(0.0, tex_offset.y * i)).rgb * weight[i];
-            result += texture(texture_handle, tex_coord - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
-        }
-    }
-    out_color = vec4(result, 1.0);
 }
 `;
 
@@ -393,8 +184,8 @@ uniform int   num_directional_lights;
 uniform float bloom_threshhold;
 
 
-layout (location = 0) out vec4 out_color;
-layout (location = 1) out vec4 bloom_color;
+out vec4 out_color;
+out vec4 bloom_color;
 
 
 
@@ -495,21 +286,88 @@ float calculate_shadow(vec3 light_direction) {
 
 
 
-SHADER_SHADOW_VERT ::
+SHADER_GAUSSIAN_BLUR_FRAG ::
 `
 #version 330 core
 
-layout(location = 0) in vec3 vbo_vertex_position;
+in vec2 tex_coord;
 
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
+uniform sampler2D texture_handle;
+uniform bool horizontal;
+uniform float weight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+
+layout(location = 0) out vec4 out_color;
 
 void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
+    vec2 tex_offset = 1.0 / textureSize(texture_handle, 0); // gets size of single texel
+    vec3 result = texture(texture_handle, tex_coord).rgb * weight[0]; // current fragment's contribution
+    if (horizontal) {
+        for (int i = 1; i < 5; ++i) {
+            result += texture(texture_handle, tex_coord + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+            result += texture(texture_handle, tex_coord - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+        }
+    }
+    else {
+        for (int i = 1; i < 5; ++i) {
+            result += texture(texture_handle, tex_coord + vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+            result += texture(texture_handle, tex_coord - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+        }
+    }
+    out_color = vec4(result, 1.0);
 }
 `;
+
+
+
+SHADER_BLOOM_FRAG ::
+`
+#version 330 core
+
+in vec2 tex_coord;
+
+uniform sampler2D texture_handle;
+uniform sampler2D bloom_texture;
+
+layout(location = 0) out vec4 out_color;
+
+void main() {
+    vec3 color = texture(texture_handle, tex_coord).rgb;
+    vec3 bloom_color = texture(bloom_texture, tex_coord).rgb;
+    color += bloom_color;
+
+    out_color = vec4(color, 1.0);
+}
+`;
+
+
+
+SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG ::
+`
+#version 330 core
+
+in vec2 tex_coord;
+
+uniform float gamma;
+uniform float exposure;
+
+uniform sampler2D texture_handle;
+
+layout(location = 0) out vec4 out_color;
+
+void main() {
+    vec3 color = texture(texture_handle, tex_coord).rgb;
+
+    // exposure tone mapping
+    color = vec3(1.0) - exp(-color * exposure);
+
+    // gamma correction
+    color = pow(color, vec3(1.0 / gamma));
+
+    out_color = vec4(color, 1.0);
+}
+`;
+
+
 
 SHADER_SHADOW_FRAG ::
 `
@@ -521,29 +379,6 @@ void main() {
 `;
 
 
-
-SHADER_DEPTH_VERT ::
-`
-#version 330 core
-
-// from vbo
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-
-uniform vec4 mesh_color;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec2 tex_coord;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    tex_coord = vbo_tex_coord;
-}
-`;
 
 SHADER_DEPTH_FRAG ::
 `
@@ -563,36 +398,12 @@ void main() {
 
 
 
-SHADER_TEXT_VERT ::
-`
-#version 330 core
-
-// from vbo
-layout(location = 0) in vec3 vbo_vertex_position;
-layout(location = 1) in vec2 vbo_tex_coord;
-layout(location = 2) in vec4 vbo_color;
-
-uniform mat4 model_matrix;
-uniform mat4 view_matrix;
-uniform mat4 projection_matrix;
-
-out vec2 tex_coord;
-out vec4 desired_color;
-
-void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-    gl_Position = result;
-    tex_coord = vbo_tex_coord;
-    desired_color = vbo_color;
-}
-`;
-
 SHADER_TEXT_FRAG ::
 `
 #version 330 core
 
 in vec2 tex_coord;
-in vec4 desired_color;
+in vec4 vert_color;
 
 uniform sampler2D texture_handle;
 
@@ -600,7 +411,7 @@ out vec4 color;
 
 void main() {
 	uvec4 bytes = uvec4(texture(texture_handle, tex_coord) * 255);
-	uvec4 desired = uvec4(desired_color * 255);
+	uvec4 desired = uvec4(vert_color * 255);
 
 	uint old_r = bytes.r;
 
