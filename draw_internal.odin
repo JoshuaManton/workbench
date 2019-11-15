@@ -18,42 +18,11 @@ using import          "basic"
       import          "external/imgui"
 
 //
-// API
-//
-
-// Debug
-
-Debug_Line :: struct {
-	a, b: Vec3,
-	color: Colorf,
-	rotation: Quat,
-}
-
-// todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
-draw_debug_line :: proc(a, b: Vec3, color: Colorf) {
-	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}});
-}
-
-Debug_Cube :: struct {
-	position: Vec3,
-	scale: Vec3,
-	rotation: Quat,
-	color: Colorf,
-}
-
-draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}) {
-	append(&debug_cubes, Debug_Cube{position, scale, rotation, color});
-}
-
-
-
-//
 // Internal
 //
 
 screen_camera: Camera;
 wb_camera: Camera;
-current_camera: ^Camera;
 
 wb_cube_model: Model;
 wb_quad_model: Model;
@@ -71,6 +40,7 @@ shader_depth: gpu.Shader_Program;
 shader_skinned: gpu.Shader_Program;
 
 shader_blur: gpu.Shader_Program;
+shader_bloom: gpu.Shader_Program;
 shader_framebuffer_gamma_corrected: gpu.Shader_Program;
 
 debug_lines: [dynamic]Debug_Line;
@@ -81,14 +51,20 @@ debugging_rendering: bool;
 
 render_settings: Render_Settings;
 
+Render_Settings :: struct {
+	gamma: f32,
+	exposure: f32,
+	bloom_threshhold: f32,
+}
+
 init_draw :: proc(screen_width, screen_height: int) {
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	init_camera(&screen_camera, true, 85, screen_width, screen_height);
+	init_camera(&screen_camera, false, 10, screen_width, screen_height);
 	screen_camera.clear_color = {1, 0, 1, 1};
-	push_camera_non_deferred(&screen_camera);
+
 	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height, 2));
 	add_bloom_data(&wb_camera);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
@@ -113,6 +89,8 @@ init_draw :: proc(screen_width, screen_height: int) {
 	shader_framebuffer_gamma_corrected, ok = gpu.load_shader_text(SHADER_FRAMEBUFFER_GAMMA_CORRECTED_VERT, SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG);
 	assert(ok);
 	shader_skinned, ok       = gpu.load_shader_text(SHADER_SKINNING_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
+	assert(ok);
+	shader_bloom, ok          = gpu.load_shader_text(SHADER_BLOOM_VERT, SHADER_BLOOM_FRAG);
 	assert(ok);
 	shader_blur, ok          = gpu.load_shader_text(SHADER_GAUSSIAN_BLUR_VERT, SHADER_GAUSSIAN_BLUR_FRAG);
 	assert(ok);
@@ -148,21 +126,14 @@ update_draw :: proc() {
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
 
-Render_Settings :: struct {
-	gamma: f32,
-	exposure: f32,
-	bloom_threshhold: f32,
-}
-
 render_workspace :: proc(workspace: Workspace) {
 	gpu.enable(.Cull_Face);
 
-	assert(current_camera == &screen_camera);
+	assert(current_camera == nil);
 	update_camera_pixel_size(&screen_camera, platform.current_window_width, platform.current_window_height);
-	camera_prerender(&screen_camera);
+	PUSH_CAMERA(&screen_camera);
 
 	update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
-	camera_prerender(current_camera);
 
 	// this scope is important because of the PUSH_CAMERA() call
 	{
@@ -176,66 +147,35 @@ render_workspace :: proc(workspace: Workspace) {
 			gpu.log_errors(workspace.name);
 		}
 
-		// draw scene to shadow map
+		// draw shadow maps
 		{
 			for idx in 0..<num_directional_lights {
-				camera := &directional_light_cameras[idx];
-				// shadow_map_camera.rotation = degrees_to_quaternion(Vec3{-60, time * 20, 0});
-				PUSH_CAMERA(camera);
+				light_camera := &directional_light_cameras[idx];
+				PUSH_CAMERA(light_camera);
 				// gpu.cull_face(.Front);
-				draw_render_scene(false, true, shader_shadow_depth);
+				draw_render_scene(wb_camera.render_queue[:], false, true, shader_shadow_depth);
 				// gpu.cull_face(.Back);
 			}
 		}
 
 		// draw scene for real
-		draw_render_scene(true, false);
-
-		clear_render_scene();
-
-		im_flush();
-
-		if post_render_proc != nil {
-			post_render_proc();
-		}
-
-		// draw debug lines
-		{
-			old_draw_mode := current_camera.draw_mode;
-			defer current_camera.draw_mode = old_draw_mode;
-			current_camera.draw_mode = .Line_Strip;
-
-			// todo(josh): support all rendermodes
-			rendermode_world();
-
-			gpu.use_program(shader_rgba_3d);
-			for line in debug_lines {
-				verts: [2]Vertex3D;
-				verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
-				verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
-				update_mesh(&debug_line_model, 0, verts[:], []u32{});
-				draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
-			}
-
-			for cube in debug_cubes {
-				draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, true);
-			}
-		}
+		draw_render_scene(wb_camera.render_queue[:], true, false);
+		clear(&wb_camera.render_queue);
 
 		// draw bloom
-		last_bloom_fbo: Maybe(Framebuffer);
 		if bloom_data, ok := getval(wb_camera.bloom_data); ok {
 			for fbo in bloom_data.pingpong_fbos {
-				bind_framebuffer(fbo);
+				PUSH_FRAMEBUFFER(fbo);
 				gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 			}
 
 			horizontal := true;
 			first := true;
-			amount := 10;
+			amount := 5;
+			last_bloom_fbo: Maybe(Framebuffer);
 			gpu.use_program(shader_blur);
 			for i in 0..<amount {
-				bind_framebuffer(bloom_data.pingpong_fbos[cast(int)horizontal]);
+				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
 				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 				if first {
 					draw_texture(wb_camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
@@ -248,24 +188,33 @@ render_workspace :: proc(workspace: Workspace) {
 				horizontal = !horizontal;
 				first = false;
 			}
-			bind_framebuffer(wb_camera.framebuffer); // todo(josh): this is too important, maybe need a push_framebuffer()?
-			draw_texture(bloom_data.pingpong_fbos[0].textures[0], {100, 100}, {400, 400});
+
+			if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
+				gpu.use_program(shader_bloom);
+				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
+				gpu.active_texture1();
+				gpu.bind_texture2d(last_bloom_fbo.textures[0].gpu_id);
+				draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+
+				// visualize bloom
+				gpu.use_program(shader_texture_unlit);
+				draw_texture(last_bloom_fbo.textures[0], {100, 100}, {400, 400});
+			}
 		}
 
-		// do final gamma correction and draw to screen!
-		gpu.use_program(shader_framebuffer_gamma_corrected);
-		gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
-		gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
+		im_flush();
+		debug_geo_flush();
 
-		if fbo, ok := getval(last_bloom_fbo); ok {
-			gpu.uniform_int(shader_framebuffer_gamma_corrected, "bloom_texture", 1);
-			gpu.active_texture1();
-			gpu.bind_texture2d(fbo.textures[0].gpu_id);
+		if post_render_proc != nil {
+			post_render_proc();
 		}
 	}
 
+	// do final gamma correction and draw to screen!
+	gpu.use_program(shader_framebuffer_gamma_corrected);
+	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
+	gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
-	// draw_texture(wb_camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
 	if false {

@@ -92,6 +92,8 @@ using import          "basic"
 
 */
 
+current_camera: ^Camera;
+current_framebuffer: Framebuffer;
 
 //
 // Camera
@@ -109,8 +111,6 @@ Camera :: struct {
 
     clear_color: Colorf,
 
-    current_rendermode: Rendermode,
-
     position: Vec3,
     rotation: Quat,
 
@@ -118,11 +118,25 @@ Camera :: struct {
     pixel_height: f32,
     aspect: f32,
 
+    framebuffer: Framebuffer,
+    bloom_data: Maybe(Bloom_Data),
+
+    current_rendermode: Rendermode,
     draw_mode: gpu.Draw_Mode,
 
-    framebuffer: Framebuffer,
+	render_queue: [dynamic]Model_Draw_Info,
+}
 
-    bloom_data: Maybe(Bloom_Data),
+Model_Draw_Info :: struct {
+	model: Model,
+	shader: gpu.Shader_Program,
+	texture: Texture,
+	material: Material,
+	position: Vec3,
+	scale: Vec3,
+	rotation: Quat,
+	color: Colorf,
+	cast_shadows: bool,
 }
 
 Bloom_Data :: struct {
@@ -186,37 +200,32 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := current_camera;
 	current_camera = camera;
 
-	camera_prerender(camera);
-
-	return old_camera;
-}
-
-pop_camera :: proc(old_camera: ^Camera) {
-	current_camera = old_camera;
-
-	gpu.viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
-	if current_camera.framebuffer.fbo != 0 {
-		bind_framebuffer(current_camera.framebuffer);
-	}
-	else {
-		unbind_framebuffer();
-	}
-}
-
-camera_prerender :: proc(camera: ^Camera) {
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(.Src_Alpha, .One_Minus_Src_Alpha);
 	gpu.viewport(0, 0, cast(int)camera.pixel_width, cast(int)camera.pixel_height);
 
-	if camera.framebuffer.fbo != 0 {
-		bind_framebuffer(camera.framebuffer);
-	}
-	else {
-		unbind_framebuffer();
-	}
+	push_framebuffer_non_deferred(camera.framebuffer);
 
 	gpu.set_clear_color(camera.clear_color);
 	gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
+
+	return old_camera;
+}
+
+// camera_prerender :: proc(camera: ^Camera) {
+
+// }
+
+pop_camera :: proc(old_camera: ^Camera) {
+	current_camera = old_camera;
+
+	if current_camera != nil {
+		gpu.viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
+		pop_framebuffer(current_camera.framebuffer);
+	}
+	else {
+		pop_framebuffer({});
+	}
 }
 
 update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
@@ -281,6 +290,10 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
 
     unreachable();
     return {};
+}
+
+submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, cast_shadows := true) {
+	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, cast_shadows});
 }
 
 
@@ -436,12 +449,21 @@ delete_framebuffer :: proc(framebuffer: Framebuffer) {
 	gpu.delete_fbo(framebuffer.fbo);
 }
 
-bind_framebuffer :: proc(framebuffer: Framebuffer) {
-	gpu.bind_fbo(framebuffer.fbo);
+@(deferred_out=pop_framebuffer)
+PUSH_FRAMEBUFFER :: proc(framebuffer: Framebuffer) -> Framebuffer {
+	return push_framebuffer_non_deferred(framebuffer);
 }
 
-unbind_framebuffer :: proc() {
-	gpu.bind_fbo(0);
+push_framebuffer_non_deferred :: proc(framebuffer: Framebuffer) -> Framebuffer {
+	old := current_framebuffer;
+	current_framebuffer = framebuffer;
+	gpu.bind_fbo(current_framebuffer.fbo); // note(josh): can be 0
+	return old;
+}
+
+pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
+	gpu.bind_fbo(old_framebuffer.fbo); // note(josh): can be 0
+	current_framebuffer = old_framebuffer;
 }
 
 

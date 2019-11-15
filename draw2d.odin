@@ -194,6 +194,8 @@ get_string_width :: inline proc(
 		return im_text(rendermode, font, str, {}, {}, size, 0, false);
 }
 
+
+
 // Camera utilities
 
 @(deferred_out=im_pop_camera)
@@ -206,6 +208,8 @@ im_pop_camera :: proc(old_camera: ^Camera) {
 	im_flush();
 	pop_camera(old_camera);
 }
+
+
 
 // Render layers
 
@@ -361,7 +365,6 @@ draw_vertex_list :: proc(list: []Vertex2D, shader: gpu.Shader_Program, texture: 
 }
 
 
-
 debugging_rendering_max_draw_calls : i32 = -1; // note(josh): i32 because my dear-imgui stuff wasn't working with int
 num_draw_calls: i32;
 when DEVELOPER {
@@ -369,8 +372,6 @@ when DEVELOPER {
 		return debugging_rendering_max_draw_calls == -1 || num_draw_calls < debugging_rendering_max_draw_calls;
 	}
 }
-
-
 
 Draw_Command :: struct {
 	render_order:  int,
@@ -402,4 +403,53 @@ Draw_Sprite_Command :: struct {
 	min, max: Vec2,
 	color: Colorf,
 	uvs: [4]Vec2,
+}
+
+
+
+// Debug
+
+// todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
+draw_debug_line :: proc(a, b: Vec3, color: Colorf) {
+	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}});
+}
+
+draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}) {
+	append(&debug_cubes, Debug_Cube{position, scale, rotation, color});
+}
+
+debug_geo_flush :: proc() {
+	old_draw_mode := current_camera.draw_mode;
+	defer current_camera.draw_mode = old_draw_mode;
+	current_camera.draw_mode = .Line_Strip;
+
+	// todo(josh): support all rendermodes
+	rendermode_world();
+
+	gpu.use_program(shader_rgba_3d);
+	for line in debug_lines {
+		verts: [2]Vertex3D;
+		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
+		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
+		update_mesh(&debug_line_model, 0, verts[:], []u32{});
+		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+	}
+
+	for cube in debug_cubes {
+		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, true);
+	}
+}
+
+
+
+Debug_Line :: struct {
+	a, b: Vec3,
+	color: Colorf,
+	rotation: Quat,
+}
+Debug_Cube :: struct {
+	position: Vec3,
+	scale: Vec3,
+	rotation: Quat,
+	color: Colorf,
 }
