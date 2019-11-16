@@ -7,6 +7,7 @@ package workbench
 using import "core:fmt"
 using import "logging"
       import "gpu"
+      import "profiler"
 using import "basic"
 
 Asset_Catalog :: struct {
@@ -14,6 +15,15 @@ Asset_Catalog :: struct {
 	models:     map[string]Model,
 	fonts:      map[string]Font,
 	text_files: map[string]string,
+
+	text_file_types: []string,
+
+	loaded_files: [dynamic]Loaded_File,
+}
+
+Loaded_File :: struct {
+	path: string,
+	last_write_time: os.File_Time,
 }
 
 delete_asset_catalog :: proc(catalog: Asset_Catalog) {
@@ -41,49 +51,74 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 }
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types: ..string, loc := #caller_location) {
+	// todo(josh): determine lifetimes of text_file_types and its contents
+
 	files := get_all_filepaths_recursively(path);
-	defer {
-		for f in files do delete(f);
-		delete(files);
-	}
+	defer delete(files); // note(josh): dont delete the elements in `files` because they get stored in Asset_Catalog.loaded_files
+
+	assert(catalog.text_file_types == nil);
+	catalog.text_file_types = text_file_types;
 
 	for filepath in files {
-		name, nameok := get_file_name(filepath);
-		assert(nameok);
-		ext, ok := get_file_extension(filepath);
-		assert(ok, filepath);
-		data, fileok := os.read_entire_file(filepath);
-		assert(fileok);
+		last_write_time, err := os.last_write_time_by_name(filepath);
+		assert(err == 0);
+		append(&catalog.loaded_files, Loaded_File{filepath, last_write_time});
 
-		switch ext {
-			case "png": {
-				texture := create_texture_from_png_data(data);
-				assert(name notin catalog.textures);
-				catalog.textures[aprint(name)] = texture;
-				delete(data);
+		load_asset(catalog, filepath);
+	}
+}
+
+load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
+	name, nameok := get_file_name(filepath);
+	assert(nameok);
+	ext, ok := get_file_extension(filepath);
+	assert(ok, filepath);
+	data, fileok := os.read_entire_file(filepath);
+	assert(fileok);
+
+	switch ext {
+		case "png": {
+			texture := create_texture_from_png_data(data);
+			if name in catalog.textures do delete_texture(catalog.textures[name]);
+			catalog.textures[name] = texture;
+			delete(data);
+		}
+		case "ttf": {
+			font := load_font(data, 32); // todo(josh): multiple sizes for fonts? probably would be good
+			if name in catalog.textures do delete_texture(catalog.textures[name]);
+			catalog.fonts[name] = font;
+			delete(data);
+		}
+		case "fbx": {
+			model := load_model_from_memory(data);
+			if name in catalog.models do delete_model(catalog.models[name]);
+			catalog.models[name] = model;
+			delete(data);
+		}
+		case: {
+			if array_contains(catalog.text_file_types, ext) {
+				name_and_ext, ok := get_file_name_and_extension(filepath);
+				assert(ok);
+				if name in catalog.text_files do delete(catalog.text_files[name]);
+				catalog.text_files[name_and_ext] = cast(string)data;
 			}
-			case "ttf": {
-				font := load_font(data, 32); // todo(josh): multiple sizes for fonts? probably would be good
-				assert(name notin catalog.textures);
-				catalog.fonts[aprint(name)] = font;
-				delete(data);
-			}
-			case "fbx": {
-				model := load_model_from_memory(data);
-				assert(name notin catalog.models);
-				catalog.models[aprint(name)] = model;
-				delete(data);
-			}
-			case: {
-				if array_contains(text_file_types, ext) {
-					name_and_ext, ok := get_file_name_and_extension(filepath);
-					assert(name_and_ext notin catalog.text_files);
-					catalog.text_files[aprint(name_and_ext)] = cast(string)data;
-				}
-				else {
-					logln("Unknown file extension: .", ext, " at ", filepath);
-				}
+			else {
+				logln("Unknown file extension: .", ext, " at ", filepath);
 			}
 		}
+	}
+}
+
+check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
+	profiler.TIMED_SECTION(&wb_profiler);
+	for _, idx in catalog.loaded_files {
+		file := &catalog.loaded_files[idx];
+		new_last_write_time, err := os.last_write_time_by_name(file.path);
+		assert(err == 0); // todo(josh): check for deleted files?
+		if new_last_write_time > file.last_write_time {
+			logln("file update: ", file.path);
+			file.last_write_time = new_last_write_time;
+			load_asset(catalog, file.path);
+		} 
 	}
 }

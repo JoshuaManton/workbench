@@ -311,12 +311,12 @@ im_flush :: proc() {
 				// weird order because of backface culling
 				p1, p2, p3, p4 := kind.min, Vec2{kind.max.x, kind.min.y}, kind.max, Vec2{kind.min.x, kind.max.y};
 
-				v1 := Vertex2D{p1, {}, kind.color};
-				v2 := Vertex2D{p2, {}, kind.color};
-				v3 := Vertex2D{p3, {}, kind.color};
-				v4 := Vertex2D{p3, {}, kind.color};
-				v5 := Vertex2D{p4, {}, kind.color};
-				v6 := Vertex2D{p1, {}, kind.color};
+				v1 := Vertex2D{p1, {0, 1}, kind.color};
+				v2 := Vertex2D{p2, {1, 1}, kind.color};
+				v3 := Vertex2D{p3, {1, 0}, kind.color};
+				v4 := Vertex2D{p3, {1, 0}, kind.color};
+				v5 := Vertex2D{p4, {0, 0}, kind.color};
+				v6 := Vertex2D{p1, {0, 1}, kind.color};
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
