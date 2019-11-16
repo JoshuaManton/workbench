@@ -14,6 +14,7 @@ Asset_Catalog :: struct {
 	textures:   map[string]Texture,
 	models:     map[string]Model,
 	fonts:      map[string]Font,
+	shaders:    map[string]gpu.Shader_Program,
 	text_files: map[string]string,
 
 	text_file_types: []string,
@@ -95,6 +96,37 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 			catalog.models[name] = model;
 			delete(data);
 		}
+		case "shader": {
+			logln("loading shader: ", name);
+			lines := strings.split(cast(string)data, "\n");
+			
+			vertex_builder: strings.Builder;
+			fragment_builder: strings.Builder;
+			defer strings.destroy_builder(&vertex_builder);
+			defer strings.destroy_builder(&fragment_builder);
+
+			current_builder: ^strings.Builder;
+			for l in lines {
+				if string_starts_with(l, "@vert") {
+					current_builder = &vertex_builder;
+				}
+				else if string_starts_with(l, "@frag") {
+					current_builder = &fragment_builder;
+				}
+				else {
+					assert(current_builder != nil);
+					sbprint(current_builder, l, "\n");
+				}
+			}
+
+			assert(strings.to_string(vertex_builder) != "");
+			assert(strings.to_string(fragment_builder) != "");
+
+			if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
+			shader, ok := gpu.load_shader_text(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
+			assert(ok);
+			catalog.shaders[name] = shader;
+		}
 		case: {
 			if array_contains(catalog.text_file_types, ext) {
 				name_and_ext, ok := get_file_name_and_extension(filepath);
@@ -121,4 +153,9 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 			load_asset(catalog, file.path);
 		} 
 	}
+}
+
+load_wb_shaders :: proc(catalog: ^Asset_Catalog) {
+	assert(WORKBENCH_PATH != "");
+	load_asset_folder(tprint(WORKBENCH_PATH, "/shaders"), catalog);
 }

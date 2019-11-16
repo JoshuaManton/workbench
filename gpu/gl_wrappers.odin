@@ -282,19 +282,19 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
     }
 
 
-    count: i32;
-    odingl.GetProgramiv(program_id, odingl.ACTIVE_UNIFORMS, &count);
-	logln("Active Uniforms: ", count);
+ //    count: i32;
+ //    odingl.GetProgramiv(program_id, odingl.ACTIVE_UNIFORMS, &count);
+	// logln("Active Uniforms: ", count);
 
-	for i in 0..<count {
-		name: [32]byte;
-		name_len: i32;
-		size_of_uniform: i32;
-		uniform_type: u32;
-	    odingl.GetActiveUniform(program_id, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
+	// for i in 0..<count {
+	// 	name: [32]byte;
+	// 	name_len: i32;
+	// 	size_of_uniform: i32;
+	// 	uniform_type: u32;
+	//     odingl.GetActiveUniform(program_id, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
 
-	    logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
-	}
+	//     logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
+	// }
 
     return cast(Shader_Program)program_id, true;
 }

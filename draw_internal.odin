@@ -27,22 +27,6 @@ wb_camera: Camera;
 wb_cube_model: Model;
 wb_quad_model: Model;
 
-shader_rgba_2d: gpu.Shader_Program;
-shader_text: gpu.Shader_Program;
-shader_rgba_3d: gpu.Shader_Program;
-
-shader_texture_unlit: gpu.Shader_Program;
-shader_texture_lit: gpu.Shader_Program;
-
-shader_shadow_depth: gpu.Shader_Program;
-shader_depth: gpu.Shader_Program;
-
-shader_skinned: gpu.Shader_Program;
-
-shader_blur: gpu.Shader_Program;
-shader_bloom: gpu.Shader_Program;
-shader_framebuffer_gamma_corrected: gpu.Shader_Program;
-
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
@@ -60,6 +44,8 @@ Render_Settings :: struct {
 	visualize_shadow_texture: bool,
 }
 
+shader_catalog: Asset_Catalog; // todo(josh): remove this! figure out some way to not duplicate shaders between wb and the user
+
 init_draw :: proc(screen_width, screen_height: int) {
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
@@ -74,29 +60,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
 
-	ok: bool;
-	shader_rgba_2d, ok       = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEFAULT_FRAG);
-	assert(ok);
-	shader_texture_unlit, ok = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEFAULT_FRAG);
-	assert(ok);
-	shader_texture_lit, ok   = gpu.load_shader_text(SHADER_TEXTURE_3D_LIT_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
-	assert(ok);
-	shader_text, ok          = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_TEXT_FRAG);
-	assert(ok);
-	shader_rgba_3d, ok       = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEFAULT_FRAG);
-	assert(ok);
-	shader_shadow_depth, ok  = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_SHADOW_FRAG);
-	assert(ok);
-	shader_depth, ok         = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_DEPTH_FRAG);
-	assert(ok);
-	shader_framebuffer_gamma_corrected, ok = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_FRAMEBUFFER_GAMMA_CORRECTED_FRAG);
-	assert(ok);
-	shader_skinned, ok       = gpu.load_shader_text(SHADER_SKINNING_VERT, SHADER_TEXTURE_3D_LIT_FRAG);
-	assert(ok);
-	shader_bloom, ok          = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_BLOOM_FRAG);
-	assert(ok);
-	shader_blur, ok          = gpu.load_shader_text(SHADER_DEFAULT_VERT, SHADER_GAUSSIAN_BLUR_FRAG);
-	assert(ok);
+	load_wb_shaders(&shader_catalog);
 
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
@@ -130,6 +94,8 @@ update_draw :: proc() {
 post_render_proc: proc();
 
 render_workspace :: proc(workspace: Workspace) {
+	check_for_file_updates(&shader_catalog);
+
 	gpu.enable(.Cull_Face);
 
 	assert(current_camera == nil);
@@ -156,7 +122,7 @@ render_workspace :: proc(workspace: Workspace) {
 				light_camera := &directional_light_cameras[idx];
 				PUSH_CAMERA(light_camera);
 				// gpu.cull_face(.Front);
-				draw_render_scene(wb_camera.render_queue[:], false, true, shader_shadow_depth);
+				draw_render_scene(wb_camera.render_queue[:], false, true, shader_catalog.shaders["depth"]);
 				// gpu.cull_face(.Back);
 			}
 		}
@@ -176,6 +142,7 @@ render_workspace :: proc(workspace: Workspace) {
 			first := true;
 			amount := 5;
 			last_bloom_fbo: Maybe(Framebuffer);
+			shader_blur := shader_catalog.shaders["blur"];
 			gpu.use_program(shader_blur);
 			for i in 0..<amount {
 				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
@@ -193,6 +160,7 @@ render_workspace :: proc(workspace: Workspace) {
 			}
 
 			if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
+				shader_bloom := shader_catalog.shaders["bloom"];
 				gpu.use_program(shader_bloom);
 				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
 				gpu.active_texture1();
@@ -200,7 +168,7 @@ render_workspace :: proc(workspace: Workspace) {
 				draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 				if render_settings.visualize_bloom_texture {
-					gpu.use_program(shader_texture_unlit);
+					gpu.use_program(shader_catalog.shaders["default"]);
 					draw_texture(last_bloom_fbo.textures[0], {256, 0}, {512, 256});
 				}
 			}
@@ -215,15 +183,16 @@ render_workspace :: proc(workspace: Workspace) {
 	}
 
 	// do final gamma correction and draw to screen!
-	gpu.use_program(shader_framebuffer_gamma_corrected);
-	gpu.uniform_float(shader_framebuffer_gamma_corrected, "gamma", render_settings.gamma);
-	gpu.uniform_float(shader_framebuffer_gamma_corrected, "exposure", render_settings.exposure);
+	shader_gamma := shader_catalog.shaders["gamma"];
+	gpu.use_program(shader_gamma);
+	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
+	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
 	if render_settings.visualize_shadow_texture {
 		if num_directional_lights > 0 {
-			gpu.use_program(shader_depth);
+			gpu.use_program(shader_catalog.shaders["depth"]);
 			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
 		}
 	}

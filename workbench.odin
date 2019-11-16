@@ -13,6 +13,7 @@ using import        "math"
       import        "platform"
 using import        "logging"
 using import        "types"
+using import        "basic"
 
       import imgui  "external/imgui"
 
@@ -23,6 +24,8 @@ using import        "types"
       import pf     "profiler"
 
 DEVELOPER :: true;
+
+WORKBENCH_PATH: string;
 
 //
 // Game loop stuff
@@ -49,6 +52,10 @@ make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
 	defer logln("workbench successfully shutdown.");
+
+	wbpathok: bool;
+	WORKBENCH_PATH, wbpathok = get_file_directory(#location().file_path);
+	assert(wbpathok);
 
 	startup_start_time := glfw.GetTime();
 
