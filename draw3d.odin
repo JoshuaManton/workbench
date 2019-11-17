@@ -5,6 +5,13 @@ using import "types"
 using import "logging"
       import "gpu"
 
+Render_Scene :: struct {
+	queue: [dynamic]Model_Draw_Info,
+}
+
+render_scene: Render_Scene;
+
+
 draw_render_scene :: proc(queue: []Model_Draw_Info, $do_lighting: bool, $do_shader_override: bool, shader_override: gpu.Shader_Program = 0) {
 	when do_shader_override {
 		assert(shader_override != 0);
@@ -41,6 +48,6 @@ draw_render_scene :: proc(queue: []Model_Draw_Info, $do_lighting: bool, $do_shad
 			}
 		}
 
-		draw_model(model, position, scale, rotation, texture, color, true);
+		draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 	}
 }

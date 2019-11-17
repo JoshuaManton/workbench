@@ -13,6 +13,7 @@ using import "math"
 
       import stb    "external/stb"
       import ai     "external/assimp"
+	  import anim   "animation"
 
 //
 // Textures
@@ -134,6 +135,8 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
 	base_vert := 0;
 
+	anim.load_animations_from_ai_scene(scene);
+
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
 
@@ -228,7 +231,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 				}
 
 				offset := ai_to_wb(bone.offset_matrix);
-				append(&bone_info, Bone{ offset, offset, bone_name });
+				append(&bone_info, Bone{ offset, bone_name, nil, identity(Mat4), identity(Mat4) });
 
 				if bone.num_weights == 0 do continue;
 
@@ -251,6 +254,8 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 			skin = Skinned_Mesh{
 				bone_info[:],
 				bone_mapping,
+				inverse(ai_to_wb(scene.root_node.transformation)),
+				nil,
 			};
 
 		} // end bone if
@@ -261,7 +266,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model
 			skin
 		);
 
-		read_node_hierarchy(&model.meshes[idx], scene.root_node, identity(Mat4), ai_to_wb(scene.root_node.transformation));
+		read_node_hierarchy(&model.meshes[idx], scene.root_node, identity(Mat4), nil);
 
 	}
 
@@ -277,19 +282,36 @@ ai_to_wb :: proc (m : ai.Matrix4x4) -> Mat4 {
 	};
 }
 
-read_node_hierarchy :: proc(using mesh: ^Mesh, node : ^ai.Node, parent_transform, global_inverse : Mat4) {
+read_node_hierarchy :: proc(using mesh: ^Mesh, node : ^ai.Node, parent_transform: Mat4, parent_bone: ^Bone) {
 	node_name := strings.string_from_ptr(&node.name.data[0], cast(int)node.name.length);
-	node_transform := ai_to_wb(node.transformation);
-	global_transform := mul(parent_transform, node_transform);
 
+	bone_idx := 0;
+	bone: ^Bone = nil;
 	if node_name in skin.name_mapping {
-		bone_idx := skin.name_mapping[node_name];
-		skin.bones[bone_idx].final_transformation = mul(global_inverse, mul(global_transform, skin.bones[bone_idx].offset));
+		bone_idx = skin.name_mapping[node_name];
+
+		skin.bones[bone_idx].children = make([dynamic]^Bone, 0, int(node.num_children));
+		if skin.root_bones == nil {
+			skin.root_bones = make([dynamic]^Bone, 0, 1);
+		}
+
+		b := skin.bones[bone_idx];
+		b.node_transform = ai_to_wb(node.transformation);
+		b.parent_transform = parent_transform;
+		skin.bones[bone_idx] = b;
+
+		bone = &skin.bones[bone_idx];
+
+		if parent_bone != nil {
+			append(&parent_bone.children, bone);
+		} else {
+			append(&mesh.skin.root_bones, bone);
+		}
 	}
 
 	children := mem.slice_ptr(node.children, cast(int)node.num_children);
 	for _, i in children {
-		read_node_hierarchy(mesh, children[i], global_transform, global_inverse);
+		read_node_hierarchy(mesh, children[i], mul(parent_transform, ai_to_wb(node.transformation)), bone);
 	}
 }
 

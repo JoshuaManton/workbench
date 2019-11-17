@@ -360,7 +360,7 @@ draw_vertex_list :: proc(list: []Vertex2D, shader: gpu.Shader_Program, texture: 
 
 	update_mesh(&_internal_im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, loc);
+	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, {}, loc);
 	num_draw_calls += 1;
 }
 

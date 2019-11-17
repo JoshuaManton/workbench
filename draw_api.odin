@@ -99,6 +99,13 @@ current_framebuffer: Framebuffer;
 // Camera
 //
 
+Model :: gpu.Model;
+Mesh :: gpu.Mesh;
+Skinned_Mesh :: gpu.Skinned_Mesh;
+Vertex2D :: gpu.Vertex2D;
+Vertex3D :: gpu.Vertex3D;
+Bone :: gpu.Bone;
+
 Camera :: struct {
     is_perspective: bool,
 
@@ -137,10 +144,19 @@ Model_Draw_Info :: struct {
 	rotation: Quat,
 	color: Colorf,
 	cast_shadows: bool,
+	animation_state: Model_Animation_State,
 }
 
 Bloom_Data :: struct {
 	pingpong_fbos: [2]Framebuffer,
+}
+
+Model_Animation_State :: struct {
+	mesh_states: [dynamic]Mesh_State // array of bones per mesh in the model
+}
+
+Mesh_State :: struct {
+	state : [dynamic]Mat4
 }
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
@@ -292,8 +308,8 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
     return {};
 }
 
-submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, cast_shadows := true) {
-	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, cast_shadows});
+submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State, cast_shadows := true) {
+	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, cast_shadows, anim_state});
 }
 
 
@@ -466,56 +482,6 @@ pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 	current_framebuffer = old_framebuffer;
 }
 
-
-
-//
-// Models and Meshes
-//
-
-Model :: struct {
-	name: string,
-    meshes: [dynamic]Mesh,
-}
-
-Mesh :: struct {
-    vao: gpu.VAO,
-    vbo: gpu.VBO,
-    ibo: gpu.EBO,
-    vertex_type: ^rt.Type_Info,
-
-    index_count:  int,
-    vertex_count: int,
-
-	skin: Skinned_Mesh,
-}
-
-Skinned_Mesh :: struct {
-	bones: []Bone,
-	name_mapping: map[string]int,
-}
-
-Vertex2D :: struct {
-	position: Vec2,
-	tex_coord: Vec2,
-	color: Colorf,
-}
-
-Vertex3D :: struct {
-	position: Vec3,
-	tex_coord: Vec3, // todo(josh): should this be a Vec2?
-	color: Colorf,
-	normal: Vec3,
-
-	bone_indicies: [gpu.BONES_PER_VERTEX]u32,
-	bone_weights: [gpu.BONES_PER_VERTEX]f32,
-}
-
-Bone :: struct {
-	offset: Mat4,
-	final_transformation: Mat4,
-	name: string,
-}
-
 // todo(josh): maybe shouldn't use strings for mesh names, not sure
 add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, skin: Skinned_Mesh, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();
@@ -577,7 +543,15 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	delete(mesh.skin.bones);
 }
 
-draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, texture: Texture, color: Colorf, depth_test: bool, loc := #caller_location) {
+draw_model :: proc(model: Model,
+				   position: Vec3,
+				   scale: Vec3,
+				   rotation: Quat,
+				   texture: Texture,
+				   color: Colorf,
+				   depth_test: bool,
+				   anim_state := Model_Animation_State{},
+				   loc := #caller_location) {
 	// projection matrix
 	projection_matrix := construct_rendermode_matrix(current_camera);
 
@@ -611,7 +585,7 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 	}
 	gpu.log_errors(#procedure);
 
-	for mesh in model.meshes {
+	for mesh, i in model.meshes {
 		gpu.bind_vao(mesh.vao);
 		gpu.bind_vbo(mesh.vbo);
 		gpu.bind_ibo(mesh.ibo);
@@ -620,10 +594,12 @@ draw_model :: proc(model: Model, position: Vec3, scale: Vec3, rotation: Quat, te
 
 		gpu.log_errors(#procedure);
 
-		if len(mesh.skin.bones) > 0 {
-			for bone, i in mesh.skin.bones {
-				offset := bone.final_transformation;
-				gpu.uniform_matrix4fv(program, tprint("bones[", i, "]"), 1, false, &offset[0][0]);
+		if len(anim_state.mesh_states) > i {
+
+			mesh_state := anim_state.mesh_states[i];
+			for _, i in mesh_state.state {
+				s := mesh_state.state[i];
+				gpu.uniform_matrix4fv(program, tprint("bones[", i, "]"), 1, false, &s[0][0]);
 			}
 		}
 

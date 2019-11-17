@@ -9,6 +9,60 @@ using import "../logging"
 
       import odingl "../external/gl"
 
+//
+// Models and Meshes
+//
+Model :: struct {
+	name: string,
+    meshes: [dynamic]Mesh,
+}
+
+Mesh :: struct {
+    vao: VAO,
+    vbo: VBO,
+    ibo: EBO,
+    vertex_type: ^rt.Type_Info,
+
+    index_count:  int,
+    vertex_count: int,
+
+	skin: Skinned_Mesh,
+}
+
+Skinned_Mesh :: struct {
+	bones: []Bone,
+	name_mapping: map[string]int,
+	global_inverse: Mat4,
+
+    root_bones: [dynamic]^Bone,
+}
+
+Vertex2D :: struct {
+	position: Vec2,
+	tex_coord: Vec2,
+	color: Colorf,
+}
+
+Vertex3D :: struct {
+	position: Vec3,
+	tex_coord: Vec3, // todo(josh): should this be a Vec2?
+	color: Colorf,
+	normal: Vec3,
+
+	bone_indicies: [BONES_PER_VERTEX]u32,
+	bone_weights: [BONES_PER_VERTEX]f32,
+}
+
+Bone :: struct {
+	offset: Mat4,
+	name: string,
+
+	children: [dynamic]^Bone,
+
+    parent_transform: Mat4,
+    node_transform: Mat4,
+}
+
 Draw_Mode :: enum u32 {
 	Points       = odingl.POINTS,
     Lines        = odingl.LINES,
