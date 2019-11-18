@@ -57,7 +57,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
-	
+
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{}, {});
@@ -180,8 +180,7 @@ render_workspace :: proc(workspace: Workspace) {
 		// gpu.use_program(wb_catalog.shaders["outline"]);
 		// draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
-
-		// do final gamma correction and draw to screen!
+		// do gamma correction
 		shader_gamma := wb_catalog.shaders["gamma"];
 		gpu.use_program(shader_gamma);
 		gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
@@ -189,6 +188,7 @@ render_workspace :: proc(workspace: Workspace) {
 		draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 	}
 
+	// draw to screen
 	gpu.use_program(wb_catalog.shaders["default"]);
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 

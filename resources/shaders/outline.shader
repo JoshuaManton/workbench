@@ -48,9 +48,9 @@ void main() {
     }
     vec4 color = vert_color * tex_color;
     vec2 texel_size = 1.0 / textureSize(texture_handle, 0);
-    vec4 adjacent_color = texture(texture_handle, tex_coord + texel_size*2);
+    vec4 adjacent_color = texture(texture_handle, tex_coord + texel_size*3);
 
-    if (length(color - adjacent_color) > 2) {
+    if (length(color - adjacent_color) > 0.5) {
         out_color = vec4(0, 0, 0, 1);
     }
     else {
