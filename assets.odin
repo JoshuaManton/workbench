@@ -48,22 +48,26 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 		delete(f.path);
 	}
 
+	for t in catalog.text_file_types {
+		delete(t);
+	}
+
 	delete(catalog.textures);
 	delete(catalog.models);
 	delete(catalog.fonts);
 	delete(catalog.shaders);
 	delete(catalog.text_files);
 	delete(catalog.loaded_files);
+	delete(catalog.text_file_types);
 }
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types: ..string, loc := #caller_location) {
-	// todo(josh): determine lifetimes of text_file_types and its contents
-
 	files := get_all_filepaths_recursively(path);
 	defer delete(files); // note(josh): dont delete the elements in `files` because they get stored in Asset_Catalog.loaded_files
 
 	assert(catalog.text_file_types == nil);
-	catalog.text_file_types = text_file_types;
+	catalog.text_file_types = make([]string, len(text_file_types));
+	for _, idx in text_file_types do catalog.text_file_types[idx] = aprint(text_file_types[idx]);
 
 	for filepath in files {
 		last_write_time, err := os.last_write_time_by_name(filepath);
