@@ -48,6 +48,8 @@ precise_time: f64;
 lossy_delta_time: f32;
 precise_lossy_delta_time: f64;
 
+wb_catalog: Asset_Catalog;
+
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
@@ -67,8 +69,14 @@ make_simple_window :: proc(window_width, window_height: int,
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
 	init_draw(window_width, window_height);
 	defer deinit_draw();
+	
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
+
+	assert(WORKBENCH_PATH != "");
+	load_asset_folder(tprint(WORKBENCH_PATH, "/resources"), &wb_catalog);
+	defer delete_asset_catalog(wb_catalog);
+
 	init_default_fonts();
 
 
@@ -91,6 +99,8 @@ make_simple_window :: proc(window_width, window_height: int,
 		lossy_delta_time = frame_start_time - last_frame_start_time;
 		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
+
+		check_for_file_updates(&wb_catalog);
 
 		if acc >= dt {
 			for {
@@ -176,13 +186,12 @@ end_workspace :: proc(workspace: Workspace) {
 
 
 
-_default_font_data := #load("resources/fonts/Roboto/Roboto-Regular.ttf");
-_default_font_mono_data := #load("resources/fonts/Roboto_Mono/RobotoMono-Regular.ttf");
 default_font:      Font;
 default_font_mono: Font;
 init_default_fonts :: proc() {
-	default_font      = load_font(_default_font_data, 72);
-	default_font_mono = load_font(_default_font_mono_data, 72);
+	ok1, ok2: bool;
+	default_font, ok1      = get_font(&wb_catalog, "Roboto-Regular");     assert(ok1);
+	default_font_mono, ok2 = get_font(&wb_catalog, "RobotoMono-Regular"); assert(ok2);
 }
 
 

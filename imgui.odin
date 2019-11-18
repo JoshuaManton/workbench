@@ -104,8 +104,11 @@ init_dear_imgui :: proc() {
     gpu.bind_vbo(imgui_vbo_handle);
     gpu.bind_ebo(imgui_ebo_handle);
 
-    imgui_font_default = imgui.font_atlas_add_font_from_memory_ttf(io.fonts, &_default_font_data[0],      cast(i32)(size_of(_default_font_data[0])      * len(_default_font_data)),      20);
-    imgui_font_mono    = imgui.font_atlas_add_font_from_memory_ttf(io.fonts, &_default_font_mono_data[0], cast(i32)(size_of(_default_font_mono_data[0]) * len(_default_font_mono_data)), 16);
+    font_default_data, ok1 := os.read_entire_file(tprint(WORKBENCH_PATH, "/resources/fonts/Roboto/Roboto-Regular.ttf"));          assert(ok1); defer delete(font_default_data);
+    font_mono_data,    ok2 := os.read_entire_file(tprint(WORKBENCH_PATH, "/resources/fonts/Roboto_Mono/RobotoMono-Regular.ttf")); assert(ok2); defer delete(font_mono_data);
+
+    imgui_font_default = imgui.font_atlas_add_font_from_memory_ttf(io.fonts, &font_default_data[0], cast(i32)(size_of(font_default_data[0]) * len(font_default_data)), 20);
+    imgui_font_mono    = imgui.font_atlas_add_font_from_memory_ttf(io.fonts, &font_mono_data[0],    cast(i32)(size_of(font_mono_data[0])    * len(font_mono_data)),    16);
 
 
 /*    //TODO(Hoej): Get from font catalog

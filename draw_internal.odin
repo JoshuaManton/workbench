@@ -44,8 +44,6 @@ Render_Settings :: struct {
 	visualize_shadow_texture: bool,
 }
 
-shader_catalog: Asset_Catalog; // todo(josh): remove this! figure out some way to not duplicate shaders between wb and the user
-
 init_draw :: proc(screen_width, screen_height: int) {
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
@@ -59,9 +57,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
-
-	load_wb_shaders(&shader_catalog);
-
+	
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{}, {});
@@ -94,7 +90,7 @@ update_draw :: proc() {
 post_render_proc: proc();
 
 render_workspace :: proc(workspace: Workspace) {
-	check_for_file_updates(&shader_catalog);
+	check_for_file_updates(&wb_catalog);
 
 	gpu.enable(.Cull_Face);
 
@@ -122,7 +118,7 @@ render_workspace :: proc(workspace: Workspace) {
 				light_camera := &directional_light_cameras[idx];
 				PUSH_CAMERA(light_camera);
 				// gpu.cull_face(.Front);
-				draw_render_scene(wb_camera.render_queue[:], false, true, shader_catalog.shaders["depth"]);
+				draw_render_scene(wb_camera.render_queue[:], false, true, wb_catalog.shaders["depth"]);
 				// gpu.cull_face(.Back);
 			}
 		}
@@ -142,7 +138,7 @@ render_workspace :: proc(workspace: Workspace) {
 			first := true;
 			amount := 5;
 			last_bloom_fbo: Maybe(Framebuffer);
-			shader_blur := shader_catalog.shaders["blur"];
+			shader_blur := wb_catalog.shaders["blur"];
 			gpu.use_program(shader_blur);
 			for i in 0..<amount {
 				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
@@ -160,7 +156,7 @@ render_workspace :: proc(workspace: Workspace) {
 			}
 
 			if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
-				shader_bloom := shader_catalog.shaders["bloom"];
+				shader_bloom := wb_catalog.shaders["bloom"];
 				gpu.use_program(shader_bloom);
 				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
 				gpu.active_texture1();
@@ -168,7 +164,7 @@ render_workspace :: proc(workspace: Workspace) {
 				draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 				if render_settings.visualize_bloom_texture {
-					gpu.use_program(shader_catalog.shaders["default"]);
+					gpu.use_program(wb_catalog.shaders["default"]);
 					draw_texture(last_bloom_fbo.textures[0], {256, 0}, {512, 256});
 				}
 			}
@@ -180,19 +176,26 @@ render_workspace :: proc(workspace: Workspace) {
 		if post_render_proc != nil {
 			post_render_proc();
 		}
+
+		// gpu.use_program(wb_catalog.shaders["outline"]);
+		// draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+
+
+		// do final gamma correction and draw to screen!
+		shader_gamma := wb_catalog.shaders["gamma"];
+		gpu.use_program(shader_gamma);
+		gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
+		gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
+		draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 	}
 
-	// do final gamma correction and draw to screen!
-	shader_gamma := shader_catalog.shaders["gamma"];
-	gpu.use_program(shader_gamma);
-	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
-	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
+	gpu.use_program(wb_catalog.shaders["default"]);
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
 	if render_settings.visualize_shadow_texture {
 		if num_directional_lights > 0 {
-			gpu.use_program(shader_catalog.shaders["depth"]);
+			gpu.use_program(wb_catalog.shaders["depth"]);
 			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
 		}
 	}
@@ -202,6 +205,9 @@ render_workspace :: proc(workspace: Workspace) {
 
 deinit_draw :: proc() {
 	delete_camera(wb_camera);
+
+	// todo(josh): figure out why deleting shaders was causing errors
+	// delete_asset_catalog(wb_catalog);
 
 	delete_model(wb_cube_model);
 	delete_model(wb_quad_model);

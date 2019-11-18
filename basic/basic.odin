@@ -90,10 +90,10 @@ get_file_name_and_extension :: proc(filepath: string) -> (string, bool) {
 	return "", false;
 }
 
-// "path/to/filename.txt" -> "path/to/"
+// "path/to/filename.txt" -> "path/to"
 get_file_directory :: proc(filepath: string) -> (string, bool) {
 	if idx, ok := find_from_right(filepath, '/'); ok {
-		dirpath := filepath[:idx+1];
+		dirpath := filepath[:idx];
 		return dirpath, true;
 	}
 	return "", false;

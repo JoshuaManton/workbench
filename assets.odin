@@ -28,27 +28,32 @@ Loaded_File :: struct {
 }
 
 delete_asset_catalog :: proc(catalog: Asset_Catalog) {
-	for key, texture in catalog.textures {
-		delete(key);
+	for _, texture in catalog.textures {
 		delete_texture(texture);
 	}
-	for key, model in catalog.models {
-		delete(key);
+	for _, model in catalog.models {
 		delete_model(model);
 	}
-	for key, font in catalog.fonts {
-		delete(key);
+	for _, font in catalog.fonts {
 		delete_font(font);
 	}
-	for key, text in catalog.text_files {
-		delete(key);
+	for _, shader in catalog.shaders {
+		// todo(josh): figure out why deleting shaders was causing errors
+		// gpu.delete_shader(shader);
+	}
+	for _, text in catalog.text_files {
 		delete(text);
+	}
+	for f in catalog.loaded_files {
+		delete(f.path);
 	}
 
 	delete(catalog.textures);
 	delete(catalog.models);
 	delete(catalog.fonts);
+	delete(catalog.shaders);
 	delete(catalog.text_files);
+	delete(catalog.loaded_files);
 }
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types: ..string, loc := #caller_location) {
@@ -79,25 +84,25 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 
 	switch ext {
 		case "png": {
+			defer delete(data);
 			texture := create_texture_from_png_data(data);
 			if name in catalog.textures do delete_texture(catalog.textures[name]);
 			catalog.textures[name] = texture;
-			delete(data);
 		}
 		case "ttf": {
+			defer delete(data);
 			font := load_font(data, 32); // todo(josh): multiple sizes for fonts? probably would be good
 			if name in catalog.textures do delete_texture(catalog.textures[name]);
 			catalog.fonts[name] = font;
-			delete(data);
 		}
 		case "fbx": {
+			defer delete(data);
 			model := load_model_from_memory(data);
 			if name in catalog.models do delete_model(catalog.models[name]);
 			catalog.models[name] = model;
-			delete(data);
 		}
 		case "shader": {
-			logln("loading shader: ", name);
+			defer delete(data);
 			lines := strings.split(cast(string)data, "\n");
 			
 			vertex_builder: strings.Builder;
@@ -122,7 +127,8 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 			assert(strings.to_string(vertex_builder) != "");
 			assert(strings.to_string(fragment_builder) != "");
 
-			if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
+			// todo(josh): figure out why deleting shaders was causing errors
+			// if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
 			shader, ok := gpu.load_shader_text(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
 			assert(ok);
 			catalog.shaders[name] = shader;
@@ -155,7 +161,31 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 	}
 }
 
-load_wb_shaders :: proc(catalog: ^Asset_Catalog) {
-	assert(WORKBENCH_PATH != "");
-	load_asset_folder(tprint(WORKBENCH_PATH, "/shaders"), catalog);
-}
+get_texture :: proc(catalog: ^Asset_Catalog, name: string) -> (Texture, bool) {
+	asset, ok := catalog.textures[name];
+	if ok do return asset, true;
+	wb_asset, ok2 := wb_catalog.textures[name];
+	if ok2 do return wb_asset, true;
+	return {}, false;
+} 
+get_model :: proc(catalog: ^Asset_Catalog, name: string) -> (Model, bool) {
+	asset, ok := catalog.models[name];
+	if ok do return asset, true;
+	wb_asset, ok2 := wb_catalog.models[name];
+	if ok2 do return wb_asset, true;
+	return {}, false;
+} 
+get_font :: proc(catalog: ^Asset_Catalog, name: string) -> (Font, bool) {
+	asset, ok := catalog.fonts[name];
+	if ok do return asset, true;
+	wb_asset, ok2 := wb_catalog.fonts[name];
+	if ok2 do return wb_asset, true;
+	return {}, false;
+} 
+get_shader :: proc(catalog: ^Asset_Catalog, name: string) -> (gpu.Shader_Program, bool) {
+	asset, ok := catalog.shaders[name];
+	if ok do return asset, true;
+	wb_asset, ok2 := wb_catalog.shaders[name];
+	if ok2 do return wb_asset, true;
+	return {}, false;
+} 
