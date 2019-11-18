@@ -31,10 +31,19 @@ Mesh :: struct {
 
 Skinned_Mesh :: struct {
 	bones: []Bone,
+    nodes: [dynamic]Node,
 	name_mapping: map[string]int,
 	global_inverse: Mat4,
 
-    root_bones: [dynamic]^Bone,
+    parent_node: ^Node, // points into array above
+}
+
+Node :: struct {
+    name: string,
+    local_transform: Mat4,
+
+    parent: ^Node,
+    children: [dynamic]^Node,
 }
 
 Vertex2D :: struct {
@@ -56,11 +65,6 @@ Vertex3D :: struct {
 Bone :: struct {
 	offset: Mat4,
 	name: string,
-
-	children: [dynamic]^Bone,
-
-    parent_transform: Mat4,
-    node_transform: Mat4,
 }
 
 Draw_Mode :: enum u32 {

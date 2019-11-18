@@ -24,8 +24,8 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene) {
         animation := Animation{};
         animation.channels = make([dynamic]Anim_Channel, 0, int(ai_animation.num_channels));
         animation.name = strings.clone(strings.string_from_ptr(&ai_animation.name.data[0], cast(int)ai_animation.name.length));
-        animation.duration = ai_animation.duration;
-        animation.ticks_per_second = ai_animation.ticks_per_second;
+        animation.duration = f32(ai_animation.duration);
+        animation.ticks_per_second = f32(ai_animation.ticks_per_second);
 
         animation_channels := mem.slice_ptr(ai_animation.channels, cast(int) ai_animation.num_channels);
         for channel in animation_channels {
@@ -58,21 +58,20 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene) {
                     Anim_Frame_Scale{ai_to_wb(scale_key.value)},
                 });
             }
+            // pos_frame_slice := pos_frames[:];
+            // sort.quick_sort_proc(pos_frame_slice, frame_sort_proc);
 
-            pos_frame_slice := pos_frames[:];
-            sort.quick_sort_proc(pos_frame_slice, frame_sort_proc);
+            // scale_frame_slice := scale_frames[:];
+            // sort.quick_sort_proc(scale_frame_slice, frame_sort_proc);
 
-            scale_frame_slice := scale_frames[:];
-            sort.quick_sort_proc(scale_frame_slice, frame_sort_proc);
-
-            rot_frame_slice := rot_frames[:];
-            sort.quick_sort_proc(rot_frame_slice, frame_sort_proc);
+            // rot_frame_slice := rot_frames[:];
+            // sort.quick_sort_proc(rot_frame_slice, frame_sort_proc);
 
             append(&animation.channels, Anim_Channel{
                 node_name,
-                pos_frame_slice,
-                scale_frame_slice,
-                rot_frame_slice
+                pos_frames[:],
+                scale_frames[:],
+                rot_frames[:]
             });
         }
 
@@ -85,150 +84,141 @@ get_animation_data :: proc(mesh: Mesh, animation_name: string, time: f32, curren
     if len(current_state) < 1 do return;
 
     animation := loaded_animations[animation_name];
-
-    for bone in mesh.skin.root_bones {
-        read_bone_hierarchy(mesh, time, animation, bone, bone.parent_transform, current_state);
-    }
+    logln("");
+    read_node_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_bone_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, bone: ^Bone, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
-    channel, exists := get_animation_channel(animation, bone.name);
-    if !exists do return;
+read_node_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
+    channel, exists := get_animation_channel(animation, node.name);
+    node_transform := node.local_transform;
 
-    translation_transform := identity(Mat4);
-    scale_transform := identity(Mat4);
-    rotation_transform := identity(Mat4);
+    if exists {
 
-    // interpolate to position
-    if len(channel.pos_frames) > 1 {
-        pos_frame := 0;
-        next_pos_frame := 0;
-        pos_set := false;
+        translation_transform := identity(Mat4);
+        scale_transform := identity(Mat4);
+        rotation_transform := identity(Mat4);
 
-        for frame, i in channel.pos_frames {
-            if time > f32(frame.time) do break;
+        // interpolate to position
+        if len(channel.pos_frames) > 1 {
+            pos_frame := 0;
 
-            if !pos_set {
-                pos_frame = i;
-                pos_set = true;
-            } else if pos_frame != i {
-                next_pos_frame = i;
-                break;
+            for frame, i in channel.pos_frames {
+                if time < f32(frame.time) {
+                    pos_frame = i;
+                }
             }
+
+            next_pos_frame := (pos_frame + 1) % len(channel.pos_frames);
+
+            current_frame := channel.pos_frames[pos_frame];
+            next_frame := channel.pos_frames[next_pos_frame];
+
+            delta_time := next_frame.time - current_frame.time;
+            if delta_time == 0 do delta_time = 1;
+            factor := (f64(time) - current_frame.time) / delta_time;
+
+            start := current_frame.kind.(Anim_Frame_Pos).position;
+            end := next_frame.kind.(Anim_Frame_Pos).position;
+            delta := end - start;
+
+            if node.name == "Bip001 R Clavicle" {
+                // logln("");
+                // logln(time);
+                // logln(pos_frame);
+                // logln(next_pos_frame);
+                // logln(current_frame);
+                // logln(next_frame);
+                // logln(start);
+                // logln(end);
+                // logln(channel.pos_frames);
+            }
+
+            final_pos := start + (delta * f32(factor));
+
+            translation_transform[3][0] = final_pos.x;
+            translation_transform[3][1] = final_pos.y;
+            translation_transform[3][2] = final_pos.z;
+        } else if len(channel.pos_frames) == 1 {
+            f := channel.pos_frames[0];
+            translation_transform[3][0] = f.kind.(Anim_Frame_Pos).position.x;
+            translation_transform[3][1] = f.kind.(Anim_Frame_Pos).position.y;
+            translation_transform[3][2] = f.kind.(Anim_Frame_Pos).position.z;
         }
 
-        current_frame := channel.pos_frames[pos_frame];
-        next_frame := channel.pos_frames[next_pos_frame];
-
-        delta_time := f32(next_frame.time) - f32(current_frame.time);
-        if delta_time == 0 do delta_time = 1;
-        factor := (time - f32(current_frame.time)) / delta_time;
-
-        start := current_frame.kind.(Anim_Frame_Pos).position;
-        end := next_frame.kind.(Anim_Frame_Pos).position;
-        delta := end - start;
-
-        final_pos := start + (delta * factor);
-        translation_transform[0][3] = final_pos.x;
-        translation_transform[1][3] = final_pos.y;
-        translation_transform[2][3] = final_pos.z;
-    } else if len(channel.pos_frames) == 1 {
-        f := channel.pos_frames[0];
-        translation_transform[0][3] = f.kind.(Anim_Frame_Pos).position.x;
-        translation_transform[1][3] = f.kind.(Anim_Frame_Pos).position.y;
-        translation_transform[2][3] = f.kind.(Anim_Frame_Pos).position.z;
-    }
-
-    // interpolate scale
-    if len(channel.scale_frames) > 1 {
-        scale_frame := 0;
-        next_scale_frame := 0;
-        scale_set := false;
-        for frame, i in channel.scale_frames {
-            if time > f32(frame.time) do break;
-
-            if !scale_set {
-                scale_frame = i;
-                scale_set = true;
-            } else if scale_frame != i {
-                next_scale_frame = i;
-                break;
+        // interpolate scale
+        if len(channel.scale_frames) > 1 {
+            scale_frame := 0;
+            for frame, i in channel.scale_frames {
+                if time < f32(frame.time) {
+                    scale_frame = i;
+                }
             }
-        }
-        current_frame := channel.scale_frames[scale_frame];
-        next_frame := channel.scale_frames[next_scale_frame];
+            next_scale_frame := (scale_frame + 1)  % len(channel.scale_frames);
 
-        delta_time := f32(next_frame.time) - f32(current_frame.time);
-        if delta_time == 0 do delta_time = 1;
-        factor := (time - f32(current_frame.time)) / delta_time;
+            current_frame := channel.scale_frames[scale_frame];
+            next_frame := channel.scale_frames[next_scale_frame];
 
-        start := current_frame.kind.(Anim_Frame_Scale).scale;
-        end := next_frame.kind.(Anim_Frame_Scale).scale;
-        delta := end - start;
+            delta_time := next_frame.time - current_frame.time;
+            if delta_time == 0 do delta_time = 1;
+            factor := (f64(time) - current_frame.time) / delta_time;
 
-        final_scale := start + (delta * factor);
-        scale_transform[0][0] = final_scale.x;
-        scale_transform[1][1] = final_scale.y;
-        scale_transform[2][2] = final_scale.z;
-    } else if len(channel.scale_frames) == 1 {
-        f := channel.scale_frames[0];
-        scale_transform[0][0] = f.kind.(Anim_Frame_Scale).scale.x;
-        scale_transform[1][1] = f.kind.(Anim_Frame_Scale).scale.y;
-        scale_transform[2][2] = f.kind.(Anim_Frame_Scale).scale.z;
-    }
+            start := current_frame.kind.(Anim_Frame_Scale).scale;
+            end := next_frame.kind.(Anim_Frame_Scale).scale;
+            delta := end - start;
 
-    // interpolate rotation
-    if len(channel.rot_frames) > 1 {
-        rot_frame := 0;
-        next_rot_frame := 0;
-        rot_set := false;
-
-        for frame, i in channel.rot_frames {
-            if time > f32(frame.time) do break;
-
-            if !rot_set {
-                rot_frame = i;
-                rot_set = true;
-            } else if rot_frame != i {
-                next_rot_frame = i;
-                break;
-            }
+            final_scale := start + (delta * f32(factor));
+            scale_transform[0][0] = final_scale.x;
+            scale_transform[1][1] = final_scale.y;
+            scale_transform[2][2] = final_scale.z;
+        } else if len(channel.scale_frames) == 1 {
+            f := channel.scale_frames[0];
+            scale_transform[0][0] = f.kind.(Anim_Frame_Scale).scale.x;
+            scale_transform[1][1] = f.kind.(Anim_Frame_Scale).scale.y;
+            scale_transform[2][2] = f.kind.(Anim_Frame_Scale).scale.z;
         }
 
-        current_frame := channel.rot_frames[rot_frame];
-        next_frame := channel.rot_frames[next_rot_frame];
+        // interpolate rotation
+        if len(channel.rot_frames) > 1 {
+            rot_frame := 0;
+            for frame, i in channel.rot_frames {
+                if time < f32(frame.time) {
+                    rot_frame = i;
+                }
+            }
+            next_rot_frame := (rot_frame + 1)  % len(channel.rot_frames);
 
-        delta_time := f32(next_frame.time) - f32(current_frame.time);
-        if delta_time == 0 do delta_time = 1;
-        factor := (time - f32(current_frame.time)) / delta_time;
+            current_frame := channel.rot_frames[rot_frame];
+            next_frame := channel.rot_frames[next_rot_frame];
 
-        start := current_frame.kind.(Anim_Frame_Rotation).rotation;
-        end := next_frame.kind.(Anim_Frame_Rotation).rotation;
+            delta_time := next_frame.time - current_frame.time;
+            if delta_time == 0 do delta_time = 1;
+            factor := (f64(time) - current_frame.time) / delta_time;
 
-        final_rot := quat_norm(slerp(start, end, factor));
-        rotation_transform = quat_to_mat4(final_rot);
+            start := current_frame.kind.(Anim_Frame_Rotation).rotation;
+            end := next_frame.kind.(Anim_Frame_Rotation).rotation;
 
-    } else if len(channel.rot_frames) == 1 {
-        f := channel.rot_frames[0];
-        rotation_transform = quat_to_mat4(f.kind.(Anim_Frame_Rotation).rotation);
-    }
+            final_rot := quat_norm(slerp(start, end, f32(factor)));
+            rotation_transform = quat_to_mat4(final_rot);
 
-    node_transform : Mat4;
-    if len(channel.rot_frames) == 0 && len(channel.pos_frames) == 0 && len(channel.scale_frames) == 0 {
-        node_transform = bone.node_transform;
-    } else {
+        } else if len(channel.rot_frames) == 1 {
+            f := channel.rot_frames[0];
+            rotation_transform = quat_to_mat4(f.kind.(Anim_Frame_Rotation).rotation);
+        }
+
         node_transform = mul(mul(translation_transform, rotation_transform), scale_transform);
     }
 
     global_transform := mul(parent_transform, node_transform);
 
-    if bone.name in mesh.skin.name_mapping {
-        bone_index := mesh.skin.name_mapping[bone.name];
-        current_state[bone_index] = mul(mul(mesh.skin.global_inverse, global_transform), bone.offset);
+    if node.name in mesh.skin.name_mapping {
+        bone_idx := mesh.skin.name_mapping[node.name];
+        bone := mesh.skin.bones[bone_idx];
+
+        current_state[bone_idx] = mul(mul(mesh.skin.global_inverse, global_transform), bone.offset);
     }
 
-    for child in bone.children {
-        read_bone_hierarchy(mesh, time, animation, child, global_transform, current_state);
+    for _, i in node.children {
+        read_node_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
     }
 }
 
@@ -261,8 +251,8 @@ Animation :: struct {
     name: string,
     channels: [dynamic]Anim_Channel,
 
-    duration: f64,
-    ticks_per_second: f64,
+    duration: f32,
+    ticks_per_second: f32,
 }
 
 Anim_Channel :: struct {
