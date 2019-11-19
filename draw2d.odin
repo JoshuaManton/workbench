@@ -174,7 +174,7 @@ im_text :: proc(
 			}
 
 			if !is_space && actually_draw {
-				im_sprite_minmax(rendermode, shader_text, min, max, sprite, color, layer);
+				im_sprite_minmax(rendermode, wb_catalog.shaders["text"], min, max, sprite, color, layer);
 			}
 
 			width := max.x - min.x;
@@ -311,12 +311,12 @@ im_flush :: proc() {
 				// weird order because of backface culling
 				p1, p2, p3, p4 := kind.min, Vec2{kind.max.x, kind.min.y}, kind.max, Vec2{kind.min.x, kind.max.y};
 
-				v1 := Vertex2D{p1, {}, kind.color};
-				v2 := Vertex2D{p2, {}, kind.color};
-				v3 := Vertex2D{p3, {}, kind.color};
-				v4 := Vertex2D{p3, {}, kind.color};
-				v5 := Vertex2D{p4, {}, kind.color};
-				v6 := Vertex2D{p1, {}, kind.color};
+				v1 := Vertex2D{p1, {0, 1}, kind.color};
+				v2 := Vertex2D{p2, {1, 1}, kind.color};
+				v3 := Vertex2D{p3, {1, 0}, kind.color};
+				v4 := Vertex2D{p3, {1, 0}, kind.color};
+				v5 := Vertex2D{p4, {0, 0}, kind.color};
+				v6 := Vertex2D{p1, {0, 1}, kind.color};
 
 				append(&im_queued_for_drawing, v1, v2, v3, v4, v5, v6);
 			}
@@ -426,13 +426,13 @@ debug_geo_flush :: proc() {
 	// todo(josh): support all rendermodes
 	rendermode_world();
 
-	gpu.use_program(shader_rgba_3d);
+	gpu.use_program(wb_catalog.shaders["default"]);
 	for line in debug_lines {
 		verts: [2]Vertex3D;
 		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
 		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
 		update_mesh(&debug_line_model, 0, verts[:], []u32{});
-		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, false);
 	}
 
 	for cube in debug_cubes {

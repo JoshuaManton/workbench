@@ -13,6 +13,7 @@ using import        "math"
       import        "platform"
 using import        "logging"
 using import        "types"
+using import        "basic"
 
       import imgui  "external/imgui"
 
@@ -23,6 +24,8 @@ using import        "types"
       import pf     "profiler"
 
 DEVELOPER :: true;
+
+WORKBENCH_PATH: string;
 
 //
 // Game loop stuff
@@ -45,10 +48,16 @@ precise_time: f64;
 lossy_delta_time: f32;
 precise_lossy_delta_time: f64;
 
+wb_catalog: Asset_Catalog;
+
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
 	defer logln("workbench successfully shutdown.");
+
+	wbpathok: bool;
+	WORKBENCH_PATH, wbpathok = get_file_directory(#location().file_path);
+	assert(wbpathok);
 
 	startup_start_time := glfw.GetTime();
 
@@ -60,9 +69,17 @@ make_simple_window :: proc(window_width, window_height: int,
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
 	init_draw(window_width, window_height);
 	defer deinit_draw();
+
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
+
+	assert(WORKBENCH_PATH != "");
+	load_asset_folder(tprint(WORKBENCH_PATH, "/resources"), &wb_catalog);
+	defer delete_asset_catalog(wb_catalog);
+
 	init_default_fonts();
+
+	init_gizmo();
 
 
 
@@ -84,6 +101,8 @@ make_simple_window :: proc(window_width, window_height: int,
 		lossy_delta_time = frame_start_time - last_frame_start_time;
 		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
+
+		check_for_file_updates(&wb_catalog);
 
 		if acc >= dt {
 			for {
@@ -169,13 +188,11 @@ end_workspace :: proc(workspace: Workspace) {
 
 
 
-_default_font_data := #load("resources/fonts/Roboto/Roboto-Regular.ttf");
-_default_font_mono_data := #load("resources/fonts/Roboto_Mono/RobotoMono-Regular.ttf");
 default_font:      Font;
 default_font_mono: Font;
 init_default_fonts :: proc() {
-	default_font      = load_font(_default_font_data, 72);
-	default_font_mono = load_font(_default_font_mono_data, 72);
+	default_font      = get_font(&wb_catalog, "Roboto-Regular");
+	default_font_mono = get_font(&wb_catalog, "RobotoMono-Regular");
 }
 
 

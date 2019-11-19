@@ -282,19 +282,19 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
     }
 
 
-    count: i32;
-    odingl.GetProgramiv(program_id, odingl.ACTIVE_UNIFORMS, &count);
-	logln("Active Uniforms: ", count);
+ //    count: i32;
+ //    odingl.GetProgramiv(program_id, odingl.ACTIVE_UNIFORMS, &count);
+	// logln("Active Uniforms: ", count);
 
-	for i in 0..<count {
-		name: [32]byte;
-		name_len: i32;
-		size_of_uniform: i32;
-		uniform_type: u32;
-	    odingl.GetActiveUniform(program_id, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
+	// for i in 0..<count {
+	// 	name: [32]byte;
+	// 	name_len: i32;
+	// 	size_of_uniform: i32;
+	// 	uniform_type: u32;
+	//     odingl.GetActiveUniform(program_id, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
 
-	    logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
-	}
+	//     logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
+	// }
 
     return cast(Shader_Program)program_id, true;
 }
@@ -396,8 +396,10 @@ draw_buffer :: proc(thing: u32, loc := #caller_location) {
 	odingl.DrawBuffer(thing);
 	log_errors(#procedure, loc);
 }
-draw_buffers :: proc(bufs: []u32, loc := #caller_location) {
-	odingl.DrawBuffers(cast(i32)len(bufs), &bufs[0]);
+draw_buffers :: proc(bufs: []Framebuffer_Attachment, loc := #caller_location) {
+	#assert(size_of(Framebuffer_Attachment) == size_of(u32));
+	bufs_u32 := transmute([]u32)bufs;
+	odingl.DrawBuffers(cast(i32)len(bufs), &bufs_u32[0]);
 	log_errors(#procedure, loc);
 }
 // this is a shitty wrapper
