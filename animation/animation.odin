@@ -84,7 +84,6 @@ get_animation_data :: proc(mesh: Mesh, animation_name: string, time: f32, curren
     if len(current_state) < 1 do return;
 
     animation := loaded_animations[animation_name];
-    logln("");
     read_node_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
@@ -105,6 +104,7 @@ read_node_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, node: ^
             for frame, i in channel.pos_frames {
                 if time < f32(frame.time) {
                     pos_frame = i;
+                    break;
                 }
             }
 
@@ -120,18 +120,6 @@ read_node_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, node: ^
             start := current_frame.kind.(Anim_Frame_Pos).position;
             end := next_frame.kind.(Anim_Frame_Pos).position;
             delta := end - start;
-
-            if node.name == "Bip001 R Clavicle" {
-                // logln("");
-                // logln(time);
-                // logln(pos_frame);
-                // logln(next_pos_frame);
-                // logln(current_frame);
-                // logln(next_frame);
-                // logln(start);
-                // logln(end);
-                // logln(channel.pos_frames);
-            }
 
             final_pos := start + (delta * f32(factor));
 
@@ -151,6 +139,7 @@ read_node_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, node: ^
             for frame, i in channel.scale_frames {
                 if time < f32(frame.time) {
                     scale_frame = i;
+                    break;
                 }
             }
             next_scale_frame := (scale_frame + 1)  % len(channel.scale_frames);
@@ -183,6 +172,7 @@ read_node_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, node: ^
             for frame, i in channel.rot_frames {
                 if time < f32(frame.time) {
                     rot_frame = i;
+                    break;
                 }
             }
             next_rot_frame := (rot_frame + 1)  % len(channel.rot_frames);
