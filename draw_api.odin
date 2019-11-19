@@ -359,6 +359,7 @@ Framebuffer :: struct {
     rbo: gpu.RBO,
 
     width, height: int,
+    attachments: []gpu.Framebuffer_Attachment,
 }
 
 create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, create_renderbuffer := true) -> Framebuffer {
@@ -366,8 +367,8 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 	gpu.bind_fbo(fbo);
 
 	textures: [dynamic]Texture;
-	attachments: [dynamic]u32;
-	defer delete(attachments); // todo(josh): this is kinda dumb but oh well
+	attachments: [dynamic]gpu.Framebuffer_Attachment;
+	assert(num_color_buffers <= 32, tprint(num_color_buffers, " is more than ", gpu.Framebuffer_Attachment.Color31));
 	for buf_idx in 0..<num_color_buffers {
 		texture := gpu.gen_texture();
 		append(&textures, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte});
@@ -380,7 +381,7 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
 		gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
 
-		attachment := cast(u32)gpu.Framebuffer_Attachment.Color0 + cast(u32)buf_idx;
+		attachment := cast(gpu.Framebuffer_Attachment)(cast(u32)gpu.Framebuffer_Attachment.Color0 + cast(u32)buf_idx);
 		gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, texture);
 
 		append(&attachments, attachment);
@@ -403,7 +404,7 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height};
+	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:]};
 	return framebuffer;
 }
 
@@ -425,6 +426,8 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	c := Colorf{1, 1, 1, 1};
 	gpu.tex_parameterfv(.Texture2D, .Texture_Border_Color, &c.r);
 
+	attachments := make([]gpu.Framebuffer_Attachment, 1);
+	attachments[0] = .Depth;
 	gpu.framebuffer_texture2d(.Depth, texture);
 
 	gpu.draw_buffer(0);
@@ -436,7 +439,7 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], 0, width, height};
+	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments};
 	return framebuffer;
 }
 
@@ -446,6 +449,7 @@ delete_framebuffer :: proc(framebuffer: Framebuffer) {
 		delete_texture(t);
 	}
 	delete(framebuffer.textures);
+	delete(framebuffer.attachments);
 	gpu.delete_fbo(framebuffer.fbo);
 }
 

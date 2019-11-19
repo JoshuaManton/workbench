@@ -108,7 +108,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		case "shader": {
 			defer delete(data);
 			lines := strings.split(cast(string)data, "\n");
-			
+
 			vertex_builder: strings.Builder;
 			fragment_builder: strings.Builder;
 			defer strings.destroy_builder(&vertex_builder);
@@ -161,35 +161,59 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 			logln("file update: ", file.path);
 			file.last_write_time = new_last_write_time;
 			load_asset(catalog, file.path);
-		} 
+		}
 	}
 }
 
-get_texture :: proc(catalog: ^Asset_Catalog, name: string) -> (Texture, bool) {
+try_get_texture :: proc(catalog: ^Asset_Catalog, name: string) -> (Texture, bool) {
 	asset, ok := catalog.textures[name];
 	if ok do return asset, true;
 	wb_asset, ok2 := wb_catalog.textures[name];
 	if ok2 do return wb_asset, true;
 	return {}, false;
-} 
-get_model :: proc(catalog: ^Asset_Catalog, name: string) -> (Model, bool) {
+}
+get_texture :: inline proc(catalog: ^Asset_Catalog, name: string) -> Texture {
+	texture, ok := try_get_texture(catalog, name);
+	assert(ok, tprint("Couldn't find texture: ", name));
+	return texture;
+}
+
+try_get_model :: proc(catalog: ^Asset_Catalog, name: string) -> (Model, bool) {
 	asset, ok := catalog.models[name];
 	if ok do return asset, true;
 	wb_asset, ok2 := wb_catalog.models[name];
 	if ok2 do return wb_asset, true;
 	return {}, false;
-} 
-get_font :: proc(catalog: ^Asset_Catalog, name: string) -> (Font, bool) {
+}
+get_model :: inline proc(catalog: ^Asset_Catalog, name: string) -> Model {
+	model, ok := try_get_model(catalog, name);
+	assert(ok, tprint("Couldn't find model: ", name));
+	return model;
+}
+
+try_get_font :: proc(catalog: ^Asset_Catalog, name: string) -> (Font, bool) {
 	asset, ok := catalog.fonts[name];
 	if ok do return asset, true;
 	wb_asset, ok2 := wb_catalog.fonts[name];
 	if ok2 do return wb_asset, true;
 	return {}, false;
-} 
-get_shader :: proc(catalog: ^Asset_Catalog, name: string) -> (gpu.Shader_Program, bool) {
+}
+get_font :: inline proc(catalog: ^Asset_Catalog, name: string) -> Font {
+	font, ok := try_get_font(catalog, name);
+	assert(ok, tprint("Couldn't find font: ", name));
+	return font;
+}
+
+try_get_shader :: proc(catalog: ^Asset_Catalog, name: string) -> (gpu.Shader_Program, bool) {
 	asset, ok := catalog.shaders[name];
 	if ok do return asset, true;
 	wb_asset, ok2 := wb_catalog.shaders[name];
 	if ok2 do return wb_asset, true;
 	return {}, false;
-} 
+}
+get_shader :: inline proc(catalog: ^Asset_Catalog, name: string) -> gpu.Shader_Program {
+	shader, ok := try_get_shader(catalog, name);
+	assert(ok, tprint("Couldn't find shader: ", name));
+	return shader;
+}
+

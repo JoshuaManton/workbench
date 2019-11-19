@@ -118,7 +118,7 @@ render_workspace :: proc(workspace: Workspace) {
 				light_camera := &directional_light_cameras[idx];
 				PUSH_CAMERA(light_camera);
 				// gpu.cull_face(.Front);
-				draw_render_scene(wb_camera.render_queue[:], false, true, wb_catalog.shaders["depth"]);
+				draw_render_scene(wb_camera.render_queue[:], false, true, get_shader(&wb_catalog, "depth"));
 				// gpu.cull_face(.Back);
 			}
 		}
@@ -138,7 +138,7 @@ render_workspace :: proc(workspace: Workspace) {
 			first := true;
 			amount := 5;
 			last_bloom_fbo: Maybe(Framebuffer);
-			shader_blur := wb_catalog.shaders["blur"];
+			shader_blur := get_shader(&wb_catalog, "blur");
 			gpu.use_program(shader_blur);
 			for i in 0..<amount {
 				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
@@ -156,7 +156,7 @@ render_workspace :: proc(workspace: Workspace) {
 			}
 
 			if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
-				shader_bloom := wb_catalog.shaders["bloom"];
+				shader_bloom := get_shader(&wb_catalog, "bloom");
 				gpu.use_program(shader_bloom);
 				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
 				gpu.active_texture1();
@@ -164,7 +164,7 @@ render_workspace :: proc(workspace: Workspace) {
 				draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 				if render_settings.visualize_bloom_texture {
-					gpu.use_program(wb_catalog.shaders["default"]);
+					gpu.use_program(get_shader(&wb_catalog, "default"));
 					draw_texture(last_bloom_fbo.textures[0], {256, 0}, {512, 256});
 				}
 			}
@@ -177,25 +177,21 @@ render_workspace :: proc(workspace: Workspace) {
 			post_render_proc();
 		}
 
-		// gpu.use_program(wb_catalog.shaders["outline"]);
+		// gpu.use_program(get_shader(&wb_catalog, "outline"));
 		// draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
-
-		// do gamma correction
-		shader_gamma := wb_catalog.shaders["gamma"];
-		gpu.use_program(shader_gamma);
-		gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
-		gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
-		draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 	}
 
-	// draw to screen
-	gpu.use_program(wb_catalog.shaders["default"]);
+	// do gamma correction and draw to screen!
+	shader_gamma := get_shader(&wb_catalog, "gamma");
+	gpu.use_program(shader_gamma);
+	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
+	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
 	if render_settings.visualize_shadow_texture {
 		if num_directional_lights > 0 {
-			gpu.use_program(wb_catalog.shaders["depth"]);
+			gpu.use_program(get_shader(&wb_catalog, "depth"));
 			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
 		}
 	}

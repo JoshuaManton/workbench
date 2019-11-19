@@ -396,8 +396,10 @@ draw_buffer :: proc(thing: u32, loc := #caller_location) {
 	odingl.DrawBuffer(thing);
 	log_errors(#procedure, loc);
 }
-draw_buffers :: proc(bufs: []u32, loc := #caller_location) {
-	odingl.DrawBuffers(cast(i32)len(bufs), &bufs[0]);
+draw_buffers :: proc(bufs: []Framebuffer_Attachment, loc := #caller_location) {
+	#assert(size_of(Framebuffer_Attachment) == size_of(u32));
+	bufs_u32 := transmute([]u32)bufs;
+	odingl.DrawBuffers(cast(i32)len(bufs), &bufs_u32[0]);
 	log_errors(#procedure, loc);
 }
 // this is a shitty wrapper

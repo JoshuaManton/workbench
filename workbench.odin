@@ -69,7 +69,7 @@ make_simple_window :: proc(window_width, window_height: int,
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
 	init_draw(window_width, window_height);
 	defer deinit_draw();
-	
+
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
 
@@ -78,6 +78,8 @@ make_simple_window :: proc(window_width, window_height: int,
 	defer delete_asset_catalog(wb_catalog);
 
 	init_default_fonts();
+
+	init_gizmo();
 
 
 
@@ -189,9 +191,8 @@ end_workspace :: proc(workspace: Workspace) {
 default_font:      Font;
 default_font_mono: Font;
 init_default_fonts :: proc() {
-	ok1, ok2: bool;
-	default_font, ok1      = get_font(&wb_catalog, "Roboto-Regular");     assert(ok1);
-	default_font_mono, ok2 = get_font(&wb_catalog, "RobotoMono-Regular"); assert(ok2);
+	default_font      = get_font(&wb_catalog, "Roboto-Regular");
+	default_font_mono = get_font(&wb_catalog, "RobotoMono-Regular");
 }
 
 

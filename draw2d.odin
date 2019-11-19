@@ -432,7 +432,7 @@ debug_geo_flush :: proc() {
 		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
 		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
 		update_mesh(&debug_line_model, 0, verts[:], []u32{});
-		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, true);
+		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, false);
 	}
 
 	for cube in debug_cubes {
