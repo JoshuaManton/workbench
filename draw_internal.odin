@@ -118,13 +118,49 @@ render_workspace :: proc(workspace: Workspace) {
 				light_camera := &directional_light_cameras[idx];
 				PUSH_CAMERA(light_camera);
 				// gpu.cull_face(.Front);
-				draw_render_scene(wb_camera.render_queue[:], false, true, get_shader(&wb_catalog, "depth"));
+
+				depth_shader := get_shader(&wb_catalog, "depth");
+				gpu.use_program(depth_shader);
+
+				rendermode_world();
+
+				for info in wb_camera.render_queue {
+					using info;
+
+					draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+				}
+
 				// gpu.cull_face(.Back);
 			}
 		}
 
 		// draw scene for real
-		draw_render_scene(wb_camera.render_queue[:], true, false);
+		rendermode_world();
+
+		for info in wb_camera.render_queue {
+			using info;
+
+			gpu.use_program(shader);
+
+			flush_lights_to_shader(shader);
+			set_current_material(shader, material);
+
+			if num_directional_lights > 0 {
+				light_camera := &directional_light_cameras[0];
+				program := gpu.get_current_shader();
+				gpu.uniform_int(program, "shadow_map", 1);
+				gpu.active_texture1();
+				gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
+
+				light_view := construct_view_matrix(light_camera);
+				light_proj := construct_projection_matrix(light_camera);
+				light_space := mul(light_proj, light_view);
+				gpu.uniform_mat4(program, "light_space_matrix", &light_space);
+			}
+
+			draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+		}
+
 		clear(&wb_camera.render_queue);
 
 		// draw bloom

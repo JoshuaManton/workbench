@@ -428,6 +428,11 @@ renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: 
 
 
 // ActiveTexture() is guaranteed to go from 0-47 on all implementations of OpenGL, but can go higher on some
+active_texture :: inline proc(texture_idx: u32, loc := #caller_location) {
+	odingl.ActiveTexture(odingl.TEXTURE0 + texture_idx);
+	log_errors(#procedure, loc);
+}
+
 active_texture0 :: inline proc(loc := #caller_location) {
 	odingl.ActiveTexture(odingl.TEXTURE0);
 	log_errors(#procedure, loc);
