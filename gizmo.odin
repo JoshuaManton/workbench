@@ -24,7 +24,7 @@ is_hovering:= [3]bool{};
 is_active := false;
 hovering := -1;
 last_point := Vec3{};
-move_type := MoveType.NONE;
+move_type := Move_Type.NONE;
 
 should_reset := true;
 
@@ -69,8 +69,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
 
 
-    switch operation
-    {
+    switch operation {
         case Operation.Translate: {
 
             mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
@@ -90,7 +89,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                         dist := length(p - to_vec3(platform.mouse_unit_position));
                         if dist < 0.015 && dist < current_closest {
                             current_closest = dist;
-                            move_type = MoveType.MOVE_X + MoveType(i);
+                            move_type = Move_Type.MOVE_X + Move_Type(i);
                             hovering = i;
                         }
                     }
@@ -130,7 +129,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
                             if contains {
                                 hovering = i;
-                                move_type = MoveType.MOVE_YZ + MoveType(i);
+                                move_type = Move_Type.MOVE_YZ + Move_Type(i);
                                 break;
                             }
                         }
@@ -374,18 +373,18 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
     }
 }
 
+Manipulation_Mode :: enum {
+    World,
+    Local,
+}
+
 Operation :: enum {
     Translate,
     Rotate,
     Scale,
 }
 
-Manipulation_Mode :: enum {
-    World,
-    Local,
-}
-
-MoveType :: enum {
+Move_Type :: enum {
     NONE,
 
     MOVE_X,
