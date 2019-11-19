@@ -143,7 +143,6 @@ Model_Draw_Info :: struct {
 	scale: Vec3,
 	rotation: Quat,
 	color: Colorf,
-	cast_shadows: bool,
 	animation_state: Model_Animation_State,
 }
 
@@ -308,8 +307,8 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
     return {};
 }
 
-submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State, cast_shadows := true) {
-	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, cast_shadows, anim_state});
+submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State) {
+	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state});
 }
 
 
