@@ -59,6 +59,9 @@ uniform Material material;
 
 uniform sampler2D texture_handle;
 uniform int has_texture;
+
+#define NUM_SHADOW_MAPS 4
+uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
 uniform sampler2D shadow_map;
 
 #define MAX_LIGHTS 100
@@ -83,7 +86,7 @@ out vec4 bloom_color;
 
 vec3 calculate_point_light(int, vec3);
 vec3 calculate_directional_light(int, vec3);
-float calculate_shadow(vec3);
+float calculate_shadow(vec3, int);
 
 void main() {
     vec3 norm = normalize(normal);
@@ -100,7 +103,7 @@ void main() {
         out_color.xyz += unlit_color.xyz * calculate_point_light(i, norm);
     }
     for (int i = 0; i < num_directional_lights; i++) {
-        float shadow = (1.0 - calculate_shadow(directional_light_directions[i]));
+        float shadow = (1.0 - calculate_shadow(directional_light_directions[i], 0));
         out_color.xyz += unlit_color.xyz * calculate_directional_light(i, norm) * shadow;
     }
 
@@ -155,22 +158,26 @@ vec3 calculate_directional_light(int light_index, vec3 norm) {
     return diffuse.xyz;
 }
 
-float calculate_shadow(vec3 light_direction) {
+float calculate_shadow(vec3 light_direction, int shadow_map_idx) {
     vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
     proj_coords = proj_coords * 0.5 + 0.5;
     if (proj_coords.z > 1.0) {
         proj_coords.z = 1.0;
     }
-    float closest_depth = texture(shadow_map, proj_coords.xy).r;
+    float closest_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
     float current_depth = proj_coords.z;
     float bias = max(0.005 * (1.0 - dot(normal, -light_direction)), 0.0025);
-    float shadow = 0.0;
-    vec2 texel_size = 1.0 / textureSize(shadow_map, 0);
-    for (int x = -1; x <= 1; x += 1) {
-        for (int y = -1; y <= 1; y += 1) {
-            float pcf_depth = texture(shadow_map, proj_coords.xy + vec2(x, y) * texel_size).r;
-            shadow += pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
-        }
-    }
-    return shadow / 9.0;
+    float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
+    float shadow = pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
+    return shadow;
+
+    // float shadow = 0.0;
+    // vec2 texel_size = 1.0 / textureSize(shadow_maps[shadow_map_idx], 0);
+    // for (int x = -1; x <= 1; x += 1) {
+    //     for (int y = -1; y <= 1; y += 1) {
+    //         float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy + vec2(x, y) * texel_size).r;
+    //         shadow += pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
+    //     }
+    // }
+    // return shadow / 9.0;
 }

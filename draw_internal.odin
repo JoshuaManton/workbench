@@ -89,6 +89,8 @@ update_draw :: proc() {
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
 
+NUM_SHADOW_MAPS :: 4;
+
 render_workspace :: proc(workspace: Workspace) {
 	check_for_file_updates(&wb_catalog);
 
@@ -114,20 +116,111 @@ render_workspace :: proc(workspace: Workspace) {
 
 		// draw shadow maps
 		{
-			for idx in 0..<num_directional_lights {
-				light_camera := &directional_light_cameras[idx];
-				PUSH_CAMERA(light_camera);
-				// gpu.cull_face(.Front);
+			assert(num_directional_lights == 1);
+			for light_idx in 0..<num_directional_lights {
+				// cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 80, 400, 999999};
+				cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 10, 20, 30, 999999};
 
-				depth_shader := get_shader(&wb_catalog, "depth");
-				gpu.use_program(depth_shader);
+				logln("-------------------------");
 
-				rendermode_world();
+				for map_idx in 0..<NUM_SHADOW_MAPS {
+					frustum_corners := [8]Vec3 {
+						{-1,  1, -1},
+						{ 1,  1, -1},
+						{ 1, -1, -1},
+						{-1, -1,  0},
+						{-1,  1,  1},
+						{ 1,  1,  1},
+						{ 1, -1,  1},
+						{-1, -1,  1},
+					};
 
-				for info in wb_camera.render_queue {
-					using info;
 
-					draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+
+					// get the cascade projection from the main camera and make a vp matrix
+					cascade_proj := perspective(to_radians(wb_camera.size), wb_camera.aspect, wb_camera.near_plane + cascade_positions[map_idx], min(wb_camera.far_plane, wb_camera.near_plane + cascade_positions[map_idx+1]));
+					cascade_view := construct_view_matrix(&wb_camera);
+					// logln("near plane: ", wb_camera.near_plane + cascade_positions[map_idx]);
+					cascade_viewport_to_world := mat4_inverse(mul(cascade_proj, cascade_view));
+
+					transform_point :: proc(matrix: Mat4, pos: Vec3) -> Vec3 {
+						pos4 := to_vec4(pos);
+						pos4.w = 1;
+						pos4 = mul(matrix, pos4);
+						if pos4.w != 0 do pos4 /= pos4.w;
+						return to_vec3(pos4);
+					}
+
+
+
+					// calculate center point and radius of frustum
+					center_point := Vec3{};
+					for _, idx in frustum_corners {
+						frustum_corners[idx] = to_vec3(transform_point(cascade_viewport_to_world, frustum_corners[idx]));
+						center_point += frustum_corners[idx];
+					}
+					center_point /= len(frustum_corners);
+					radius := length(frustum_corners[0] - frustum_corners[6]) / 2;
+
+
+
+					light_rotation := directional_light_rotations[light_idx];
+
+					texels_per_unit := SHADOW_MAP_DIM / (radius * 2);
+					scale_matrix := identity(Mat4);
+					scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
+					scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation)));
+					logln("texels per unit: ", texels_per_unit);
+
+					draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
+					center_point_texel_space := transform_point(scale_matrix, center_point);
+					center_point_texel_space.x = round(center_point_texel_space.x);
+					center_point_texel_space.y = round(center_point_texel_space.y);
+					center_point_texel_space.z = round(center_point_texel_space.z);
+					center_point = transform_point(mat4_inverse(scale_matrix), center_point_texel_space);
+					draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
+					logln("after  texel snap: ", center_point);
+
+					light_direction := quaternion_forward(light_rotation);
+
+					// zero := Vec3{0, 0, 0};
+					// up := Vec3{0, 1, 0};
+					// lookat_base := -light_direction;
+					// la := look_at(zero, lookat_base, up);
+					// la = mul(la, scale_matrix);
+					// la_inv := mat4_inverse(la);
+
+					// draw_debug_box(center_point, Vec3{0.1, 0.1, 0.1}, COLOR_RED);
+					// logln("before texel snap: ", center_point);
+					// center_point = transform_point(la, center_point);
+					// center_point.x = floor(center_point.x);
+					// center_point.y = floor(center_point.y);
+					// center_point.z = floor(center_point.z);
+					// center_point = transform_point(la_inv, center_point);
+					// logln("after  texel snap: ", center_point);
+					// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN);
+
+					// logln("radius: ", radius);
+
+					// position the shadow camera looking at that point
+					light_camera := get_directional_light_camera();
+					light_camera.position = center_point - light_direction * radius;
+					light_camera.rotation = light_rotation;
+					light_camera.size = radius;
+
+					PUSH_CAMERA(light_camera);
+					// gpu.cull_face(.Front);
+
+					depth_shader := get_shader(&wb_catalog, "depth");
+					gpu.use_program(depth_shader);
+
+					rendermode_world();
+
+					for info in wb_camera.render_queue {
+						using info;
+
+						draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+					}
 				}
 
 				// gpu.cull_face(.Back);
@@ -146,16 +239,18 @@ render_workspace :: proc(workspace: Workspace) {
 			set_current_material(shader, material);
 
 			if num_directional_lights > 0 {
-				light_camera := &directional_light_cameras[0];
-				program := gpu.get_current_shader();
-				gpu.uniform_int(program, "shadow_map", 1);
-				gpu.active_texture1();
-				gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
+				for map_idx in 0..0 {
+					light_camera := &unpooled_shadow_cameras[map_idx];
 
-				light_view := construct_view_matrix(light_camera);
-				light_proj := construct_projection_matrix(light_camera);
-				light_space := mul(light_proj, light_view);
-				gpu.uniform_mat4(program, "light_space_matrix", &light_space);
+					gpu.uniform_int(shader, tprint("shadow_maps[", map_idx, "]"), 1 + cast(i32)map_idx);
+					gpu.active_texture(1 + cast(u32)map_idx);
+					gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
+
+					light_view := construct_view_matrix(light_camera);
+					light_proj := construct_projection_matrix(light_camera);
+					light_space := mul(light_proj, light_view);
+					gpu.uniform_mat4(shader, "light_space_matrix", &light_space);
+				}
 			}
 
 			draw_model(model, position, scale, rotation, texture, color, true, animation_state);
@@ -225,10 +320,12 @@ render_workspace :: proc(workspace: Workspace) {
 	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 	// visualize depth buffer
-	if render_settings.visualize_shadow_texture {
+	if render_settings.visualize_shadow_texture || true {
 		if num_directional_lights > 0 {
 			gpu.use_program(get_shader(&wb_catalog, "depth"));
-			draw_texture(directional_light_cameras[0].framebuffer.textures[0], {0, 0}, {256, 256});
+			for map_idx in 0..<NUM_SHADOW_MAPS {
+				draw_texture(unpooled_shadow_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0}, {256 * (cast(f32)map_idx+1), 256});
+			}
 		}
 	}
 

@@ -555,6 +555,7 @@ draw_model :: proc(model: Model,
 				   depth_test: bool,
 				   anim_state := Model_Animation_State{},
 				   loc := #caller_location) {
+
 	// projection matrix
 	projection_matrix := construct_rendermode_matrix(current_camera);
 
@@ -793,4 +794,15 @@ viewport_to_unit :: proc(a: Vec3) -> Vec3 {
 	a /= 2;
 	a.z = 0;
 	return a;
+}
+viewport_to_world :: proc(camera: ^Camera, viewport_position: Vec3) -> Vec3 {
+	viewport_position4 := to_vec4(viewport_position);
+
+	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
+
+	viewport_position4 = mul(inv, viewport_position4);
+	if viewport_position4.w != 0 do viewport_position4 /= viewport_position4.w;
+	world_position := to_vec3(viewport_position4);
+
+	return world_position;
 }
