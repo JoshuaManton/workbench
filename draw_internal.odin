@@ -114,21 +114,21 @@ render_workspace :: proc(workspace: Workspace) {
 			gpu.log_errors(workspace.name);
 		}
 
+		cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 80, 200, 1000};
+
 		// draw shadow maps
 		{
 			assert(num_directional_lights == 1);
 			for light_idx in 0..<num_directional_lights {
-				// cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 80, 400, 999999};
-				cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 10, 20, 30, 999999};
 
-				logln("-------------------------");
+				// logln("-------------------------");
 
 				for map_idx in 0..<NUM_SHADOW_MAPS {
 					frustum_corners := [8]Vec3 {
 						{-1,  1, -1},
 						{ 1,  1, -1},
 						{ 1, -1, -1},
-						{-1, -1,  0},
+						{-1, -1, -1},
 						{-1,  1,  1},
 						{ 1,  1,  1},
 						{ 1, -1,  1},
@@ -140,7 +140,6 @@ render_workspace :: proc(workspace: Workspace) {
 					// get the cascade projection from the main camera and make a vp matrix
 					cascade_proj := perspective(to_radians(wb_camera.size), wb_camera.aspect, wb_camera.near_plane + cascade_positions[map_idx], min(wb_camera.far_plane, wb_camera.near_plane + cascade_positions[map_idx+1]));
 					cascade_view := construct_view_matrix(&wb_camera);
-					// logln("near plane: ", wb_camera.near_plane + cascade_positions[map_idx]);
 					cascade_viewport_to_world := mat4_inverse(mul(cascade_proj, cascade_view));
 
 					transform_point :: proc(matrix: Mat4, pos: Vec3) -> Vec3 {
@@ -165,48 +164,34 @@ render_workspace :: proc(workspace: Workspace) {
 
 
 					light_rotation := directional_light_rotations[light_idx];
+					light_direction := quaternion_forward(light_rotation);
 
 					texels_per_unit := SHADOW_MAP_DIM / (radius * 2);
 					scale_matrix := identity(Mat4);
 					scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
-					scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation)));
-					logln("texels per unit: ", texels_per_unit);
+					scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation))); // todo(josh): not sure about this inverse()
 
-					draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
-					center_point_texel_space := transform_point(scale_matrix, center_point);
-					center_point_texel_space.x = round(center_point_texel_space.x);
-					center_point_texel_space.y = round(center_point_texel_space.y);
-					center_point_texel_space.z = round(center_point_texel_space.z);
-					center_point = transform_point(mat4_inverse(scale_matrix), center_point_texel_space);
-					draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
-					logln("after  texel snap: ", center_point);
+					light_point := center_point - light_direction * radius;
 
-					light_direction := quaternion_forward(light_rotation);
-
-					// zero := Vec3{0, 0, 0};
-					// up := Vec3{0, 1, 0};
-					// lookat_base := -light_direction;
-					// la := look_at(zero, lookat_base, up);
-					// la = mul(la, scale_matrix);
-					// la_inv := mat4_inverse(la);
-
-					// draw_debug_box(center_point, Vec3{0.1, 0.1, 0.1}, COLOR_RED);
-					// logln("before texel snap: ", center_point);
-					// center_point = transform_point(la, center_point);
-					// center_point.x = floor(center_point.x);
-					// center_point.y = floor(center_point.y);
-					// center_point.z = floor(center_point.z);
-					// center_point = transform_point(la_inv, center_point);
-					// logln("after  texel snap: ", center_point);
-					// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN);
+					draw_debug_box(light_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
+					light_point_texel_space := transform_point(scale_matrix, light_point);
+					light_point_texel_space.x = round(light_point_texel_space.x);
+					light_point_texel_space.y = round(light_point_texel_space.y);
+					light_point_texel_space.z = round(light_point_texel_space.z);
+					light_point = transform_point(mat4_inverse(scale_matrix), light_point_texel_space);
+					draw_debug_box(light_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
 
 					// logln("radius: ", radius);
 
+					// logln(center_point);
+					// logln(light_point);
+
 					// position the shadow camera looking at that point
 					light_camera := get_directional_light_camera();
-					light_camera.position = center_point - light_direction * radius;
+					light_camera.position = light_point;
 					light_camera.rotation = light_rotation;
 					light_camera.size = radius;
+					light_camera.far_plane = radius * 2;
 
 					PUSH_CAMERA(light_camera);
 					// gpu.cull_face(.Front);
@@ -239,18 +224,24 @@ render_workspace :: proc(workspace: Workspace) {
 			set_current_material(shader, material);
 
 			if num_directional_lights > 0 {
-				for map_idx in 0..0 {
+				gpu.uniform_float_array(shader, "cascade_distances", cascade_positions[1:]);
+
+				assert(NUM_SHADOW_MAPS == 4);
+				tex_indices := [NUM_SHADOW_MAPS]i32{1, 2, 3, 4};
+				gpu.uniform_int_array(shader, "shadow_maps", tex_indices[:]);
+				light_matrices: [NUM_SHADOW_MAPS]Mat4;
+				for map_idx in 0..<NUM_SHADOW_MAPS {
 					light_camera := &unpooled_shadow_cameras[map_idx];
 
-					gpu.uniform_int(shader, tprint("shadow_maps[", map_idx, "]"), 1 + cast(i32)map_idx);
 					gpu.active_texture(1 + cast(u32)map_idx);
 					gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
 
 					light_view := construct_view_matrix(light_camera);
 					light_proj := construct_projection_matrix(light_camera);
 					light_space := mul(light_proj, light_view);
-					gpu.uniform_mat4(shader, "light_space_matrix", &light_space);
+					light_matrices[map_idx] = light_space;
 				}
+				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
 			}
 
 			draw_model(model, position, scale, rotation, texture, color, true, animation_state);

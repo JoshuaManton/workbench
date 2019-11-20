@@ -352,13 +352,13 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
                 }
 
                 update_mesh(&gizmo_mesh, 0, quad_verts[:], []u32{});
-                draw_model(gizmo_mesh, position, {1,1,1}, rot, {}, color, false);
+                // draw_model(gizmo_mesh, position, {1,1,1}, rot, {}, color, false);
 
                 update_mesh(&gizmo_mesh, 0, head_verts[:], []u32{});
-                draw_model(gizmo_mesh, position, {1,1,1}, rot, {}, color, false);
+                // draw_model(gizmo_mesh, position, {1,1,1}, rot, {}, color, false);
 
                 update_mesh(&gizmo_mesh, 0, verts[:], []u32{});
-                draw_model(gizmo_mesh, position, {1,1,1}, rot, {}, color, false);
+                // draw_model(gizmo_mesh, position, {1,1,1}, rot, {}, color, false);
 
                 wb_camera.draw_mode = prev_draw_mode;
             }

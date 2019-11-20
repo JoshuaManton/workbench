@@ -27,7 +27,7 @@ directional_light_rotations:   [MAX_LIGHTS]Quat;
 // directional_light_cameras:     [MAX_LIGHTS]Camera;
 num_directional_lights: i32;
 
-SHADOW_MAP_DIM :: 128;
+SHADOW_MAP_DIM :: 2048;
 shadow_camera_pool: [dynamic]Camera;
 unpooled_shadow_cameras: [dynamic]Camera;
 

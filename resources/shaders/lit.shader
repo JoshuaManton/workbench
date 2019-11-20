@@ -10,12 +10,10 @@ layout(location = 3) in vec3 vbo_normal;
 uniform mat4 model_matrix;
 uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
-uniform mat4 light_space_matrix;
 
 out vec2 tex_coord;
 out vec3 normal;
-out vec3 frag_position;
-out vec4 frag_position_light_space;
+varying out vec3 frag_position;
 out vec4 vertex_color;
 
 void main() {
@@ -25,7 +23,6 @@ void main() {
     tex_coord = vbo_tex_coord;
     normal = mat3(transpose(inverse(model_matrix))) * vbo_normal;
     frag_position = vec3(model_matrix * vec4(vbo_vertex_position, 1.0));
-    frag_position_light_space = light_space_matrix * vec4(frag_position, 1.0);
     vertex_color = vbo_color;
 }
 
@@ -47,7 +44,6 @@ struct Material {
 in vec2 tex_coord;
 in vec3 normal;
 in vec3 frag_position;
-in vec4 frag_position_light_space;
 in vec4 vertex_color;
 
 
@@ -63,6 +59,9 @@ uniform int has_texture;
 #define NUM_SHADOW_MAPS 4
 uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
 uniform sampler2D shadow_map;
+
+uniform float cascade_distances[NUM_SHADOW_MAPS];
+uniform mat4 cascade_light_space_matrices[NUM_SHADOW_MAPS];
 
 #define MAX_LIGHTS 100
 
@@ -102,9 +101,32 @@ void main() {
     for (int i = 0; i < num_point_lights; i++) {
         out_color.xyz += unlit_color.xyz * calculate_point_light(i, norm);
     }
+    float dist = length(camera_position - frag_position);
     for (int i = 0; i < num_directional_lights; i++) {
-        float shadow = (1.0 - calculate_shadow(directional_light_directions[i], 0));
+        int shadow_map_index = 0;
+        for (int cascade_idx = 0; cascade_idx < NUM_SHADOW_MAPS; cascade_idx++) {
+            shadow_map_index = cascade_idx;
+            if (dist < cascade_distances[cascade_idx]) {
+                break;
+            }
+        }
+
+        float shadow = (1.0 - calculate_shadow(directional_light_directions[i], shadow_map_index));
         out_color.xyz += unlit_color.xyz * calculate_directional_light(i, norm) * shadow;
+
+        if (shadow_map_index == 0) {
+            out_color.xyz += vec3(1, 0, 0) * 0.2;
+        }
+        else if (shadow_map_index == 1) {
+            out_color.xyz += vec3(0, 1, 0) * 0.2;
+        }
+        else if (shadow_map_index == 2) {
+            out_color.xyz += vec3(0, 0, 1) * 0.2;
+        }
+        else if (shadow_map_index == 3) {
+            out_color.xyz += vec3(1, 0, 1) * 0.2;
+        }
+        // out_color = vec4(dist, dist, dist, 1);
     }
 
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
@@ -159,6 +181,7 @@ vec3 calculate_directional_light(int light_index, vec3 norm) {
 }
 
 float calculate_shadow(vec3 light_direction, int shadow_map_idx) {
+    vec4 frag_position_light_space = cascade_light_space_matrices[shadow_map_idx] * vec4(frag_position, 1.0);
     vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
     proj_coords = proj_coords * 0.5 + 0.5;
     if (proj_coords.z > 1.0) {
