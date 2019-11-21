@@ -131,8 +131,23 @@ Camera :: struct {
     current_rendermode: Rendermode,
     draw_mode: gpu.Draw_Mode,
 
+
+    // render data for this frame
 	render_queue: [dynamic]Model_Draw_Info,
+	point_light_positions:   [MAX_LIGHTS]Vec3,
+	point_light_colors:      [MAX_LIGHTS]Vec4,
+	point_light_intensities: [MAX_LIGHTS]f32,
+	num_point_lights: i32,
+
+	sun_direction: Vec3,
+	sun_color:     Vec4,
+	sun_intensity: f32,
+	sun_rotation:  Quat,
+	sun_cascade_cameras: [NUM_SHADOW_MAPS]^Camera,
 }
+
+MAX_LIGHTS :: 100;
+NUM_SHADOW_MAPS :: 4;
 
 Model_Draw_Info :: struct {
 	model: Model,
@@ -151,6 +166,7 @@ Bloom_Data :: struct {
 }
 
 Model_Animation_State :: struct {
+	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
 	mesh_states: [dynamic]Mesh_State // array of bones per mesh in the model
 }
 
@@ -175,35 +191,33 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.framebuffer = framebuffer;
 }
 
-delete_camera :: proc(camera: Camera) {
+delete_camera :: proc(camera: ^Camera) { // note(josh): does NOT free the camera you pass in
     if camera.framebuffer.fbo != 0 {
         delete_framebuffer(camera.framebuffer);
     }
-    // todo(josh): delete bloom data
+    destroy_bloom(camera);
+    delete(camera.render_queue);
+    for cascade_camera in camera.sun_cascade_cameras {
+    	if cascade_camera != nil {
+    		delete_camera(cascade_camera);
+    		free(cascade_camera);
+    	}
+    }
 }
 
-add_bloom_data :: proc(camera: ^Camera) {
-	// todo(josh): maybe maybe this use create_color_framebuffer()?
+setup_bloom :: proc(camera: ^Camera) {
 	fbos: [2]Framebuffer;
 	for _, idx in fbos {
 		// todo(josh): apparently these should use Linear and Clamp_To_Border, not Nearest and Repeat as is hardcoded in create_color_framebuffer
 		fbos[idx] = create_color_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1, false);
-
-		// fbo := gpu.gen_framebuffer();
-		// tex := gpu.gen_texture();
-		// gpu.bind_fbo(fbo);
-		// gpu.bind_texture2d(tex);
-		// // todo(josh): rgb or rgba?
-		// // todo(josh): update bloom textures on window resize
-		// gpu.tex_image2d(.Texture2D, 0, .RGB16F, cast(i32)camera.pixel_width, cast(i32)camera.pixel_height, 0, .RGB, .Unsigned_Byte, nil);
-		// gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
-		// gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
-		// gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
-		// gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
-		// gpu.framebuffer_texture2d(.Color0, tex);
-		// fbos[idx] = fbo;
 	}
 	camera.bloom_data = Bloom_Data{fbos};
+}
+
+destroy_bloom :: proc(camera: ^Camera) {
+	if bloom_data, ok := getval(camera.bloom_data); ok {
+    	for fbo in bloom_data.pingpong_fbos do delete_framebuffer(fbo);
+    }
 }
 
 @(deferred_out=pop_camera)
@@ -227,10 +241,6 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	return old_camera;
 }
 
-// camera_prerender :: proc(camera: ^Camera) {
-
-// }
-
 pop_camera :: proc(old_camera: ^Camera) {
 	current_camera = old_camera;
 
@@ -242,6 +252,8 @@ pop_camera :: proc(old_camera: ^Camera) {
 		pop_framebuffer({});
 	}
 }
+
+
 
 update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
     pixel_width = new_width;
@@ -307,8 +319,269 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
     return {};
 }
 
+camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
+	// pre-render
+	gpu.log_errors(#procedure);
+	PUSH_CAMERA(camera);
+
+	if user_render_proc != nil {
+		user_render_proc(lossy_delta_time);
+		gpu.log_errors(#procedure);
+	}
+
+	cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 80, 200, 1000};
+
+	// draw shadow maps
+	{
+		// logln("-------------------------");
+
+		for map_idx in 0..<NUM_SHADOW_MAPS {
+			frustum_corners := [8]Vec3 {
+				{-1,  1, -1},
+				{ 1,  1, -1},
+				{ 1, -1, -1},
+				{-1, -1, -1},
+				{-1,  1,  1},
+				{ 1,  1,  1},
+				{ 1, -1,  1},
+				{-1, -1,  1},
+			};
+
+
+
+			// get the cascade projection from the main camera and make a vp matrix
+			cascade_proj := perspective(to_radians(camera.size), camera.aspect, camera.near_plane + cascade_positions[map_idx], min(camera.far_plane, camera.near_plane + cascade_positions[map_idx+1]));
+			cascade_view := construct_view_matrix(camera);
+			cascade_viewport_to_world := mat4_inverse(mul(cascade_proj, cascade_view));
+
+			transform_point :: proc(matrix: Mat4, pos: Vec3) -> Vec3 {
+				pos4 := to_vec4(pos);
+				pos4.w = 1;
+				pos4 = mul(matrix, pos4);
+				if pos4.w != 0 do pos4 /= pos4.w;
+				return to_vec3(pos4);
+			}
+
+
+
+			// calculate center point and radius of frustum
+			center_point := Vec3{};
+			for _, idx in frustum_corners {
+				frustum_corners[idx] = to_vec3(transform_point(cascade_viewport_to_world, frustum_corners[idx]));
+				center_point += frustum_corners[idx];
+			}
+			center_point /= len(frustum_corners);
+			radius := length(frustum_corners[0] - frustum_corners[6]) / 2;
+
+
+
+			light_rotation := camera.sun_rotation;
+			light_direction := quaternion_forward(light_rotation);
+
+			texels_per_unit := SHADOW_MAP_DIM / (radius * 2);
+			scale_matrix := identity(Mat4);
+			scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
+			scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation))); // todo(josh): not sure about this inverse()
+
+			light_point := center_point - light_direction * radius;
+
+			draw_debug_box(light_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
+			light_point_texel_space := transform_point(scale_matrix, light_point);
+			light_point_texel_space.x = round(light_point_texel_space.x);
+			light_point_texel_space.y = round(light_point_texel_space.y);
+			light_point_texel_space.z = round(light_point_texel_space.z);
+			light_point = transform_point(mat4_inverse(scale_matrix), light_point_texel_space);
+			draw_debug_box(light_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
+
+
+			// position the shadow camera looking at that point
+			if camera.sun_cascade_cameras[map_idx] == nil {
+				// todo(josh): delete cascade_cameras
+
+				// create new cascade camera and save it
+				cascade_camera := new(Camera);
+				init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_depth_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM));
+				cascade_camera.near_plane = 0.01;
+				cascade_camera.far_plane = 50;
+				camera.sun_cascade_cameras[map_idx] = cascade_camera;
+			}
+
+			sun_cascade_camera := camera.sun_cascade_cameras[map_idx];
+			sun_cascade_camera.position = light_point;
+			sun_cascade_camera.rotation = light_rotation;
+			sun_cascade_camera.size = radius;
+			sun_cascade_camera.far_plane = radius * 2;
+
+			// render scene from perspective of sun
+			{
+				PUSH_CAMERA(sun_cascade_camera);
+				// gpu.cull_face(.Front);
+
+				depth_shader := get_shader(&wb_catalog, "depth");
+				gpu.use_program(depth_shader);
+
+				rendermode_world();
+
+				for info in camera.render_queue {
+					using info;
+
+					draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+				}
+
+				// gpu.cull_face(.Back);
+			}
+		}
+
+		// draw scene for real
+		rendermode_world();
+
+		for info in camera.render_queue {
+			using info;
+
+			gpu.use_program(shader);
+
+
+			// flush lights to gpu
+			if camera.num_point_lights > 0 {
+				gpu.uniform_vec3_array(shader,  "point_light_positions",   camera.point_light_positions[:camera.num_point_lights]);
+				gpu.uniform_vec4_array(shader,  "point_light_colors",      camera.point_light_colors[:camera.num_point_lights]);
+				gpu.uniform_float_array(shader, "point_light_intensities", camera.point_light_intensities[:camera.num_point_lights]);
+			}
+			gpu.uniform_int(shader, "num_point_lights", camera.num_point_lights);
+			if len(camera.sun_direction) > 0 {
+				gpu.uniform_vec3(shader,  "sun_direction", camera.sun_direction);
+				gpu.uniform_vec4(shader,  "sun_color",     camera.sun_color);
+				gpu.uniform_float(shader, "sun_intensity", camera.sun_intensity);
+
+
+				// set up cascade cameras
+				gpu.uniform_float_array(shader, "cascade_distances", cascade_positions[1:]);
+
+				assert(NUM_SHADOW_MAPS == 4);
+				tex_indices := [NUM_SHADOW_MAPS]i32{1, 2, 3, 4};
+				gpu.uniform_int_array(shader, "shadow_maps", tex_indices[:]);
+				light_matrices: [NUM_SHADOW_MAPS]Mat4;
+				for map_idx in 0..<NUM_SHADOW_MAPS {
+					light_camera := camera.sun_cascade_cameras[map_idx];
+
+					gpu.active_texture(1 + cast(u32)map_idx);
+					gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
+
+					light_view := construct_view_matrix(light_camera);
+					light_proj := construct_projection_matrix(light_camera);
+					light_space := mul(light_proj, light_view);
+					light_matrices[map_idx] = light_space;
+				}
+				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
+			}
+
+
+			// set material data
+			gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
+			gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
+			gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
+			gpu.uniform_float(shader, "material.shine",    material.shine);
+
+
+			// issue draw call
+			draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+		}
+
+
+		// do bloom
+		if bloom_data, ok := getval(camera.bloom_data); ok {
+			for fbo in bloom_data.pingpong_fbos {
+				PUSH_FRAMEBUFFER(fbo);
+				gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
+			}
+
+			horizontal := true;
+			first := true;
+			amount := 5;
+			last_bloom_fbo: Maybe(Framebuffer);
+			shader_blur := get_shader(&wb_catalog, "blur");
+			gpu.use_program(shader_blur);
+			for i in 0..<amount {
+				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
+				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
+				if first {
+					draw_texture(camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
+				}
+				else {
+					bloom_fbo := bloom_data.pingpong_fbos[cast(int)(!horizontal)];
+					draw_texture(bloom_fbo.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+					last_bloom_fbo = bloom_fbo;
+				}
+				horizontal = !horizontal;
+				first = false;
+			}
+
+			if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
+				shader_bloom := get_shader(&wb_catalog, "bloom");
+				gpu.use_program(shader_bloom);
+				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
+				gpu.active_texture1();
+				gpu.bind_texture2d(last_bloom_fbo.textures[0].gpu_id);
+				draw_texture(camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+
+				if render_settings.visualize_bloom_texture {
+					gpu.use_program(get_shader(&wb_catalog, "default"));
+					draw_texture(last_bloom_fbo.textures[0], {256, 0}, {512, 256});
+				}
+			}
+		}
+
+		im_flush();
+		debug_geo_flush();
+
+		if post_render_proc != nil {
+			post_render_proc();
+		}
+
+		// gpu.use_program(get_shader(&wb_catalog, "outline"));
+		// draw_texture(camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+
+		// visualize depth buffer
+		if render_settings.visualize_shadow_texture || true {
+			if length(camera.sun_direction) > 0 {
+				gpu.use_program(get_shader(&wb_catalog, "depth"));
+				for map_idx in 0..<NUM_SHADOW_MAPS {
+					draw_texture(camera.sun_cascade_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0}, {256 * (cast(f32)map_idx+1), 256});
+				}
+			}
+		}
+
+
+		// clear render_queue
+		clear(&camera.render_queue);
+
+		// clear lights
+		camera.num_point_lights = 0;
+	}
+}
+
+
+
 submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State) {
 	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state});
+}
+push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
+	if current_camera.num_point_lights >= MAX_LIGHTS {
+		logln("Too many lights! The max is ", MAX_LIGHTS);
+		return;
+	}
+
+	current_camera.point_light_positions  [current_camera.num_point_lights] = position;
+	current_camera.point_light_colors     [current_camera.num_point_lights] = transmute(Vec4)color;
+	current_camera.point_light_intensities[current_camera.num_point_lights] = intensity;
+	current_camera.num_point_lights += 1;
+}
+
+set_sun_data :: proc(position: Vec3, rotation: Quat, color: Colorf, intensity: f32) {
+	current_camera.sun_direction  = quaternion_forward(rotation);
+	current_camera.sun_color      = transmute(Vec4)color;
+	current_camera.sun_intensity  = intensity;
+	current_camera.sun_rotation   = rotation;
 }
 
 
