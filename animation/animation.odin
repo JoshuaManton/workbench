@@ -14,9 +14,7 @@ using import        "../logging"
 
 loaded_animations: map[string]Animation;
 
-load_animations_from_ai_scene :: proc(scene: ^ai.Scene) {
-    root_node := scene.root_node;
-
+load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
     ai_animations := mem.slice_ptr(scene.animations, cast(int) scene.num_animations);
     for _, anim_idx in ai_animations {
         ai_animation := ai_animations[anim_idx];
@@ -26,6 +24,7 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene) {
         animation.name = strings.clone(strings.string_from_ptr(&ai_animation.name.data[0], cast(int)ai_animation.name.length));
         animation.duration = f32(ai_animation.duration);
         animation.ticks_per_second = f32(ai_animation.ticks_per_second);
+        animation.target_name = model_name;
 
         animation_channels := mem.slice_ptr(ai_animation.channels, cast(int) ai_animation.num_channels);
         for channel in animation_channels {
@@ -58,14 +57,6 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene) {
                     Anim_Frame_Scale{ai_to_wb(scale_key.value)},
                 });
             }
-            // pos_frame_slice := pos_frames[:];
-            // sort.quick_sort_proc(pos_frame_slice, frame_sort_proc);
-
-            // scale_frame_slice := scale_frames[:];
-            // sort.quick_sort_proc(scale_frame_slice, frame_sort_proc);
-
-            // rot_frame_slice := rot_frames[:];
-            // sort.quick_sort_proc(rot_frame_slice, frame_sort_proc);
 
             append(&animation.channels, Anim_Channel{
                 node_name,
@@ -239,6 +230,7 @@ ai_to_wb_quat :: proc (quat_in: ai.Quaternion) -> Quat {
 
 Animation :: struct {
     name: string,
+    target_name: string,
     channels: [dynamic]Anim_Channel,
 
     duration: f32,
