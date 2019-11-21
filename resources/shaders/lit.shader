@@ -182,7 +182,7 @@ float calculate_shadow(int shadow_map_idx) {
         proj_coords.z = 1.0;
     }
     float closest_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
-    float bias = max(0.00005 * (1.0 - dot(normal, -sun_direction)), 0.005);
+    float bias = max(0.0005 * (1.0 - dot(normal, sun_direction)), 0.001);
 
 #if 1
     float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;

@@ -387,15 +387,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
 			scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation)));
 
-			light_point := center_point - light_direction * radius;
-
-			draw_debug_box(light_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
-			light_point_texel_space := transform_point(scale_matrix, light_point);
-			light_point_texel_space.x = round(light_point_texel_space.x);
-			light_point_texel_space.y = round(light_point_texel_space.y);
-			light_point_texel_space.z = round(light_point_texel_space.z);
-			light_point = transform_point(mat4_inverse(scale_matrix), light_point_texel_space);
-			draw_debug_box(light_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
+			// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
+			center_point_texel_space := transform_point(scale_matrix, center_point);
+			center_point_texel_space.x = round(center_point_texel_space.x);
+			center_point_texel_space.y = round(center_point_texel_space.y);
+			center_point_texel_space.z = round(center_point_texel_space.z);
+			center_point = transform_point(mat4_inverse(scale_matrix), center_point_texel_space);
+			// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
 
 
 			// position the shadow camera looking at that point
@@ -407,8 +405,10 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				camera.sun_cascade_cameras[map_idx] = cascade_camera;
 			}
 
+
+
 			sun_cascade_camera := camera.sun_cascade_cameras[map_idx];
-			sun_cascade_camera.position = light_point;
+			sun_cascade_camera.position = center_point - light_direction * radius;
 			sun_cascade_camera.rotation = light_rotation;
 			sun_cascade_camera.size = radius;
 			sun_cascade_camera.far_plane = radius * 2;
