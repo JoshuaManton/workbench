@@ -213,6 +213,15 @@ get_animation_channel :: proc(using anim: Animation, channel_id: string) -> (Ani
     return {}, false;
 }
 
+get_animations_for_target :: proc(target: string) -> []string {
+    anims : [dynamic]string;
+    for id, anim in loaded_animations {
+        append(&anims, id);
+    }
+
+    return anims[:];
+}
+
 frame_sort_proc :: proc(f1, f2: Anim_Frame) -> int {
     if f1.time > f2.time do return  1;
     if f1.time < f2.time do return -1;
