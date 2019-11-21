@@ -87,7 +87,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
                         p := collision.closest_point_on_line(to_vec3(platform.mouse_unit_position), center_on_screen, tip_on_screen);
                         dist := length(p - to_vec3(platform.mouse_unit_position));
-                        if dist < 0.015 && dist < current_closest {
+                        if dist < 0.005 && dist < current_closest {
                             current_closest = dist;
                             move_type = Move_Type.MOVE_X + Move_Type(i);
                             hovering = i;

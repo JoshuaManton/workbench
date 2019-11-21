@@ -10,12 +10,10 @@ layout(location = 3) in vec3 vbo_normal;
 uniform mat4 model_matrix;
 uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
-uniform mat4 light_space_matrix;
 
 out vec2 tex_coord;
 out vec3 normal;
-out vec3 frag_position;
-out vec4 frag_position_light_space;
+varying out vec3 frag_position;
 out vec4 vertex_color;
 
 void main() {
@@ -25,7 +23,6 @@ void main() {
     tex_coord = vbo_tex_coord;
     normal = mat3(transpose(inverse(model_matrix))) * vbo_normal;
     frag_position = vec3(model_matrix * vec4(vbo_vertex_position, 1.0));
-    frag_position_light_space = light_space_matrix * vec4(frag_position, 1.0);
     vertex_color = vbo_color;
 }
 
@@ -47,7 +44,6 @@ struct Material {
 in vec2 tex_coord;
 in vec3 normal;
 in vec3 frag_position;
-in vec4 frag_position_light_space;
 in vec4 vertex_color;
 
 
@@ -59,7 +55,13 @@ uniform Material material;
 
 uniform sampler2D texture_handle;
 uniform int has_texture;
+
+#define NUM_SHADOW_MAPS 4
+uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
 uniform sampler2D shadow_map;
+
+uniform float cascade_distances[NUM_SHADOW_MAPS];
+uniform mat4 cascade_light_space_matrices[NUM_SHADOW_MAPS];
 
 #define MAX_LIGHTS 100
 
@@ -68,10 +70,9 @@ uniform vec4  point_light_colors     [MAX_LIGHTS];
 uniform float point_light_intensities[MAX_LIGHTS];
 uniform int   num_point_lights;
 
-uniform vec3  directional_light_directions [MAX_LIGHTS];
-uniform vec4  directional_light_colors     [MAX_LIGHTS];
-uniform float directional_light_intensities[MAX_LIGHTS];
-uniform int   num_directional_lights;
+uniform vec3  sun_direction;
+uniform vec4  sun_color;
+uniform float sun_intensity;
 
 uniform float bloom_threshhold;
 
@@ -82,8 +83,8 @@ out vec4 bloom_color;
 
 
 vec3 calculate_point_light(int, vec3);
-vec3 calculate_directional_light(int, vec3);
-float calculate_shadow(vec3);
+vec3 calculate_sun_light(vec3);
+float calculate_shadow(int);
 
 void main() {
     vec3 norm = normalize(normal);
@@ -99,10 +100,32 @@ void main() {
     for (int i = 0; i < num_point_lights; i++) {
         out_color.xyz += unlit_color.xyz * calculate_point_light(i, norm);
     }
-    for (int i = 0; i < num_directional_lights; i++) {
-        float shadow = (1.0 - calculate_shadow(directional_light_directions[i]));
-        out_color.xyz += unlit_color.xyz * calculate_directional_light(i, norm) * shadow;
+
+    float dist = length(camera_position - frag_position);
+    int shadow_map_index = 0;
+    for (int cascade_idx = 0; cascade_idx < NUM_SHADOW_MAPS; cascade_idx++) {
+        shadow_map_index = cascade_idx;
+        if (dist < cascade_distances[cascade_idx]) {
+            break;
+        }
     }
+
+    float shadow = (1.0 - calculate_shadow(shadow_map_index));
+    out_color.xyz += unlit_color.xyz * calculate_sun_light(norm) * shadow;
+
+    // if (shadow_map_index == 0) {
+    //     out_color.xyz += vec3(1, 0, 0) * 0.2;
+    // }
+    // else if (shadow_map_index == 1) {
+    //     out_color.xyz += vec3(0, 1, 0) * 0.2;
+    // }
+    // else if (shadow_map_index == 2) {
+    //     out_color.xyz += vec3(0, 0, 1) * 0.2;
+    // }
+    // else if (shadow_map_index == 3) {
+    //     out_color.xyz += vec3(1, 0, 1) * 0.2;
+    // }
+    // out_color = vec4(dist, dist, dist, 1);
 
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
     if (brightness > bloom_threshhold) {
@@ -140,37 +163,40 @@ vec3 calculate_point_light(int light_index, vec3 norm) {
     return (diffuse + specular).xyz;
 }
 
-vec3 calculate_directional_light(int light_index, vec3 norm) {
-    vec3  direction = directional_light_directions [light_index];
-    vec4  color     = directional_light_colors     [light_index];
-    float intensity = directional_light_intensities[light_index];
-
+vec3 calculate_sun_light(vec3 norm) {
     vec3  view_dir  = normalize(camera_position - frag_position);
 
     // diffuse
-    float diff    = max(dot(norm, -direction), 0.0);
-    vec4  diffuse = color * diff * material.diffuse;
+    float diff    = max(dot(norm, -sun_direction), 0.0);
+    vec4  diffuse = sun_color * diff * material.diffuse;
 
-    diffuse *= intensity;
+    diffuse *= sun_intensity;
     return diffuse.xyz;
 }
 
-float calculate_shadow(vec3 light_direction) {
+float calculate_shadow(int shadow_map_idx) {
+    vec4 frag_position_light_space = cascade_light_space_matrices[shadow_map_idx] * vec4(frag_position, 1.0);
     vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
     proj_coords = proj_coords * 0.5 + 0.5;
     if (proj_coords.z > 1.0) {
         proj_coords.z = 1.0;
     }
-    float closest_depth = texture(shadow_map, proj_coords.xy).r;
-    float current_depth = proj_coords.z;
-    float bias = max(0.005 * (1.0 - dot(normal, -light_direction)), 0.0025);
+    float closest_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
+    float bias = max(0.005 * (1.0 - dot(normal, -sun_direction)), 0.005);
+
+#if 1
+    float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
+    float shadow = pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
+    return shadow;
+#else
     float shadow = 0.0;
-    vec2 texel_size = 1.0 / textureSize(shadow_map, 0);
+    vec2 texel_size = 1.0 / textureSize(shadow_maps[shadow_map_idx], 0);
     for (int x = -1; x <= 1; x += 1) {
         for (int y = -1; y <= 1; y += 1) {
-            float pcf_depth = texture(shadow_map, proj_coords.xy + vec2(x, y) * texel_size).r;
+            float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy + vec2(x, y) * texel_size).r;
             shadow += pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
         }
     }
     return shadow / 9.0;
+#endif
 }

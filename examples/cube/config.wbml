@@ -1,0 +1,27 @@
+{
+	cube_color {
+		r 0.126
+		g 0.340
+		b 0.072
+		a 1.000
+	}
+	ground_color {
+		r 0.174
+		g 0.158
+		b 0.190
+		a 1.000
+	}
+	sun_angles [
+		-60.000
+		-60.000
+		0.000
+	]
+
+	sun_color {
+		r 1.000
+		g 1.000
+		b 1.000
+		a 1.000
+	}
+	sun_intensity 80.000
+}
