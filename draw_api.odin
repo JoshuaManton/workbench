@@ -404,7 +404,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				cascade_camera := new(Camera);
 				init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_depth_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM));
 				cascade_camera.near_plane = 0.01;
-				cascade_camera.far_plane = 50;
 				camera.sun_cascade_cameras[map_idx] = cascade_camera;
 			}
 
@@ -450,6 +449,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				gpu.uniform_float_array(shader, "point_light_intensities", camera.point_light_intensities[:camera.num_point_lights]);
 			}
 			gpu.uniform_int(shader, "num_point_lights", camera.num_point_lights);
+
 			if len(camera.sun_direction) > 0 {
 				gpu.uniform_vec3(shader,  "sun_direction", camera.sun_direction);
 				gpu.uniform_vec4(shader,  "sun_color",     camera.sun_color);
@@ -544,7 +544,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		// draw_texture(camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
 
 		// visualize depth buffer
-		if render_settings.visualize_shadow_texture || true {
+		if render_settings.visualize_shadow_texture {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader(&wb_catalog, "depth"));
 				for map_idx in 0..<NUM_SHADOW_MAPS {

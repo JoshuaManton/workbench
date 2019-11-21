@@ -251,16 +251,16 @@ deserialize :: proc{
 	deserialize_into_pointer_with_type_info,
 };
 
-deserialize_to_value :: inline proc($Type: typeid, text: string) -> Type {
+deserialize_to_value :: inline proc($Type: typeid, data: []u8) -> Type {
 	t: Type;
-	deserialize_into_pointer(text, &t);
+	deserialize_into_pointer(data, &t);
 	return t;
 }
 
-deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
+deserialize_into_pointer :: proc(data: []u8, ptr: ^$Type) {
 	ti := type_info_of(Type);
 
-	_lexer := laas.make_lexer(text);
+	_lexer := laas.make_lexer(cast(string)data);
 	lexer := &_lexer;
 
 	root := parse_value(lexer);
@@ -268,8 +268,8 @@ deserialize_into_pointer :: proc(text: string, ptr: ^$Type) {
 	write_value(root, ptr, ti);
 }
 
-deserialize_into_pointer_with_type_info :: proc(text: string, ptr: rawptr, ti: ^rt.Type_Info) {
-	_lexer := laas.make_lexer(text);
+deserialize_into_pointer_with_type_info :: proc(data: []u8, ptr: rawptr, ti: ^rt.Type_Info) {
+	_lexer := laas.make_lexer(cast(string)data);
 	lexer := &_lexer;
 
 	root := parse_value(lexer);
