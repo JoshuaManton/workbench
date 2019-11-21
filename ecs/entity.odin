@@ -396,7 +396,13 @@ draw_scene_window :: proc() {
                         for i in 0..<component_data.storage.len {
                             ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)component_data.storage.data, i * component_data.ti.size);
                             if ptr.e == selected_entity {
-                                wb.imgui_struct_ti("", ptr, component_data.ti);
+
+                                if component_data.editor_imgui_proc != nil {
+                                    component_data.editor_imgui_proc(ptr);
+                                } else {
+                                    wb.imgui_struct_ti("", ptr, component_data.ti);
+                                }
+
                                 break;
                             }
                         }
@@ -482,7 +488,7 @@ Transform :: struct {
     scale: Vec3,
 }
 
-add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_proc: proc(^Type), init_proc: proc(^Type) = nil, deinit_proc: proc(^Type) = nil) {
+add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_proc: proc(^Type), init_proc: proc(^Type) = nil, deinit_proc: proc(^Type) = nil, editor_imgui_proc: proc(^Type) = nil) {
     when DEVELOPER {
         t: Type;
         assert(&t.base == &t);
@@ -493,7 +499,17 @@ add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_
     }
     id := typeid_of(Type);
     assert(id notin component_types);
-    component_types[id] = new_clone(Component_Type{type_info_of(Type), transmute(mem.Raw_Dynamic_Array)make([dynamic]Type, 0, 1), make([dynamic]int, 0, 1), cast(proc(rawptr, f32))update_proc, cast(proc(rawptr))render_proc, cast(proc(rawptr))init_proc, cast(proc(rawptr))deinit_proc});
+
+    component_types[id] = new_clone(Component_Type{
+        type_info_of(Type),
+        transmute(mem.Raw_Dynamic_Array)make([dynamic]Type, 0, 1),
+        make([dynamic]int, 0, 1),
+        cast(proc(rawptr, f32))update_proc,
+        cast(proc(rawptr))render_proc,
+        cast(proc(rawptr))init_proc,
+        cast(proc(rawptr))deinit_proc,
+        cast(proc(rawptr))editor_imgui_proc,
+    });
 }
 
 make_entity :: proc(name := "Entity", requested_id: Entity = 0) -> Entity {
@@ -712,6 +728,7 @@ Component_Type :: struct {
     render_proc: proc(rawptr),
     init_proc:   proc(rawptr),
     deinit_proc: proc(rawptr),
+    editor_imgui_proc: proc(rawptr),
 }
 delete_component_type :: proc(type: Component_Type) {
     free(type.storage.data);
