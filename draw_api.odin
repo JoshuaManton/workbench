@@ -148,6 +148,7 @@ Camera :: struct {
 
 MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
+SHADOW_MAP_DIM :: 2048;
 
 Model_Draw_Info :: struct {
 	model: Model,
@@ -561,6 +562,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 }
 
 
+
+Material :: struct {
+	ambient:  Colorf,
+	diffuse:  Colorf,
+	specular: Colorf,
+	shine:    f32,
+}
 
 submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State) {
 	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state});

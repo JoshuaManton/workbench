@@ -113,18 +113,18 @@ void main() {
     float shadow = (1.0 - calculate_shadow(shadow_map_index));
     out_color.xyz += unlit_color.xyz * calculate_sun_light(norm) * shadow;
 
-    if (shadow_map_index == 0) {
-        out_color.xyz += vec3(1, 0, 0) * 0.2;
-    }
-    else if (shadow_map_index == 1) {
-        out_color.xyz += vec3(0, 1, 0) * 0.2;
-    }
-    else if (shadow_map_index == 2) {
-        out_color.xyz += vec3(0, 0, 1) * 0.2;
-    }
-    else if (shadow_map_index == 3) {
-        out_color.xyz += vec3(1, 0, 1) * 0.2;
-    }
+    // if (shadow_map_index == 0) {
+    //     out_color.xyz += vec3(1, 0, 0) * 0.2;
+    // }
+    // else if (shadow_map_index == 1) {
+    //     out_color.xyz += vec3(0, 1, 0) * 0.2;
+    // }
+    // else if (shadow_map_index == 2) {
+    //     out_color.xyz += vec3(0, 0, 1) * 0.2;
+    // }
+    // else if (shadow_map_index == 3) {
+    //     out_color.xyz += vec3(1, 0, 1) * 0.2;
+    // }
     // out_color = vec4(dist, dist, dist, 1);
 
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
