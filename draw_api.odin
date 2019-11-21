@@ -8,6 +8,7 @@ using import          "core:fmt"
       import          "core:os"
 
       import          "platform"
+      import          "profiler"
       import          "gpu"
 using import          "math"
 using import          "types"
@@ -321,6 +322,8 @@ construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
 }
 
 camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
+	profiler.TIMED_SECTION(&wb_profiler, "camera_render");
+
 	// pre-render
 	gpu.log_errors(#procedure);
 	PUSH_CAMERA(camera);
@@ -397,8 +400,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 			// position the shadow camera looking at that point
 			if camera.sun_cascade_cameras[map_idx] == nil {
-				// todo(josh): delete cascade_cameras
-
 				// create new cascade camera and save it
 				cascade_camera := new(Camera);
 				init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_depth_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM));
