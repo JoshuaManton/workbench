@@ -82,12 +82,12 @@ main_update :: proc(dt: f32) {
 main_render :: proc(dt: f32) {
 	wb.set_sun_data(Vec3{0, 10, 0}, degrees_to_quaternion(config.sun_angles), config.sun_color, config.sun_intensity);
 
-	material := wb.Material{{.2, .2, .2, 1}, {.2, .2, .2, 1}, {.2, .2, .2, 1}, 32};
+	material := wb.Material{{.2, .2, .2, 1}, {.2, .2, .2, 1}, {1, 1, 1, 1}, 64};
 
-	light_position := Vec3{-3, -1, -3};
-	light_color := Colorf{10, 0, 0, 1};
-	wb.push_point_light(light_position, light_color, 100);
-	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, material, light_position, {1, 1, 1}, Quat{0, 0, 0, 1}, light_color, {});
+	light_position := Vec3{sin(wb.time) * 3, 2, cos(wb.time) * 3};
+	light_color := Colorf{50, .25, 0, 1};
+	wb.push_point_light(light_position, light_color, 10);
+	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, material, light_position, {.5, .5, .5}, Quat{0, 0, 0, 1}, light_color, {});
 
 
 	// draw rotating cube
