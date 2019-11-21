@@ -216,7 +216,7 @@ get_animation_channel :: proc(using anim: Animation, channel_id: string) -> (Ani
 get_animations_for_target :: proc(target: string) -> []string {
     anims : [dynamic]string;
     for id, anim in loaded_animations {
-        append(&anims, id);
+        if anim.target_name == target do append(&anims, id);
     }
 
     return anims[:];
