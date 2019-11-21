@@ -351,26 +351,9 @@ draw_vertex_list :: proc(list: []Vertex2D, shader: gpu.Shader_Program, texture: 
 		return;
 	}
 
-	when DEVELOPER {
-		if debugging_rendering_max_draw_calls != -1 && num_draw_calls >= debugging_rendering_max_draw_calls {
-			num_draw_calls += 1;
-			return;
-		}
-	}
-
 	update_mesh(&_internal_im_model, 0, list, []u32{});
 	gpu.use_program(shader);
 	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, {}, loc);
-	num_draw_calls += 1;
-}
-
-
-debugging_rendering_max_draw_calls : i32 = -1; // note(josh): i32 because my dear-imgui stuff wasn't working with int
-num_draw_calls: i32;
-when DEVELOPER {
-	debug_will_issue_next_draw_call :: proc() -> bool {
-		return debugging_rendering_max_draw_calls == -1 || num_draw_calls < debugging_rendering_max_draw_calls;
-	}
 }
 
 Draw_Command :: struct {

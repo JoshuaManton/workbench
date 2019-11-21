@@ -106,7 +106,6 @@ render_workspace :: proc(workspace: Workspace) {
 	{
 		// pre-render
 		gpu.log_errors(#procedure);
-		num_draw_calls = 0;
 		PUSH_CAMERA(&wb_camera);
 
 		if workspace.render != nil {
