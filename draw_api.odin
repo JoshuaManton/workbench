@@ -385,7 +385,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			texels_per_unit := SHADOW_MAP_DIM / (radius * 2);
 			scale_matrix := identity(Mat4);
 			scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
-			scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation))); // todo(josh): not sure about this inverse()
+			scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation)));
 
 			light_point := center_point - light_direction * radius;
 
