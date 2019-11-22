@@ -89,7 +89,7 @@ main_update :: proc(dt: f32) {
 }
 
 main_render :: proc(dt: f32) {
-	wb.set_sun_data(Vec3{0, 10, 0}, degrees_to_quaternion(config.sun_angles), config.sun_color, config.sun_intensity);
+	wb.set_sun_data(degrees_to_quaternion(config.sun_angles), config.sun_color, config.sun_intensity);
 
 	light_position := Vec3{sin(wb.time) * 3, 2, cos(wb.time) * 3};
 	wb.push_point_light(light_position, config.light_color, config.light_intensity);

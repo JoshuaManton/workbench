@@ -586,7 +586,7 @@ push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
 	current_camera.num_point_lights += 1;
 }
 
-set_sun_data :: proc(position: Vec3, rotation: Quat, color: Colorf, intensity: f32) {
+set_sun_data :: proc(rotation: Quat, color: Colorf, intensity: f32) {
 	current_camera.sun_direction  = quaternion_forward(rotation);
 	current_camera.sun_color      = transmute(Vec4)color;
 	current_camera.sun_intensity  = intensity;
