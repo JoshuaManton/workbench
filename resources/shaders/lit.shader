@@ -140,7 +140,7 @@ vec3 calculate_point_light(Material material, int light_index, vec3 norm) {
     float spec        = pow(max(dot(view_dir, reflect_dir), 0.0), material.shine);
     vec4  specular    = color * spec * material.specular;
 
-    float attenuation = (1.0 / (distance * distance)) * intensity;
+    float attenuation = (1.0 / (distance)) * intensity; // todo(josh): should this be distance-squared?
 
     diffuse  *= attenuation;
     specular *= attenuation;
