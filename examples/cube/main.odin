@@ -55,12 +55,12 @@ main_init :: proc() {
 
 			sun_angles = Vec3{-60, -60, 0},
 			sun_color = Colorf{1, 1, 1, 1},
-			sun_intensity = 100,
+			sun_intensity = 1,
 
-			light_color = Colorf{1, 0, 0, 1},
-			light_intensity = 2500,
+			light_color = Colorf{1, 0, 1, 1},
+			light_intensity = 100,
 
-			default_material = wb.Material{{.2, .2, .2, 1}, {.2, .2, .2, 1}, {1, 1, 1, 1}, 8},
+			default_material = wb.Material{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, 8},
 		};
 
 		// apply file data overtop of defaults
