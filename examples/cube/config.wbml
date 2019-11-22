@@ -23,25 +23,25 @@
 		b 1.000
 		a 1.000
 	}
-	sun_intensity 100.000
+	sun_intensity 1.000
 	light_color {
 		r 1.000
 		g 0.000
-		b 0.000
+		b 1.000
 		a 1.000
 	}
-	light_intensity 2500.000
+	light_intensity 100.000
 	default_material {
 		ambient {
-			r 0.200
-			g 0.200
-			b 0.200
+			r 1.000
+			g 1.000
+			b 1.000
 			a 1.000
 		}
 		diffuse {
-			r 0.200
-			g 0.200
-			b 0.200
+			r 1.000
+			g 1.000
+			b 1.000
 			a 1.000
 		}
 		specular {

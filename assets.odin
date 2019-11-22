@@ -8,6 +8,7 @@ using import "core:fmt"
 using import "logging"
       import "gpu"
       import "profiler"
+      import "laas"
 using import "basic"
 
 Asset_Catalog :: struct {
@@ -80,9 +81,14 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types
 
 load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 	name, nameok := get_file_name(filepath);
-	assert(nameok);
-	ext, ok := get_file_extension(filepath);
-	assert(ok, filepath);
+	assert(nameok, filepath);
+	ext, extok := get_file_extension(filepath);
+	assert(extok, filepath);
+	root_directory, dirok := get_file_directory(filepath);
+	assert(dirok, filepath);
+	name_and_ext, neok := get_file_name_and_extension(filepath);
+	assert(neok, filepath);
+
 	data, fileok := os.read_entire_file(filepath);
 	assert(fileok);
 
@@ -107,49 +113,101 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		}
 		case "shader": {
 			defer delete(data);
-			lines := strings.split(cast(string)data, "\n");
-
-			vertex_builder: strings.Builder;
-			fragment_builder: strings.Builder;
-			defer strings.destroy_builder(&vertex_builder);
-			defer strings.destroy_builder(&fragment_builder);
-
-			current_builder: ^strings.Builder;
-			for l in lines {
-				if string_starts_with(l, "@vert") {
-					current_builder = &vertex_builder;
-				}
-				else if string_starts_with(l, "@frag") {
-					current_builder = &fragment_builder;
-				}
-				else {
-					assert(current_builder != nil);
-					sbprint(current_builder, l, "\n");
-				}
-			}
-
-			assert(strings.to_string(vertex_builder) != "");
-			assert(strings.to_string(fragment_builder) != "");
 
 			// todo(josh): figure out why deleting shaders was causing errors
 			// if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
-			shader, ok := gpu.load_shader_text(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
-			assert(ok);
-			catalog.shaders[name] = shader;
+
+			shader, ok := parse_shader(catalog, cast(string)data, root_directory);
+			if !ok {
+				logln("Error: Parse shader failed: ", filepath);
+				delete_key(&catalog.shaders, name);
+			}
+			else {
+				catalog.shaders[name] = shader;
+			}
 		}
 		case: {
 			if array_contains(catalog.text_file_types, ext) {
-				name_and_ext, ok := get_file_name_and_extension(filepath);
-				assert(ok);
 				if name in catalog.text_files do delete(catalog.text_files[name]);
 				catalog.text_files[name_and_ext] = cast(string)data;
-			}
-			else {
-				logln("Unknown file extension: .", ext, " at ", filepath);
 			}
 		}
 	}
 }
+
+Parse_Shader_Result :: enum {
+	Yield,
+	Done,
+	Error,
+}
+
+parse_shader :: proc(catalog: ^Asset_Catalog, text: string, root_folder: string) -> (gpu.Shader_Program, bool) {
+
+	process_includes :: proc(builder: ^strings.Builder, text: string, root_folder: string) -> bool {
+		assert(builder != nil);
+
+		lines := strings.split(text, "\n");
+		defer delete(lines);
+		for line in lines {
+			if string_starts_with(line, "@include") {
+				rest_of_line := line[len("@include "):];
+				assert(len(rest_of_line) > 0);
+				lexer := laas.make_lexer(rest_of_line);
+				file_to_include := laas.expect_string(&lexer);
+				file_path := tprint(root_folder, "/", file_to_include);
+				file_data, ok := os.read_entire_file(file_path);
+				defer delete(file_data);
+
+				if !ok {
+					logln("Error: Couldn't find file for include: ", file_to_include);
+					return false;
+				}
+
+				process_includes(builder, cast(string)file_data, root_folder);
+			}
+			else {
+				sbprint(builder, line, "\n");
+			}
+		}
+
+		return true;
+	}
+
+	all_text_builder: strings.Builder;
+	defer strings.destroy_builder(&all_text_builder);
+
+	ok := process_includes(&all_text_builder, text, root_folder);
+	if !ok do return {}, false;
+
+	all_text := strings.to_string(all_text_builder);
+
+	vertex_builder: strings.Builder;   defer strings.destroy_builder(&vertex_builder);
+	fragment_builder: strings.Builder; defer strings.destroy_builder(&fragment_builder);
+	current_builder: ^strings.Builder;
+
+	lines := strings.split(all_text, "\n");
+	defer delete(lines);
+	for line in lines {
+		if string_starts_with(line, "@vert") {
+			current_builder = &vertex_builder;
+		}
+		else if string_starts_with(line, "@frag") {
+			current_builder = &fragment_builder;
+		}
+		else {
+			assert(current_builder != nil);
+			sbprint(current_builder, line, "\n");
+		}
+	}
+
+	assert(strings.to_string(vertex_builder) != "");
+	assert(strings.to_string(fragment_builder) != "");
+
+	shader, compileok := gpu.load_shader_text(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
+	return shader, compileok;
+}
+
+
 
 check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 	profiler.TIMED_SECTION(&wb_profiler);
@@ -213,7 +271,10 @@ try_get_shader :: proc(catalog: ^Asset_Catalog, name: string) -> (gpu.Shader_Pro
 }
 get_shader :: inline proc(catalog: ^Asset_Catalog, name: string) -> gpu.Shader_Program {
 	shader, ok := try_get_shader(catalog, name);
-	assert(ok, tprint("Couldn't find shader: ", name));
-	return shader;
+	if ok {
+		return shader;
+	}
+	logln("Error: Couldn't find shader ", name);
+	return wb_catalog.shaders["error"];
 }
 

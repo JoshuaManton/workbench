@@ -8,10 +8,8 @@ using import "core:fmt"
       import       "shared:workbench/platform"
       import       "shared:workbench/wbml"
 using import       "shared:workbench/math"
-      import imgui "shared:workbench/external/imgui"
 
 using import "shared:workbench/logging"
-using import "shared:workbench/basic"
 using import "shared:workbench/types"
 
 main :: proc() {
