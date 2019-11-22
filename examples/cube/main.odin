@@ -1,4 +1,4 @@
-package main
+package cube
 
 using import "core:fmt"
       import "core:mem"
@@ -8,10 +8,8 @@ using import "core:fmt"
       import       "shared:workbench/platform"
       import       "shared:workbench/wbml"
 using import       "shared:workbench/math"
-      import imgui "shared:workbench/external/imgui"
 
 using import "shared:workbench/logging"
-using import "shared:workbench/basic"
 using import "shared:workbench/types"
 
 main :: proc() {
@@ -34,6 +32,11 @@ Config :: struct {
 	sun_angles: Vec3,
 	sun_color: Colorf,
 	sun_intensity: f32,
+
+	light_color: Colorf,
+	light_intensity: f32,
+
+	default_material: wb.Material,
 }
 
 main_init :: proc() {
@@ -43,19 +46,25 @@ main_init :: proc() {
 	// load config
 	{
 		config_data, ok := os.read_entire_file("config.wbml");
-		if !ok {
-			config = Config {
-				cube_color = {1, 0, 0, 1},
-				ground_color = {0, 1, 0, 1},
+		defer delete(config_data);
 
-				sun_angles = Vec3{-60, -90, 0},
-				sun_color = Colorf{1, 1, 1, 1},
-				sun_intensity = 100,
-			};
-		}
-		else {
-			wbml.deserialize(config_data, &config);
-		}
+		// set defaults
+		config = Config {
+			cube_color = {1, 0.8, 0, 1},
+			ground_color = {0.035, 1, 0, 1},
+
+			sun_angles = Vec3{-60, -60, 0},
+			sun_color = Colorf{1, 1, 1, 1},
+			sun_intensity = 1,
+
+			light_color = Colorf{1, 0, 1, 1},
+			light_intensity = 100,
+
+			default_material = wb.Material{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, 8},
+		};
+
+		// apply file data overtop of defaults
+		wbml.deserialize(config_data, &config);
 	}
 
 	// setup camera
@@ -80,21 +89,17 @@ main_update :: proc(dt: f32) {
 }
 
 main_render :: proc(dt: f32) {
-	wb.set_sun_data(Vec3{0, 10, 0}, degrees_to_quaternion(config.sun_angles), config.sun_color, config.sun_intensity);
-
-	material := wb.Material{{.2, .2, .2, 1}, {.2, .2, .2, 1}, {1, 1, 1, 1}, 64};
+	wb.set_sun_data(degrees_to_quaternion(config.sun_angles), config.sun_color, config.sun_intensity);
 
 	light_position := Vec3{sin(wb.time) * 3, 2, cos(wb.time) * 3};
-	light_color := Colorf{50, .25, 0, 1};
-	wb.push_point_light(light_position, light_color, 10);
-	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, material, light_position, {.5, .5, .5}, Quat{0, 0, 0, 1}, light_color, {});
-
+	wb.push_point_light(light_position, config.light_color, config.light_intensity);
+	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, config.default_material, light_position, {.5, .5, .5}, Quat{0, 0, 0, 1}, config.light_color, {});
 
 	// draw rotating cube
-	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, material, Vec3{}, {1, 1, 1}, cube_rotation, config.cube_color, {});
+	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, config.default_material, Vec3{}, {1, 1, 1}, cube_rotation, config.cube_color, {});
 
 	// draw ground
-	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, material, Vec3{0, -2, 0}, {10, 1, 10}, Quat{0, 0, 0, 1}, config.ground_color, {});
+	wb.submit_model(cube_model, wb.get_shader(&wb.wb_catalog, "lit"), {}, config.default_material, Vec3{0, -2, 0}, {10, 1, 10}, Quat{0, 0, 0, 1}, config.ground_color, {});
 }
 
 main_end :: proc() {
@@ -102,5 +107,6 @@ main_end :: proc() {
 
 	// serialize config
 	config_data := wbml.serialize(&config);
+	defer delete(config_data);
 	os.write_entire_file("config.wbml", cast([]u8)config_data);
 }
