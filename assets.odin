@@ -126,6 +126,21 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 				catalog.shaders[name] = shader;
 			}
 		}
+		case "compute": {
+			defer delete(data);
+
+			// todo(josh): figure out why deleting shaders was causing errors
+			// if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
+
+			shader, ok := gpu.load_shader_compute(cast(string)data);
+			if !ok {
+				logln("Error: Parse shader failed: ", filepath);
+				delete_key(&catalog.shaders, name);
+			}
+			else {
+				catalog.shaders[name] = shader;
+			}
+		}
 		case: {
 			if array_contains(catalog.text_file_types, ext) {
 				if name in catalog.text_files do delete(catalog.text_files[name]);
@@ -203,7 +218,7 @@ parse_shader :: proc(catalog: ^Asset_Catalog, text: string, root_folder: string)
 	assert(strings.to_string(vertex_builder) != "");
 	assert(strings.to_string(fragment_builder) != "");
 
-	shader, compileok := gpu.load_shader_text(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
+	shader, compileok := gpu.load_shader_vert_frag(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
 	return shader, compileok;
 }
 

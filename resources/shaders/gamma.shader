@@ -8,7 +8,7 @@
 
 #version 330 core
 
-in vec2 tex_coord;
+in vec3 tex_coord;
 
 uniform float gamma;
 uniform float exposure;
@@ -18,7 +18,7 @@ uniform sampler2D texture_handle;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    vec3 color = texture(texture_handle, tex_coord).rgb;
+    vec3 color = texture(texture_handle, tex_coord.xy).rgb;
 
     // exposure tone mapping
     color = vec3(1.0) - exp(-color * exposure);

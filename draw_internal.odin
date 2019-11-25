@@ -88,6 +88,7 @@ update_draw :: proc() {
 
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
+on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
 	check_for_file_updates(&wb_catalog);
@@ -109,7 +110,7 @@ render_workspace :: proc(workspace: Workspace) {
 	gpu.use_program(shader_gamma);
 	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
-	draw_texture_2d(wb_camera.framebuffer.textures[0], {0, 0}, {1, 1});
+	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 	imgui_render(true);
 }

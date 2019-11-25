@@ -192,6 +192,10 @@ viewport :: proc(x1, y1, x2, y2: int, loc := #caller_location) {
 
 
 
+//
+// Shaders
+//
+
 load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	vs_code, ok1 := os.read_entire_file(vs);
 	if !ok1 {
@@ -207,69 +211,15 @@ load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
 	}
 	defer delete(fs_code);
 
-	program, ok := load_shader_text(cast(string)vs_code, cast(string)fs_code);
+	program, ok := load_shader_vert_frag(cast(string)vs_code, cast(string)fs_code);
 	return cast(Shader_Program)program, ok;
 }
 
-load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, success: bool) {
-    // Shader checking and linking checking are identical
-    // except for calling differently named GL functions
-    // it's a bit ugly looking, but meh
-    check_error :: proc(id: u32, type_: odingl.Shader_Type, status: u32,
-                        iv_func: proc "c" (u32, u32, ^i32),
-                        log_func: proc "c" (u32, i32, ^i32, ^u8)) -> bool {
-        result, info_log_length: i32;
-        iv_func(id, status, &result);
-        iv_func(id, odingl.INFO_LOG_LENGTH, &info_log_length);
-
-        if result == 0 {
-            error_message := make([]u8, info_log_length);
-            defer delete(error_message);
-
-            log_func(id, i32(info_log_length), nil, &error_message[0]);
-            fmt.eprintf("Error in %v:\n%s", type_, string(error_message[0:len(error_message)-1]));
-
-            return true;
-        }
-
-        return false;
-    }
-
-    // Compiling shaders are identical for any shader (vertex, geometry, fragment, tesselation, (maybe compute too))
-    compile_shader_from_text :: proc(_shader_code: string, shader_type: odingl.Shader_Type) -> (u32, bool) {
-    	shader_code := _shader_code;
-        shader_id := odingl.CreateShader(cast(u32)shader_type);
-        length := i32(len(shader_code));
-        odingl.ShaderSource(shader_id, 1, (^^u8)(&shader_code), &length);
-        odingl.CompileShader(shader_id);
-
-        if check_error(shader_id, shader_type, odingl.COMPILE_STATUS, odingl.GetShaderiv, odingl.GetShaderInfoLog) {
-            return 0, false;
-        }
-
-        return shader_id, true;
-    }
-
-    // only used once, but I'd just make a subprocedure(?) for consistency
-    create_and_link_program :: proc(shader_ids: []u32) -> (u32, bool) {
-        program_id := odingl.CreateProgram();
-        for id in shader_ids {
-            odingl.AttachShader(program_id, id);
-        }
-        odingl.LinkProgram(program_id);
-
-        if check_error(program_id, odingl.Shader_Type.SHADER_LINK, odingl.LINK_STATUS, odingl.GetProgramiv, odingl.GetProgramInfoLog) {
-            return 0, false;
-        }
-
-        return program_id, true;
-    }
-
-    // actual function from here
-    vertex_shader_id, ok1 := compile_shader_from_text(vs_code, odingl.Shader_Type.VERTEX_SHADER);
+load_shader_vert_frag :: proc(vs_code, fs_code: string) -> (program: Shader_Program, success: bool) {
+    vertex_shader_id, ok1 := compile_shader_from_text(vs_code, .VERTEX_SHADER);
     defer odingl.DeleteShader(vertex_shader_id);
 
-    fragment_shader_id, ok2 := compile_shader_from_text(fs_code, odingl.Shader_Type.FRAGMENT_SHADER);
+    fragment_shader_id, ok2 := compile_shader_from_text(fs_code, .FRAGMENT_SHADER);
     defer odingl.DeleteShader(fragment_shader_id);
 
     if !ok1 || !ok2 {
@@ -281,23 +231,36 @@ load_shader_text :: proc(vs_code, fs_code: string) -> (program: Shader_Program, 
         return 0, false;
     }
 
-
- //    count: i32;
- //    odingl.GetProgramiv(program_id, odingl.ACTIVE_UNIFORMS, &count);
-	// logln("Active Uniforms: ", count);
-
-	// for i in 0..<count {
-	// 	name: [32]byte;
-	// 	name_len: i32;
-	// 	size_of_uniform: i32;
-	// 	uniform_type: u32;
-	//     odingl.GetActiveUniform(program_id, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
-
-	//     logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
-	// }
+    // print_uniforms(cast(Shader_Program)program_id);
 
     return cast(Shader_Program)program_id, true;
 }
+
+load_shader_compute :: proc(source: string) -> (program: Shader_Program, success: bool) {
+    shader, ok1 := compile_shader_from_text(source, .COMPUTE_SHADER);
+    defer odingl.DeleteShader(shader);
+    if !ok1 do return 0, false;
+
+    program_id, ok2 := create_and_link_program([]u32{shader});
+    if !ok2 do return 0, false;
+
+    return cast(Shader_Program)program_id, true;
+}
+print_uniforms :: proc(shader: Shader_Program) {
+    count: i32;
+    odingl.GetProgramiv(cast(u32)shader, odingl.ACTIVE_UNIFORMS, &count);
+    logln("Active Uniforms: ", count);
+    for i in 0..<count {
+        name: [32]byte;
+        name_len: i32;
+        size_of_uniform: i32;
+        uniform_type: u32;
+        odingl.GetActiveUniform(cast(u32)shader, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
+        logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
+    }
+}
+
+
 
 use_program :: inline proc(program: Shader_Program, loc := #caller_location) {
 	odingl.UseProgram(cast(u32)program);
@@ -309,6 +272,63 @@ delete_shader :: inline proc(program: Shader_Program, loc := #caller_location) {
 	log_errors(#procedure, loc);
 }
 
+// Shader checking and linking checking are identical
+// except for calling differently named GL functions
+// it's a bit ugly looking, but meh
+check_error :: proc(id: u32, type_: odingl.Shader_Type, status: u32,
+                    iv_func: proc "c" (u32, u32, ^i32),
+                    log_func: proc "c" (u32, i32, ^i32, ^u8)) -> bool {
+    result, info_log_length: i32;
+    iv_func(id, status, &result);
+    iv_func(id, odingl.INFO_LOG_LENGTH, &info_log_length);
+
+    if result == 0 {
+        error_message := make([]u8, info_log_length);
+        defer delete(error_message);
+
+        log_func(id, i32(info_log_length), nil, &error_message[0]);
+        fmt.eprintf("Error in %v:\n%s", type_, string(error_message[0:len(error_message)-1]));
+
+        return true;
+    }
+
+    return false;
+}
+
+// Compiling shaders are identical for any shader (vertex, geometry, fragment, tesselation, (maybe compute too))
+compile_shader_from_text :: proc(_shader_code: string, shader_type: odingl.Shader_Type) -> (u32, bool) {
+	shader_code := _shader_code;
+    shader_id := odingl.CreateShader(cast(u32)shader_type);
+    length := i32(len(shader_code));
+    odingl.ShaderSource(shader_id, 1, (^^u8)(&shader_code), &length);
+    odingl.CompileShader(shader_id);
+
+    if check_error(shader_id, shader_type, odingl.COMPILE_STATUS, odingl.GetShaderiv, odingl.GetShaderInfoLog) {
+        return 0, false;
+    }
+
+    return shader_id, true;
+}
+
+// only used once, but I'd just make a subprocedure(?) for consistency
+create_and_link_program :: proc(shader_ids: []u32) -> (u32, bool) {
+    program_id := odingl.CreateProgram();
+    for id in shader_ids {
+        odingl.AttachShader(program_id, id);
+    }
+    odingl.LinkProgram(program_id);
+
+    if check_error(program_id, odingl.Shader_Type.SHADER_LINK, odingl.LINK_STATUS, odingl.GetProgramiv, odingl.GetProgramInfoLog) {
+        return 0, false;
+    }
+
+    return program_id, true;
+}
+
+
+
+
+
 
 
 gen_texture :: inline proc(loc := #caller_location) -> TextureId {
@@ -318,13 +338,18 @@ gen_texture :: inline proc(loc := #caller_location) -> TextureId {
 	return cast(TextureId)texture;
 }
 
-bind_texture1d :: inline proc(texture: TextureId, loc := #caller_location) {
+bind_texture_1d :: inline proc(texture: TextureId, loc := #caller_location) {
 	odingl.BindTexture(odingl.TEXTURE_1D, cast(u32)texture);
 	log_errors(#procedure, loc);
 }
 
-bind_texture2d :: inline proc(texture: TextureId, loc := #caller_location) {
+bind_texture_2d :: inline proc(texture: TextureId, loc := #caller_location) {
 	odingl.BindTexture(odingl.TEXTURE_2D, cast(u32)texture);
+	log_errors(#procedure, loc);
+}
+
+bind_texture_3d :: inline proc(texture: TextureId, loc := #caller_location) {
+	odingl.BindTexture(odingl.TEXTURE_3D, cast(u32)texture);
 	log_errors(#procedure, loc);
 }
 
@@ -346,17 +371,29 @@ delete_rbo :: proc(_rbo: RBO, loc := #caller_location) {
 	log_errors(#procedure, loc);
 }
 
-tex_image2d :: proc(target: Texture_Target,
-					lod: i32,
-					internal_format: Internal_Color_Format,
-					width: i32, height: i32,
-					border: i32,
-					format: Pixel_Data_Format,
-					type: Texture2D_Data_Type,
-					data: rawptr,
-					loc := #caller_location) {
+tex_image_2d :: proc(lod: i32,
+					 internal_format: Internal_Color_Format,
+					 width: i32, height: i32,
+					 border: i32,
+					 format: Pixel_Data_Format,
+					 type: Texture2D_Data_Type,
+					 data: rawptr,
+					 loc := #caller_location) {
 
-    odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
+    odingl.TexImage2D(cast(u32)Texture_Target.Texture2D, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
+	log_errors(#procedure, loc);
+}
+
+tex_image_3d :: proc(lod: i32,
+					 internal_format: Internal_Color_Format,
+					 width, height, depth: i32,
+					 border: i32,
+					 format: Pixel_Data_Format,
+					 type: Texture2D_Data_Type,
+					 data: rawptr,
+					 loc := #caller_location) {
+
+    odingl.TexImage3D(cast(u32)Texture_Target.Texture3D, lod, cast(i32)internal_format, width, height, depth, border, cast(u32)format, cast(u32)type, data);
 	log_errors(#procedure, loc);
 }
 
