@@ -102,12 +102,14 @@ render_workspace :: proc(workspace: Workspace) {
 
 	camera_render(&wb_camera, workspace.render);
 
+	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
+
 	// do gamma correction and draw to screen!
 	shader_gamma := get_shader(&wb_catalog, "gamma");
 	gpu.use_program(shader_gamma);
 	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
-	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+	draw_texture_2d(wb_camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 	imgui_render(true);
 }

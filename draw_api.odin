@@ -231,11 +231,10 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := current_camera;
 	current_camera = camera;
 
+	push_framebuffer_non_deferred(camera.framebuffer);
+
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(.Src_Alpha, .One_Minus_Src_Alpha);
-	gpu.viewport(0, 0, cast(int)camera.pixel_width, cast(int)camera.pixel_height);
-
-	push_framebuffer_non_deferred(camera.framebuffer);
 
 	gpu.set_clear_color(camera.clear_color);
 	gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
@@ -418,7 +417,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				PUSH_CAMERA(sun_cascade_camera);
 				// gpu.cull_face(.Front);
 
-				depth_shader := get_shader(&wb_catalog, "depth");
+				depth_shader := get_shader(&wb_catalog, "shadow");
 				gpu.use_program(depth_shader);
 
 				rendermode_world();
@@ -507,11 +506,11 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
 				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 				if first {
-					draw_texture(camera.framebuffer.textures[1], {0, 0}, {platform.current_window_width, platform.current_window_height});
+					draw_texture_2d(camera.framebuffer.textures[1], {0, 0}, {1, 1});
 				}
 				else {
 					bloom_fbo := bloom_data.pingpong_fbos[cast(int)(!horizontal)];
-					draw_texture(bloom_fbo.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+					draw_texture_2d(bloom_fbo.textures[0], {0, 0}, {1, 1});
 					last_bloom_fbo = bloom_fbo;
 				}
 				horizontal = !horizontal;
@@ -524,18 +523,21 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
 				gpu.active_texture1();
 				gpu.bind_texture2d(last_bloom_fbo.textures[0].gpu_id);
-				draw_texture(camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
+				draw_texture_2d(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 				if render_settings.visualize_bloom_texture {
-					gpu.use_program(get_shader(&wb_catalog, "default"));
-					draw_texture(last_bloom_fbo.textures[0], {256, 0}, {512, 256});
+					gpu.use_program(get_shader(&wb_catalog, "default_2d"));
+					draw_texture_2d(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
 				}
 			}
 		}
 
+		// todo(josh): should this be before bloom?
 		im_flush();
+
 		debug_geo_flush();
 
+		// todo(josh): should this be before bloom?
 		if post_render_proc != nil {
 			post_render_proc();
 		}
@@ -548,7 +550,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader(&wb_catalog, "depth"));
 				for map_idx in 0..<NUM_SHADOW_MAPS {
-					draw_texture(camera.sun_cascade_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0}, {256 * (cast(f32)map_idx+1), 256});
+					draw_texture_2d(camera.sun_cascade_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
 				}
 			}
 		}
@@ -625,13 +627,37 @@ delete_texture :: proc(texture: Texture) {
 	gpu.delete_texture(texture.gpu_id);
 }
 
-draw_texture :: proc(texture: Texture, pixel1: Vec2, pixel2: Vec2, color := Colorf{1, 1, 1, 1}) {
-	old := current_camera.current_rendermode;
-	defer current_camera.current_rendermode = old;
-	rendermode_pixel();
-	center := to_vec3(pixel1 + ((pixel2 - pixel1) / 2));
-	size   := to_vec3(pixel2 - pixel1);
-	draw_model(wb_quad_model, center, size, {0, 0, 0, 1}, texture, {1, 1, 1, 1}, false);
+draw_texture_2d :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf{1, 1, 1, 1}) {
+	viewport0 := to_vec3(unit_to_viewport(to_vec3(unit0)));
+	viewport1 := to_vec3(unit_to_viewport(to_vec3(unit1)));
+
+	center := lerp(viewport0, viewport1, f32(0.5));
+	size   := viewport1 - viewport0;
+
+	quad_mesh := wb_quad_model.meshes[0];
+
+	was_depth_test_enabled := gpu.is_enabled(.Depth_Test);
+	defer if was_depth_test_enabled do gpu.enable(.Depth_Test);
+	gpu.disable(.Depth_Test);
+	gpu.bind_vao(quad_mesh.vao);
+	gpu.bind_vbo(quad_mesh.vbo);
+	gpu.bind_ibo(quad_mesh.ibo);
+	gpu.active_texture0();
+	gpu.bind_texture2d(texture.gpu_id); // todo(josh): handle multiple textures per model
+
+	// shader stuff
+	program := gpu.get_current_shader();
+
+	gpu.uniform_int (program, "texture_handle", 0);
+	gpu.uniform_int (program, "has_texture", 1);
+	gpu.uniform_vec3(program, "position", center);
+	gpu.uniform_vec3(program, "scale", size);
+	gpu.uniform_float(program, "time", time);
+	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
+
+	// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
+	gpu.set_vertex_format(quad_mesh.vertex_type);
+	gpu.draw_elephants(.Triangles, quad_mesh.index_count, .Unsigned_Int, nil);
 }
 
 write_texture_to_file :: proc(filepath: string, texture: Texture) {
@@ -675,8 +701,8 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 		gpu.tex_image2d(.Texture2D, 0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
 		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
-		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Repeat);
-		gpu.tex_parameteri(.Texture2D, .Wrap_T, .Repeat);
+		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
+		gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
 
 		attachment := cast(gpu.Framebuffer_Attachment)(cast(u32)gpu.Framebuffer_Attachment.Color0 + cast(u32)buf_idx);
 		gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, texture);
@@ -759,12 +785,15 @@ push_framebuffer_non_deferred :: proc(framebuffer: Framebuffer) -> Framebuffer {
 	old := current_framebuffer;
 	gpu.bind_fbo(framebuffer.fbo); // note(josh): can be 0
 	current_framebuffer = framebuffer;
+	gpu.viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
+
 	return old;
 }
 
 pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 	gpu.bind_fbo(old_framebuffer.fbo); // note(josh): can be 0
 	current_framebuffer = old_framebuffer;
+	gpu.viewport(0, 0, cast(int)old_framebuffer.width, cast(int)old_framebuffer.height);
 }
 
 // todo(josh): maybe shouldn't use strings for mesh names, not sure
@@ -863,6 +892,8 @@ draw_model :: proc(model: Model,
 	gpu.uniform_mat4(program, "view_matrix",       &view_matrix);
 	gpu.uniform_mat4(program, "projection_matrix", &projection_matrix);
 
+	gpu.uniform_float(program, "time", time);
+
 	if depth_test {
 		gpu.enable(.Depth_Test);
 	}
@@ -933,70 +964,6 @@ rendermode_pixel :: proc() {
 //
 // Helpers
 //
-
-create_cube_model :: proc() -> Model {
-	indices := []u32 {
-		 0,  2,  1,  0,  3,  2,
-		 4,  5,  6,  4,  6,  7,
-		 8, 10,  9,  8, 11, 10,
-		12, 13, 14, 12, 14, 15,
-		16, 17, 18, 16, 18, 19,
-		20, 22, 21, 20, 23, 22,
-	};
-
-    verts := []Vertex3D {
-    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
-    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
-    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
-    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0, -1}, {}, {}},
-
-    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
-    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
-    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
-    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  0,  1}, {}, {}},
-
-    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
-    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
-    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
-    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{-1,  0,  0}, {}, {}},
-
-    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
-    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
-    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
-    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 1,  0,  0}, {}, {}},
-
-    	{{-0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
-    	{{ 0.5, -0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
-    	{{ 0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
-    	{{-0.5, -0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0, -1,  0}, {}, {}},
-
-    	{{-0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
-    	{{ 0.5,  0.5, -0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
-    	{{ 0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
-    	{{-0.5,  0.5,  0.5}, {}, Colorf{1, 1, 1, 1}, Vec3{ 0,  1,  0}, {}, {}},
-    };
-
-    model: Model;
-    add_mesh_to_model(&model, verts, indices, {});
-    return model;
-}
-
-create_quad_model :: proc() -> Model {
-    verts := []Vertex3D {
-        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-    };
-
-    indices := []u32 {
-    	0, 2, 1, 0, 3, 2
-    };
-
-    model: Model;
-    add_mesh_to_model(&model, verts, indices, {});
-    return model;
-}
 
 get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
 	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});

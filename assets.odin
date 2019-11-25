@@ -274,7 +274,7 @@ get_shader :: inline proc(catalog: ^Asset_Catalog, name: string) -> gpu.Shader_P
 	if ok {
 		return shader;
 	}
-	logln("Error: Couldn't find shader ", name);
+	// logln("Error: Couldn't find shader ", name);
 	return wb_catalog.shaders["error"];
 }
 
