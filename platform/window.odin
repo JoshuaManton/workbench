@@ -23,6 +23,7 @@ window_is_focused := true;
 current_window_width:  f32;
 current_window_height: f32;
 current_aspect_ratio:  f32;
+current_window_size: Vec2;
 
 mouse_scroll: f32;
 mouse_screen_position:       Vec2;
@@ -109,6 +110,7 @@ update_platform :: proc() {
 	current_window_width   = _new_window_width;
 	current_window_height  = _new_window_height;
 	current_aspect_ratio   = _new_aspect_ratio;
+	current_window_size    = Vec2{current_window_width, current_window_height};
 	mouse_scroll          = _new_mouse_scroll;
 	_new_mouse_scroll     = 0;
 	mouse_screen_position_delta = _new_mouse_screen_position - mouse_screen_position;
