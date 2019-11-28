@@ -20,6 +20,7 @@ selection_color := Colorf{1,1,0.1,1};
 operation : Operation;
 
 size: f32 = 0;
+direction_to_camera: Vec3;
 is_hovering:= [3]bool{};
 is_active := false;
 hovering := -1;
@@ -31,7 +32,7 @@ should_reset := true;
 manipulation_mode: Manipulation_Mode;
 gizmo_mesh : Model;
 
-rad : f32 = 0.05;
+rad : f32 = 0.03;
 
 init_gizmo :: proc() {
     add_mesh_to_model(&gizmo_mesh, []Vertex3D{}, []u32{}, {}, {});
@@ -57,15 +58,25 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
     camera_pos := wb_camera.position;
     origin := position^;
 
-    size = length(origin - camera_pos) * 0.15;
+    dir := origin - camera_pos;
+    direction_to_camera = norm(dir);
+
+    plane_dist := dot(-direction_to_camera, (camera_pos - origin)) * -1;
+    translation_vec := -direction_to_camera * plane_dist;
+    plane_point := origin + translation_vec;
+
+    size = magnitude(plane_point - camera_pos) * 0.05;
+
     is_hovering[0] = false;
     is_hovering[1] = false;
     is_hovering[2] = false;
 
-    if platform.get_input_down(.Q) do if manipulation_mode == .World do manipulation_mode = .Local else do manipulation_mode = .World;
-    if platform.get_input_down(.W) do operation = .Translate;
-    if platform.get_input_down(.E) do operation = .Rotate;
-    if platform.get_input_down(.R) do operation = .Scale;
+    if !platform.get_input(.Mouse_Button_2) {
+        if platform.get_input_down(.Q) do if manipulation_mode == .World do manipulation_mode = .Local else do manipulation_mode = .World;
+        if platform.get_input_down(.W) do operation = .Translate;
+        if platform.get_input_down(.E) do operation = .Rotate;
+        if platform.get_input_down(.R) do operation = .Scale;
+    }
 
 
 
@@ -365,6 +376,111 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
             break;
         }
         case Operation.Rotate: {
+
+            hoop_segments :: 50;
+            tube_segments :: 25;
+            hoop_radius :f32= 1.25;
+            tube_radius :f32= 0.02;
+
+            for direction := 2; direction >= 0;  direction -= 1 {
+
+                dir_x := direction_unary[(direction+1) % 3] * size;
+                dir_y := direction_unary[(direction+2) % 3] * size;
+                dir_z := direction_unary[ direction       ] * size;
+
+                color := direction_color[direction];
+
+                verts: [hoop_segments * tube_segments * 6]Vertex3D;
+                vi := 0;
+
+                start : f32 = 0;
+                end : f32 = hoop_segments / 2;
+
+                start_angle := f32(atan2(f64(direction_to_camera[(4-direction) % 3]), f64(direction_to_camera[(3-direction) % 3])) + PI * 0.5);
+
+                for i : f32 = start; i < end; i+=1 {
+                    angle_a1 := start_angle + TAU * (i-1) / hoop_segments;
+                    x0 := sin(angle_a1) * hoop_radius;
+                    z0 := cos(angle_a1) * hoop_radius;
+
+                    angle_a2 := start_angle + TAU * i / hoop_segments;
+                    x1 := sin(angle_a2) * hoop_radius;
+                    z1 := cos(angle_a2) * hoop_radius;
+
+                    for j : f32 = 0; j < tube_segments; j += 1 {
+                        angle_b1 := TAU * ((j-1) / tube_segments);
+                        xb0 := cos(angle_b1) * tube_radius;
+                        yb0 := sin(angle_b1) * tube_radius;
+
+                        angle_b2 := TAU * (j / tube_segments);
+                        xb1 := cos(angle_b2) * tube_radius;
+                        yb1 := sin(angle_b2) * tube_radius;
+
+                        make_unary_point :: proc(input: Vec3, dir_x, dir_y, dir_z: Vec3) -> Vec3 {
+                            pt := dir_x * input.x;
+                            pt += dir_y * input.y;
+                            pt += dir_z * input.z;
+                            return pt;
+                        }
+
+                        // triangle 1
+                        pt1 := make_unary_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a1),
+                            (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a1),
+                            tube_radius * sin(angle_b1)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt2 := make_unary_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a1),
+                            (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a1),
+                            tube_radius * sin(angle_b2)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt3 := make_unary_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a2),
+                            (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a2),
+                            tube_radius * sin(angle_b1)
+                        }, dir_x, dir_y, dir_z);
+
+                        // triangle 2
+                        pt4 := make_unary_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a2),
+                            (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a2),
+                            tube_radius * sin(angle_b2)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt5 := make_unary_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a2),
+                            (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a2),
+                            tube_radius * sin(angle_b1)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt6 := make_unary_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a1),
+                            (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a1),
+                            tube_radius * sin(angle_b2)
+                        }, dir_x, dir_y, dir_z);
+
+                        verts[vi] = Vertex3D { pt1, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt2, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt3, {}, color, {}, {}, {} };
+                        vi += 1;
+
+                        verts[vi] = Vertex3D { pt4, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt5, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt6, {}, color, {}, {}, {} };
+                        vi += 1;
+                    }
+                }
+
+                update_mesh(&gizmo_mesh, 0, verts[:], []u32{});
+                draw_model(gizmo_mesh, position, {1,1,1}, Quat{0, 0, 0, 1}, {}, color, false);
+            }
+
             break;
         }
         case Operation.Scale: {
