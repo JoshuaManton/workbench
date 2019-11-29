@@ -237,6 +237,23 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
             break;
         }
         case Operation.Rotate: {
+            mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
+            mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
+
+            for i in 0..2 {
+                dir_x := direction_unary[(i+1) % 3];
+                dir_y := direction_unary[(i+2) % 3];
+                //dir_z := direction_unary[ i       ];
+
+                dir_norm := norm(dir_x, dir_y);
+                dt := dot(dir_norm, dir_x);
+                dir := dir_x;
+                if dt < 0.1 do dir = dir_y;
+                v1 := norm(cross(dir, dir_norm));
+                v2 := norm(cross(v1, dir_norm));
+
+            }
+
             break;
         }
         case Operation.Scale: {
@@ -377,18 +394,19 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
         }
         case Operation.Rotate: {
 
-            hoop_segments :: 50;
-            tube_segments :: 25;
+            hoop_segments :: 52;
+            tube_segments :: 10;
             hoop_radius :f32= 1.25;
             tube_radius :f32= 0.02;
 
-            for direction := 2; direction >= 0;  direction -= 1 {
+            for direction := 2; direction >= -1;  direction -= 1 {
 
-                dir_x := direction_unary[(direction+1) % 3] * size;
-                dir_y := direction_unary[(direction+2) % 3] * size;
-                dir_z := direction_unary[ direction       ] * size;
-
-                color := direction_color[direction];
+                d := direction;
+                if direction == -1 do d = 2;
+                dir_x := direction_unary[(d+1) % 3] * size;
+                dir_y := direction_unary[(d+2) % 3] * size;
+                dir_z := direction_unary[ d       ] * size;
+                color := direction_color[d];
 
                 verts: [hoop_segments * tube_segments * 6]Vertex3D;
                 vi := 0;
@@ -396,7 +414,25 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
                 start : f32 = 0;
                 end : f32 = hoop_segments / 2;
 
-                start_angle := f32(atan2(f64(direction_to_camera[(4-direction) % 3]), f64(direction_to_camera[(3-direction) % 3])) + PI * 0.5);
+                start_angle :f32= 0;
+                if direction == 0 do start_angle = -PI / 5;
+                if direction == 1 do start_angle = -PI / 5;
+                if direction == 2 do start_angle = -PI / 2.4 + PI / 5;
+                if direction == -1 {
+                    end = hoop_segments;
+                    tube_radius = tube_radius / 2;
+                    color = Colorf{1, 1, 1, 1};
+                }
+
+                qmat := look_at(position, wb_camera.position, Vec3{0,1,0});
+                rotation := mat4_to_quat(qmat);
+
+                offset_rot : f32 = -PI/4;
+                if direction == -1 do offset_rot = 0;
+                rotation = mul(axis_angle(cross(direction_to_camera, Vec3{0,1,0}), offset_rot), rotation);
+
+                if direction != -1 do
+                    rotation = mul(rotation, axis_angle(Vec3{0, 1, 0}, -PI / 4));
 
                 for i : f32 = start; i < end; i+=1 {
                     angle_a1 := start_angle + TAU * (i-1) / hoop_segments;
@@ -478,7 +514,7 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
                 }
 
                 update_mesh(&gizmo_mesh, 0, verts[:], []u32{});
-                draw_model(gizmo_mesh, position, {1,1,1}, Quat{0, 0, 0, 1}, {}, color, false);
+                draw_model(gizmo_mesh, position, {1,1,1}, rotation, {}, color, false);
             }
 
             break;
@@ -487,6 +523,23 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
             break;
         }
     }
+}
+
+quat_look_at :: proc(source, dest : Vec3) -> Quat {
+    forward := norm(dest - source);
+    dot := dot(Vec3{0,0,1}, forward);
+
+    if abs(dot + 1) < 0.000001 {
+        return Quat{0, 1, 0, PI};
+    }
+    if abs(dot - 1) < 0.000001 {
+        return Quat{0,0,0,1};
+    }
+
+    rot_angle := acos(dot);
+    rot_axis := cross(Vec3{0,0,1}, forward);
+    rot_axis = norm(rot_axis);
+    return axis_angle(rot_axis, rot_angle);
 }
 
 Manipulation_Mode :: enum {

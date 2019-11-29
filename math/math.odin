@@ -1053,3 +1053,12 @@ quat_to_mat4 :: proc(q: Quat) -> Mat4 {
 	m[2][2] = 1 - 2*(xx + yy);
 	return m;
 }
+
+mat4_to_quat :: proc(m: Mat4) -> Quat {
+	w := sqrt(1 + m[0][0] + m[1][1] + m[2][2]) / 2;
+	w4 := w * 4;
+	x := (m[2][1] - m[1][2]) / w4;
+	y := (m[0][2] - m[2][0]) / w4;
+	z := (m[1][0] - m[0][1]) / w4;
+	return Quat{x,y,z,w};
+}
