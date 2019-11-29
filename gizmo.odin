@@ -240,18 +240,42 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
             mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
             mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
 
+            closest_index := -1;
+            closest_pos : = Vec3{};
+            inside := false;
             for i in 0..2 {
                 dir_x := direction_unary[(i+1) % 3];
                 dir_y := direction_unary[(i+2) % 3];
                 //dir_z := direction_unary[ i       ];
 
-                dir_norm := norm(dir_x, dir_y);
+                dir_norm := norm(dir_x + dir_y);
                 dt := dot(dir_norm, dir_x);
                 dir := dir_x;
                 if dt < 0.1 do dir = dir_y;
                 v1 := norm(cross(dir, dir_norm));
                 v2 := norm(cross(v1, dir_norm));
 
+                plane_norm := dir_norm;
+
+                diff := mouse_world - position^;
+                prod := dot(diff, plane_norm);
+                prod2 := dot(mouse_direction, plane_norm);
+                prod3 := prod / prod2;
+                q_i := mouse_world - mouse_direction * prod3;
+
+                if closest_index == -1 || distance(closest_pos, wb_camera.position) < distance(q_i, wb_camera.position) {
+                    closest_index = i;
+                    closest_pos = q_i;
+
+                    pos := position^;
+                    inside = sqrt( pow(pos.x - q_i.x, 2) + pow(pos.y - q_i.y, 2) ) < 1;
+                }
+            }
+
+            if inside {
+                draw_debug_box(closest_pos, Vec3{0.1, 0.1, 0.1}, direction_color[closest_index]);
+                is_hovering[closest_index] = true;
+                hovering = closest_index;
             }
 
             break;
