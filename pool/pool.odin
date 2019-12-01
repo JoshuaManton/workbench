@@ -4,6 +4,8 @@ using import "core:fmt"
 
 using import "../math"
 
+// todo(josh): I don't even know if this works anymore, but make it use the new iterator feature in odin
+
 Pool :: struct(T: typeid, POOL_BATCH_SIZE: int) {
 	batches: [dynamic]Pool_Batch(T, POOL_BATCH_SIZE),
 }

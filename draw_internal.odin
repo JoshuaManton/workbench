@@ -103,7 +103,7 @@ render_workspace :: proc(workspace: Workspace) {
 
 	camera_render(&wb_camera, workspace.render);
 
-	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
+	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height); // note(josh): this is only needed because pop_framebuffer can't reset the value for viewport() if we are popping to an empty framebuffer (the screen camera)
 
 	// do gamma correction and draw to screen!
 	shader_gamma := get_shader(&wb_catalog, "gamma");
