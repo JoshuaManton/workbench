@@ -96,26 +96,38 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		case "png": {
 			defer delete(data);
 			texture := create_texture_from_png_data(data);
-			if name in catalog.textures do delete_texture(catalog.textures[name]);
+			if name in catalog.textures {
+				logln("New texture with name '", name, "'. Deleting old one.");
+				delete_texture(catalog.textures[name]);
+			}
 			catalog.textures[name] = texture;
 		}
 		case "ttf": {
 			defer delete(data);
 			font := load_font(data, 32); // todo(josh): multiple sizes for fonts? probably would be good
-			if name in catalog.textures do delete_texture(catalog.textures[name]);
+			if name in catalog.textures {
+				logln("New font with name '", name, "'. Deleting old one.");
+				delete_texture(catalog.textures[name]);
+			}
 			catalog.fonts[name] = font;
 		}
 		case "fbx": {
 			defer delete(data);
 			model := load_model_from_memory(data);
-			if name in catalog.models do delete_model(catalog.models[name]);
+			if name in catalog.models {
+				logln("New model with name '", name, "'. Deleting old one.");
+				delete_model(catalog.models[name]);
+			}
 			catalog.models[name] = model;
 		}
 		case "shader": {
 			defer delete(data);
 
-			// todo(josh): figure out why deleting shaders was causing errors
-			// if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
+			if name in catalog.shaders {
+				logln("New shader with name '", name, "'. Deleting old one.");
+				// todo(josh): figure out why deleting shaders was causing errors
+				// gpu.delete_shader(catalog.shaders[name]);
+			}
 
 			shader, ok := parse_shader(catalog, cast(string)data, root_directory);
 			if !ok {
@@ -129,8 +141,11 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		case "compute": {
 			defer delete(data);
 
-			// todo(josh): figure out why deleting shaders was causing errors
-			// if name in catalog.shaders do gpu.delete_shader(catalog.shaders[name]);
+			if name in catalog.shaders {
+				logln("New compute compute shader with name '", name, "'. Deleting old one.");
+				// todo(josh): figure out why deleting shaders was causing errors
+				// gpu.delete_shader(catalog.shaders[name]);
+			}
 
 			shader, ok := gpu.load_shader_compute(cast(string)data);
 			if !ok {
@@ -143,7 +158,10 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		}
 		case: {
 			if array_contains(catalog.text_file_types, ext) {
-				if name in catalog.text_files do delete(catalog.text_files[name]);
+				if name in catalog.text_files {
+					logln("New text file with name '", name, "'. Deleting old one.");
+					delete(catalog.text_files[name]);
+				}
 				catalog.text_files[name_and_ext] = cast(string)data;
 			}
 		}
@@ -210,8 +228,9 @@ parse_shader :: proc(catalog: ^Asset_Catalog, text: string, root_folder: string)
 			current_builder = &fragment_builder;
 		}
 		else {
-			assert(current_builder != nil);
-			sbprint(current_builder, line, "\n");
+			if current_builder != nil {
+				sbprint(current_builder, line, "\n");
+			}
 		}
 	}
 
