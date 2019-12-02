@@ -4,6 +4,7 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
 
 using import "core:runtime"
       import "core:fmt"
+      import "core:strings"
       import "core:mem"
       import "core:os"
 
@@ -505,13 +506,13 @@ c_string :: proc(fmt_: string, args: ..any) -> ^byte {
 
 
 get_uniform_location :: inline proc(program: Shader_Program, str: string, loc := #caller_location) -> Location {
-	uniform_loc := odingl.GetUniformLocation(cast(u32)program, &str[0]);
+	uniform_loc := odingl.GetUniformLocation(cast(u32)program, cast(^u8)strings.unsafe_string_to_cstring(str));
 	log_errors(#procedure, loc);
 	return cast(Location)uniform_loc;
 }
 
 get_attrib_location :: inline proc(program: Shader_Program, str: string, loc := #caller_location) -> Location {
-	attrib_loc := odingl.GetAttribLocation(cast(u32)program, &str[0]);
+	attrib_loc := odingl.GetAttribLocation(cast(u32)program, cast(^u8)strings.unsafe_string_to_cstring(str));
 	log_errors(#procedure, loc);
 	return cast(Location)attrib_loc;
 }

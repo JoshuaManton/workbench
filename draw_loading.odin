@@ -119,7 +119,7 @@ load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> Model {
 		// cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
 		cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
 		// cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
-		cast(u32) ai.Post_Process_Steps.Flip_UVs, &hint[0]);
+		cast(u32) ai.Post_Process_Steps.Flip_UVs, cast(^u8)strings.unsafe_string_to_cstring(hint));
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
