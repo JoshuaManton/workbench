@@ -147,7 +147,7 @@ save_scene :: proc() {
         }
 
         assert(data.serialized_file_on_disk != "");
-        os.write_entire_file(data.serialized_file_on_disk, cast([]u8)strings.to_string(sb));
+        os.write_entire_file(data.serialized_file_on_disk, transmute([]u8)fmt.tprint(sb));
     }
 }
 

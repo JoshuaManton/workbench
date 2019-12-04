@@ -113,7 +113,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		}
 		case "fbx": {
 			defer delete(data);
-			model := load_model_from_memory(data);
+			model := load_model_from_memory(data, name);
 			if name in catalog.models {
 				logln("New model with name '", name, "'. Deleting old one.");
 				delete_model(catalog.models[name]);
