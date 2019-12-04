@@ -2,7 +2,7 @@ package gpu
 
 when !#defined(GPU_BACKEND) {
 	GPU_BACKEND :: "OPENGL";
-	OPENGL_VERSION_MAJOR :: 3;
+	OPENGL_VERSION_MAJOR :: 4;
 	OPENGL_VERSION_MINOR :: 3;
 }
 

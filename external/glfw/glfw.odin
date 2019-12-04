@@ -201,7 +201,7 @@ GetMonitorName :: proc(monitor: Monitor_Handle) -> string {
 }
 
 CreateWindow :: inline proc(width, height: i32, title: string, monitor: Monitor_Handle, share: Window_Handle) -> Window_Handle {
-    return glfwCreateWindow(width, height, cstring(&title[0]), monitor, share);
+    return glfwCreateWindow(width, height, strings.unsafe_string_to_cstring(title), monitor, share);
 }
 
 GetClipboardString :: proc(window: Window_Handle) -> string {
@@ -260,7 +260,7 @@ SetWindowTitle :: proc(window: Window_Handle, fmt_string: string, args: ..any) {
     }
     buf: [1024]u8;
     title := fmt.bprintf(buf[:], fmt_string, ..args);
-    glfwSetWindowTitle(window, cstring(&title[0]));
+    glfwSetWindowTitle(window, strings.unsafe_string_to_cstring(title));
 }
 
 GetWindowPos :: proc(window: Window_Handle) -> (xpos, ypos: i32) {

@@ -88,6 +88,7 @@ update_draw :: proc() {
 
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
+on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
 	check_for_file_updates(&wb_catalog);
@@ -102,14 +103,14 @@ render_workspace :: proc(workspace: Workspace) {
 
 	camera_render(&wb_camera, workspace.render);
 
-	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height);
+	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height); // note(josh): this is only needed because pop_framebuffer can't reset the value for viewport() if we are popping to an empty framebuffer (the screen camera)
 
 	// do gamma correction and draw to screen!
 	shader_gamma := get_shader(&wb_catalog, "gamma");
 	gpu.use_program(shader_gamma);
 	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
-	draw_texture_2d(wb_camera.framebuffer.textures[0], {0, 0}, {1, 1});
+	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 	imgui_render(true);
 }

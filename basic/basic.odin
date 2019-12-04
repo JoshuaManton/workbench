@@ -259,7 +259,7 @@ string_starts_with :: proc(str: string, start: string) -> bool {
 
 // note(josh): returned string is tprint'ed, save manually on user-side if persistence is needed
 string_to_lower :: proc(str: string) -> string {
-	lower := fmt.tprint(str);
+	lower := transmute([]u8)fmt.tprint(str);
 	for r, i in lower {
 		switch r {
 			case 'A'..'Z': {
@@ -267,7 +267,7 @@ string_to_lower :: proc(str: string) -> string {
 			}
 		}
 	}
-	return lower;
+	return transmute(string)lower;
 }
 
 string_ends_with :: proc(str: string, end: string) -> bool {

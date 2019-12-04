@@ -38,8 +38,6 @@ whole_frame_time_ra: Rolling_Average(f32, 100);
 
 do_log_frame_boundaries := false;
 
-debug_console := console.new_console();
-
 wb_profiler: pf.Profiler;
 
 frame_count: u64;
@@ -61,9 +59,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	startup_start_time := glfw.GetTime();
 
-	wb_profiler = pf.make_profiler(proc() -> f64 {
-		return glfw.GetTime();
-	});
+	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
 	defer pf.destroy_profiler(&wb_profiler);
 
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
@@ -101,6 +97,11 @@ make_simple_window :: proc(window_width, window_height: int,
 		lossy_delta_time = frame_start_time - last_frame_start_time;
 		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
+
+		if acc > 0.1 { // note(josh): stop spiral of death ensuring a minimum render framerate
+			acc = 0.1;
+		}
+
 
 		check_for_file_updates(&wb_catalog);
 

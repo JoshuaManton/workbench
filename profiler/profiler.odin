@@ -101,7 +101,7 @@ TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) 
 		h = loc.hash;
 	}
 	else {
-		h = hash.fnv64(cast([]byte)name);
+		h = hash.fnv64(transmute([]byte)name);
 	}
 
 	if h notin profiler.all_sections {

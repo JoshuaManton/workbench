@@ -22,10 +22,10 @@ import "core:sys/win32";
 
 odin_to_wchar_string :: proc(str : string) -> win32.Wstring {
     olen := i32(len(str) * size_of(byte));
-    wlen := win32.multi_byte_to_wide_char(win32.CP_UTF8, 0, cstring(&str[0]), olen, nil, 0);
+    wlen := win32.multi_byte_to_wide_char(win32.CP_UTF8, 0, strings.unsafe_string_to_cstring(str), olen, nil, 0);
     buf := make([]u16, int(wlen * size_of(u16) + 1));
     ptr := win32.Wstring(&buf[0]);
-    win32.multi_byte_to_wide_char(win32.CP_UTF8, 0, cstring(&str[0]), olen, ptr, wlen);
+    win32.multi_byte_to_wide_char(win32.CP_UTF8, 0, strings.unsafe_string_to_cstring(str), olen, ptr, wlen);
 
     return ptr;
 }

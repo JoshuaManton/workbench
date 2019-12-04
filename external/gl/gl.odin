@@ -1,15 +1,11 @@
 package gl
 
-loaded_up_to: string;
 loaded_up_to_major := 0;
 loaded_up_to_minor := 0;
 
 Set_Proc_Address_Type :: #type proc(p: rawptr, name: cstring);
 
 load_up_to :: proc(major, minor : int, set_proc_address: Set_Proc_Address_Type) {
-    loaded_up_to = "0.0";
-    loaded_up_to[0] = '0' + u8(major);
-    loaded_up_to[2] = '0' + u8(minor);
     loaded_up_to_major = major;
     loaded_up_to_minor = minor;
 
@@ -1620,7 +1616,8 @@ check_error :: proc(id: u32, type_: Shader_Type, status: u32,
 compile_shader_from_source :: proc(shader_data: string, shader_type: Shader_Type) -> (u32, bool) {
     shader_id := CreateShader(cast(u32)shader_type);
     length := i32(len(shader_data));
-    ShaderSource(shader_id, 1, (^^u8)(&shader_data[0]), &length);
+    src := cast(^u8)strings.unsafe_string_to_cstring(shader_data);
+    ShaderSource(shader_id, 1, &src, &length);
     CompileShader(shader_id);
 
     if check_error(shader_id, shader_type, COMPILE_STATUS, GetShaderiv, GetShaderInfoLog) {
@@ -1892,5 +1889,5 @@ get_uniforms_from_program :: proc(program: u32) -> (uniforms: Uniforms) {
 }
 
 get_uniform_location :: proc(program: u32, name: string) -> i32 {
-    return GetUniformLocation(program, &name[0]);
+    return GetUniformLocation(program, cast(^u8)strings.unsafe_string_to_cstring(name));
 }

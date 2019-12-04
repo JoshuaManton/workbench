@@ -161,6 +161,8 @@ Model_Draw_Info :: struct {
 	rotation: Quat,
 	color: Colorf,
 	animation_state: Model_Animation_State,
+
+	userdata: rawptr,
 }
 
 Bloom_Data :: struct {
@@ -425,6 +427,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				for info in camera.render_queue {
 					using info;
 
+					if on_render_object != nil do on_render_object(userdata);
 					draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 				}
 
@@ -466,7 +469,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 					light_camera := camera.sun_cascade_cameras[map_idx];
 
 					gpu.active_texture(1 + cast(u32)map_idx);
-					gpu.bind_texture2d(light_camera.framebuffer.textures[0].gpu_id);
+					gpu.bind_texture_2d(light_camera.framebuffer.textures[0].gpu_id);
 
 					light_view := construct_view_matrix(light_camera);
 					light_proj := construct_projection_matrix(light_camera);
@@ -485,6 +488,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 
 			// issue draw call
+			if on_render_object != nil do on_render_object(userdata);
 			draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 		}
 
@@ -506,11 +510,11 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
 				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 				if first {
-					draw_texture_2d(camera.framebuffer.textures[1], {0, 0}, {1, 1});
+					draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
 				}
 				else {
 					bloom_fbo := bloom_data.pingpong_fbos[cast(int)(!horizontal)];
-					draw_texture_2d(bloom_fbo.textures[0], {0, 0}, {1, 1});
+					draw_texture(bloom_fbo.textures[0], {0, 0}, {1, 1});
 					last_bloom_fbo = bloom_fbo;
 				}
 				horizontal = !horizontal;
@@ -522,12 +526,12 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				gpu.use_program(shader_bloom);
 				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
 				gpu.active_texture1();
-				gpu.bind_texture2d(last_bloom_fbo.textures[0].gpu_id);
-				draw_texture_2d(camera.framebuffer.textures[0], {0, 0}, {1, 1});
+				gpu.bind_texture_2d(last_bloom_fbo.textures[0].gpu_id);
+				draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 				if render_settings.visualize_bloom_texture {
 					gpu.use_program(get_shader(&wb_catalog, "default_2d"));
-					draw_texture_2d(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
+					draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
 				}
 			}
 		}
@@ -550,7 +554,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader(&wb_catalog, "depth"));
 				for map_idx in 0..<NUM_SHADOW_MAPS {
-					draw_texture_2d(camera.sun_cascade_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
+					draw_texture(camera.sun_cascade_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
 				}
 			}
 		}
@@ -573,8 +577,8 @@ Material :: struct {
 	shine:    f32,
 }
 
-submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State) {
-	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state});
+submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State, userdata : rawptr = {}) {
+	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state, userdata});
 }
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
 	if current_camera.num_point_lights >= MAX_LIGHTS {
@@ -604,30 +608,42 @@ set_sun_data :: proc(rotation: Quat, color: Colorf, intensity: f32) {
 Texture :: struct {
     gpu_id: gpu.TextureId,
 
-    width, height: int,
+    width, height, depth: int,
 
     target: gpu.Texture_Target,
     format: gpu.Pixel_Data_Format,
     element_type: gpu.Texture2D_Data_Type,
 }
 
-create_texture :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
+create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
-	gpu.bind_texture2d(texture);
+	gpu.bind_texture_2d(texture);
 
-	assert(initial_data != nil);
-	gpu.tex_image2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, pixel_format, element_type, initial_data);
+	gpu.tex_image_2d(0, gpu_format, cast(i32)ww, cast(i32)hh, 0, pixel_format, element_type, initial_data);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 
-	return Texture{texture, ww, hh, .Texture2D, pixel_format, element_type};
+	return Texture{texture, ww, hh, 1, .Texture2D, pixel_format, element_type};
+}
+
+create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
+	texture := gpu.gen_texture();
+	gpu.bind_texture_3d(texture);
+	gpu.tex_image_3d(0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, pixel_format, element_type, initial_data);
+	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
+	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
+	gpu.tex_parameteri(.Texture3D, .Wrap_S, .Repeat);
+	gpu.tex_parameteri(.Texture3D, .Wrap_T, .Repeat);
+	gpu.tex_parameteri(.Texture3D, .Wrap_R, .Repeat);
+
+	return Texture{texture, ww, hh, dd, .Texture3D, pixel_format, element_type};
 }
 
 delete_texture :: proc(texture: Texture) {
 	gpu.delete_texture(texture.gpu_id);
 }
 
-draw_texture_2d :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf{1, 1, 1, 1}) {
+draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf{1, 1, 1, 1}) {
 	viewport0 := to_vec3(unit_to_viewport(to_vec3(unit0)));
 	viewport1 := to_vec3(unit_to_viewport(to_vec3(unit1)));
 
@@ -643,7 +659,7 @@ draw_texture_2d :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Col
 	gpu.bind_vbo(quad_mesh.vbo);
 	gpu.bind_ibo(quad_mesh.ibo);
 	gpu.active_texture0();
-	gpu.bind_texture2d(texture.gpu_id); // todo(josh): handle multiple textures per model
+	bind_texture(texture);
 
 	// shader stuff
 	program := gpu.get_current_shader();
@@ -660,11 +676,20 @@ draw_texture_2d :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Col
 	gpu.draw_elephants(.Triangles, quad_mesh.index_count, .Unsigned_Int, nil);
 }
 
+bind_texture :: proc(texture: Texture) {
+	switch texture.target {
+		case .Texture2D: gpu.bind_texture_2d(texture.gpu_id); // todo(josh): handle multiple textures per model
+		case .Texture3D: gpu.bind_texture_3d(texture.gpu_id); // todo(josh): handle multiple textures per model
+		case cast(gpu.Texture_Target)0: { }
+		case: panic(tprint(texture.target));
+	}
+}
+
 write_texture_to_file :: proc(filepath: string, texture: Texture) {
 	assert(texture.target == .Texture2D, "Not sure if this is an error, delete this if it isn't");
 	data := make([]u8, 4 * texture.width * texture.height);
 	defer delete(data);
-	gpu.bind_texture2d(texture.gpu_id);
+	gpu.bind_texture_2d(texture.gpu_id);
 	gpu.get_tex_image(texture.target, .RGBA, .Unsigned_Byte, &data[0]);
 	stb.write_png(filepath, texture.width, texture.height, 4, data, 4 * texture.width);
 	gpu.log_errors(#procedure);
@@ -694,11 +719,11 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 	assert(num_color_buffers <= 32, tprint(num_color_buffers, " is more than ", gpu.Framebuffer_Attachment.Color31));
 	for buf_idx in 0..<num_color_buffers {
 		texture := gpu.gen_texture();
-		append(&textures, Texture{texture, width, height, .Texture2D, .RGBA, .Unsigned_Byte});
-		gpu.bind_texture2d(texture);
+		append(&textures, Texture{texture, width, height, 1, .Texture2D, .RGBA, .Unsigned_Byte});
+		gpu.bind_texture_2d(texture);
 
 		// todo(josh): is 16-bit float enough?
-		gpu.tex_image2d(.Texture2D, 0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+		gpu.tex_image_2d(0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
 		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -723,7 +748,7 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 
 	gpu.assert_framebuffer_complete();
 
-	gpu.bind_texture2d(0);
+	gpu.bind_texture_2d(0);
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
@@ -738,10 +763,10 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	textures: [dynamic]Texture;
 
 	texture := gpu.gen_texture();
-	append(&textures, Texture{texture, width, height, .Texture2D, .Depth_Component, .Float});
-	gpu.bind_texture2d(texture);
+	append(&textures, Texture{texture, width, height, 1, .Texture2D, .Depth_Component, .Float});
+	gpu.bind_texture_2d(texture);
 
-	gpu.tex_image2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
+	gpu.tex_image_2d(0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -758,7 +783,7 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 
 	gpu.assert_framebuffer_complete();
 
-	gpu.bind_texture2d(0);
+	gpu.bind_texture_2d(0);
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
@@ -892,6 +917,9 @@ draw_model :: proc(model: Model,
 	gpu.uniform_mat4(program, "view_matrix",       &view_matrix);
 	gpu.uniform_mat4(program, "projection_matrix", &projection_matrix);
 
+	gpu.uniform_vec3(program, "position", position);
+	gpu.uniform_vec3(program, "scale", scale);
+
 	gpu.uniform_float(program, "time", time);
 
 	if depth_test {
@@ -907,7 +935,14 @@ draw_model :: proc(model: Model,
 		gpu.bind_vbo(mesh.vbo);
 		gpu.bind_ibo(mesh.ibo);
 		gpu.active_texture0();
-		gpu.bind_texture2d(texture.gpu_id); // todo(josh): handle multiple textures per model
+
+		// todo(josh): handle multiple textures per model
+		switch texture.target {
+			case .Texture2D: gpu.bind_texture_2d(texture.gpu_id);
+			case .Texture3D: gpu.bind_texture_3d(texture.gpu_id);
+			case cast(gpu.Texture_Target)0:
+			case: panic(tprint(texture.target));
+		}
 
 		gpu.log_errors(#procedure);
 

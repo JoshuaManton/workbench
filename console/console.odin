@@ -115,7 +115,7 @@ _on_submit :: proc "c"(data : ^imgui.TextEditCallbackData) -> i32 {
 
 			hist := history_index == 0 ? "" :history[history_count - history_index];
 
-			arr := cast([]u8)hist;
+			arr := transmute([]u8)hist;
 
 			slice := mem.slice_ptr(data.buf, cast(int)data.buf_size);
 

@@ -88,7 +88,7 @@ init_dear_imgui :: proc() {
         }`;
 
 	ok: bool;
-    imgui_program, ok = gpu.load_shader_text(vs, fs);
+    imgui_program, ok = gpu.load_shader_vert_frag(vs, fs);
     assert(ok);
 
     imgui_uniform_texture    = gpu.get_uniform_location(imgui_program, "Texture");
@@ -142,7 +142,7 @@ init_dear_imgui :: proc() {
     imgui.font_atlas_get_text_data_as_rgba32(io.fonts, &pixels, &width, &height);
 
     tex := gpu.gen_texture();
-    gpu.bind_texture2d(tex);
+    gpu.bind_texture_2d(tex);
 
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -394,7 +394,7 @@ imgui_render :: proc(render_to_screen : bool) {
 
         for j : i32 = 0; j < imgui.draw_list_get_cmd_size(list); j += 1 {
             cmd := imgui.draw_list_get_cmd_ptr(list, j);
-            gpu.bind_texture2d(gpu.TextureId(uint(uintptr(cmd.texture_id))));
+            gpu.bind_texture_2d(gpu.TextureId(uint(uintptr(cmd.texture_id))));
             gl.Scissor(i32(cmd.clip_rect.x), height - i32(cmd.clip_rect.w), i32(cmd.clip_rect.z - cmd.clip_rect.x), i32(cmd.clip_rect.w - cmd.clip_rect.y));
             gl.DrawElements(gl.TRIANGLES, i32(cmd.elem_count), gl.UNSIGNED_SHORT, idx_buffer_offset);
             //idx_buffer_offset += cmd.elem_count;
