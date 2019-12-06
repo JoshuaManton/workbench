@@ -423,29 +423,33 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		case rt.Type_Info_Dynamic_Array: {
 			array := &node.kind.(Node_Array);
 			size_needed := len(array.elements) * variant.elem_size;
-			memory := make([]byte, size_needed);
-			byte_index: int;
-			for element, idx in array.elements {
-				assert(byte_index + variant.elem_size <= len(memory));
-				write_value(element, &memory[byte_index], variant.elem);
-				byte_index += variant.elem_size;
-			}
+			if size_needed > 0 {
+				memory := make([]byte, size_needed);
+				byte_index: int;
+				for element, idx in array.elements {
+					assert(byte_index + variant.elem_size <= len(memory));
+					write_value(element, &memory[byte_index], variant.elem);
+					byte_index += variant.elem_size;
+				}
 
-			(cast(^mem.Raw_Dynamic_Array)ptr)^ = mem.Raw_Dynamic_Array{&memory[0], len(array.elements), len(array.elements), {}};
+				(cast(^mem.Raw_Dynamic_Array)ptr)^ = mem.Raw_Dynamic_Array{&memory[0], len(array.elements), len(array.elements), {}};
+			}
 		}
 
 		case rt.Type_Info_Slice: {
 			array := &node.kind.(Node_Array);
 			size_needed := len(array.elements) * variant.elem_size;
-			memory := make([]byte, size_needed);
-			byte_index: int;
-			for element, idx in array.elements {
-				assert(byte_index + variant.elem_size <= len(memory));
-				write_value(element, &memory[byte_index], variant.elem);
-				byte_index += variant.elem_size;
-			}
+			if size_needed > 0 {
+				memory := make([]byte, size_needed);
+				byte_index: int;
+				for element, idx in array.elements {
+					assert(byte_index + variant.elem_size <= len(memory));
+					write_value(element, &memory[byte_index], variant.elem);
+					byte_index += variant.elem_size;
+				}
 
-			(cast(^mem.Raw_Slice)ptr)^ = mem.Raw_Slice{&memory[0], len(array.elements)};
+				(cast(^mem.Raw_Slice)ptr)^ = mem.Raw_Slice{&memory[0], len(array.elements)};
+			}
 		}
 
 		case rt.Type_Info_Integer: {
