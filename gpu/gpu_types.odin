@@ -397,3 +397,9 @@ Texture_Parameter_Value :: enum i32 {
 
     Mirrored_Repeat        = odingl.MIRRORED_REPEAT,
 }
+
+Polygon_Mode :: enum i32 {
+    Point = odingl.POINT,
+    Line  = odingl.LINE,
+    Fill  = odingl.FILL,
+}
