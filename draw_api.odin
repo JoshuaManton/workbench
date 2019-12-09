@@ -131,6 +131,7 @@ Camera :: struct {
 
     current_rendermode: Rendermode,
     draw_mode: gpu.Draw_Mode,
+    polygon_mode: gpu.Polygon_Mode,
 
 
     // render data for this frame
@@ -186,6 +187,7 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.position = Vec3{};
     camera.rotation = Quat{0, 0, 0, 1};
     camera.draw_mode = .Triangles;
+    camera.polygon_mode = .Fill;
     camera.clear_color = {1, 0, 1, 1};
     camera.pixel_width = cast(f32)pixel_width;
     camera.pixel_height = cast(f32)pixel_height;
@@ -546,9 +548,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			post_render_proc();
 		}
 
-		// gpu.use_program(get_shader(&wb_catalog, "outline"));
-		// draw_texture(camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
-
 		// visualize depth buffer
 		if render_settings.visualize_shadow_texture {
 			if length(camera.sun_direction) > 0 {
@@ -673,7 +672,7 @@ draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf
 
 	// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
 	gpu.set_vertex_format(quad_mesh.vertex_type);
-	gpu.draw_elephants(.Triangles, quad_mesh.index_count, .Unsigned_Int, nil);
+	gpu.draw_elephants(current_camera.draw_mode, quad_mesh.index_count, .Unsigned_Int, nil);
 }
 
 bind_texture :: proc(texture: Texture) {
@@ -891,6 +890,8 @@ draw_model :: proc(model: Model,
 				   depth_test: bool,
 				   anim_state := Model_Animation_State{},
 				   loc := #caller_location) {
+
+	gpu.polygon_mode(.Front_And_Back, current_camera.polygon_mode);
 
 	// projection matrix
 	projection_matrix := construct_rendermode_matrix(current_camera);

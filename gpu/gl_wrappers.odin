@@ -193,6 +193,13 @@ viewport :: proc(x1, y1, x2, y2: int, loc := #caller_location) {
 
 
 
+polygon_mode :: proc(face: Polygon_Face, mode: Polygon_Mode, loc := #caller_location) {
+	odingl.PolygonMode(cast(u32)face, cast(u32)mode);
+	log_errors(#procedure, loc);
+}
+
+
+
 //
 // Shaders
 //

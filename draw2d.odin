@@ -402,9 +402,9 @@ draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0,
 }
 
 debug_geo_flush :: proc() {
-	old_draw_mode := current_camera.draw_mode;
-	defer current_camera.draw_mode = old_draw_mode;
-	current_camera.draw_mode = .Line_Strip;
+	old_polygon_mode := current_camera.polygon_mode;
+	defer current_camera.polygon_mode = old_polygon_mode;
+	current_camera.polygon_mode = .Line;
 
 	// todo(josh): support all rendermodes
 	rendermode_world();

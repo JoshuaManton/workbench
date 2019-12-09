@@ -31,8 +31,6 @@ debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
 
-debugging_rendering: bool;
-
 render_settings: Render_Settings;
 
 Render_Settings :: struct {
@@ -73,15 +71,8 @@ init_draw :: proc(screen_width, screen_height: int) {
 }
 rendering_debug_program :: proc(_: rawptr) {
 	if imgui.begin("Rendering") {
-		// todo(josh): make this a combo box
-		imgui.checkbox("Debug Rendering", &debugging_rendering);
-		if debugging_rendering {
-			wb_camera.draw_mode = .Lines;
-		}
-		else {
-			wb_camera.draw_mode = .Triangles;
-		}
-
+		imgui_struct(&wb_camera.draw_mode, "Draw Mode");
+		imgui_struct(&wb_camera.polygon_mode, "Polygon Mode");
 		imgui_struct(&render_settings, "Render Settings");
 	}
 	imgui.end();
@@ -121,6 +112,7 @@ render_workspace :: proc(workspace: Workspace) {
 
 	camera_render(&wb_camera, workspace.render);
 
+	gpu.polygon_mode(.Front_And_Back, .Fill);
 	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height); // note(josh): this is only needed because pop_framebuffer can't reset the value for viewport() if we are popping to an empty framebuffer (the screen camera)
 
 	// do gamma correction and draw to screen!
