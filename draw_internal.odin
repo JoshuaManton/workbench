@@ -64,26 +64,44 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	render_settings = Render_Settings{
 		gamma = 2.2,
-		exposure = 1.5,
+		exposure = 1,
 		bloom_threshhold = 5.0,
 	};
+
+	register_debug_program("Rendering", rendering_debug_program, nil);
+	register_debug_program("Scene View", scene_view_debug_program, nil);
+}
+rendering_debug_program :: proc(_: rawptr) {
+	if imgui.begin("Rendering") {
+		// todo(josh): make this a combo box
+		imgui.checkbox("Debug Rendering", &debugging_rendering);
+		if debugging_rendering {
+			wb_camera.draw_mode = .Lines;
+		}
+		else {
+			wb_camera.draw_mode = .Triangles;
+		}
+
+		imgui_struct(&render_settings, "Render Settings");
+	}
+	imgui.end();
+}
+scene_view_debug_program :: proc(_: rawptr) {
+	if imgui.begin("Scene View") {
+	    window_size := imgui.get_window_size();
+
+		imgui.image(rawptr(uintptr(wb_camera.framebuffer.textures[0].gpu_id)),
+			imgui.Vec2{window_size.x - 10, window_size.y - 30},
+			imgui.Vec2{0,1},
+			imgui.Vec2{1,0});
+	}
+	imgui.end();
 }
 
 update_draw :: proc() {
 	clear(&debug_lines);
 	clear(&debug_cubes);
 	clear(&buffered_draw_commands);
-
-	if debug_window_open {
-		if imgui.begin("Scene View") {
-		    window_size := imgui.get_window_size();
-
-			imgui.image(rawptr(uintptr(wb_camera.framebuffer.textures[0].gpu_id)),
-				imgui.Vec2{window_size.x - 10, window_size.y - 30},
-				imgui.Vec2{0,1},
-				imgui.Vec2{1,0});
-		} imgui.end();
-	}
 }
 
 // todo(josh): maybe put this in the Workspace?
@@ -138,20 +156,7 @@ deinit_draw :: proc() {
 
 	delete(debug_lines);
 	delete(debug_cubes);
-}
 
-draw_rendering_debug_window :: proc() {
-	if imgui.begin("Rendering") {
-		// todo(josh): make this a combo box
-		imgui.checkbox("Debug Rendering", &debugging_rendering);
-		if debugging_rendering {
-			wb_camera.draw_mode = .Lines;
-		}
-		else {
-			wb_camera.draw_mode = .Triangles;
-		}
-
-		imgui_struct(&render_settings, "Render Settings");
-	}
-	imgui.end();
+	unregister_debug_program("Rendering");
+	unregister_debug_program("Scene View");
 }

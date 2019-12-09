@@ -43,6 +43,7 @@ wb_profiler: pf.Profiler;
 frame_count: u64;
 time: f32;
 precise_time: f64;
+fixed_delta_time: f32;
 lossy_delta_time: f32;
 precise_lossy_delta_time: f64;
 
@@ -77,10 +78,12 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	init_gizmo();
 
+	init_builtin_debug_programs();
+
 
 
 	acc: f32;
-	dt := cast(f32)1 / target_framerate;
+	fixed_delta_time = cast(f32)1 / target_framerate;
 
 	init_workspace(workspace);
 
@@ -105,9 +108,9 @@ make_simple_window :: proc(window_width, window_height: int,
 
 		check_for_file_updates(&wb_catalog);
 
-		if acc >= dt {
+		if acc >= fixed_delta_time {
 			for {
-				acc -= dt;
+				acc -= fixed_delta_time;
 
 				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
 				if do_log_frame_boundaries {
@@ -119,21 +122,21 @@ make_simple_window :: proc(window_width, window_height: int,
 				frame_count += 1;
 
 				platform.update_platform();
-				imgui_begin_new_frame(dt);
+				imgui_begin_new_frame(fixed_delta_time);
 	    		imgui.push_font(imgui_font_default);
 
 	    		update_draw();
-				update_tween(dt);
+				update_tween(fixed_delta_time);
 				update_ui();
-				update_debug_menu(dt);
+				update_debug_menu(fixed_delta_time);
 
-				update_workspace(workspace, dt); // calls client updates
+				update_workspace(workspace, fixed_delta_time); // calls client updates
 
 				late_update_ui();
 
 	    		imgui.pop_font();
 
-				if acc >= dt {
+				if acc >= fixed_delta_time {
 					imgui_render(false);
 					continue;
 				}
