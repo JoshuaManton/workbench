@@ -12,6 +12,7 @@ using import "../logging"
 //
 // Models and Meshes
 //
+
 Model :: struct {
 	name: string,
     meshes: [dynamic]Mesh,
@@ -136,12 +137,6 @@ Capabilities :: enum u32 {
     Stencil_Test                = odingl.STENCIL_TEST,
     Texture_Cube_Map_Seamless   = odingl.TEXTURE_CUBE_MAP_SEAMLESS,
     Program_Point_Size          = odingl.PROGRAM_POINT_SIZE,
-}
-
-Polygon_Face :: enum i32 {
-    Front        = odingl.FRONT,
-    Back         = odingl.BACK,
-    FrontAndBack = odingl.FRONT_AND_BACK,
 }
 
 Blend_Factors :: enum u32 {
@@ -396,4 +391,18 @@ Texture_Parameter_Value :: enum i32 {
     Clamp_To_Border        = odingl.CLAMP_TO_BORDER,
 
     Mirrored_Repeat        = odingl.MIRRORED_REPEAT,
+}
+
+
+
+Polygon_Face :: enum u32 {
+    Front          = odingl.FRONT,
+    Back           = odingl.BACK,
+    Front_And_Back = odingl.FRONT_AND_BACK,
+}
+
+Polygon_Mode :: enum u32 {
+    Point = odingl.POINT,
+    Line  = odingl.LINE,
+    Fill  = odingl.FILL,
 }

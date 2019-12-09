@@ -131,6 +131,7 @@ Camera :: struct {
 
     current_rendermode: Rendermode,
     draw_mode: gpu.Draw_Mode,
+    polygon_mode: gpu.Polygon_Mode,
 
 
     // render data for this frame
@@ -145,6 +146,8 @@ Camera :: struct {
 	sun_intensity: f32,
 	sun_rotation:  Quat,
 	sun_cascade_cameras: [NUM_SHADOW_MAPS]^Camera,
+
+	auto_resize_framebuffer: bool,
 }
 
 MAX_LIGHTS :: 100;
@@ -186,6 +189,7 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.position = Vec3{};
     camera.rotation = Quat{0, 0, 0, 1};
     camera.draw_mode = .Triangles;
+    camera.polygon_mode = .Fill;
     camera.clear_color = {1, 0, 1, 1};
     camera.pixel_width = cast(f32)pixel_width;
     camera.pixel_height = cast(f32)pixel_height;
@@ -233,6 +237,10 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := current_camera;
 	current_camera = camera;
 
+	if camera.auto_resize_framebuffer {
+		update_camera_pixel_size(camera, platform.current_window_width, platform.current_window_height);
+	}
+
 	push_framebuffer_non_deferred(camera.framebuffer);
 
 	gpu.enable(gpu.Capabilities.Blend);
@@ -266,8 +274,11 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
     if framebuffer.fbo != 0 {
         if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
             logln("Rebuilding framebuffer...");
+
+        	num_color_buffers := len(framebuffer.attachments);
+    		has_renderbuffer := framebuffer.has_renderbuffer;
             delete_framebuffer(framebuffer);
-            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height);
+            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers, has_renderbuffer);
         }
     }
 }
@@ -546,9 +557,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			post_render_proc();
 		}
 
-		// gpu.use_program(get_shader(&wb_catalog, "outline"));
-		// draw_texture(camera.framebuffer.textures[0], {0, 0}, {platform.current_window_width, platform.current_window_height});
-
 		// visualize depth buffer
 		if render_settings.visualize_shadow_texture {
 			if length(camera.sun_direction) > 0 {
@@ -673,7 +681,7 @@ draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf
 
 	// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
 	gpu.set_vertex_format(quad_mesh.vertex_type);
-	gpu.draw_elephants(.Triangles, quad_mesh.index_count, .Unsigned_Int, nil);
+	gpu.draw_elephants(current_camera.draw_mode, quad_mesh.index_count, .Unsigned_Int, nil);
 }
 
 bind_texture :: proc(texture: Texture) {
@@ -708,6 +716,7 @@ Framebuffer :: struct {
 
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
+    has_renderbuffer: bool,
 }
 
 create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, create_renderbuffer := true) -> Framebuffer {
@@ -752,7 +761,7 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:]};
+	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:], create_renderbuffer};
 	return framebuffer;
 }
 
@@ -787,7 +796,7 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments};
+	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments, false};
 	return framebuffer;
 }
 
@@ -891,6 +900,8 @@ draw_model :: proc(model: Model,
 				   depth_test: bool,
 				   anim_state := Model_Animation_State{},
 				   loc := #caller_location) {
+
+	gpu.polygon_mode(.Front_And_Back, current_camera.polygon_mode);
 
 	// projection matrix
 	projection_matrix := construct_rendermode_matrix(current_camera);

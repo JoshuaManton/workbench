@@ -60,7 +60,11 @@ run_tests :: proc() {
 			slice: []struct {
 				x, y: f64,
 			},
-		}
+		},
+		empty_dynamic_array: [dynamic]Foo,
+		missing_dynamic_array: [dynamic]Foo,
+		empty_slice: []Foo,
+		missing_slice: []Foo,
 	};
 
 	source :=
@@ -109,9 +113,17 @@ run_tests :: proc() {
 			}
 		]
 	}
+
+	empty_dynamic_array [
+
+	]
+
+	empty_slice [
+
+	]
 }`;
 
-	a := wbml.deserialize(Nightmare, source);
+	a := wbml.deserialize_to_value(Nightmare, transmute([]u8)source);
 
 	assert(a.some_int == 123, tprint(a.some_int));
 	assert(a.some_string == "henlo lizer", tprint(a.some_string));
@@ -168,10 +180,16 @@ run_tests :: proc() {
 	assert(a.some_nested_thing.slice[1].x == 43, tprint(a.some_nested_thing.slice[1].x));
 	assert(a.some_nested_thing.slice[1].y == 21, tprint(a.some_nested_thing.slice[1].y));
 
+	assert(a.empty_dynamic_array == nil, tprint(a.empty_dynamic_array));
+	assert(len(a.empty_dynamic_array) == 0, tprint(len(a.empty_dynamic_array)));
+	assert(a.empty_slice == nil, tprint(a.empty_slice));
+	assert(len(a.empty_slice) == 0, tprint(len(a.empty_slice)));
+
+
 	a_text := wbml.serialize(&a);
 	defer delete(a_text);
 	println(a_text);
-	b := wbml.deserialize(Nightmare, a_text);
+	b := wbml.deserialize(Nightmare, transmute([]u8)a_text);
 
 	assert(a.some_int == b.some_int);
 	assert(a.some_string == b.some_string);
@@ -228,6 +246,16 @@ run_tests :: proc() {
 	assert(a.some_nested_thing.slice[0].y == b.some_nested_thing.slice[0].y);
 	assert(a.some_nested_thing.slice[1].x == b.some_nested_thing.slice[1].x);
 	assert(a.some_nested_thing.slice[1].y == b.some_nested_thing.slice[1].y);
+
+	assert(a.empty_dynamic_array == nil, tprint(a.empty_dynamic_array));
+	assert(len(a.empty_dynamic_array) == 0, tprint(len(a.empty_dynamic_array)));
+	assert(a.empty_slice == nil, tprint(a.empty_slice));
+	assert(len(a.empty_slice) == 0, tprint(len(a.empty_slice)));
+
+	assert(b.empty_dynamic_array == nil, tprint(b.empty_dynamic_array));
+	assert(len(b.empty_dynamic_array) == 0, tprint(len(b.empty_dynamic_array)));
+	assert(b.empty_slice == nil, tprint(b.empty_slice));
+	assert(len(b.empty_slice) == 0, tprint(len(b.empty_slice)));
 
 	println("Tests done!");
 }

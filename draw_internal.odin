@@ -31,8 +31,6 @@ debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
 
-debugging_rendering: bool;
-
 render_settings: Render_Settings;
 
 Render_Settings :: struct {
@@ -51,10 +49,12 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	init_camera(&screen_camera, false, 10, screen_width, screen_height);
 	screen_camera.clear_color = {1, 0, 1, 1};
+	screen_camera.auto_resize_framebuffer = true;
 
 	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height, 2));
 	setup_bloom(&wb_camera);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
+	wb_camera.auto_resize_framebuffer = true;
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
 
@@ -64,26 +64,37 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	render_settings = Render_Settings{
 		gamma = 2.2,
-		exposure = 1.5,
+		exposure = 1,
 		bloom_threshhold = 5.0,
 	};
+
+	register_debug_program("Rendering", rendering_debug_program, nil);
+	register_debug_program("Scene View", scene_view_debug_program, nil);
+}
+rendering_debug_program :: proc(_: rawptr) {
+	if imgui.begin("Rendering") {
+		imgui_struct(&wb_camera.draw_mode, "Draw Mode");
+		imgui_struct(&wb_camera.polygon_mode, "Polygon Mode");
+		imgui_struct(&render_settings, "Render Settings");
+	}
+	imgui.end();
+}
+scene_view_debug_program :: proc(_: rawptr) {
+	if imgui.begin("Scene View") {
+	    window_size := imgui.get_window_size();
+
+		imgui.image(rawptr(uintptr(wb_camera.framebuffer.textures[0].gpu_id)),
+			imgui.Vec2{window_size.x - 10, window_size.y - 30},
+			imgui.Vec2{0,1},
+			imgui.Vec2{1,0});
+	}
+	imgui.end();
 }
 
 update_draw :: proc() {
 	clear(&debug_lines);
 	clear(&debug_cubes);
 	clear(&buffered_draw_commands);
-
-	if debug_window_open {
-		if imgui.begin("Scene View") {
-		    window_size := imgui.get_window_size();
-
-			imgui.image(rawptr(uintptr(wb_camera.framebuffer.textures[0].gpu_id)),
-				imgui.Vec2{window_size.x - 10, window_size.y - 30},
-				imgui.Vec2{0,1},
-				imgui.Vec2{1,0});
-		} imgui.end();
-	}
 }
 
 // todo(josh): maybe put this in the Workspace?
@@ -96,13 +107,12 @@ render_workspace :: proc(workspace: Workspace) {
 	gpu.enable(.Cull_Face);
 
 	assert(current_camera == nil);
-	update_camera_pixel_size(&screen_camera, platform.current_window_width, platform.current_window_height);
-	PUSH_CAMERA(&screen_camera);
 
-	update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
+	PUSH_CAMERA(&screen_camera);
 
 	camera_render(&wb_camera, workspace.render);
 
+	gpu.polygon_mode(.Front_And_Back, .Fill);
 	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height); // note(josh): this is only needed because pop_framebuffer can't reset the value for viewport() if we are popping to an empty framebuffer (the screen camera)
 
 	// do gamma correction and draw to screen!
@@ -138,20 +148,7 @@ deinit_draw :: proc() {
 
 	delete(debug_lines);
 	delete(debug_cubes);
-}
 
-draw_rendering_debug_window :: proc() {
-	if imgui.begin("Rendering") {
-		// todo(josh): make this a combo box
-		imgui.checkbox("Debug Rendering", &debugging_rendering);
-		if debugging_rendering {
-			wb_camera.draw_mode = .Lines;
-		}
-		else {
-			wb_camera.draw_mode = .Triangles;
-		}
-
-		imgui_struct(&render_settings, "Render Settings");
-	}
-	imgui.end();
+	unregister_debug_program("Rendering");
+	unregister_debug_program("Scene View");
 }
