@@ -345,12 +345,10 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		gpu.log_errors(#procedure);
 	}
 
-	cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 80, 200, 1000};
+	cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
 
 	// draw shadow maps
 	{
-		// logln("-------------------------");
-
 		for map_idx in 0..<NUM_SHADOW_MAPS {
 			frustum_corners := [8]Vec3 {
 				{-1,  1, -1},
