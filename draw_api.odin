@@ -146,6 +146,8 @@ Camera :: struct {
 	sun_intensity: f32,
 	sun_rotation:  Quat,
 	sun_cascade_cameras: [NUM_SHADOW_MAPS]^Camera,
+
+	auto_resize_framebuffer: bool,
 }
 
 MAX_LIGHTS :: 100;
@@ -235,6 +237,10 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := current_camera;
 	current_camera = camera;
 
+	if camera.auto_resize_framebuffer {
+		update_camera_pixel_size(camera, platform.current_window_width, platform.current_window_height);
+	}
+
 	push_framebuffer_non_deferred(camera.framebuffer);
 
 	gpu.enable(gpu.Capabilities.Blend);
@@ -265,11 +271,14 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
     pixel_height = new_height;
     aspect = new_width / new_height;
 
+    num_color_buffers := len(framebuffer.attachments);
+    has_renderbuffer := framebuffer.has_renderbuffer;
+
     if framebuffer.fbo != 0 {
         if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
             logln("Rebuilding framebuffer...");
             delete_framebuffer(framebuffer);
-            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height);
+            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers, has_renderbuffer);
         }
     }
 }
@@ -707,6 +716,7 @@ Framebuffer :: struct {
 
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
+    has_renderbuffer: bool,
 }
 
 create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, create_renderbuffer := true) -> Framebuffer {
@@ -751,7 +761,7 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:]};
+	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:], create_renderbuffer};
 	return framebuffer;
 }
 
@@ -786,7 +796,7 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments};
+	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments, false};
 	return framebuffer;
 }
 

@@ -49,10 +49,12 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	init_camera(&screen_camera, false, 10, screen_width, screen_height);
 	screen_camera.clear_color = {1, 0, 1, 1};
+	screen_camera.auto_resize_framebuffer = true;
 
 	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height, 2));
 	setup_bloom(&wb_camera);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
+	wb_camera.auto_resize_framebuffer = true;
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
 
@@ -105,10 +107,8 @@ render_workspace :: proc(workspace: Workspace) {
 	gpu.enable(.Cull_Face);
 
 	assert(current_camera == nil);
-	update_camera_pixel_size(&screen_camera, platform.current_window_width, platform.current_window_height);
-	PUSH_CAMERA(&screen_camera);
 
-	update_camera_pixel_size(&wb_camera, platform.current_window_width, platform.current_window_height);
+	PUSH_CAMERA(&screen_camera);
 
 	camera_render(&wb_camera, workspace.render);
 
