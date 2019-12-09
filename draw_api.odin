@@ -271,12 +271,12 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
     pixel_height = new_height;
     aspect = new_width / new_height;
 
-    num_color_buffers := len(framebuffer.attachments);
-    has_renderbuffer := framebuffer.has_renderbuffer;
-
     if framebuffer.fbo != 0 {
         if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
             logln("Rebuilding framebuffer...");
+
+        	num_color_buffers := len(framebuffer.attachments);
+    		has_renderbuffer := framebuffer.has_renderbuffer;
             delete_framebuffer(framebuffer);
             framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers, has_renderbuffer);
         }
