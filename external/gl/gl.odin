@@ -1,5 +1,10 @@
 package gl
 
+import "core:os";
+import "core:fmt";
+import "core:strings"
+import "../../basic"
+
 loaded_up_to_major := 0;
 loaded_up_to_minor := 0;
 
@@ -1575,9 +1580,6 @@ init :: proc(set_proc_address: Set_Proc_Address_Type) {
 
 // Helper for loading shaders into a program
 
-import "core:os";
-import "core:fmt";
-
 Shader_Type :: enum i32 {
     FRAGMENT_SHADER        = 0x8B30,
     VERTEX_SHADER          = 0x8B31,
@@ -1616,7 +1618,7 @@ check_error :: proc(id: u32, type_: Shader_Type, status: u32,
 compile_shader_from_source :: proc(shader_data: string, shader_type: Shader_Type) -> (u32, bool) {
     shader_id := CreateShader(cast(u32)shader_type);
     length := i32(len(shader_data));
-    src := cast(^u8)strings.unsafe_string_to_cstring(shader_data);
+    src := cast(^u8)basic.TEMP_CSTRING(shader_data);
     ShaderSource(shader_id, 1, &src, &length);
     CompileShader(shader_id);
 
@@ -1723,8 +1725,6 @@ when os.OS == "windows" {
     }
 }
 
-
-import "core:strings"
 
 
 Uniform_Type :: enum i32 {
@@ -1888,6 +1888,6 @@ get_uniforms_from_program :: proc(program: u32) -> (uniforms: Uniforms) {
     return uniforms;
 }
 
-get_uniform_location :: proc(program: u32, name: string) -> i32 {
-    return GetUniformLocation(program, cast(^u8)strings.unsafe_string_to_cstring(name));
+get_uniform_location :: proc(program: u32, name: cstring) -> i32 {
+    return GetUniformLocation(program, cast(^u8)name);
 }

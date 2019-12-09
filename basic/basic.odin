@@ -280,6 +280,15 @@ string_ends_with :: proc(str: string, end: string) -> bool {
 	return true;
 }
 
+@(deferred_out=_free_temp_cstring)
+TEMP_CSTRING :: proc(str: string) -> cstring {
+	cstr := strings.clone_to_cstring(str);
+	return cstr;
+}
+_free_temp_cstring :: proc(cstr: cstring) {
+	delete(cstr);
+}
+
 
 
 to_vec2 :: inline proc(a: $T/[$N]$E) -> Vec2 {

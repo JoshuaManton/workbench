@@ -962,7 +962,8 @@ draw_model :: proc(model: Model,
 			mesh_state := anim_state.mesh_states[i];
 			for _, i in mesh_state.state {
 				s := mesh_state.state[i];
-				gpu.uniform_matrix4fv(program, tprint("bones[", i, "]"), 1, false, &s[0][0]);
+				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
+				gpu.uniform_matrix4fv(program, bone, 1, false, &s[0][0]);
 			}
 		}
 

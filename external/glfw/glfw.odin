@@ -1,6 +1,11 @@
 package glfw
 
 import "core:os"
+import "core:fmt"
+import "../../math"
+import "../../basic"
+import "core:strings"
+import "core:mem"
 
 when os.OS == "windows" do foreign import glfw "glfw3dll.lib";
 
@@ -162,11 +167,6 @@ foreign glfw {
 
 // Odin Wrappers
 
-import "core:fmt"
-import "../../math"
-import "core:strings"
-import "core:mem"
-
 GetVersion :: proc() -> (major, minor, rev: i32) {
     glfwGetVersion(&major, &minor, &rev);
     return major, minor, rev;
@@ -201,7 +201,7 @@ GetMonitorName :: proc(monitor: Monitor_Handle) -> string {
 }
 
 CreateWindow :: inline proc(width, height: i32, title: string, monitor: Monitor_Handle, share: Window_Handle) -> Window_Handle {
-    return glfwCreateWindow(width, height, strings.unsafe_string_to_cstring(title), monitor, share);
+    return glfwCreateWindow(width, height, basic.TEMP_CSTRING(title), monitor, share);
 }
 
 GetClipboardString :: proc(window: Window_Handle) -> string {
@@ -260,7 +260,7 @@ SetWindowTitle :: proc(window: Window_Handle, fmt_string: string, args: ..any) {
     }
     buf: [1024]u8;
     title := fmt.bprintf(buf[:], fmt_string, ..args);
-    glfwSetWindowTitle(window, strings.unsafe_string_to_cstring(title));
+    glfwSetWindowTitle(window, basic.TEMP_CSTRING(title));
 }
 
 GetWindowPos :: proc(window: Window_Handle) -> (xpos, ypos: i32) {
