@@ -147,7 +147,7 @@ save_scene :: proc() {
         }
 
         assert(data.serialized_file_on_disk != "");
-        os.write_entire_file(data.serialized_file_on_disk, transmute([]u8)fmt.tprint(sb));
+        os.write_entire_file(data.serialized_file_on_disk, transmute([]u8)strings.to_string(sb));
     }
 }
 
@@ -486,6 +486,8 @@ Transform :: struct {
     position: Vec3,
     rotation: Quat,
     scale: Vec3,
+
+    parent: Entity,
 }
 
 add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_proc: proc(^Type), init_proc: proc(^Type) = nil, deinit_proc: proc(^Type) = nil, editor_imgui_proc: proc(^Type) = nil) {

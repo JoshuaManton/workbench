@@ -111,6 +111,7 @@ overlap_point :: proc(using scene: ^Collision_Scene, origin: Vec3, out_hits: ^[d
 
 		if origin.x < min.x || origin.x > max.x do continue;
 		if origin.y < min.y || origin.y > max.y do continue;
+		if origin.z < min.z || origin.z > max.z do continue;
 
 		info := Hit_Info{handle, 0, 0, origin, origin};
 		append(out_hits, info);
