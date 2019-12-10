@@ -80,13 +80,12 @@ update_texture_from_png_data :: proc(texture: Texture, png_data: []byte) {
 // Models
 //
 
-load_model_from_file :: proc(path: string, loc := #caller_location) -> Model {
+load_model_from_file :: proc(path: string, name: string, loc := #caller_location) -> Model {
 	path_c := strings.clone_to_cstring(path);
 	defer delete(path_c);
 
 	scene := ai.import_file(path_c,
 		// cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
-		cast(u32) ai.Post_Process_Steps.Triangulate |
 		// cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
 		// cast(u32) ai.Post_Process_Steps.Sort_By_PType |
 		// cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
@@ -94,23 +93,23 @@ load_model_from_file :: proc(path: string, loc := #caller_location) -> Model {
 		// cast(u32) ai.Post_Process_Steps.Find_Degenerates |
 		// cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
 		// cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
-		cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
 		// cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
+		cast(u32) ai.Post_Process_Steps.Triangulate |
+		cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs
 		);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
-	model := _load_model_internal(scene);
+	model := _load_model_internal(scene, name);
 	return model;
 }
 
-load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> Model {
+load_model_from_memory :: proc(data: []byte, name: string, loc := #caller_location) -> Model {
 	hint : cstring = "fbx"; // note(josh): its important that this is a cstring
 
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
 		// cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |
-		cast(u32) ai.Post_Process_Steps.Triangulate |
 		// cast(u32) ai.Post_Process_Steps.Join_Identical_Vertices |
 		// cast(u32) ai.Post_Process_Steps.Sort_By_PType |
 		// cast(u32) ai.Post_Process_Steps.Find_Invalid_Data |
@@ -118,25 +117,24 @@ load_model_from_memory :: proc(data: []byte, loc := #caller_location) -> Model {
 		// cast(u32) ai.Post_Process_Steps.Find_Degenerates |
 		// cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
 		// cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
-		cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
 		// cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 		cast(u32) ai.Post_Process_Steps.Flip_UVs, cast(^u8)hint);
 	assert(scene != nil, tprint(ai.get_error_string()));
 	defer ai.release_import(scene);
 
-	model := _load_model_internal(scene);
+	model := _load_model_internal(scene, name);
 	return model;
 }
 
 
 
-_load_model_internal :: proc(scene: ^ai.Scene, loc := #caller_location) -> Model {
+_load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #caller_location) -> Model {
 	mesh_count := cast(int) scene.num_meshes;
 	model: Model;
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
 	base_vert := 0;
 
-	anim.load_animations_from_ai_scene(scene);
+	anim.load_animations_from_ai_scene(scene, model_name);
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {

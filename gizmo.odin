@@ -14,13 +14,14 @@ using import    "math"
       import    "external/gl"
 
 direction_unary := [3]Vec3{ Vec3{1,0,0}, Vec3{0,1,0}, Vec3{0,0,1}  };
-direction_color := [3]Colorf{ Colorf{1,0,0,1}, Colorf{0,1,0,1}, Colorf{0,0,1,1}  };
+direction_color := [4]Colorf{ Colorf{1,0,0,1}, Colorf{0,1,0,1}, Colorf{0,0,1,1}, Colorf{1,1,1,1} };
 selection_color := Colorf{1,1,0.1,1};
 
 operation : Operation;
 
 size: f32 = 0;
-is_hovering:= [3]bool{};
+direction_to_camera: Vec3;
+is_hovering:= [4]bool{};
 is_active := false;
 hovering := -1;
 last_point := Vec3{};
@@ -31,7 +32,7 @@ should_reset := true;
 manipulation_mode: Manipulation_Mode;
 gizmo_mesh : Model;
 
-rad : f32 = 0.05;
+rad : f32 = 0.03;
 
 init_gizmo :: proc() {
     add_mesh_to_model(&gizmo_mesh, []Vertex3D{}, []u32{}, {}, {});
@@ -57,15 +58,27 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
     camera_pos := wb_camera.position;
     origin := position^;
 
-    size = length(origin - camera_pos) * 0.15;
+    dir := origin - camera_pos;
+    direction_to_camera = norm(dir);
+
+    plane_dist := dot(-direction_to_camera, (camera_pos - origin)) * -1;
+    translation_vec := -direction_to_camera * plane_dist;
+    plane_point := origin + translation_vec;
+
+    size = magnitude(plane_point - camera_pos) * 0.05;
+
     is_hovering[0] = false;
     is_hovering[1] = false;
     is_hovering[2] = false;
+    is_hovering[3] = false;
 
-    if platform.get_input_down(.Q) do if manipulation_mode == .World do manipulation_mode = .Local else do manipulation_mode = .World;
-    if platform.get_input_down(.W) do operation = .Translate;
-    if platform.get_input_down(.E) do operation = .Rotate;
-    if platform.get_input_down(.R) do operation = .Scale;
+    if !platform.get_input(.Mouse_Button_2) {
+        if platform.get_input_down(.Q) do if manipulation_mode == .World do manipulation_mode = .Local else do manipulation_mode = .World;
+        if platform.get_input_down(.W) do operation = .Translate;
+        if platform.get_input_down(.E) do operation = .Rotate;
+        if platform.get_input_down(.R) do operation = .Scale;
+        if platform.get_input_down(.T) do operation = .None;
+    }
 
 
 
@@ -147,7 +160,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                     case .MOVE_XY: plane_norm = rotated_direction(rotation^, Vec3{0, 0, 1});
                     case .MOVE_YZ: plane_norm = rotated_direction(rotation^, Vec3{1, 0, 0});
                     case .MOVE_ZX: plane_norm = rotated_direction(rotation^, Vec3{0, 1, 0});
-                    case: panic(tprint(move_type));
+                    case: return;
                 }
 
                 diff := mouse_world - origin;
@@ -226,6 +239,97 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
             break;
         }
         case Operation.Rotate: {
+            mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
+            mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
+
+            @static closest_index := -1;
+            @static closest_pos : = Vec3{};
+            @static closest_plane_norm := Vec3{};
+            @static inside := false;
+
+            if move_type == .NONE {
+                inside = false;
+                closest_index = -1;
+                for i in 0..2 {
+                    qmat := look_at(position^, wb_camera.position, Vec3{0,1,0});
+                    rotation := mat4_to_quat(qmat);
+                    offset_rot : f32 = -PI/4;
+                    rotation = mul(axis_angle(cross(direction_to_camera, Vec3{0,1,0}), offset_rot), rotation);
+                    rotation = mul(rotation, axis_angle(Vec3{0, 1, 0}, -PI / 4));
+                    rotation_mat := quat_to_mat4(rotation);
+
+                    dir_x := mul(rotation_mat, direction_unary[(i+1) % 3]);
+                    dir_y := mul(rotation_mat, direction_unary[(i+2) % 3]);
+                    dir_z := mul(rotation_mat, direction_unary[ i       ]);
+
+                    dir_norm := dir_z;
+                    dt := dot(dir_norm, dir_x);
+                    dir := dir_x;
+                    if dt < 0.1 do dir = dir_y;
+                    v1 := norm(cross(dir, dir_norm));
+                    v2 := norm(cross(v1, dir_norm));
+
+                    if i != -1 do
+                        draw_debug_line(position^, position^ + dir_norm, direction_color[i]);
+
+                    plane_norm := dir_norm;
+
+                    diff := mouse_world - position^;
+                    prod := dot(diff, plane_norm);
+                    prod2 := dot(mouse_direction, plane_norm);
+                    prod3 := prod / prod2;
+                    q_i := mouse_world - mouse_direction * prod3;
+
+                    if closest_index == -1 || distance(closest_pos, wb_camera.position) < distance(q_i, wb_camera.position) {
+                        closest_pos = q_i;
+                        closest_index = i;
+                        closest_plane_norm = plane_norm;
+
+                        pos := position^;
+                        inside = sqrt( pow(pos.x - q_i.x, 2) + pow(pos.y - q_i.y, 2) ) < 1;
+                    }
+                }
+
+                if inside {
+                    is_hovering[closest_index] = true;
+                    hovering = closest_index;
+
+                    move_type = .ROTATE_X + Move_Type(closest_index);
+                }
+            } else {
+                diff := mouse_world - position^;
+                prod := dot(diff, closest_plane_norm);
+                prod2 := dot(mouse_direction, closest_plane_norm);
+                prod3 := prod / prod2;
+                closest_pos = mouse_world - mouse_direction * prod3;
+            }
+
+            if move_type != .NONE && platform.get_input(.Mouse_Left) {
+                is_hovering[closest_index] = true;
+                hovering = closest_index;
+
+                delta_angle : f32 = 0;
+                pos := position^;
+                if !should_reset {
+                    if closest_index == 0 {
+                        last_angle := f32(atan2(f64(last_point.y - pos.y), f64(last_point.x - pos.x)));
+                        cur_angle := f32(atan2(f64(closest_pos.y - pos.y), f64(closest_pos.x - pos.x)));
+                        delta_angle = cur_angle - last_angle;
+                    } else if closest_index == 1 {
+                        last_angle := f32(atan2(f64(last_point.z - pos.z), f64(last_point.x - pos.x)));
+                        cur_angle := f32(atan2(f64(closest_pos.z - pos.z), f64(closest_pos.x - pos.x)));
+                        delta_angle = last_angle - cur_angle;
+                    } else if closest_index == 2 {
+                        last_angle := f32(atan2(f64(last_point.y - pos.y), f64(last_point.z - pos.z)));
+                        cur_angle := f32(atan2(f64(closest_pos.y - pos.y), f64(closest_pos.z - pos.z)));
+                        delta_angle = cur_angle - last_angle;
+                    }
+                }
+
+                last_point = closest_pos;
+                rotation^ = mul(rotation^, axis_angle(direction_unary[closest_index], delta_angle));
+            }
+
             break;
         }
         case Operation.Scale: {
@@ -365,12 +469,145 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
             break;
         }
         case Operation.Rotate: {
+
+            hoop_segments :: 52;
+            tube_segments :: 10;
+            hoop_radius :f32= 1.25;
+            tube_radius :f32= 0.02;
+
+            for direction in 0..3 {
+
+                d := direction;
+                if direction == 3 do d = 2;
+                dir_x := direction_unary[(d+1) % 3] * size;
+                dir_y := direction_unary[(d+2) % 3] * size;
+                dir_z := direction_unary[ d       ] * size;
+                color := direction_color[d];
+
+                if is_hovering[direction] do color = selection_color;
+
+                verts: [hoop_segments * tube_segments * 6]Vertex3D;
+                vi := 0;
+
+                start : f32 = 0;
+                end : f32 = hoop_segments / 2;
+
+                start_angle :f32= 0;
+                if direction == 0 do start_angle = -PI / 5;
+                if direction == 1 do start_angle = -PI / 5;
+                if direction == 2 do start_angle = -PI / 2.4 + PI / 5;
+                if direction == 3 {
+                    end = hoop_segments;
+                    tube_radius = tube_radius / 2;
+                    color = Colorf{1, 1, 1, 1};
+                }
+
+                qmat := look_at(position, wb_camera.position, Vec3{0,1,0});
+                rotation := mat4_to_quat(qmat);
+
+                offset_rot : f32 = -PI/4;
+                if direction == 3 do offset_rot = 0;
+                rotation = mul(axis_angle(cross(direction_to_camera, Vec3{0,1,0}), offset_rot), rotation);
+
+                if direction != 3 do
+                    rotation = mul(rotation, axis_angle(Vec3{0, 1, 0}, -PI / 4));
+
+                for i : f32 = start; i < end; i+=1 {
+                    angle_a1 := start_angle + TAU * (i-1) / hoop_segments;
+                    angle_a2 := start_angle + TAU * i / hoop_segments;
+
+                    for j : f32 = 0; j < tube_segments; j += 1 {
+                        angle_b1 := TAU * ((j-1) / tube_segments);
+                        angle_b2 := TAU * (j / tube_segments);
+
+                        make_point :: proc(input: Vec3, dir_x, dir_y, dir_z: Vec3) -> Vec3 {
+                            pt := dir_x * input.x;
+                            pt += dir_y * input.y;
+                            pt += dir_z * input.z;
+                            return pt;
+                        }
+
+                        // triangle 1
+                        pt1 := make_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a1),
+                            (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a1),
+                            tube_radius * sin(angle_b1)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt2 := make_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a1),
+                            (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a1),
+                            tube_radius * sin(angle_b2)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt3 := make_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a2),
+                            (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a2),
+                            tube_radius * sin(angle_b1)
+                        }, dir_x, dir_y, dir_z);
+
+                        // triangle 2
+                        pt4 := make_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a2),
+                            (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a2),
+                            tube_radius * sin(angle_b2)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt5 := make_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a2),
+                            (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a2),
+                            tube_radius * sin(angle_b1)
+                        }, dir_x, dir_y, dir_z);
+
+                        pt6 := make_point(Vec3 {
+                            (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a1),
+                            (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a1),
+                            tube_radius * sin(angle_b2)
+                        }, dir_x, dir_y, dir_z);
+
+                        verts[vi] = Vertex3D { pt1, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt2, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt3, {}, color, {}, {}, {} };
+                        vi += 1;
+
+                        verts[vi] = Vertex3D { pt4, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt5, {}, color, {}, {}, {} };
+                        vi += 1;
+                        verts[vi] = Vertex3D { pt6, {}, color, {}, {}, {} };
+                        vi += 1;
+                    }
+                }
+
+                update_mesh(&gizmo_mesh, 0, verts[:], []u32{});
+                draw_model(gizmo_mesh, position, {1,1,1}, rotation, {}, color, false);
+            }
+
             break;
         }
         case Operation.Scale: {
             break;
         }
     }
+}
+
+quat_look_at :: proc(source, dest : Vec3) -> Quat {
+    forward := norm(dest - source);
+    dot := dot(Vec3{0,0,1}, forward);
+
+    if abs(dot + 1) < 0.000001 {
+        return Quat{0, 1, 0, PI};
+    }
+    if abs(dot - 1) < 0.000001 {
+        return Quat{0,0,0,1};
+    }
+
+    rot_angle := acos(dot);
+    rot_axis := cross(Vec3{0,0,1}, forward);
+    rot_axis = norm(rot_axis);
+    return axis_angle(rot_axis, rot_angle);
 }
 
 Manipulation_Mode :: enum {
@@ -382,6 +619,7 @@ Operation :: enum {
     Translate,
     Rotate,
     Scale,
+    None,
 }
 
 Move_Type :: enum {
