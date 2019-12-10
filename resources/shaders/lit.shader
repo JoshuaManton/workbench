@@ -9,10 +9,10 @@
 
 #version 330 core
 
-in vec2 tex_coord;
-in vec3 normal;
+in vec3 tex_coord;
+in vec3 vert_normal;
 in vec3 frag_position;
-in vec4 vertex_color;
+in vec4 vert_color;
 
 
 
@@ -61,15 +61,15 @@ vec3 calculate_sun_light(Material, vec3);
 float calculate_shadow(int);
 
 void main() {
-    vec3 norm = normalize(normal);
+    vec3 norm = normalize(vert_normal);
 
     // base color
-    vec4 result_color = vertex_color;
+    vec4 result_color = vert_color;
 
     // texture color
     if (has_texture == 1) {
         float gamma = 2.2; // todo(josh): dont hardcode this. not sure if it needs to change per texture?
-        vec3 tex_sample = pow(texture(texture_handle, tex_coord).rgb, vec3(gamma));
+        vec3 tex_sample = pow(texture(texture_handle, tex_coord.xy).rgb, vec3(gamma));
         result_color *= vec4(tex_sample, 1.0);
     }
 
@@ -167,7 +167,7 @@ float calculate_shadow(int shadow_map_idx) {
         proj_coords.z = 1.0;
     }
 
-    float bias = max(0.05 * (1.0 - dot(normal, -sun_direction)), 0.005);
+    float bias = max(0.05 * (1.0 - dot(vert_normal, -sun_direction)), 0.005);
 
 #if 0
     float depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;

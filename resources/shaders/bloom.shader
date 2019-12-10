@@ -1,6 +1,6 @@
 @vert
 
-@include "default_vert_2d.glsl"
+@include "default_vert.glsl"
 
 
 

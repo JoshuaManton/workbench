@@ -100,6 +100,7 @@ current_framebuffer: Framebuffer;
 // Camera
 //
 
+// todo(josh): why are these defined in gpu? move them here if possible
 Model :: gpu.Model;
 Mesh :: gpu.Mesh;
 Skinned_Mesh :: gpu.Skinned_Mesh;
@@ -190,7 +191,7 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.rotation = Quat{0, 0, 0, 1};
     camera.draw_mode = .Triangles;
     camera.polygon_mode = .Fill;
-    camera.clear_color = {1, 0, 1, 1};
+    camera.clear_color = {0, 0, 0, 1};
     camera.pixel_width = cast(f32)pixel_width;
     camera.pixel_height = cast(f32)pixel_height;
     camera.aspect = camera.pixel_width / camera.pixel_height;
@@ -539,7 +540,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 				if render_settings.visualize_bloom_texture {
-					gpu.use_program(get_shader(&wb_catalog, "default_2d"));
+					gpu.use_program(get_shader(&wb_catalog, "default"));
 					draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
 				}
 			}
@@ -650,36 +651,10 @@ delete_texture :: proc(texture: Texture) {
 }
 
 draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf{1, 1, 1, 1}) {
-	viewport0 := to_vec3(unit_to_viewport(to_vec3(unit0)));
-	viewport1 := to_vec3(unit_to_viewport(to_vec3(unit1)));
-
-	center := lerp(viewport0, viewport1, f32(0.5));
-	size   := viewport1 - viewport0;
-
-	quad_mesh := wb_quad_model.meshes[0];
-
-	was_depth_test_enabled := gpu.is_enabled(.Depth_Test);
-	defer if was_depth_test_enabled do gpu.enable(.Depth_Test);
-	gpu.disable(.Depth_Test);
-	gpu.bind_vao(quad_mesh.vao);
-	gpu.bind_vbo(quad_mesh.vbo);
-	gpu.bind_ibo(quad_mesh.ibo);
-	gpu.active_texture0();
-	bind_texture(texture);
-
-	// shader stuff
-	program := gpu.get_current_shader();
-
-	gpu.uniform_int (program, "texture_handle", 0);
-	gpu.uniform_int (program, "has_texture", 1);
-	gpu.uniform_vec3(program, "position", center);
-	gpu.uniform_vec3(program, "scale", size);
-	gpu.uniform_float(program, "time", time);
-	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
-
-	// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
-	gpu.set_vertex_format(quad_mesh.vertex_type);
-	gpu.draw_elephants(current_camera.draw_mode, quad_mesh.index_count, .Unsigned_Int, nil);
+	rendermode_unit();
+	center := to_vec3(lerp(unit0, unit1, f32(0.5)));
+	size   := to_vec3(unit1 - unit0);
+	draw_model(wb_quad_model, center, size, {0, 0, 0, 1}, texture, color, false);
 }
 
 bind_texture :: proc(texture: Texture) {

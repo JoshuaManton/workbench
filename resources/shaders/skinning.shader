@@ -13,7 +13,7 @@ layout(location = 4) in int vbo_bone_ids[MAX_WEIGHTS];
 layout(location = 5) in float vbo_weights[MAX_WEIGHTS];
 
 out vec2 tex_coord;
-out vec3 normal;
+out vec3 vert_normal;
 out vec3 frag_position;
 out vec4 frag_position_light_space;
 out vec4 vert_color;
@@ -40,7 +40,7 @@ void main()
     }
 
     gl_Position = (projection_matrix * view_matrix * model_matrix) * skinned_pos;
-    normal = mat3(transpose(inverse(model_matrix))) * skinned_norm.xyz;
+    vert_normal = mat3(transpose(inverse(model_matrix))) * skinned_norm.xyz;
 
     frag_position = (view_matrix * skinned_pos).xyz;
     frag_position_light_space = light_space_matrix * vec4(frag_position, 1.0);
