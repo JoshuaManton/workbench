@@ -124,6 +124,11 @@ draw_arrays :: inline proc(draw_mode: Draw_Mode, first: int, count: int) {
 	log_errors(#procedure);
 }
 
+draw_arrays_instanced :: inline proc(draw_mode: Draw_Mode, first, count, prim_count: int) {
+	odingl.DrawArraysInstanced(cast(u32)draw_mode, i32(first), i32(count), i32(prim_count));
+	log_errors(#procedure);
+}
+
 draw_elements :: inline proc(draw_mode: Draw_Mode, count: int, type: Draw_Elements_Type, indices: rawptr) { // todo(josh): this is a pretty shitty wrapper
 	odingl.DrawElements(cast(u32)draw_mode, i32(count), cast(u32)type, indices);
 	log_errors(#procedure);
@@ -535,6 +540,11 @@ set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
 
 	for name, _i in ti.names {
 		i := cast(u32)_i;
+		tag := ti.tags[_i];
+
+		per_instance := false;
+		if strings.contains(tag, "per_instance") do per_instance = true;
+
 		offset := ti.offsets[i];
 		offset_in_struct := rawptr(uintptr(offset));
 		num_elements: i32;
@@ -617,6 +627,11 @@ set_vertex_format_ti :: proc(_ti: ^Type_Info, loc := #caller_location) {
 			odingl.VertexAttribIPointer(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
 		} else {
 			odingl.VertexAttribPointer(i, num_elements, type_of_elements, odingl.FALSE, cast(i32)_ti.size, offset_in_struct);
+		}
+
+		// note(jake): currently we only support per instance division not per multiple instances, cross that bridge if we come to it
+		if per_instance {
+			odingl.VertexAttribDivisor(i, 1);
 		}
 
 		log_errors("set_vertex_format: VertexAttribPointer", loc);

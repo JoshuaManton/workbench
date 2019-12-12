@@ -1,13 +1,13 @@
 package gpu
 
 using import "core:fmt"
-      import rt "core:runtime"
+import rt "core:runtime"
 
 using import "../math"
 using import "../types"
 using import "../logging"
 
-      import odingl "../external/gl"
+import odingl "../external/gl"
 
 //
 // Models and Meshes
@@ -23,10 +23,10 @@ Mesh :: struct {
     vbo: VBO,
     ibo: EBO,
     vertex_type: ^rt.Type_Info,
-
+    
     index_count:  int,
     vertex_count: int,
-
+    
 	skin: Skinned_Mesh,
 }
 
@@ -35,14 +35,14 @@ Skinned_Mesh :: struct {
     nodes: [dynamic]Node,
 	name_mapping: map[string]int,
 	global_inverse: Mat4,
-
+    
     parent_node: ^Node, // points into array above
 }
 
 Node :: struct {
     name: string,
     local_transform: Mat4,
-
+    
     parent: ^Node,
     children: [dynamic]^Node,
 }
@@ -58,7 +58,7 @@ Vertex3D :: struct {
 	tex_coord: Vec3, // todo(josh): should this be a Vec2?
 	color: Colorf,
 	normal: Vec3,
-
+    
 	bone_indicies: [BONES_PER_VERTEX]u32,
 	bone_weights: [BONES_PER_VERTEX]f32,
 }
@@ -216,12 +216,12 @@ Texture_Target :: enum i32 {
     Texture1D = odingl.TEXTURE_1D,
     Texture2D = odingl.TEXTURE_2D,
     Texture3D = odingl.TEXTURE_3D,
-
+    
     Texture1D_Array             = odingl.TEXTURE_1D_ARRAY,
     Texture2D_Array             = odingl.TEXTURE_2D_ARRAY,
     Texture_Cube_Map_Array      = odingl.TEXTURE_CUBE_MAP_ARRAY,
     Texture2D_Multisample_Array = odingl.TEXTURE_2D_MULTISAMPLE_ARRAY,
-
+    
     Texture_Rectangle     = odingl.TEXTURE_RECTANGLE,
     Texture_CubeMap       = odingl.TEXTURE_CUBE_MAP,
     Texture2D_Multisample = odingl.TEXTURE_2D_MULTISAMPLE,
@@ -236,7 +236,7 @@ Internal_Color_Format :: enum i32 {
     RG                                 = odingl.RG,
     RGB                                = odingl.RGB,
     RGBA                               = odingl.RGBA,
-
+    
     //Sized
     R8                                 = odingl.R8,
     R8_SNORM                           = odingl.R8_SNORM,
@@ -299,7 +299,7 @@ Internal_Color_Format :: enum i32 {
     RGBA16UI                           = odingl.RGBA16UI,
     RGBA32I                            = odingl.RGBA32I,
     RGBA32UI                           = odingl.RGBA32UI,
-
+    
     //Compressed
     COMPRESSED_RED                     = odingl.COMPRESSED_RED,
     COMPRESSED_RG                      = odingl.COMPRESSED_RG,
@@ -385,11 +385,11 @@ Texture_Parameter_Value :: enum i32 {
     Linear_Mipmap_Nearest  = odingl.LINEAR_MIPMAP_NEAREST,
     Nearest_Mipmap_Linear  = odingl.NEAREST_MIPMAP_LINEAR,
     Linear_Mipmap_Linear   = odingl.LINEAR_MIPMAP_LINEAR,
-
+    
     Repeat                 = odingl.REPEAT,
     Clamp_To_Edge          = odingl.CLAMP_TO_EDGE,
     Clamp_To_Border        = odingl.CLAMP_TO_BORDER,
-
+    
     Mirrored_Repeat        = odingl.MIRRORED_REPEAT,
 }
 
