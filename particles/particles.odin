@@ -5,6 +5,7 @@ using import "../types"
 using import "../logging"
 using import "../basic"
 using import "../gpu"
+import odingl "../external/gl"
 
 import "core:math/rand"
 
@@ -47,29 +48,35 @@ Particle :: struct {
 Particle_Vertex :: struct {
     position: Vec3,
     colour: Colorf,
-    
-    offset: Mat4 "per_instance",
 }
 
 particles_vao : gpu.VAO;
+particles_vbo : gpu.VBO;
 offsets_vbo : gpu.VBO;
 
 init :: proc() {
     
     ident := identity(Mat4);
     quad_verts := []Particle_Vertex {
-    	{{-0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}, ident},
-    	{{ 0.5, -0.5, 0.0}, Colorf{1, 1, 1, 1}, ident},
-    	{{-0.5, -0.5, 0.0}, Colorf{1, 1, 1, 1}, ident},
+    	{{-0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}},
+    	{{ 0.5, -0.5, 0.0}, Colorf{1, 1, 1, 1}},
+    	{{-0.5, -0.5, 0.0}, Colorf{1, 1, 1, 1}},
         
-    	{{-0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}, ident},
-    	{{ 0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}, ident},
-    	{{ 0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}, ident},
+    	{{-0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}},
+    	{{ 0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}},
+    	{{ 0.5,  0.5, 0.0}, Colorf{1, 1, 1, 1}},
     };
     
     particles_vao = gpu.gen_vao();
+    particles_vbo = gpu.gen_vbo();
+    
     gpu.bind_vao(particles_vao);
+    gpu.bind_vbo(particles_vbo);
+    
+    set_vertex_format_ti(type_info_of(Particle_Vertex));
     gpu.buffer_vertices(quad_verts);
+    
+    gpu.bind_vbo(0);
     gpu.bind_vao(0);
     
     offsets_vbo = gpu.gen_vbo();
@@ -82,6 +89,7 @@ init_particle_emitter :: proc(using emitter: ^Particle_Emitter, seed: u64) {
     
     particles = make([dynamic]Particle, 0, max_particles);
     offsets = make([dynamic]Mat4, max_particles, max_particles);
+    rotation = Quat{0,0,0,1};
 }
 
 update_particle_emitter :: proc(using emitter: ^Particle_Emitter, delta_time: f32) {
@@ -129,7 +137,7 @@ update_particle_emitter :: proc(using emitter: ^Particle_Emitter, delta_time: f3
         p.position += p.velocity;
         offsets[i] = translate(identity(Mat4), p.position);
         
-        if p.current_ttl <= 0 {
+        if p.current_ttl <= 0 && !p.dead {
             p.dead = true;
             active_particles -= 1;
         }
@@ -139,10 +147,25 @@ update_particle_emitter :: proc(using emitter: ^Particle_Emitter, delta_time: f3
 }
 
 render_particle_emitter :: proc(using emitter: ^Particle_Emitter) {
+    
     gpu.bind_vbo(offsets_vbo);
     gpu.buffer_vertices(offsets[:]); // not actually vertices
-    gpu.bind_vbo(0);
     
     gpu.bind_vao(particles_vao);
+    
+    odingl.EnableVertexAttribArray(2);
+    odingl.VertexAttribPointer(2, 4, odingl.FLOAT, odingl.FALSE, size_of(Mat4), rawptr(uintptr(0)));
+    odingl.EnableVertexAttribArray(3);
+    odingl.VertexAttribPointer(3, 4, odingl.FLOAT, odingl.FALSE, size_of(Mat4), rawptr(uintptr(size_of(Vec4))));
+    odingl.EnableVertexAttribArray(4);
+    odingl.VertexAttribPointer(4, 4, odingl.FLOAT, odingl.FALSE, size_of(Mat4), rawptr(uintptr(size_of(Vec4) * 2)));
+    odingl.EnableVertexAttribArray(5);
+    odingl.VertexAttribPointer(5, 4, odingl.FLOAT, odingl.FALSE, size_of(Mat4), rawptr(uintptr(size_of(Vec4) * 3)));
+    
+    odingl.VertexAttribDivisor(2, 1);
+    odingl.VertexAttribDivisor(3, 1);
+    odingl.VertexAttribDivisor(4, 1);
+    odingl.VertexAttribDivisor(5, 1);
+    
     draw_arrays_instanced(.Triangles, 0, 6, active_particles);
 }
