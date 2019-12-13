@@ -121,26 +121,26 @@ void main() {
     }
 }
 
-vec3 calculate_point_light(Material material, int light_index, vec3 norm) {
-    vec3  position  = point_light_positions  [light_index];
-    vec4  color     = point_light_colors     [light_index];
-    float intensity = point_light_intensities[light_index];
+vec3 calculate_point_light(Material material, int light_index, vec3 frag_normal) {
+    vec3  light_position  = point_light_positions  [light_index];
+    vec4  light_color     = point_light_colors     [light_index];
+    float light_intensity = point_light_intensities[light_index];
 
-    float distance = length(position - frag_position);
-    vec3  light_dir = normalize(position - frag_position);
+    float distance = length(light_position - frag_position);
+    vec3  light_dir = normalize(light_position - frag_position);
     vec3  view_dir  = normalize(camera_position - frag_position);
 
     // diffuse
-    float diff    = max(dot(norm, light_dir), 0.0);
-    vec4  diffuse = color * diff * material.diffuse;
+    float diff    = max(dot(frag_normal, light_dir), 0.0);
+    vec4  diffuse = light_color * diff * material.diffuse;
 
     // specular
     // todo(josh): blinn-phong specularity?
-    vec3  reflect_dir = reflect(-light_dir, norm);
+    vec3  reflect_dir = reflect(-light_dir, frag_normal);
     float spec        = pow(max(dot(view_dir, reflect_dir), 0.0), material.shine);
-    vec4  specular    = color * spec * material.specular;
+    vec4  specular    = light_color * spec * material.specular;
 
-    float attenuation = (1.0 / (distance)) * intensity; // todo(josh): should this be distance-squared?
+    float attenuation = (1.0 / (distance)) * light_intensity; // todo(josh): should this be distance-squared?
 
     diffuse  *= attenuation;
     specular *= attenuation;
@@ -148,11 +148,9 @@ vec3 calculate_point_light(Material material, int light_index, vec3 norm) {
     return (diffuse + specular).xyz;
 }
 
-vec3 calculate_sun_light(Material material, vec3 norm) {
-    vec3  view_dir  = normalize(camera_position - frag_position);
-
+vec3 calculate_sun_light(Material material, vec3 frag_normal) {
     // diffuse
-    float diff    = max(dot(norm, -sun_direction), 0.0);
+    float diff    = max(dot(frag_normal, -sun_direction), 0.0);
     vec4  diffuse = sun_color * diff * material.diffuse;
 
     diffuse *= sun_intensity;
