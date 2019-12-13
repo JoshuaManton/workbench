@@ -167,7 +167,8 @@ float calculate_shadow(int shadow_map_idx) {
         proj_coords.z = 1.0;
     }
 
-    float bias = max(0.05 * (1.0 - dot(vert_normal, -sun_direction)), 0.005);
+    float bias = max(0.05 * (1.0 - clamp(dot(vert_normal, -sun_direction), 0, 1)), 0.005);
+    // float bias = 0.005 * clamp(dot(vert_normal, -sun_direction), 0, 1);
 
 #if 0
     float depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
