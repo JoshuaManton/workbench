@@ -351,6 +351,8 @@ rotated_direction :: proc(entity_rotation: Quat, direction: Vec3) -> Vec3 {
 gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
     if should_reset do return;
 
+    rendermode_world();
+
     rotation := quat_norm(rotation);
 
     was_cull_enabled := gpu.is_enabled(.Cull_Face);
