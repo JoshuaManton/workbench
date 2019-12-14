@@ -51,7 +51,6 @@ Particle_Vertex :: struct {
 }
 
 particles_vao : gpu.VAO;
-particles_vbo : gpu.VBO;
 offsets_vbo : gpu.VBO;
 
 init :: proc() {
@@ -68,18 +67,15 @@ init :: proc() {
     };
     
     particles_vao = gpu.gen_vao();
-    particles_vbo = gpu.gen_vbo();
+    offsets_vbo = gpu.gen_vbo();
     
     gpu.bind_vao(particles_vao);
-    gpu.bind_vbo(particles_vbo);
+    gpu.bind_vbo(offsets_vbo);
     
-    set_vertex_format_ti(type_info_of(Particle_Vertex));
     gpu.buffer_vertices(quad_verts);
     
     gpu.bind_vbo(0);
     gpu.bind_vao(0);
-    
-    offsets_vbo = gpu.gen_vbo();
 }
 
 init_particle_emitter :: proc(using emitter: ^Particle_Emitter, seed: u64) {
@@ -152,6 +148,8 @@ render_particle_emitter :: proc(using emitter: ^Particle_Emitter) {
     gpu.buffer_vertices(offsets[:]); // not actually vertices
     
     gpu.bind_vao(particles_vao);
+
+    set_vertex_format_ti(type_info_of(Particle_Vertex));
     
     odingl.EnableVertexAttribArray(2);
     odingl.VertexAttribPointer(2, 4, odingl.FLOAT, odingl.FALSE, size_of(Mat4), rawptr(uintptr(0)));
