@@ -333,7 +333,6 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                         return (diff + plane_pos) + (ray_direction * (-dot(diff, plane_normal) / dot(ray_direction, plane_normal))), true;
                     }
 
-                    // dir_to_camera := norm(camera_pos - position^);
                     closest_plane_distance := max(f32);
                     for i in 0..2 {
                         dir := rotated_direction(rotation^, direction_unary[i]);
@@ -367,7 +366,9 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                 sensitivity : f32 = 0.01;
                 if platform.get_input(.Left_Alt) do sensitivity *= 0.5;
                 else if platform.get_input(.Left_Shift) do sensitivity *= 2;
-                rotation^ = mul(rotation_on_rotate_clicked, axis_angle(direction_unary[closest_index], (platform.mouse_screen_position.x - mouse_pixel_position_on_rotate_clicked.x) * sensitivity));
+                rads := (platform.mouse_screen_position.x - mouse_pixel_position_on_rotate_clicked.x) * sensitivity;
+                rot := mul(Quat{0, 0, 0, 1}, axis_angle(rotated_direction(rotation_on_rotate_clicked, direction_unary[closest_index]), rads));
+                rotation^ = mul(rot, rotation_on_rotate_clicked);
             }
 
             break;
