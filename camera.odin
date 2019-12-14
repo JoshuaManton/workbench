@@ -30,13 +30,22 @@ do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_spe
 	if platform.get_input(.A) { camera.position += left    * speed * dt; }
 	if platform.get_input(.D) { camera.position += right   * speed * dt; }
 
+	rotate_vector: Vec3;
 	if platform.get_input(.Mouse_Right) {
-		SENSITIVITY :: 0.1;
+		MOUSE_ROTATE_SENSITIVITY :: 0.1;
 		delta := platform.mouse_screen_position_delta;
-		delta *= SENSITIVITY;
-		degrees := Vec3{delta.y, -delta.x, platform.mouse_scroll};
-		camera.rotation = rotate_quat_by_degrees(camera.rotation, degrees);
+		delta *= MOUSE_ROTATE_SENSITIVITY;
+		rotate_vector = Vec3{delta.y, -delta.x, platform.mouse_scroll};
 	}
+	else {
+		KEY_ROTATE_SENSITIVITY :: 1;
+		if platform.get_input(.J) do rotate_vector.y =  KEY_ROTATE_SENSITIVITY;
+		if platform.get_input(.L) do rotate_vector.y = -KEY_ROTATE_SENSITIVITY;
+		if platform.get_input(.I) do rotate_vector.x =  KEY_ROTATE_SENSITIVITY;
+		if platform.get_input(.K) do rotate_vector.x = -KEY_ROTATE_SENSITIVITY;
+	}
+
+	camera.rotation = rotate_quat_by_degrees(camera.rotation, rotate_vector);
 }
 
 rotate_quat_by_degrees :: proc(q: Quat, degrees: Vec3) -> Quat {
