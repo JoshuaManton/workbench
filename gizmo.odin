@@ -238,72 +238,127 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
             break;
         }
         case Operation.Rotate: {
+            @static closest_index := -1;
             mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
             mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
+            when false {
 
-            @static closest_index := -1;
-            @static closest_pos : = Vec3{};
-            @static closest_plane_norm := Vec3{};
-            @static inside := false;
+                @static closest_pos : = Vec3{};
+                @static closest_plane_norm := Vec3{};
+                @static inside := false;
 
-            if move_type == .NONE {
-                inside = false;
-                closest_index = -1;
-                for i in 0..2 {
-                    qmat := look_at(position^, wb_camera.position, Vec3{0,1,0});
-                    rotation := mat4_to_quat(qmat);
-                    offset_rot : f32 = -PI/4;
-                    rotation = mul(axis_angle(cross(direction_to_camera, Vec3{0,1,0}), offset_rot), rotation);
-                    rotation = mul(rotation, axis_angle(Vec3{0, 1, 0}, -PI / 4));
-                    rotation_mat := quat_to_mat4(rotation);
+                if move_type == .NONE {
+                    inside = false;
+                    closest_index = -1;
+                    for i in 0..2 {
+                        qmat := look_at(position^, wb_camera.position, Vec3{0,1,0});
+                        rotation := mat4_to_quat(qmat);
+                        offset_rot : f32 = -PI/4;
+                        rotation = mul(axis_angle(cross(direction_to_camera, Vec3{0,1,0}), offset_rot), rotation);
+                        rotation = mul(rotation, axis_angle(Vec3{0, 1, 0}, -PI / 4));
+                        rotation_mat := quat_to_mat4(rotation);
 
-                    dir_x := mul(rotation_mat, direction_unary[(i+1) % 3]);
-                    dir_y := mul(rotation_mat, direction_unary[(i+2) % 3]);
-                    dir_z := mul(rotation_mat, direction_unary[ i       ]);
+                        dir_x := mul(rotation_mat, direction_unary[(i+1) % 3]);
+                        dir_y := mul(rotation_mat, direction_unary[(i+2) % 3]);
+                        dir_z := mul(rotation_mat, direction_unary[ i       ]);
 
-                    dir_norm := dir_z;
-                    dt := dot(dir_norm, dir_x);
-                    dir := dir_x;
-                    if dt < 0.1 do dir = dir_y;
-                    v1 := norm(cross(dir, dir_norm));
-                    v2 := norm(cross(v1, dir_norm));
+                        dir_norm := dir_z;
+                        dt := dot(dir_norm, dir_x);
+                        dir := dir_x;
+                        if dt < 0.1 do dir = dir_y;
+                        v1 := norm(cross(dir, dir_norm));
+                        v2 := norm(cross(v1, dir_norm));
 
-                    if i != -1 do
-                        draw_debug_line(position^, position^ + dir_norm, direction_color[i]);
+                        if i != -1 do
+                            draw_debug_line(position^, position^ + dir_norm, direction_color[i]);
 
-                    plane_norm := dir_norm;
+                        plane_norm := dir_norm;
 
+                        diff := mouse_world - position^;
+                        prod := dot(diff, plane_norm);
+                        prod2 := dot(mouse_direction, plane_norm);
+                        prod3 := prod / prod2;
+                        q_i := mouse_world - mouse_direction * prod3;
+
+                        if closest_index == -1 || distance(closest_pos, wb_camera.position) < distance(q_i, wb_camera.position) {
+                            closest_pos = q_i;
+                            closest_index = i;
+                            closest_plane_norm = plane_norm;
+
+                            pos := position^;
+                            inside = sqrt( pow(pos.x - q_i.x, 2) + pow(pos.y - q_i.y, 2) ) < 1;
+                        }
+                    }
+
+                    if inside {
+                        is_hovering[closest_index] = true;
+                        hovering = closest_index;
+                        mouse_pixel_position_on_rotate_clicked = platform.mouse_screen_position;
+                        rotation_on_rotate_clicked = rotation^;
+
+                        move_type = .ROTATE_X + Move_Type(closest_index);
+                    }
+                } else {
                     diff := mouse_world - position^;
-                    prod := dot(diff, plane_norm);
-                    prod2 := dot(mouse_direction, plane_norm);
+                    prod := dot(diff, closest_plane_norm);
+                    prod2 := dot(mouse_direction, closest_plane_norm);
                     prod3 := prod / prod2;
-                    q_i := mouse_world - mouse_direction * prod3;
+                    closest_pos = mouse_world - mouse_direction * prod3;
+                }    
+            }
+            else {
+                if move_type == .NONE {
+                    closest_index = -1;
 
-                    if closest_index == -1 || distance(closest_pos, wb_camera.position) < distance(q_i, wb_camera.position) {
-                        closest_pos = q_i;
-                        closest_index = i;
-                        closest_plane_norm = plane_norm;
+                    plane_intersect :: proc(plane_pos, plane_normal: Vec3, ray_pos, ray_direction: Vec3) -> (Vec3, bool) {
+                        directions_dot := dot(plane_normal, ray_direction);
+                        if directions_dot == 0 { // plane and ray are parallel
+                            return {}, false;
+                        }
 
-                        pos := position^;
-                        inside = sqrt( pow(pos.x - q_i.x, 2) + pow(pos.y - q_i.y, 2) ) < 1;
+                        plane_to_ray := norm(ray_pos - plane_pos);
+                        plane_to_ray_dot := dot(plane_to_ray, plane_normal);
+                        if plane_to_ray_dot > 0 { // the ray origin is in front of the plane
+                            if directions_dot > 0 {
+                                return {}, false;
+                            }
+                        }
+                        else { // the ray origin is behind the plane
+                            if directions_dot < 0 {
+                                return {}, false;
+                            }
+                        }
+                        
+                        diff := ray_pos - plane_pos;
+                        return (diff + plane_pos) + (ray_direction * (-dot(diff, plane_normal) / dot(ray_direction, plane_normal))), true;
+                    }
+
+                    // dir_to_camera := norm(camera_pos - position^);
+                    closest_plane_distance := max(f32);
+                    for i in 0..2 {
+                        dir := rotated_direction(rotation^, direction_unary[i]);
+                        intersect_point, ok := plane_intersect(position^, dir, camera_pos, mouse_direction);
+                        if ok && length(position^ - intersect_point) < size*2 { // todo(josh): I don't think we should need a `*2` here, `size` should be the radius of the rotation gizmo I think?
+                            dist := length(camera_pos - intersect_point);
+                            if dist < closest_plane_distance {
+                                closest_plane_distance = dist;
+                                closest_index = i;
+                            }
+                        }
+                    }
+
+                    if closest_index >= 0 {
+                        is_hovering[closest_index] = true;
+                        hovering = closest_index;
+                        mouse_pixel_position_on_rotate_clicked = platform.mouse_screen_position;
+                        rotation_on_rotate_clicked = rotation^;
+
+                        move_type = .ROTATE_X + Move_Type(closest_index);
                     }
                 }
-
-                if inside {
-                    is_hovering[closest_index] = true;
-                    hovering = closest_index;
-                    mouse_pixel_position_on_rotate_clicked = platform.mouse_screen_position;
-                    rotation_on_rotate_clicked = rotation^;
-
-                    move_type = .ROTATE_X + Move_Type(closest_index);
-                }
-            } else {
-                diff := mouse_world - position^;
-                prod := dot(diff, closest_plane_norm);
-                prod2 := dot(mouse_direction, closest_plane_norm);
-                prod3 := prod / prod2;
-                closest_pos = mouse_world - mouse_direction * prod3;
             }
+            
+
 
             if move_type != .NONE && platform.get_input(.Mouse_Left) {
                 is_hovering[closest_index] = true;
