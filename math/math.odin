@@ -1,5 +1,7 @@
 package math
 
+import "core:fmt"
+
 F32_DIG        :: 6;
 F32_EPSILON    :: 1.192092896e-07;
 F32_GUARD      :: 0;
