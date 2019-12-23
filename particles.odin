@@ -1,11 +1,11 @@
-package particles
+package workbench
 
-using import "../math"
-using import "../types"
-using import "../logging"
-using import "../basic"
-using import "../gpu"
-import odingl "../external/gl"
+using import "math"
+using import "types"
+using import "logging"
+using import "basic"
+using import "gpu"
+import odingl "external/gl"
 import sort "core:sort"
 
 import "core:math/rand"
@@ -27,10 +27,11 @@ Particle_Emitter :: struct {
     initial_scale: Vec3,
     final_scale: Vec3,
     
-    //type: Emission_Type,
+    texture_id : string,
     emission: Emission_Data,
     
     // runtime
+    texture : Texture "wbml_noserialize",
     shader: gpu.Shader_Program "wbml_noserialize",
     active_particles: int "wbml_noserialize",
     
@@ -41,10 +42,6 @@ Particle_Emitter :: struct {
     rstate: rand.Rand "wbml_noserialize",
     last_emission: f32 "wbml_noserialize",
 }
-
-//Emission_Type :: enum {
-//Spheric,
-//}
 
 Spheric_Emission :: struct {
     direction: Vec3,
@@ -75,6 +72,7 @@ Particle :: struct {
 
 Particle_Vertex :: struct {
     position: Vec4,
+    uv: Vec2,
 }
 
 particles_vbo : gpu.VBO;
@@ -82,17 +80,17 @@ particles_vao : gpu.VAO;
 offsets_vbo : gpu.VBO;
 colours_vbo : gpu.VBO;
 
-init :: proc() {
+init_particles :: proc() {
     
     ident := identity(Mat4);
     quad_verts := []Particle_Vertex {
-    	{{-0.5, -0.5, 0.0, 0.0}},
-        {{ 0.5, -0.5, 0.0, 0.0}},
-    	{{-0.5,  0.5, 0.0, 0.0}},
+    	{{-0.5, -0.5, 0.0, 0.0}, {0, 0}}, // bottom left
+        {{ 0.5, -0.5, 0.0, 0.0}, {1, 0}}, // bottom right
+    	{{-0.5,  0.5, 0.0, 0.0}, {0, 1}}, // top left
     	
-    	{{ 0.5, -0.5, 0.0, 0.0}},
-        {{ 0.5,  0.5, 0.0, 0.0}},
-    	{{-0.5,  0.5, 0.0, 0.0}},
+    	{{ 0.5, -0.5, 0.0, 0.0}, {1, 0}}, // bottom right
+        {{ 0.5,  0.5, 0.0, 0.0}, {1, 1}}, // top right
+    	{{-0.5,  0.5, 0.0, 0.0}, {0, 1}}, // top left
     };
     
     // generate vao and 2 vbos, 1 for vertices, othe other for instanced particle offsets
@@ -109,24 +107,24 @@ init :: proc() {
     
     // vbo for instance colours
     gpu.bind_vbo(colours_vbo);
-    odingl.EnableVertexAttribArray(1);
-    odingl.VertexAttribPointer(1, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4), rawptr(uintptr(0)));
-    odingl.VertexAttribDivisor(1, 1);
+    odingl.EnableVertexAttribArray(2);
+    odingl.VertexAttribPointer(2, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4), rawptr(uintptr(0)));
+    odingl.VertexAttribDivisor(2, 1);
     
     // enable a mat4, and set it to step every instance
     gpu.bind_vbo(offsets_vbo);
-    odingl.EnableVertexAttribArray(2);
-    odingl.VertexAttribPointer(2, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(0)));
     odingl.EnableVertexAttribArray(3);
-    odingl.VertexAttribPointer(3, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(16)));
+    odingl.VertexAttribPointer(    3, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(0)));
+    odingl.VertexAttribDivisor(    3, 1);
     odingl.EnableVertexAttribArray(4);
-    odingl.VertexAttribPointer(4, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(32)));
+    odingl.VertexAttribPointer(    4, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(16)));
+    odingl.VertexAttribDivisor(    4, 1);
     odingl.EnableVertexAttribArray(5);
-    odingl.VertexAttribPointer(5, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(48)));
-    odingl.VertexAttribDivisor(2, 1);
-    odingl.VertexAttribDivisor(3, 1);
-    odingl.VertexAttribDivisor(4, 1);
-    odingl.VertexAttribDivisor(5, 1);
+    odingl.VertexAttribPointer(    5, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(32)));
+    odingl.VertexAttribDivisor(    5, 1);
+    odingl.EnableVertexAttribArray(6);
+    odingl.VertexAttribPointer(    6, 4, odingl.FLOAT, odingl.FALSE, size_of(Vec4) * 4, rawptr(uintptr(48)));
+    odingl.VertexAttribDivisor(    6, 1);
     
     gpu.bind_vao(0);
 }
@@ -153,11 +151,30 @@ update_particle_emitter :: proc(using emitter: ^Particle_Emitter, delta_time: f3
         last_emission = 0;
         ttl := lerp(min_ttl, max_ttl, rand.float32(&rstate));
         
+        velocity := Vec3{0,0,0};
+        switch d in emission {
+            case Spheric_Emission: {
+                a := lerp(d.angle_min, d.angle_max, rand.float32(&rstate));
+                theta := acos(a);
+                phi := lerp(f32(0), f32(TAU), rand.float32(&rstate));
+                
+                sin_theta := sin(theta);
+                x := sin_theta * f32(cos(phi));
+                y := sin_theta * f32(sin(phi));
+                z := f32(cos(theta));
+                
+                velocity = Vec3{x,y,z} * 0.01;
+            }
+            case Linear_Emission: {
+                velocity = quaternion_forward(rotation) * 0.01;
+            }
+        }
+        
         p := Particle{
             Vec3{},
             rotation,
             Vec3{1,1,1},
-            quaternion_forward(rotation) * 0.01,
+            velocity,
             ttl,
             ttl,
             initial_colour,
@@ -193,25 +210,7 @@ update_particle_emitter :: proc(using emitter: ^Particle_Emitter, delta_time: f3
         }
         if !p.dead {
             
-            switch d in emission {
-                case Spheric_Emission: {
-                    a := lerp(d.angle_min, d.angle_max, rand.float32(&rstate));
-                    theta := acos(a);
-                    phi := lerp(f32(0), f32(TAU), rand.float32(&rstate));
-                    
-                    sin_theta := sin(theta);
-                    x := sin_theta * f32(cos(phi));
-                    y := sin_theta * f32(sin(phi));
-                    z := f32(cos(theta));
-                    
-                    p.position += Vec3{x,y,z} * 0.1;
-                    
-                }
-                case Linear_Emission: {
-                    p.position += p.velocity;
-                }
-            }
-            
+            p.position += p.velocity;
             p.scale = lerp(initial_scale, final_scale, complete_percent);
             
             t := translate(identity(Mat4), position + p.position);
@@ -243,6 +242,12 @@ render_particle_emitter :: proc(using emitter: ^Particle_Emitter, projection, vi
     gpu.uniform_mat4(shader, "view_matrix",       &_view);
 	gpu.uniform_mat4(shader, "projection_matrix", &_proj);
     
+    gpu.enable(.Blend);
+    odingl.BlendFunc(odingl.SRC_ALPHA, odingl.ONE_MINUS_SRC_ALPHA);
+    
+    gpu.active_texture0();
+    gpu.bind_texture_2d(texture.gpu_id);
+    
     gpu.enable(.Depth_Test);
     gpu.bind_vao(particles_vao);
     
@@ -253,6 +258,7 @@ render_particle_emitter :: proc(using emitter: ^Particle_Emitter, projection, vi
     gpu.buffer_vertices(colours[:]);
     
     draw_arrays_instanced(.Triangles, 0, 6, active_particles);
+    gpu.disable(.Blend);
     
     gpu.bind_vao(0);
 }
