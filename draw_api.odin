@@ -45,12 +45,10 @@ import          "external/imgui"
 
 --- Framebuffers
 {
- default_framebuffer_settings :: proc() -> Framebuffer_Settings
- create_color_framebuffer     :: proc(width, height: int) -> Framebuffer
- create_depth_framebuffer     :: proc(width, height: int) -> Framebuffer
- delete_framebuffer           :: proc(framebuffer: Framebuffer)
- bind_framebuffer             :: proc(framebuffer: ^Framebuffer)
- unbind_framebuffer           :: proc()
+	default_framebuffer_settings :: proc() -> Framebuffer_Settings
+	create_color_framebuffer     :: proc(width, height: int) -> Framebuffer
+	create_depth_framebuffer     :: proc(width, height: int) -> Framebuffer
+	delete_framebuffer           :: proc(framebuffer: Framebuffer)
 }
 
 --- Models
@@ -128,8 +126,8 @@ Camera :: struct {
     aspect: f32,
     
     framebuffer: Framebuffer,
-    bloom_data: Maybe(Bloom_Data),
-    
+    bloom_ping_pong_framebuffers: Maybe([2]Framebuffer),
+
     current_rendermode: Rendermode,
     draw_mode: gpu.Draw_Mode,
     polygon_mode: gpu.Polygon_Mode,
@@ -167,10 +165,6 @@ Model_Draw_Info :: struct {
 	animation_state: Model_Animation_State,
     
 	userdata: rawptr,
-}
-
-Bloom_Data :: struct {
-	pingpong_fbos: [2]Framebuffer,
 }
 
 Model_Animation_State :: struct {
@@ -218,14 +212,14 @@ setup_bloom :: proc(camera: ^Camera) {
 	fbos: [2]Framebuffer;
 	for _, idx in fbos {
 		// todo(josh): apparently these should use Linear and Clamp_To_Border, not Nearest and Repeat as is hardcoded in create_color_framebuffer
-		fbos[idx] = create_color_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1, false);
+		fbos[idx] = create_color_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1);
 	}
-	camera.bloom_data = Bloom_Data{fbos};
+	camera.bloom_ping_pong_framebuffers = fbos;
 }
 
 destroy_bloom :: proc(camera: ^Camera) {
-	if bloom_data, ok := getval(camera.bloom_data); ok {
-    	for fbo in bloom_data.pingpong_fbos do delete_framebuffer(fbo);
+	if fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
+    	for fbo in fbos do delete_framebuffer(fbo);
     }
 }
 
@@ -277,9 +271,8 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
             logln("Rebuilding framebuffer...");
             
         	num_color_buffers := len(framebuffer.attachments);
-    		has_renderbuffer := framebuffer.has_renderbuffer;
             delete_framebuffer(framebuffer);
-            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers, has_renderbuffer);
+            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
         }
     }
 }
@@ -508,9 +501,14 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
         
         
+
+		// do ambient occlusion
+
+
+
 		// do bloom
-		if bloom_data, ok := getval(camera.bloom_data); ok {
-			for fbo in bloom_data.pingpong_fbos {
+		if fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
+			for fbo in fbos {
 				PUSH_FRAMEBUFFER(fbo);
 				gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 			}
@@ -522,13 +520,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			shader_blur := get_shader(&wb_catalog, "blur");
 			gpu.use_program(shader_blur);
 			for i in 0..<amount {
-				PUSH_FRAMEBUFFER(bloom_data.pingpong_fbos[cast(int)horizontal]);
+				PUSH_FRAMEBUFFER(fbos[cast(int)horizontal]);
 				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 				if first {
 					draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
 				}
 				else {
-					bloom_fbo := bloom_data.pingpong_fbos[cast(int)(!horizontal)];
+					bloom_fbo := fbos[cast(int)(!horizontal)];
 					draw_texture(bloom_fbo.textures[0], {0, 0}, {1, 1});
 					last_bloom_fbo = bloom_fbo;
 				}
@@ -689,10 +687,9 @@ Framebuffer :: struct {
     
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
-    has_renderbuffer: bool,
 }
 
-create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, create_renderbuffer := true) -> Framebuffer {
+create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
     
@@ -716,16 +713,13 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
         
 		append(&attachments, attachment);
 	}
-    
-	rbo: gpu.RBO;
-	if create_renderbuffer {
-		rbo := gpu.gen_renderbuffer();
-		gpu.bind_rbo(rbo);
-        
-		gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
-		gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
-	}
-    
+
+	rbo := gpu.gen_renderbuffer();
+	gpu.bind_rbo(rbo);
+
+	gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
+	gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
+
 	gpu.draw_buffers(attachments[:]);
     
 	gpu.assert_framebuffer_complete();
@@ -733,8 +727,8 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1, cre
 	gpu.bind_texture_2d(0);
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
-    
-	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:], create_renderbuffer};
+
+	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:]};
 	return framebuffer;
 }
 
@@ -768,8 +762,8 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	gpu.bind_texture_2d(0);
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
-    
-	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments, false};
+
+	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments};
 	return framebuffer;
 }
 
