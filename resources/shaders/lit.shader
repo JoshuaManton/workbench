@@ -32,7 +32,6 @@ uniform int has_texture;
 
 #define NUM_SHADOW_MAPS 4
 uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
-uniform sampler2D shadow_map;
 
 uniform float cascade_distances[NUM_SHADOW_MAPS];
 uniform mat4 cascade_light_space_matrices[NUM_SHADOW_MAPS];
