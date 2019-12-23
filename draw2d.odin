@@ -23,7 +23,7 @@ using import        "logging"
 //
 
 im_quad :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	color: Colorf,
@@ -49,7 +49,7 @@ im_quad :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 im_quad_pos :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	pos, size: Vec2,
 	color: Colorf,
@@ -60,7 +60,7 @@ im_quad_pos :: inline proc(
 }
 
 im_sprite :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	position, scale: Vec2,
 	sprite: Sprite,
@@ -77,7 +77,7 @@ im_sprite :: inline proc(
 		im_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
 }
 im_sprite_minmax :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
 	sprite: Sprite,
@@ -105,7 +105,7 @@ im_sprite_minmax :: inline proc(
 }
 
 im_text :: proc(
-	rendermode: Rendermode_Proc,
+	rendermode: Rendermode,
 	font: Font,
 	str: string,
 	position: Vec2,
@@ -122,7 +122,7 @@ im_text :: proc(
 
 		position := position;
 
-		assert(rendermode == rendermode_unit);
+		assert(rendermode == .Unit);
 
 		start := position;
 		for _, i in str {
@@ -186,7 +186,7 @@ im_text :: proc(
 }
 
 get_string_width :: inline proc(
-	rendermode: Rendermode_Proc,
+	rendermode: Rendermode,
 	font: Font,
 	str: string,
 	size: f32) -> f32 {
@@ -272,7 +272,10 @@ im_flush :: proc() {
 
 	@static im_queued_for_drawing: [dynamic]Vertex2D;
 
-	current_rendermode : Rendermode_Proc = nil;
+	old_rendermode := current_camera.current_rendermode;
+	defer current_camera.current_rendermode = old_rendermode;
+
+	current_rendermode: Rendermode;
 	is_scissor := false;
 	current_shader := gpu.Shader_Program(0);
 	current_texture: Texture;
@@ -292,7 +295,7 @@ im_flush :: proc() {
 		if texture_mismatch    do current_texture = cmd.texture;
 		if rendermode_mismatch {
 			current_rendermode = cmd.rendermode;
-			cmd.rendermode();
+			current_camera.current_rendermode = current_rendermode;
 		}
 
 		if scissor_mismatch {
@@ -360,7 +363,7 @@ Draw_Command :: struct {
 	render_order:  int,
 	serial_number: int,
 
-	rendermode:   Rendermode_Proc,
+	rendermode:   Rendermode,
 	shader:       gpu.Shader_Program,
 	texture:      Texture,
 	scissor:      bool,
@@ -407,7 +410,7 @@ debug_geo_flush :: proc() {
 	current_camera.polygon_mode = .Line;
 
 	// todo(josh): support all rendermodes
-	rendermode_world();
+	PUSH_RENDERMODE(.World);
 
 	gpu.use_program(wb_catalog.shaders["default"]);
 	for line in debug_lines {

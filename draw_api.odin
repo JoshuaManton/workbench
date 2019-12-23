@@ -46,8 +46,7 @@ using import          "basic"
 --- Framebuffers
 {
 	default_framebuffer_settings :: proc() -> Framebuffer_Settings
-	create_color_framebuffer     :: proc(width, height: int) -> Framebuffer
-	create_depth_framebuffer     :: proc(width, height: int) -> Framebuffer
+	create_framebuffer     :: proc(width, height: int) -> Framebuffer
 	delete_framebuffer           :: proc(framebuffer: Framebuffer)
 }
 
@@ -135,6 +134,8 @@ Camera :: struct {
 
     // render data for this frame
 	render_queue: [dynamic]Model_Draw_Info,
+
+	// todo(josh): maybe these should be pointers. this is blowing up the size of the camera struct a LOT
 	point_light_positions:   [MAX_LIGHTS]Vec3,
 	point_light_colors:      [MAX_LIGHTS]Vec4,
 	point_light_intensities: [MAX_LIGHTS]f32,
@@ -144,7 +145,7 @@ Camera :: struct {
 	sun_color:     Vec4,
 	sun_intensity: f32,
 	sun_rotation:  Quat,
-	sun_cascade_cameras: [NUM_SHADOW_MAPS]^Camera,
+	shadow_map_cameras: Maybe([NUM_SHADOW_MAPS]^Camera),
 
 	auto_resize_framebuffer: bool,
 }
@@ -199,28 +200,48 @@ delete_camera :: proc(camera: ^Camera) { // note(josh): does NOT free the camera
         delete_framebuffer(camera.framebuffer);
     }
     destroy_bloom(camera);
+    destroy_shadow_maps(camera);
     delete(camera.render_queue);
-    for cascade_camera in camera.sun_cascade_cameras {
-    	if cascade_camera != nil {
-    		delete_camera(cascade_camera);
-    		free(cascade_camera);
-    	}
-    }
 }
 
 setup_bloom :: proc(camera: ^Camera) {
+	assert(camera.bloom_ping_pong_framebuffers == nil);
+
 	fbos: [2]Framebuffer;
 	for _, idx in fbos {
-		// todo(josh): apparently these should use Linear and Clamp_To_Border, not Nearest and Repeat as is hardcoded in create_color_framebuffer
-		fbos[idx] = create_color_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1);
+		// todo(josh): apparently these should use Linear and Clamp_To_Border, not Nearest and Repeat as is hardcoded in create_framebuffer
+		fbos[idx] = create_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1);
 	}
 	camera.bloom_ping_pong_framebuffers = fbos;
 }
-
 destroy_bloom :: proc(camera: ^Camera) {
 	if fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
     	for fbo in fbos do delete_framebuffer(fbo);
     }
+}
+
+setup_shadow_maps :: proc(camera: ^Camera) {
+	assert(camera.shadow_map_cameras == nil);
+
+	shadow_maps: [NUM_SHADOW_MAPS]^Camera;
+	for idx in 0..<NUM_SHADOW_MAPS {
+		cascade_camera := new(Camera);
+		init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, 0));
+		cascade_camera.near_plane = 0.01;
+		cascade_camera.clear_color = {1, 1, 1, 1}; // todo(josh): what the heck should this be?
+		shadow_maps[idx] = cascade_camera;
+	}
+	camera.shadow_map_cameras = shadow_maps;
+}
+destroy_shadow_maps :: proc(camera: ^Camera) {
+	if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+		for cascade_camera in shadow_maps {
+	    	if cascade_camera != nil {
+	    		delete_camera(cascade_camera);
+	    		free(cascade_camera);
+	    	}
+	    }
+	}
 }
 
 @(deferred_out=pop_camera)
@@ -272,7 +293,7 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
 
         	num_color_buffers := len(framebuffer.attachments);
             delete_framebuffer(framebuffer);
-            framebuffer = create_color_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
+            framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
         }
     }
 }
@@ -342,8 +363,8 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
 
 	// draw shadow maps
-	{
-		for map_idx in 0..<NUM_SHADOW_MAPS {
+	if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+		for shadow_map_camera, map_idx in shadow_maps {
 			frustum_corners := [8]Vec3 {
 				{-1,  1, -1},
 				{ 1,  1, -1},
@@ -401,31 +422,20 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 
 			// position the shadow camera looking at that point
-			if camera.sun_cascade_cameras[map_idx] == nil {
-				// create new cascade camera and save it
-				cascade_camera := new(Camera);
-				init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_depth_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM));
-				cascade_camera.near_plane = 0.01;
-				camera.sun_cascade_cameras[map_idx] = cascade_camera;
-			}
-
-
-
-			sun_cascade_camera := camera.sun_cascade_cameras[map_idx];
-			sun_cascade_camera.position = center_point - light_direction * radius;
-			sun_cascade_camera.rotation = light_rotation;
-			sun_cascade_camera.size = radius;
-			sun_cascade_camera.far_plane = radius * 2;
+			shadow_map_camera.position = center_point - light_direction * radius;
+			shadow_map_camera.rotation = light_rotation;
+			shadow_map_camera.size = radius;
+			shadow_map_camera.far_plane = radius * 2;
 
 			// render scene from perspective of sun
 			{
-				PUSH_CAMERA(sun_cascade_camera);
+				PUSH_CAMERA(shadow_map_camera);
 				// gpu.cull_face(.Front);
 
 				depth_shader := get_shader(&wb_catalog, "shadow");
 				gpu.use_program(depth_shader);
 
-				rendermode_world();
+				PUSH_RENDERMODE(.World);
 
 				for info in camera.render_queue {
 					using info;
@@ -437,138 +447,143 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				// gpu.cull_face(.Back);
 			}
 		}
+	}
 
-		// draw scene for real
-		rendermode_world();
+	// draw scene for real
+	PUSH_RENDERMODE(.World);
 
-		for info in camera.render_queue {
-			using info;
+	for info in camera.render_queue {
+		using info;
 
-			gpu.use_program(shader);
-
-
-			// flush lights to gpu
-			if camera.num_point_lights > 0 {
-				gpu.uniform_vec3_array(shader,  "point_light_positions",   camera.point_light_positions[:camera.num_point_lights]);
-				gpu.uniform_vec4_array(shader,  "point_light_colors",      camera.point_light_colors[:camera.num_point_lights]);
-				gpu.uniform_float_array(shader, "point_light_intensities", camera.point_light_intensities[:camera.num_point_lights]);
-			}
-			gpu.uniform_int(shader, "num_point_lights", camera.num_point_lights);
-
-			if len(camera.sun_direction) > 0 {
-				gpu.uniform_vec3(shader,  "sun_direction", camera.sun_direction);
-				gpu.uniform_vec4(shader,  "sun_color",     camera.sun_color);
-				gpu.uniform_float(shader, "sun_intensity", camera.sun_intensity);
+		gpu.use_program(shader);
 
 
-				// set up cascade cameras
-				gpu.uniform_float_array(shader, "cascade_distances", cascade_positions[1:]);
+		// flush lights to gpu
+		if camera.num_point_lights > 0 {
+			gpu.uniform_vec3_array(shader,  "point_light_positions",   camera.point_light_positions[:camera.num_point_lights]);
+			gpu.uniform_vec4_array(shader,  "point_light_colors",      camera.point_light_colors[:camera.num_point_lights]);
+			gpu.uniform_float_array(shader, "point_light_intensities", camera.point_light_intensities[:camera.num_point_lights]);
+		}
+		gpu.uniform_int(shader, "num_point_lights", camera.num_point_lights);
 
-				assert(NUM_SHADOW_MAPS == 4);
-				tex_indices := [NUM_SHADOW_MAPS]i32{1, 2, 3, 4};
-				gpu.uniform_int_array(shader, "shadow_maps", tex_indices[:]);
-				light_matrices: [NUM_SHADOW_MAPS]Mat4;
-				for map_idx in 0..<NUM_SHADOW_MAPS {
-					light_camera := camera.sun_cascade_cameras[map_idx];
-
-					gpu.active_texture(1 + cast(u32)map_idx);
-					gpu.bind_texture_2d(light_camera.framebuffer.textures[0].gpu_id);
-
-					light_view := construct_view_matrix(light_camera);
-					light_proj := construct_projection_matrix(light_camera);
-					light_space := mul(light_proj, light_view);
-					light_matrices[map_idx] = light_space;
-				}
-				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
-			}
-
-
-			// set material data
-			gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
-			gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
-			gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
-			gpu.uniform_float(shader, "material.shine",    material.shine);
-
-
-			// issue draw call
-			if on_render_object != nil do on_render_object(userdata);
-			draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+		if len(camera.sun_direction) > 0 {
+			gpu.uniform_vec3(shader,  "sun_direction", camera.sun_direction);
+			gpu.uniform_vec4(shader,  "sun_color",     camera.sun_color);
+			gpu.uniform_float(shader, "sun_intensity", camera.sun_intensity);
 		}
 
-		// do ambient occlusion
+		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+			// set up cascade cameras
+			gpu.uniform_float_array(shader, "cascade_distances", cascade_positions[1:]);
 
+			assert(NUM_SHADOW_MAPS == 4);
+			tex_indices := [NUM_SHADOW_MAPS]i32{1, 2, 3, 4};
+			gpu.uniform_int_array(shader, "shadow_maps", tex_indices[:]);
+			light_matrices: [NUM_SHADOW_MAPS]Mat4;
+			for shadow_map, map_idx in shadow_maps {
+				// todo(josh): this texture binding stuff makes me a little uncomfortable because
+				// draw_model does some texture binding too and I fear it might stomp on these ones
+				// in the future. should consolidate this somehow
+				gpu.active_texture(1 + cast(u32)map_idx);
+				gpu.bind_texture_2d(shadow_map.framebuffer.depth_texture.gpu_id);
 
-
-		// do bloom
-		if fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
-			for fbo in fbos {
-				PUSH_FRAMEBUFFER(fbo);
-				gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
+				light_view := construct_view_matrix(shadow_map);
+				light_proj := construct_projection_matrix(shadow_map);
+				light_space := mul(light_proj, light_view);
+				light_matrices[map_idx] = light_space;
 			}
-
-			horizontal := true;
-			first := true;
-			amount := 5;
-			last_bloom_fbo: Maybe(Framebuffer);
-			shader_blur := get_shader(&wb_catalog, "blur");
-			gpu.use_program(shader_blur);
-			for i in 0..<amount {
-				PUSH_FRAMEBUFFER(fbos[cast(int)horizontal]);
-				gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
-				if first {
-					draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
-				}
-				else {
-					bloom_fbo := fbos[cast(int)(!horizontal)];
-					draw_texture(bloom_fbo.textures[0], {0, 0}, {1, 1});
-					last_bloom_fbo = bloom_fbo;
-				}
-				horizontal = !horizontal;
-				first = false;
-			}
-
-			if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
-				shader_bloom := get_shader(&wb_catalog, "bloom");
-				gpu.use_program(shader_bloom);
-				gpu.uniform_int(shader_bloom, "bloom_texture", 1);
-				gpu.active_texture1();
-				gpu.bind_texture_2d(last_bloom_fbo.textures[0].gpu_id);
-				draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
-
-				if render_settings.visualize_bloom_texture {
-					gpu.use_program(get_shader(&wb_catalog, "default"));
-					draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
-				}
-			}
+			gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
 		}
 
-		// todo(josh): should this be before bloom?
-		im_flush();
 
-		debug_geo_flush();
 
-		// todo(josh): should this be before bloom?
-		if post_render_proc != nil {
-			post_render_proc();
+		// set material data
+		gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
+		gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
+		gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
+		gpu.uniform_float(shader, "material.shine",    material.shine);
+
+
+		// issue draw call
+		if on_render_object != nil do on_render_object(userdata);
+		draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+	}
+
+	// do ambient occlusion
+
+
+
+	// do bloom
+	if bloom_fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
+		for fbo in bloom_fbos {
+			PUSH_FRAMEBUFFER(fbo);
+			gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 		}
 
-		// visualize depth buffer
-		if render_settings.visualize_shadow_texture {
+		horizontal := true;
+		first := true;
+		amount := 5;
+		last_bloom_fbo: Maybe(Framebuffer);
+		shader_blur := get_shader(&wb_catalog, "blur");
+		gpu.use_program(shader_blur);
+		for i in 0..<amount {
+			PUSH_FRAMEBUFFER(bloom_fbos[cast(int)horizontal]);
+			gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
+			if first {
+				draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
+			}
+			else {
+				bloom_fbo := bloom_fbos[cast(int)(!horizontal)];
+				draw_texture(bloom_fbo.textures[0], {0, 0}, {1, 1});
+				last_bloom_fbo = bloom_fbo;
+			}
+			horizontal = !horizontal;
+			first = false;
+		}
+
+		if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
+			shader_bloom := get_shader(&wb_catalog, "bloom");
+			gpu.use_program(shader_bloom);
+			gpu.uniform_int(shader_bloom, "bloom_texture", 1);
+			gpu.active_texture1();
+			gpu.bind_texture_2d(last_bloom_fbo.textures[0].gpu_id);
+			draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
+
+			if render_settings.visualize_bloom_texture {
+				gpu.use_program(get_shader(&wb_catalog, "default"));
+				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
+			}
+		}
+	}
+
+	// todo(josh): should this be before bloom?
+	im_flush();
+
+	debug_geo_flush();
+
+	// todo(josh): should this be before bloom?
+	if post_render_proc != nil {
+		post_render_proc();
+	}
+
+	// visualize depth buffer
+	if render_settings.visualize_shadow_texture {
+		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader(&wb_catalog, "depth"));
-				for map_idx in 0..<NUM_SHADOW_MAPS {
-					draw_texture(camera.sun_cascade_cameras[map_idx].framebuffer.textures[0], {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
+				for shadow_map, map_idx in shadow_maps {
+					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
 				}
 			}
 		}
-
-
-		// clear render_queue
-		clear(&camera.render_queue);
-
-		// clear lights
-		camera.num_point_lights = 0;
 	}
+
+
+	// clear render_queue
+	clear(&camera.render_queue);
+
+	// clear lights
+	camera.num_point_lights = 0;
 }
 
 
@@ -647,7 +662,7 @@ delete_texture :: proc(texture: Texture) {
 }
 
 draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf{1, 1, 1, 1}) {
-	rendermode_unit();
+	PUSH_RENDERMODE(.Unit);
 	center := to_vec3(lerp(unit0, unit1, f32(0.5)));
 	size   := to_vec3(unit1 - unit0);
 	draw_model(wb_quad_model, center, size, {0, 0, 0, 1}, texture, color, false);
@@ -681,13 +696,13 @@ write_texture_to_file :: proc(filepath: string, texture: Texture) {
 Framebuffer :: struct {
     fbo: gpu.FBO,
     textures: []Texture,
-    rbo: gpu.RBO,
+    depth_texture: Texture,
 
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
 }
 
-create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1) -> Framebuffer {
+create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #caller_location) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
@@ -712,33 +727,9 @@ create_color_framebuffer :: proc(width, height: int, num_color_buffers := 1) -> 
 		append(&attachments, attachment);
 	}
 
-	rbo := gpu.gen_renderbuffer();
-	gpu.bind_rbo(rbo);
-
-	gpu.renderbuffer_storage(.Depth24_Stencil8, cast(i32)width, cast(i32)height);
-	gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
-
-	gpu.draw_buffers(attachments[:]);
-
-	gpu.assert_framebuffer_complete();
-
-	gpu.bind_texture_2d(0);
-	gpu.bind_rbo(0);
-	gpu.bind_fbo(0);
-
-	framebuffer := Framebuffer{fbo, textures[:], rbo, width, height, attachments[:]};
-	return framebuffer;
-}
-
-create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
-	fbo := gpu.gen_framebuffer();
-	gpu.bind_fbo(fbo);
-
-	textures: [dynamic]Texture;
-
-	texture := gpu.gen_texture();
-	append(&textures, Texture{texture, width, height, 1, .Texture2D, .Depth_Component, .Float});
-	gpu.bind_texture_2d(texture);
+	depth_texture_id := gpu.gen_texture();
+	gpu.bind_texture_2d(depth_texture_id);
+	depth_texture := Texture{depth_texture_id, width, height, 1, .Texture2D, .Depth_Component, .Float};
 
 	gpu.tex_image_2d(0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
@@ -748,28 +739,32 @@ create_depth_framebuffer :: proc(width, height: int) -> Framebuffer {
 	c := Colorf{1, 1, 1, 1};
 	gpu.tex_parameterfv(.Texture2D, .Texture_Border_Color, &c.r);
 
-	attachments := make([]gpu.Framebuffer_Attachment, 1);
-	attachments[0] = .Depth;
-	gpu.framebuffer_texture2d(.Depth, texture);
+	gpu.framebuffer_texture2d(.Depth, depth_texture_id);
 
-	gpu.draw_buffer(0);
-	gpu.read_buffer(0);
+	if num_color_buffers > 0 {
+		gpu.draw_buffers(attachments[:]);
+	}
+	else {
+		gpu.draw_buffer(0);
+		gpu.read_buffer(0);
+	}
+
+
 
 	gpu.assert_framebuffer_complete();
-
 	gpu.bind_texture_2d(0);
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], 0, width, height, attachments};
+	framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:]};
 	return framebuffer;
 }
 
 delete_framebuffer :: proc(framebuffer: Framebuffer) {
-	gpu.delete_rbo(framebuffer.rbo);
 	for t in framebuffer.textures {
 		delete_texture(t);
 	}
+	delete_texture(framebuffer.depth_texture);
 	delete(framebuffer.textures);
 	delete(framebuffer.attachments);
 	gpu.delete_fbo(framebuffer.fbo);
@@ -795,7 +790,6 @@ pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 	gpu.viewport(0, 0, cast(int)old_framebuffer.width, cast(int)old_framebuffer.height);
 }
 
-// todo(josh): maybe shouldn't use strings for mesh names, not sure
 add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, skin: Skinned_Mesh, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();
 	vbo := gpu.gen_vbo();
@@ -883,9 +877,11 @@ draw_model :: proc(model: Model,
 	// shader stuff
 	program := gpu.get_current_shader();
 
-	gpu.uniform_int (program, "texture_handle", 0);
+	gpu.active_texture0();
+	gpu.uniform_int(program, "texture_handle", 0);
+	gpu.uniform_int(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
+
 	gpu.uniform_vec3(program, "camera_position", current_camera.position);
-	gpu.uniform_int (program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
 	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
 	gpu.uniform_float(program, "bloom_threshhold", render_settings.bloom_threshhold);
 
@@ -910,7 +906,6 @@ draw_model :: proc(model: Model,
 		gpu.bind_vao(mesh.vao);
 		gpu.bind_vbo(mesh.vbo);
 		gpu.bind_ibo(mesh.ibo);
-		gpu.active_texture0();
 
 		// todo(josh): handle multiple textures per model
 		switch texture.target {
@@ -952,6 +947,7 @@ draw_model :: proc(model: Model,
 //
 
 // todo(josh): maybe do a push/pop rendermode kinda thing?
+// todo(josh): we should _definitely_ do a push/pop rendermode kinda thing. have had bugs related to this a few times now
 
 Rendermode :: enum {
     World,
@@ -959,17 +955,16 @@ Rendermode :: enum {
     Pixel,
 }
 
-Rendermode_Proc :: #type proc();
+@(deferred_out=pop_rendermode)
+PUSH_RENDERMODE :: proc(r: Rendermode) -> Rendermode {
+	old := current_camera.current_rendermode;
+	current_camera.current_rendermode = r;
+	return old;
+}
+pop_rendermode :: proc(r: Rendermode) {
+	current_camera.current_rendermode = r;
+}
 
-rendermode_world :: proc() {
-	current_camera.current_rendermode = .World;
-}
-rendermode_unit :: proc() {
-	current_camera.current_rendermode = .Unit;
-}
-rendermode_pixel :: proc() {
-	current_camera.current_rendermode = .Pixel;
-}
 
 
 
@@ -981,8 +976,7 @@ get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) ->
 	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
 	cursor_viewport_position.w = 1;
 
-	// todo(josh): should probably make this 0.5 because I think directx is 0 -> 1 instead of -1 -> 1 like opengl
-	cursor_viewport_position.z = 0.1; // just some way down the frustum
+	cursor_viewport_position.z = 0.1; // just some way down the frustum, will behave differently for opengl and directx
 
 	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
 

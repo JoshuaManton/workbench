@@ -51,8 +51,9 @@ init_draw :: proc(screen_width, screen_height: int) {
 	screen_camera.clear_color = {1, 0, 1, 1};
 	screen_camera.auto_resize_framebuffer = true;
 
-	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_color_framebuffer(screen_width, screen_height, 2));
+	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_framebuffer(screen_width, screen_height, 2));
 	setup_bloom(&wb_camera);
+	setup_shadow_maps(&wb_camera);
 	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
 	wb_camera.auto_resize_framebuffer = true;
 

@@ -392,7 +392,7 @@ rotated_direction :: proc(entity_rotation: Quat, direction: Vec3) -> Vec3 {
 gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
     if should_reset do return;
 
-    rendermode_world();
+    PUSH_RENDERMODE(.World);
 
     rotation := quat_norm(rotation);
     if manipulation_mode == .World {
