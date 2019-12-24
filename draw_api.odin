@@ -511,7 +511,9 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// do ambient occlusion
 
-
+	if post_render_proc != nil {
+		post_render_proc();
+	}
 
 	// do bloom
 	if bloom_fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
@@ -560,11 +562,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	im_flush();
 
 	debug_geo_flush();
-
-	// todo(josh): should this be before bloom?
-	if post_render_proc != nil {
-		post_render_proc();
-	}
 
 	// visualize depth buffer
 	if render_settings.visualize_shadow_texture {

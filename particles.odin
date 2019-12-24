@@ -71,7 +71,7 @@ Particle :: struct {
 }
 
 Particle_Vertex :: struct {
-    position: Vec4,
+    position: Vec3,
     uv: Vec2,
 }
 
@@ -84,13 +84,13 @@ init_particles :: proc() {
     
     ident := identity(Mat4);
     quad_verts := []Particle_Vertex {
-    	{{-0.5, -0.5, 0.0, 0.0}, {0, 0}}, // bottom left
-        {{ 0.5, -0.5, 0.0, 0.0}, {1, 0}}, // bottom right
-    	{{-0.5,  0.5, 0.0, 0.0}, {0, 1}}, // top left
+    	{{-0.5, -0.5, 0.0}, {0, 0}}, // bottom left
+        {{ 0.5, -0.5, 0.0}, {1, 0}}, // bottom right
+    	{{-0.5,  0.5, 0.0}, {0, 1}}, // top left
     	
-    	{{ 0.5, -0.5, 0.0, 0.0}, {1, 0}}, // bottom right
-        {{ 0.5,  0.5, 0.0, 0.0}, {1, 1}}, // top right
-    	{{-0.5,  0.5, 0.0, 0.0}, {0, 1}}, // top left
+    	{{ 0.5, -0.5, 0.0}, {1, 0}}, // bottom right
+        {{ 0.5,  0.5, 0.0}, {1, 1}}, // top right
+    	{{-0.5,  0.5, 0.0}, {0, 1}}, // top left
     };
     
     // generate vao and 2 vbos, 1 for vertices, othe other for instanced particle offsets
