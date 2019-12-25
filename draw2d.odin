@@ -104,6 +104,7 @@ im_sprite_minmax :: inline proc(
 		append(&buffered_draw_commands, cmd);
 }
 
+// todo(josh): im_text hard-codes wb_catalog.shaders["text"]. could/should make that a parameter
 im_text :: proc(
 	rendermode: Rendermode,
 	font: Font,
@@ -167,9 +168,9 @@ im_text :: proc(
 			sprite: Sprite;
 			{
 				uv0 := Vec2{quad.s0, quad.t1};
-				uv1 := Vec2{quad.s0, quad.t0};
+				uv1 := Vec2{quad.s1, quad.t1};
 				uv2 := Vec2{quad.s1, quad.t0};
-				uv3 := Vec2{quad.s1, quad.t1};
+				uv3 := Vec2{quad.s0, quad.t0};
 				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture};
 			}
 

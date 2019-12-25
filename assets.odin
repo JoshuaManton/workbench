@@ -104,7 +104,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		}
 		case "ttf": {
 			defer delete(data);
-			font := load_font(data, 32); // todo(josh): multiple sizes for fonts? probably would be good
+			font := load_font(data, 54); // todo(josh): multiple sizes for fonts? probably would be good
 			if name in catalog.textures {
 				logln("New font with name '", name, "'. Deleting old one.");
 				delete_texture(catalog.textures[name]);
