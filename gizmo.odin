@@ -304,7 +304,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                     prod2 := dot(mouse_direction, closest_plane_norm);
                     prod3 := prod / prod2;
                     closest_pos = mouse_world - mouse_direction * prod3;
-                }    
+                }
             }
             else {
                 if move_type == .NONE {
@@ -328,7 +328,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                                 return {}, false;
                             }
                         }
-                        
+
                         diff := ray_pos - plane_pos;
                         return (diff + plane_pos) + (ray_direction * (-dot(diff, plane_normal) / dot(ray_direction, plane_normal))), true;
                     }
@@ -356,7 +356,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                     }
                 }
             }
-            
+
 
 
             if move_type != .NONE && platform.get_input(.Mouse_Left) {
@@ -618,23 +618,6 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
             break;
         }
     }
-}
-
-quat_look_at :: proc(source, dest : Vec3) -> Quat {
-    forward := norm(dest - source);
-    dot := dot(Vec3{0,0,1}, forward);
-
-    if abs(dot + 1) < 0.000001 {
-        return Quat{0, 1, 0, PI};
-    }
-    if abs(dot - 1) < 0.000001 {
-        return Quat{0,0,0,1};
-    }
-
-    rot_angle := acos(dot);
-    rot_axis := cross(Vec3{0,0,1}, forward);
-    rot_axis = norm(rot_axis);
-    return axis_angle(rot_axis, rot_angle);
 }
 
 Manipulation_Mode :: enum {

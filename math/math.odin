@@ -1069,3 +1069,16 @@ mat4_to_quat :: proc(m: Mat4) -> Quat {
 	z := (m[1][0] - m[0][1]) / w4;
 	return Quat{x,y,z,w};
 }
+
+quat_look_at :: proc(eye, centre, up: Vec3) -> Quat {
+	f := norm(centre - eye);
+	s := norm(cross(f, up));
+	u := cross(s, f);
+
+	w := sqrt(1 + s.x + u.y - f.z) / 2;
+	w4 := w * 4;
+	x := (u.z - -f.y) / w4;
+	y := (-f.x - s.z) / w4;
+	z := (s.y - u.x) / w4;
+	return Quat{x,y,z,w};
+}

@@ -100,6 +100,7 @@ update_draw :: proc() {
 
 // todo(josh): maybe put this in the Workspace?
 post_render_proc: proc();
+done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {

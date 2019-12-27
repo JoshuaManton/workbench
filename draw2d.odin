@@ -265,6 +265,7 @@ im_flush :: proc() {
 	defer clear(&buffered_draw_commands);
 
 
+
 	sort.quick_sort_proc(buffered_draw_commands[:], proc(a, b: Draw_Command) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
