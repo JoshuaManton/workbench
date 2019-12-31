@@ -90,6 +90,7 @@ void main() {
 
     float shadow = (1.0 - calculate_shadow(shadow_map_index));
     result_color.rgb *= 1 + calculate_sun_light(material, norm) * shadow;
+    out_color = result_color;
 
     // visualize cascades
     // if (shadow_map_index == 0) {
@@ -105,10 +106,6 @@ void main() {
     //     out_color.rgb += vec3(1, 0, 1) * 0.2;
     // }
     // out_color = vec4(dist, dist, dist, 1);
-
-
-
-    out_color = result_color;
 
     // bloom color
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable

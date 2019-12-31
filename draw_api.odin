@@ -360,93 +360,9 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		gpu.log_errors(#procedure);
 	}
 
-	cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
-
 	// draw shadow maps
 	if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
-		for shadow_map_camera, map_idx in shadow_maps {
-			frustum_corners := [8]Vec3 {
-				{-1,  1, -1},
-				{ 1,  1, -1},
-				{ 1, -1, -1},
-				{-1, -1, -1},
-				{-1,  1,  1},
-				{ 1,  1,  1},
-				{ 1, -1,  1},
-				{-1, -1,  1},
-			};
-
-
-
-			// get the cascade projection from the main camera and make a vp matrix
-			cascade_proj := perspective(to_radians(camera.size), camera.aspect, camera.near_plane + cascade_positions[map_idx], min(camera.far_plane, camera.near_plane + cascade_positions[map_idx+1]));
-			cascade_view := construct_view_matrix(camera);
-			cascade_viewport_to_world := mat4_inverse(mul(cascade_proj, cascade_view));
-
-			transform_point :: proc(matrix: Mat4, pos: Vec3) -> Vec3 {
-				pos4 := to_vec4(pos);
-				pos4.w = 1;
-				pos4 = mul(matrix, pos4);
-				if pos4.w != 0 do pos4 /= pos4.w;
-				return to_vec3(pos4);
-			}
-
-
-
-			// calculate center point and radius of frustum
-			center_point := Vec3{};
-			for _, idx in frustum_corners {
-				frustum_corners[idx] = to_vec3(transform_point(cascade_viewport_to_world, frustum_corners[idx]));
-				center_point += frustum_corners[idx];
-			}
-			center_point /= len(frustum_corners);
-			radius := length(frustum_corners[0] - frustum_corners[6]) / 2;
-
-
-
-			light_rotation := camera.sun_rotation;
-			light_direction := quaternion_forward(light_rotation);
-
-			texels_per_unit := SHADOW_MAP_DIM / (radius * 2);
-			scale_matrix := identity(Mat4);
-			scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
-			scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation)));
-
-			// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
-			center_point_texel_space := transform_point(scale_matrix, center_point);
-			center_point_texel_space.x = round(center_point_texel_space.x);
-			center_point_texel_space.y = round(center_point_texel_space.y);
-			center_point_texel_space.z = round(center_point_texel_space.z);
-			center_point = transform_point(mat4_inverse(scale_matrix), center_point_texel_space);
-			// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation);
-
-
-			// position the shadow camera looking at that point
-			shadow_map_camera.position = center_point - light_direction * radius;
-			shadow_map_camera.rotation = light_rotation;
-			shadow_map_camera.size = radius;
-			shadow_map_camera.far_plane = radius * 2;
-
-			// render scene from perspective of sun
-			{
-				PUSH_CAMERA(shadow_map_camera);
-				// gpu.cull_face(.Front);
-
-				depth_shader := get_shader(&wb_catalog, "shadow");
-				gpu.use_program(depth_shader);
-
-				PUSH_RENDERMODE(.World);
-
-				for info in camera.render_queue {
-					using info;
-
-					if on_render_object != nil do on_render_object(userdata);
-					draw_model(model, position, scale, rotation, texture, color, true, animation_state);
-				}
-
-				// gpu.cull_face(.Back);
-			}
-		}
+		draw_shadow_maps(camera, shadow_maps);
 	}
 
 	// draw scene for real
@@ -474,7 +390,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
 			// set up cascade cameras
-			gpu.uniform_float_array(shader, "cascade_distances", cascade_positions[1:]);
+			gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
 
 			assert(NUM_SHADOW_MAPS == 4);
 			tex_indices := [NUM_SHADOW_MAPS]i32{1, 2, 3, 4};
@@ -509,7 +425,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 	}
 
-	// do ambient occlusion
+	// todo(josh): ambient occlusion
 
 	if post_render_proc != nil {
 		post_render_proc();
@@ -584,6 +500,101 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	if done_postprocessing_proc != nil {
 		done_postprocessing_proc();
+	}
+}
+
+shadow_cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
+
+draw_shadow_maps :: proc(main_camera: ^Camera, shadow_map_cameras: [NUM_SHADOW_MAPS]^Camera) {
+	for shadow_map_camera, map_idx in shadow_map_cameras {
+		assert(shadow_map_camera != nil);
+
+		frustum_corners := [8]Vec3 {
+			{-1,  1, -1},
+			{ 1,  1, -1},
+			{ 1, -1, -1},
+			{-1, -1, -1},
+			{-1,  1,  1},
+			{ 1,  1,  1},
+			{ 1, -1,  1},
+			{-1, -1,  1},
+		};
+
+
+
+		// calculate sub-frustum for this cascade
+		cascade_proj := perspective(to_radians(main_camera.size), main_camera.aspect, main_camera.near_plane + shadow_cascade_positions[map_idx], min(main_camera.far_plane, main_camera.near_plane + shadow_cascade_positions[map_idx+1]));
+		cascade_view := construct_view_matrix(main_camera);
+		cascade_viewport_to_world := mat4_inverse(mul(cascade_proj, cascade_view));
+
+		transform_point :: proc(matrix: Mat4, pos: Vec3) -> Vec3 {
+			pos4 := to_vec4(pos);
+			pos4.w = 1;
+			pos4 = mul(matrix, pos4);
+			if pos4.w != 0 do pos4 /= pos4.w;
+			return to_vec3(pos4);
+		}
+
+
+
+		// calculate center point and radius of frustum
+		center_point := Vec3{};
+		for _, idx in frustum_corners {
+			frustum_corners[idx] = transform_point(cascade_viewport_to_world, frustum_corners[idx]);
+			center_point += frustum_corners[idx];
+		}
+		center_point /= len(frustum_corners);
+
+
+
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
+		radius := length(frustum_corners[0] - frustum_corners[6]) / 2;
+
+
+
+		light_rotation := main_camera.sun_rotation;
+		light_direction := quaternion_forward(light_rotation);
+
+		texels_per_unit := SHADOW_MAP_DIM / (radius * 2);
+		scale_matrix := identity(Mat4);
+		scale_matrix = mat4_scale(scale_matrix, Vec3{texels_per_unit, texels_per_unit, texels_per_unit});
+		scale_matrix = mul(scale_matrix, quat_to_mat4(inverse(light_rotation)));
+
+		// draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_RED, light_rotation);
+		center_point_texel_space := transform_point(scale_matrix, center_point);
+		center_point_texel_space.x = round(center_point_texel_space.x);
+		center_point_texel_space.y = round(center_point_texel_space.y);
+		center_point_texel_space.z = round(center_point_texel_space.z);
+		center_point = transform_point(mat4_inverse(scale_matrix), center_point_texel_space);
+		// if map_idx == 0 do draw_debug_box(center_point, Vec3{1/texels_per_unit, 1/texels_per_unit, 1/texels_per_unit}, COLOR_GREEN, light_rotation, false);
+
+
+		// position the shadow camera looking at that point
+		shadow_map_camera.position = center_point - light_direction * radius;
+		shadow_map_camera.rotation = light_rotation;
+		shadow_map_camera.size = radius;
+		shadow_map_camera.far_plane = radius * 2;
+
+		// render scene from perspective of sun
+		PUSH_CAMERA(shadow_map_camera);
+
+		depth_shader := get_shader(&wb_catalog, "shadow");
+		gpu.use_program(depth_shader);
+
+		PUSH_RENDERMODE(.World);
+
+		for info in main_camera.render_queue {
+			using info;
+
+			if on_render_object != nil do on_render_object(userdata);
+			draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+		}
 	}
 }
 

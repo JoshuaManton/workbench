@@ -398,12 +398,12 @@ Draw_Sprite_Command :: struct {
 // Debug
 
 // todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
-draw_debug_line :: proc(a, b: Vec3, color: Colorf) {
-	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}});
+draw_debug_line :: proc(a, b: Vec3, color: Colorf, depth_test := true) {
+	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}, depth_test});
 }
 
-draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}) {
-	append(&debug_cubes, Debug_Cube{position, scale, rotation, color});
+draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}, depth_test := true) {
+	append(&debug_cubes, Debug_Cube{position, scale, rotation, color, depth_test});
 }
 
 debug_geo_flush :: proc() {
@@ -420,11 +420,11 @@ debug_geo_flush :: proc() {
 		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
 		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
 		update_mesh(&debug_line_model, 0, verts[:], []u32{});
-		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, false);
+		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, line.depth_test);
 	}
 
 	for cube in debug_cubes {
-		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, true);
+		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, cube.depth_test);
 	}
 }
 
@@ -434,10 +434,12 @@ Debug_Line :: struct {
 	a, b: Vec3,
 	color: Colorf,
 	rotation: Quat,
+	depth_test: bool,
 }
 Debug_Cube :: struct {
 	position: Vec3,
 	scale: Vec3,
 	rotation: Quat,
 	color: Colorf,
+	depth_test: bool,
 }
