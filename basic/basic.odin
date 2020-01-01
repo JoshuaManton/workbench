@@ -146,6 +146,8 @@ Path :: struct {
 	path: string,
 	file_name: string,
 	is_directory: bool,
+	parent_dir: string,
+	extension: string,
 }
 
 get_all_paths :: proc(path: string) -> []Path {
@@ -175,7 +177,14 @@ get_all_paths :: proc(path: string) -> []Path {
 			}
 
 			str := strings.clone(tprint(path, "/", file_name));
-			append(&results, Path{ str, tprint(file_name), is_dir});
+			extension, eok := get_file_extension(str);
+			append(&results, Path{ 
+				str, 
+				tprint(file_name), 
+				is_dir,
+				path,
+				extension
+			});
 		}
 
 		if !win32.find_next_file_a(hnd, &ffd) {

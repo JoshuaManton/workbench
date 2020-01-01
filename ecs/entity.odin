@@ -55,6 +55,13 @@ using import    "shared:workbench/logging"
     load_entity_from_file :: proc(filepath: string) -> Entity
 }
 
+--- Prefabs
+{
+    instantiate :: proc(prefab: Prefab) -> Entity
+    load_prefab_dir :: proc(filepath: string) -> Prefab_Scene
+    create_prefab :: proc(entity: Entity, path: string) 
+}
+
 */
 
 init :: proc() {
@@ -69,7 +76,6 @@ deinit :: proc() {
     }
     delete(component_types);
 }
-
 
 
 //
@@ -232,7 +238,11 @@ render :: proc() {
 
 selected_entity: Entity;
 
-draw_scene_window :: proc() {
+Entity_Payload :: struct {
+    eid : Entity,
+}
+
+draw_scene_window :: proc(userdata: rawptr) {
     if imgui.begin("Scene") {
         // save/load panel
         {
@@ -334,30 +344,19 @@ draw_scene_window :: proc() {
                 make_entity();
             }
 
-            // todo(josh): clean up all these allocations. I was trying to use the frame_allocator but it wasn't working.
-            entity_names: [dynamic]^u8;
-            defer {
-                for n in entity_names do free(n);
-                delete(entity_names);
-            }
-            for eid in scene.active_entities {
+            for eid, i in scene.active_entities {
                 e, ok := scene.entity_datas[eid];
                 assert(ok);
-                str := strings.clone_to_cstring(e.name);
-                append(&entity_names, cast(^u8)str);
-            }
 
-            @static _selected_entity: i32 = -1;
-            imgui.list_box("Entities", &_selected_entity, &entity_names[0], cast(i32)len(entity_names), 30);
-            if cast(int)_selected_entity > len(scene.active_entities) {
-                _selected_entity = -1;
-            }
+                if imgui.selectable_val(e.name, eid == selected_entity) {
+                    selected_entity = eid;
+                }
 
-            if _selected_entity >= 0 && cast(int)_selected_entity < len(scene.active_entities) {
-                selected_entity = scene.active_entities[_selected_entity];
-            }
-            else {
-                selected_entity = 0;
+                if imgui.begin_drag_drop_source(imgui.Drag_Drop_Flags(0), 0) {
+                    imgui.set_drag_drop_payload("entity", new_clone(Entity_Payload{eid}), 1, imgui.Set_Cond.Always);
+                    imgui.text(e.name);
+                    imgui.end_drag_drop_source();
+                }
             }
 
             if imgui.begin("Inspector") {
@@ -618,6 +617,7 @@ add_component_by_typeid :: proc(eid: Entity, tid: typeid, loc := #caller_locatio
 	assert(ptr != nil);
 	return ptr;
 }
+
 add_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> ^T { // note(josh): volatile return value, do not store
     ptr := _add_component_internal(eid, typeid_of(T), loc);
     assert(ptr != nil);
@@ -689,6 +689,68 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
     return eid;
 }
 
+//
+// Prefabs
+//
+
+Prefab :: struct {
+    filepath: string,
+    name: string,
+}
+
+Prefab_Scene :: struct {
+    prefabs: map[string]Prefab,
+    path: string,
+}
+
+instantiate_prefab :: proc(prefab: Prefab) -> Entity {
+    return load_entity_from_file(prefab.filepath);
+}
+
+load_prefab_dir :: proc(prefab_dir: string, scene: ^Prefab_Scene = nil) -> Prefab_Scene {
+    out_scene : Prefab_Scene;
+    if scene != nil {
+        out_scene = scene^;
+    } else {
+        out_scene = Prefab_Scene{
+            make(map[string]Prefab, 10),
+            prefab_dir,
+        };
+    }
+
+    for path in get_all_paths(prefab_dir) {
+        if path.is_directory {
+            load_prefab_dir(path.path, &out_scene);
+            continue;
+        }
+
+        out_scene.prefabs[path.path] = Prefab{ path.path, path.file_name };
+    }
+
+    return out_scene;
+}
+
+create_prefab :: proc(entity: Entity, path: string) {
+    data := scene.entity_datas[entity];
+    sb: strings.Builder;
+    defer strings.destroy_builder(&sb);
+
+    sbprint(&sb, entity, " ", data.name, "\n");
+    for c in data.components {
+        comp_data, ok2 := component_types[c];
+        assert(ok2);
+
+        sbprint(&sb, comp_data.ti, "\n");
+
+        _comp, found :=_get_component_internal(entity, c);
+        assert(found);
+        comp := cast(^Component_Base)_comp;
+        assert(comp != nil);
+        wbml.serialize_with_type_info("", comp, comp_data.ti, &sb, 0);
+    }
+
+    os.write_entire_file(path, transmute([]u8)strings.to_string(sb));
+}
 
 
 //
@@ -715,6 +777,7 @@ Entity_Data :: struct {
     components: [dynamic]typeid,
     serialized_file_on_disk: string,
 }
+
 delete_entity_data :: proc(data: Entity_Data) {
     delete(data.name);
     delete(data.components);
@@ -732,6 +795,7 @@ Component_Type :: struct {
     deinit_proc: proc(rawptr),
     editor_imgui_proc: proc(rawptr),
 }
+
 delete_component_type :: proc(type: Component_Type) {
     free(type.storage.data);
     delete(type.reusable_indices);
@@ -880,7 +944,6 @@ get_component_ti_from_name :: proc(name: string) -> ^rt.Type_Info {
 	assert(false, tprint("Couldnt find: ", name)); // todo(josh): handle components that exist on an entity but have been deleted
 	return nil;
 }
-
 
 
 @private
