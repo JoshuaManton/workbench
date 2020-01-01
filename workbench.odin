@@ -195,8 +195,8 @@ end_workspace :: proc(workspace: Workspace) {
 default_font:      Font;
 default_font_mono: Font;
 init_default_fonts :: proc() {
-	default_font      = get_font(&wb_catalog, "Roboto-Regular");
-	default_font_mono = get_font(&wb_catalog, "RobotoMono-Regular");
+	default_font      = get_asset(Font, &wb_catalog, "Roboto-Regular");
+	default_font_mono = get_asset(Font, &wb_catalog, "RobotoMono-Regular");
 }
 
 

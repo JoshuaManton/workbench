@@ -24,8 +24,6 @@ leak_check_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mo
 	assert(leak_checker.backing.procedure != nil);
 	context.allocator = leak_checker.backing;
 
-	fmt.println(mode, location);
-
 	#complete
 	switch mode {
 		case .Alloc: {

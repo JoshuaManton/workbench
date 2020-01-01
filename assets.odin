@@ -3,6 +3,7 @@ package workbench
       import "core:sys/win32"
       import "core:strings"
       import "core:os"
+      import rt "core:runtime"
       import "core:mem"
 using import "core:fmt"
 using import "logging"
@@ -12,63 +13,63 @@ using import "logging"
 using import "basic"
 
 Asset_Catalog :: struct {
-	textures:   map[string]Texture,
-	models:     map[string]Model,
-	fonts:      map[string]Font,
-	shaders:    map[string]gpu.Shader_Program,
-	text_files: map[string]string,
-
-	text_file_types: []string,
-
+	handlers: map[^rt.Type_Info]Asset_Handler,
 	loaded_files: [dynamic]Loaded_File,
 }
-
 Loaded_File :: struct {
 	path: string,
 	last_write_time: os.File_Time,
 }
 
+Asset_Load_Proc   :: #type proc([]byte, Asset_Load_Context) -> rawptr;
+Asset_Delete_Proc :: #type proc(asset: rawptr);
+Asset_Handler :: struct {
+	assets: map[string]rawptr,
+
+	extensions: []string,
+	load_proc: Asset_Load_Proc,
+	delete_proc: Asset_Delete_Proc,
+}
+
+Asset_Load_Context :: struct {
+	file_name: string,
+	root_directory: string,
+	extension: string,
+}
+
+add_asset_handler :: proc(catalog: ^Asset_Catalog, $Type: typeid, extensions: []string, load_proc: proc([]byte, Asset_Load_Context) -> ^Type, delete_proc: proc(^Type)) {
+	ti := type_info_of(Type);
+	assert(ti notin catalog.handlers);
+	catalog.handlers[ti] = Asset_Handler{make(map[string]rawptr, 10), extensions, cast(Asset_Load_Proc)load_proc, cast(Asset_Delete_Proc)delete_proc};
+}
+
 delete_asset_catalog :: proc(catalog: Asset_Catalog) {
-	for _, texture in catalog.textures {
-		delete_texture(texture);
+	for ti, handler in catalog.handlers {
+		for _, asset in handler.assets {
+			handler.delete_proc(asset);
+		}
+		delete(handler.assets);
 	}
-	for _, model in catalog.models {
-		delete_model(model);
-	}
-	for _, font in catalog.fonts {
-		delete_font(font);
-	}
-	for _, shader in catalog.shaders {
-		// todo(josh): figure out why deleting shaders was causing errors
-		// gpu.delete_shader(shader);
-	}
-	for _, text in catalog.text_files {
-		delete(text);
-	}
+	delete(catalog.handlers);
+
+
+
 	for f in catalog.loaded_files {
 		delete(f.path);
 	}
-
-	for t in catalog.text_file_types {
-		delete(t);
-	}
-
-	delete(catalog.textures);
-	delete(catalog.models);
-	delete(catalog.fonts);
-	delete(catalog.shaders);
-	delete(catalog.text_files);
 	delete(catalog.loaded_files);
-	delete(catalog.text_file_types);
 }
 
-load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, text_file_types: ..string, loc := #caller_location) {
+load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_location) {
+	if catalog.handlers == nil {
+		add_asset_handler(catalog, Texture,            {"png"},               catalog_load_texture, catalog_delete_texture);
+		add_asset_handler(catalog, Font,               {"ttf"},               catalog_load_font,    catalog_delete_font);
+		add_asset_handler(catalog, Model,              {"fbx"},               catalog_load_model,   catalog_delete_model);
+		add_asset_handler(catalog, gpu.Shader_Program, {"shader", "compute"}, catalog_load_shader,  catalog_delete_shader);
+	}
+
 	files := get_all_filepaths_recursively(path);
 	defer delete(files); // note(josh): dont delete the elements in `files` because they get stored in Asset_Catalog.loaded_files
-
-	assert(catalog.text_file_types == nil);
-	catalog.text_file_types = make([]string, len(text_file_types));
-	for _, idx in text_file_types do catalog.text_file_types[idx] = aprint(text_file_types[idx]);
 
 	for filepath in files {
 		last_write_time, err := os.last_write_time_by_name(filepath);
@@ -91,81 +92,143 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 
 	data, fileok := os.read_entire_file(filepath);
 	assert(fileok);
+	defer delete(data);
 
-	switch ext {
-		case "png": {
-			defer delete(data);
-			texture := create_texture_from_png_data(data);
-			if name in catalog.textures {
-				logln("New texture with name '", name, "'. Deleting old one.");
-				delete_texture(catalog.textures[name]);
-			}
-			catalog.textures[name] = texture;
-		}
-		case "ttf": {
-			defer delete(data);
-			font := load_font(data, 54); // todo(josh): multiple sizes for fonts? probably would be good
-			if name in catalog.textures {
-				logln("New font with name '", name, "'. Deleting old one.");
-				delete_texture(catalog.textures[name]);
-			}
-			catalog.fonts[name] = font;
-		}
-		case "fbx": {
-			defer delete(data);
-			model := load_model_from_memory(data, name);
-			if name in catalog.models {
-				logln("New model with name '", name, "'. Deleting old one.");
-				delete_model(catalog.models[name]);
-			}
-			catalog.models[name] = model;
-		}
-		case "shader": {
-			defer delete(data);
+	handler_loop: for ti in catalog.handlers {
+		handler := catalog.handlers[ti];
+		defer catalog.handlers[ti] = handler; // ugh, PLEASE GIVE MAP POINTERS BILL
 
-			if name in catalog.shaders {
-				logln("New shader with name '", name, "'. Deleting old one.");
-				// todo(josh): figure out why deleting shaders was causing errors
-				// gpu.delete_shader(catalog.shaders[name]);
-			}
-
-			shader, ok := parse_shader(catalog, cast(string)data, root_directory);
-			if !ok {
-				logln("Error: Parse shader failed: ", filepath);
-				delete_key(&catalog.shaders, name);
-			}
-			else {
-				catalog.shaders[name] = shader;
-			}
-		}
-		case "compute": {
-			defer delete(data);
-
-			if name in catalog.shaders {
-				logln("New compute compute shader with name '", name, "'. Deleting old one.");
-				// todo(josh): figure out why deleting shaders was causing errors
-				// gpu.delete_shader(catalog.shaders[name]);
-			}
-
-			shader, ok := gpu.load_shader_compute(cast(string)data);
-			if !ok {
-				logln("Error: Parse shader failed: ", filepath);
-				delete_key(&catalog.shaders, name);
-			}
-			else {
-				catalog.shaders[name] = shader;
-			}
-		}
-		case: {
-			if array_contains(catalog.text_file_types, ext) {
-				if name in catalog.text_files {
-					logln("New text file with name '", name, "'. Deleting old one.");
-					delete(catalog.text_files[name]);
+		for handler_extension in handler.extensions {
+			if handler_extension == ext {
+				if name in handler.assets {
+					logln("New asset with name '", name, "'. Deleting old one.");
+					handler.delete_proc(handler.assets[name]);
 				}
-				catalog.text_files[name_and_ext] = cast(string)data;
+
+				asset := handler.load_proc(data, Asset_Load_Context{name, root_directory, ext});
+				if asset != nil {
+					handler.assets[name] = asset;
+				}
+				else {
+					logln("Loading asset '", name, "' failed.");
+				}
+
+				break handler_loop;
 			}
 		}
 	}
+}
+
+add_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string, asset: ^Type) {
+	ti := type_info_of(Type);
+	handler, hok := catalog.handlers[ti];
+	assert(hok);
+	defer catalog.handlers[ti] = handler;
+
+	assert(name notin handler.assets);
+	handler.assets[name] = asset;
+}
+
+try_get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> (Type, bool) {
+	ti := type_info_of(Type);
+	handler, ok := catalog.handlers[ti];
+	assert(ok);
+
+	if asset, ok := handler.assets[name]; ok {
+		return (cast(^Type)asset)^, true;
+	}
+	else {
+		// fall back to the wb_catalog
+		handler, ok := wb_catalog.handlers[ti];
+		assert(ok);
+		if asset, ok := handler.assets[name]; ok {
+			return (cast(^Type)asset)^, true;
+		}
+	}
+
+	return {}, false;
+}
+
+get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> Type {
+	asset, ok := try_get_asset(Type, catalog, name);
+	assert(ok, tprint("Couldn't find asset: ", name));
+	return asset;
+}
+
+
+
+check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
+	profiler.TIMED_SECTION(&wb_profiler);
+	for _, idx in catalog.loaded_files {
+		file := &catalog.loaded_files[idx];
+		new_last_write_time, err := os.last_write_time_by_name(file.path);
+		assert(err == 0); // todo(josh): check for deleted files?
+		if new_last_write_time > file.last_write_time {
+			logln("file update: ", file.path);
+			file.last_write_time = new_last_write_time;
+			load_asset(catalog, file.path);
+		}
+	}
+}
+
+
+
+// todo(josh): we currently individually allocate each asset which is a little wasteful, could back these by an arena or something
+
+catalog_load_texture :: proc(data: []byte, ctx: Asset_Load_Context) -> ^Texture {
+	texture := create_texture_from_png_data(data);
+	return new_clone(texture);
+}
+catalog_delete_texture :: proc(texture: ^Texture) {
+	delete_texture(texture^);
+	free(texture);
+}
+
+catalog_load_font :: proc(data: []byte, ctx: Asset_Load_Context) -> ^Font {
+	font := load_font(data, 54); // todo(josh): multiple sizes for fonts? probably would be good
+	return new_clone(font);
+}
+catalog_delete_font :: proc(font: ^Font) {
+	delete_font(font^);
+	free(font);
+}
+
+catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> ^Model {
+	model := load_model_from_memory(data, ctx.file_name);
+	return new_clone(model);
+}
+catalog_delete_model :: proc(model: ^Model) {
+	delete_model(model^);
+	free(model);
+}
+
+catalog_load_shader :: proc(data: []byte, ctx: Asset_Load_Context) -> ^gpu.Shader_Program {
+	switch ctx.extension {
+		case "shader": {
+			shader, ok := parse_shader(cast(string)data, ctx.root_directory);
+			if !ok {
+				return nil;
+			}
+			return new_clone(shader);
+		}
+		case "compute": {
+			shader, ok := gpu.load_shader_compute(cast(string)data);
+			if !ok {
+				return nil;
+			}
+			return new_clone(shader);
+		}
+		case: {
+			panic(ctx.extension);
+		}
+	}
+	unreachable();
+	return {};
+}
+catalog_delete_shader :: proc(shader: ^gpu.Shader_Program) {
+	// todo(josh): figure out why deleting shaders was causing errors
+	// gpu.delete_shader(catalog.shaders[name]);
+	free(shader);
 }
 
 Parse_Shader_Result :: enum {
@@ -174,7 +237,10 @@ Parse_Shader_Result :: enum {
 	Error,
 }
 
-parse_shader :: proc(catalog: ^Asset_Catalog, text: string, root_folder: string) -> (gpu.Shader_Program, bool) {
+parse_shader :: proc(text: string, root_folder: string) -> (gpu.Shader_Program, bool) {
+
+	// todo(josh): would be great to be able to @include wb shaders from user code. hmmmmmm.
+
 
 	process_includes :: proc(builder: ^strings.Builder, text: string, root_folder: string) -> bool {
 		assert(builder != nil);
@@ -243,72 +309,30 @@ parse_shader :: proc(catalog: ^Asset_Catalog, text: string, root_folder: string)
 
 
 
-check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
-	profiler.TIMED_SECTION(&wb_profiler);
-	for _, idx in catalog.loaded_files {
-		file := &catalog.loaded_files[idx];
-		new_last_write_time, err := os.last_write_time_by_name(file.path);
-		assert(err == 0); // todo(josh): check for deleted files?
-		if new_last_write_time > file.last_write_time {
-			logln("file update: ", file.path);
-			file.last_write_time = new_last_write_time;
-			load_asset(catalog, file.path);
-		}
-	}
-}
-
 try_get_texture :: proc(catalog: ^Asset_Catalog, name: string) -> (Texture, bool) {
-	asset, ok := catalog.textures[name];
-	if ok do return asset, true;
-	wb_asset, ok2 := wb_catalog.textures[name];
-	if ok2 do return wb_asset, true;
-	return {}, false;
+	return try_get_asset(Texture, catalog, name);
 }
 get_texture :: inline proc(catalog: ^Asset_Catalog, name: string) -> Texture {
-	texture, ok := try_get_texture(catalog, name);
-	assert(ok, tprint("Couldn't find texture: ", name));
-	return texture;
+	return get_asset(Texture, catalog, name);
 }
 
 try_get_model :: proc(catalog: ^Asset_Catalog, name: string) -> (Model, bool) {
-	asset, ok := catalog.models[name];
-	if ok do return asset, true;
-	wb_asset, ok2 := wb_catalog.models[name];
-	if ok2 do return wb_asset, true;
-	return {}, false;
+	return try_get_asset(Model, catalog, name);
 }
 get_model :: inline proc(catalog: ^Asset_Catalog, name: string) -> Model {
-	model, ok := try_get_model(catalog, name);
-	assert(ok, tprint("Couldn't find model: ", name));
-	return model;
+	return get_asset(Model, catalog, name);
 }
 
 try_get_font :: proc(catalog: ^Asset_Catalog, name: string) -> (Font, bool) {
-	asset, ok := catalog.fonts[name];
-	if ok do return asset, true;
-	wb_asset, ok2 := wb_catalog.fonts[name];
-	if ok2 do return wb_asset, true;
-	return {}, false;
+	return try_get_asset(Font, catalog, name);
 }
 get_font :: inline proc(catalog: ^Asset_Catalog, name: string) -> Font {
-	font, ok := try_get_font(catalog, name);
-	assert(ok, tprint("Couldn't find font: ", name));
-	return font;
+	return get_asset(Font, catalog, name);
 }
 
 try_get_shader :: proc(catalog: ^Asset_Catalog, name: string) -> (gpu.Shader_Program, bool) {
-	asset, ok := catalog.shaders[name];
-	if ok do return asset, true;
-	wb_asset, ok2 := wb_catalog.shaders[name];
-	if ok2 do return wb_asset, true;
-	return {}, false;
+	return try_get_asset(gpu.Shader_Program, catalog, name);
 }
 get_shader :: inline proc(catalog: ^Asset_Catalog, name: string) -> gpu.Shader_Program {
-	shader, ok := try_get_shader(catalog, name);
-	if ok {
-		return shader;
-	}
-	// logln("Error: Couldn't find shader ", name);
-	return wb_catalog.shaders["error"];
+	return get_asset(gpu.Shader_Program, catalog, name);
 }
-

@@ -175,7 +175,7 @@ im_text :: proc(
 			}
 
 			if !is_space && actually_draw {
-				im_sprite_minmax(rendermode, wb_catalog.shaders["text"], min, max, sprite, color, layer);
+				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite, color, layer);
 			}
 
 			width := max.x - min.x;
@@ -414,7 +414,7 @@ debug_geo_flush :: proc() {
 	// todo(josh): support all rendermodes
 	PUSH_RENDERMODE(.World);
 
-	gpu.use_program(wb_catalog.shaders["default"]);
+	gpu.use_program(get_shader(&wb_catalog, "default"));
 	for line in debug_lines {
 		verts: [2]Vertex3D;
 		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
