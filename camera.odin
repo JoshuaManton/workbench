@@ -35,7 +35,9 @@ do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_spe
 		MOUSE_ROTATE_SENSITIVITY :: 0.1;
 		delta := platform.mouse_screen_position_delta;
 		delta *= MOUSE_ROTATE_SENSITIVITY;
-		rotate_vector = Vec3{delta.y, -delta.x, platform.mouse_scroll};
+		rotate_vector = Vec3{delta.y, -delta.x, 0};
+
+		camera.size -= platform.mouse_scroll * camera.size * 0.05;
 	}
 	else {
 		KEY_ROTATE_SENSITIVITY :: 1;
