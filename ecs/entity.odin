@@ -2,22 +2,22 @@ package ecs
 
 DEVELOPER :: true;
 
-using import "core:fmt"
-      import rt "core:runtime"
-      import "core:mem"
-      import "core:strings"
-      import "core:os"
+import "core:fmt"
+import rt "core:runtime"
+import "core:mem"
+import "core:strings"
+import "core:os"
 
-      import wb "shared:workbench"
-using import    "shared:workbench/math"
-      import    "shared:workbench/wbml"
-      import    "shared:workbench/laas"
-using import    "shared:workbench/types"
-using import    "shared:workbench/basic"
-using import    "shared:workbench/logging"
-      import    "shared:workbench/gpu"
-      import    "shared:workbench/reflection"
-      import    "shared:workbench/external/imgui"
+import wb "shared:workbench"
+import    "shared:workbench/math"
+import    "shared:workbench/wbml"
+import    "shared:workbench/laas"
+import    "shared:workbench/types"
+import    "shared:workbench/basic"
+import    "shared:workbench/logging"
+import    "shared:workbench/gpu"
+import    "shared:workbench/reflection"
+import    "shared:workbench/external/imgui"
 
 /*
 
@@ -59,7 +59,7 @@ using import    "shared:workbench/logging"
 {
     instantiate :: proc(prefab: Prefab) -> Entity
     load_prefab_dir :: proc(filepath: string) -> Prefab_Scene
-    create_prefab :: proc(entity: Entity, path: string) 
+    create_prefab :: proc(entity: Entity, path: string)
 }
 
 */
@@ -88,12 +88,12 @@ load_scene :: proc(folder_path: string) {
     scene = new(Scene);
     scene.folder_path = strings.clone(folder_path);
 
-    filepaths := get_all_filepaths_recursively(folder_path);
+    filepaths := basic.get_all_filepaths_recursively(folder_path);
     // todo(josh): @Leak filepaths
     // note(josh): contents of filepaths get given to entities
 
     for filepath in filepaths {
-        if !string_ends_with(filepath, ".e") {
+        if !basic.string_ends_with(filepath, ".e") {
             delete(filepath);
         }
         else {
@@ -111,10 +111,10 @@ save_scene :: proc() {
             assert(file != "");
             ok := wb.delete_file(file);
             if ok {
-                logln("Deleted entity file: ", file);
+                logging.ln("Deleted entity file: ", file);
             }
             else {
-                logln("Error: Couldn't find entity file: ", file);
+                logging.ln("Error: Couldn't find entity file: ", file);
             }
         }
         // todo(josh): I think we are @Leaking the file names. investigate
@@ -142,7 +142,7 @@ save_scene :: proc() {
         entity_file_name := tprint(scene.folder_path, "/", data.name, "-", eid, ".e");
         if data.serialized_file_on_disk != "" {
             if entity_file_name != data.serialized_file_on_disk {
-                logln("Entity file changed from ", data.serialized_file_on_disk, " to ", entity_file_name, " Deleting old one.");
+                logging.ln("Entity file changed from ", data.serialized_file_on_disk, " to ", entity_file_name, " Deleting old one.");
                 wb.delete_file(data.serialized_file_on_disk);
                 // todo(josh): @Leak data.serialized_file_on_disk
                 data.serialized_file_on_disk = aprint(entity_file_name); // todo(josh): @Leak figure out the lifetime of this allocation
@@ -259,7 +259,7 @@ draw_scene_window :: proc(userdata: rawptr) {
 
                 if imgui.button("Load") {
                     if scene_name == "" {
-                        logln("You must provide a scene name to load.");
+                        logging.ln("You must provide a scene name to load.");
                     }
                     else {
                         asking_to_save = true;
@@ -272,7 +272,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                 if imgui.button("New") {
                     if scene_name == "" {
                         // todo(josh): allow new scenes without having to make a folder until you save
-                        logln("You must provide a scene name to make a new scene.");
+                        logging.ln("You must provide a scene name to make a new scene.");
                     }
                     else {
                         asking_to_save = true;
@@ -318,7 +318,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                             do_new_after_save = false;
                             _, err := os.last_write_time_by_name(scene_folder);
                             if err == os.ERROR_NONE {
-                                logln("Already have scene with the name ", scene_name);
+                                logging.ln("Already have scene with the name ", scene_name);
                             }
                             else {
                                 assert(err == os.ERROR_FILE_NOT_FOUND);
@@ -424,10 +424,10 @@ draw_scene_window :: proc(userdata: rawptr) {
                         for tid, data in component_types {
                             name := tprint(data.ti);
                             input := cast(string)cast(cstring)&comp_name_buffer[0];
-                            name_lower  := string_to_lower(name);
-                            input_lower := string_to_lower(input);
+                            name_lower  := basic.string_to_lower(name);
+                            input_lower := basic.string_to_lower(input);
 
-                            if len(input_lower) > 0 && string_starts_with(name_lower, input_lower) {
+                            if len(input_lower) > 0 && basic.string_starts_with(name_lower, input_lower) {
                                 if imgui.button(name) {
                                     comp := cast(^Component_Base)_add_component_internal(selected_entity, tid);
                                     imgui.close_current_popup();
@@ -441,7 +441,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                         new_entity := make_entity();
                         to_clone_entity_data, ok := scene.entity_datas[entity_to_clone];
                         if !ok {
-                            logln("entity_to_clone got deleted or something?");
+                            logging.ln("entity_to_clone got deleted or something?");
                         }
                         else {
                             for c in to_clone_entity_data.components {
@@ -576,7 +576,7 @@ destroy_entity_immediate :: proc(eid: Entity) {
     data, ok := scene.entity_datas[eid];
     assert(ok); // todo(josh): maybe remove this assert and just return
 
-    logln("destroying ", data.name);
+    logging.ln("destroying ", data.name);
 
     if data.serialized_file_on_disk != "" {
         append(&scene.entity_files_to_destroy_on_save, data.serialized_file_on_disk);
@@ -656,7 +656,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
     name_token, name_ok := laas.expect(&lexer, laas.Identifier);
     entity_name := "Entity";
     if !name_ok {
-        logln("Entity ", eid, " didn't have a name in the file.");
+        logging.ln("Entity ", eid, " didn't have a name in the file.");
     }
     else {
         entity_name = strings.clone(name_token.value);
@@ -718,7 +718,7 @@ load_prefab_dir :: proc(prefab_dir: string, scene: ^Prefab_Scene = nil) -> Prefa
         };
     }
 
-    for path in get_all_paths(prefab_dir) {
+    for path in basic.get_all_paths(prefab_dir) {
         if path.is_directory {
             load_prefab_dir(path.path, &out_scene);
             continue;
@@ -811,7 +811,7 @@ _add_component_internal :: proc(eid: Entity, tid: typeid, loc := #caller_locatio
     ti := type_info_of(tid);
 
     if _, already_exists := _get_component_internal(eid, tid); already_exists {
-        logln("Error: Cannot add more than one of the same component: ", ti, loc);
+        logging.ln("Error: Cannot add more than one of the same component: ", ti, loc);
         return nil;
     }
 
@@ -875,6 +875,7 @@ _copy_component_internal :: proc(dst: ^Component_Base, src: ^Component_Base, ti:
     dst^ = tmp;
 
     deep_copy_except_pointers :: proc(dst: rawptr, src: rawptr, ti: ^rt.Type_Info) {
+        #partial
         switch kind in ti.variant {
             case rt.Type_Info_Integer: {
                 mem.copy(dst, src, ti.size);
@@ -956,3 +957,12 @@ APRINT :: proc(args: ..any) -> string {
 delete_APRINT :: proc(str: string) {
     delete(str);
 }
+
+
+
+
+tprint :: fmt.tprint;
+aprint :: fmt.aprint;
+sbprint :: fmt.sbprint;
+Vec3 :: math.Vec3;
+Quat :: math.Quat;

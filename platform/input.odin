@@ -3,7 +3,7 @@ package workbench
 import "../external/glfw"
 import "../external/imgui"
 
-using import "../basic"
+import "../basic"
 
 /*
 
@@ -481,6 +481,7 @@ wb_button_release :: proc(button: $Input_Type) {
 // this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
 // so we need to save presses in a separate buffer and copy them over to have consistent behaviour
 _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
+	#partial
 	switch action {
 		case glfw.Action.Press: {
 			wb_button_press(cast(Input)key);
@@ -492,6 +493,7 @@ _glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancod
 }
 
 _glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.Mouse, action: glfw.Action, mods: i32) {
+	#partial
 	switch action {
 		case glfw.Action.Press: {
 			wb_button_press(button);

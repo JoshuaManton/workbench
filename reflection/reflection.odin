@@ -1,11 +1,11 @@
 package reflection
 
-      import rt "core:runtime"
-      import "core:strings"
-      import "core:strconv"
-using import "core:fmt"
+import rt "core:runtime"
+import "core:strings"
+import "core:strconv"
+import "core:fmt"
 
-      import "core:mem"
+import "core:mem"
 
 get_union_type_info :: proc(v : any) -> ^rt.Type_Info {
     if tag := get_union_tag(v); tag > 0 {
@@ -76,7 +76,7 @@ set_union_tag :: proc(v : any, tag : i64) {
 
 set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: string, allocator := context.allocator) {
     // todo(josh): handle more cases
-    // #complete
+    #partial
     switch ti_kind in ti.variant {
         case rt.Type_Info_String: {
             (cast(^string)ptr)^ = strings.clone(value_string, allocator);
@@ -85,7 +85,6 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
         case rt.Type_Info_Integer: {
             if ti_kind.signed {
                 i64_value := strconv.parse_i64(value_string);
-                #complete
                 switch ti_kind.endianness {
                     case .Platform: {
                         switch ti.size {
@@ -117,7 +116,6 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
             }
             else {
                 u64_value := strconv.parse_u64(value_string);
-                #complete
                 switch ti_kind.endianness {
                     case .Platform: {
                         switch ti.size {
@@ -207,3 +205,7 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
         }
     }
 }
+
+
+
+tprint :: fmt.tprint;

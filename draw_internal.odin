@@ -1,21 +1,18 @@
 package workbench
 
-using import          "core:fmt"
-      import          "core:sort"
-      import          "core:strings"
-      import          "core:mem"
-      import          "core:os"
+import "core:fmt"
+import "core:sort"
+import "core:strings"
+import "core:mem"
+import "core:os"
 
-      import          "platform"
-      import          "gpu"
-using import wbmath   "math"
-using import          "types"
-using import          "logging"
-using import          "basic"
+import "platform"
+import "gpu"
+import "logging"
 
-      import          "external/stb"
-      import          "external/glfw"
-      import          "external/imgui"
+import "external/stb"
+import "external/glfw"
+import "external/imgui"
 
 //
 // Internal

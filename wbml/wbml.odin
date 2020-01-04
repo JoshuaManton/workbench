@@ -4,34 +4,34 @@ import rt "core:runtime"
 import "core:mem"
 import "core:reflect"
 
-      import "../reflection"
+import "../reflection"
 
-using import "core:strings"
-using import "core:fmt"
-using import "../laas"
+import "core:strings"
+import "core:fmt"
+import "../laas"
 
 serialize :: proc(value: ^$Type) -> string {
-	sb: Builder;
+	sb: strings.Builder;
 	serialize_string_builder(value, &sb);
-	return to_string(sb);
+	return strings.to_string(sb);
 }
 
-serialize_string_builder :: proc(value: ^$Type, sb: ^Builder) {
+serialize_string_builder :: proc(value: ^$Type, sb: ^strings.Builder) {
 	ti := type_info_of(Type);
 	serialize_with_type_info("", value, ti, sb, 0);
 }
 
-serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^Builder, indent_level: int, loc := #caller_location) {
+serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^strings.Builder, indent_level: int, loc := #caller_location) {
 	assert(ti != nil);
 	indent_level := indent_level;
 
-	print_indents :: inline proc(indent_level: int, sb: ^Builder) {
+	print_indents :: inline proc(indent_level: int, sb: ^strings.Builder) {
 		for i in 0..indent_level-1 {
 			sbprint(sb, "\t");
 		}
 	}
 
-	print_to_buf :: inline proc(sb: ^Builder, args: ..any) {
+	print_to_buf :: inline proc(sb: ^strings.Builder, args: ..any) {
 		sbprint(sb, ..args);
 	}
 
@@ -40,10 +40,12 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 	}
 
 	do_newline := true;
+
+	// todo(josh): remove this partial and handle all cases!
+	#partial
 	switch kind in ti.variant {
 		case rt.Type_Info_Integer: {
 			if kind.signed {
-				#complete
 				switch kind.endianness {
 					case .Platform: {
 						switch ti.size {
@@ -73,7 +75,6 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 				}
 			}
 			else {
-				#complete
 				switch kind.endianness {
 					case .Platform: {
 						switch ti.size {
@@ -277,10 +278,10 @@ deserialize_into_pointer_with_type_info :: proc(data: []u8, ptr: rawptr, ti: ^rt
 	write_value(root, ptr, ti);
 }
 
-parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
+parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 	eat_newlines(lexer);
-	root_token: Token;
-	ok := get_next_token(lexer, &root_token);
+	root_token: laas.Token;
+	ok := laas.get_next_token(lexer, &root_token);
 	if !ok do return nil;
 
 	if symbol, ok := root_token.kind.(laas.Symbol); ok {
@@ -289,6 +290,8 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 		}
 	}
 
+	// todo(josh): remove this #partial and handle all cases!
+	#partial
 	switch value_kind in root_token.kind {
 		case laas.Symbol: {
 			switch value_kind.value {
@@ -299,17 +302,17 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 
 						// check for end
 						{
-							next_token: Token;
-							ok := peek(lexer, &next_token);
+							next_token: laas.Token;
+							ok := laas.peek(lexer, &next_token);
 							assert(ok, "end of text from within object");
 							if right_curly, ok2 := next_token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
-								eat(lexer);
+								laas.eat(lexer);
 								break;
 							}
 						}
 
-						var_name_token: Token;
-						ok := get_next_token(lexer, &var_name_token);
+						var_name_token: laas.Token;
+						ok := laas.get_next_token(lexer, &var_name_token);
 						assert(ok, "end of text from within object");
 
 						variable_name, ok2 := var_name_token.kind.(laas.Identifier);
@@ -328,11 +331,11 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 
 						// check for end
 						{
-							next_token: Token;
-							ok := peek(lexer, &next_token);
+							next_token: laas.Token;
+							ok := laas.peek(lexer, &next_token);
 							assert(ok, "end of text from within array");
 							if right_square, ok2 := next_token.kind.(laas.Symbol); ok2 && right_square.value == ']' {
-								eat(lexer);
+								laas.eat(lexer);
 								break;
 							}
 						}
@@ -344,10 +347,10 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 				}
 
 				case '.': {
-					type_token: Token;
-					ok := get_next_token(lexer, &type_token);
+					type_token: laas.Token;
+					ok := laas.get_next_token(lexer, &type_token);
 					assert(ok);
-					ident, ok2 := type_token.kind.(Identifier);
+					ident, ok2 := type_token.kind.(laas.Identifier);
 					assert(ok2, "Only single identifier types are currently supported for tagged unions");
 
 					value := parse_value(lexer);
@@ -390,6 +393,8 @@ parse_value :: proc(lexer: ^Lexer, is_negative_number := false) -> ^Node {
 }
 
 write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
+	// todo(josh): remove this #partial?
+	#partial
 	switch variant in ti.variant {
 		case rt.Type_Info_Named: {
 			write_value(node, ptr, variant.base);
@@ -455,7 +460,6 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		case rt.Type_Info_Integer: {
 			number := &node.kind.(Node_Number);
 			if variant.signed {
-				#complete
 				switch variant.endianness {
 					case .Platform: {
 						switch ti.size {
@@ -485,7 +489,6 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 				}
 			}
 			else {
-				#complete
 				switch variant.endianness {
 					case .Platform: {
 						switch ti.size {
@@ -547,6 +550,7 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		}
 
 		case rt.Type_Info_Union: {
+			#partial
 			switch node_kind in node.kind {
 				case Node_Nil: {
 					// note(josh): Do nothing!
@@ -598,7 +602,6 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 }
 
 delete_node :: proc(node: ^Node) {
-	#complete
 	switch kind in node.kind {
 		case Node_Number:     // do nothing
 		case Node_Bool:       // do nothing
@@ -628,14 +631,14 @@ delete_node :: proc(node: ^Node) {
 	free(node);
 }
 
-eat_newlines :: proc(lexer: ^Lexer, loc := #caller_location) {
-	token: Token;
+eat_newlines :: proc(lexer: ^laas.Lexer, loc := #caller_location) {
+	token: laas.Token;
 	for {
-		ok := peek(lexer, &token);
+		ok := laas.peek(lexer, &token);
 		if !ok do return;
 
-		if _, is_newline := token.kind.(New_Line); is_newline {
-			eat(lexer);
+		if _, is_newline := token.kind.(laas.New_Line); is_newline {
+			laas.eat(lexer);
 		}
 		else {
 			return;
@@ -693,3 +696,8 @@ Node_Union :: struct {
 	variant_name: string, // note(josh): slice of source text
 	value: ^Node,
 }
+
+
+
+tprint :: fmt.tprint;
+sbprint :: fmt.sbprint;

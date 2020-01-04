@@ -1,23 +1,20 @@
 package workbench
 
-using import          "core:fmt"
-import          "core:sort"
-import          "core:strings"
-import          "core:mem"
-import rt       "core:runtime"
-import          "core:os"
+import "core:fmt"
+import "core:sort"
+import "core:strings"
+import "core:mem"
+import rt "core:runtime"
+import "core:os"
 
-import          "platform"
-import          "profiler"
-import          "gpu"
-using import          "math"
-using import          "types"
-using import          "logging"
-using import          "basic"
+import "platform"
+import "profiler"
+import "gpu"
+import "logging"
 
-import          "external/stb"
-import          "external/glfw"
-import          "external/imgui"
+import "external/stb"
+import "external/glfw"
+import "external/imgui"
 
 /*
 
@@ -289,7 +286,7 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
 
     if framebuffer.fbo != 0 {
         if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
-            logln("Rebuilding framebuffer...");
+            logging.ln("Rebuilding framebuffer...");
 
         	num_color_buffers := len(framebuffer.attachments);
             delete_framebuffer(framebuffer);
@@ -325,8 +322,7 @@ construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
 }
 
 construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
-    #complete
-        switch camera.current_rendermode {
+    switch camera.current_rendermode {
         case .World: {
             return construct_projection_matrix(camera);
         }
@@ -538,7 +534,7 @@ draw_shadow_maps :: proc(main_camera: ^Camera, shadow_map_cameras: [NUM_SHADOW_M
 
 
 		// calculate center point and radius of frustum
-		center_point := Vec3{};
+		center_point: Vec3;
 		for _, idx in frustum_corners {
 			frustum_corners[idx] = transform_point(cascade_viewport_to_world, frustum_corners[idx]);
 			center_point += frustum_corners[idx];
@@ -550,11 +546,8 @@ draw_shadow_maps :: proc(main_camera: ^Camera, shadow_map_cameras: [NUM_SHADOW_M
 		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-		// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-		radius := length(frustum_corners[0] - frustum_corners[6]) / 2;
+		// note(josh): hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
+		radius := cast(f32)cast(int)(length(frustum_corners[0] - frustum_corners[6]) / 2 + 1.0);
 
 
 
@@ -612,7 +605,7 @@ submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture,
 }
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
 	if current_camera.num_point_lights >= MAX_LIGHTS {
-		logln("Too many lights! The max is ", MAX_LIGHTS);
+		logging.ln("Too many lights! The max is ", MAX_LIGHTS);
 		return;
 	}
 
@@ -645,28 +638,28 @@ Texture :: struct {
     element_type: gpu.Texture2D_Data_Type,
 }
 
-create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
+create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format: gpu.Pixel_Data_Format, initial_data_element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_2d(texture);
 
-	gpu.tex_image_2d(0, gpu_format, cast(i32)ww, cast(i32)hh, 0, pixel_format, element_type, initial_data);
+	gpu.tex_image_2d(0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 
-	return Texture{texture, ww, hh, 1, .Texture2D, pixel_format, element_type};
+	return Texture{texture, ww, hh, 1, .Texture2D, initial_data_format, initial_data_element_type};
 }
 
-create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, pixel_format: gpu.Pixel_Data_Format, element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
+create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, initial_data_format: gpu.Pixel_Data_Format, initial_data_element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_3d(texture);
-	gpu.tex_image_3d(0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, pixel_format, element_type, initial_data);
+	gpu.tex_image_3d(0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture3D, .Wrap_S, .Repeat);
 	gpu.tex_parameteri(.Texture3D, .Wrap_T, .Repeat);
 	gpu.tex_parameteri(.Texture3D, .Wrap_R, .Repeat);
 
-	return Texture{texture, ww, hh, dd, .Texture3D, pixel_format, element_type};
+	return Texture{texture, ww, hh, dd, .Texture3D, initial_data_format, initial_data_element_type};
 }
 
 delete_texture :: proc(texture: Texture) {
@@ -681,10 +674,11 @@ draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf
 }
 
 bind_texture :: proc(texture: Texture) {
+	#partial
 	switch texture.target {
 		case .Texture2D: gpu.bind_texture_2d(texture.gpu_id); // todo(josh): handle multiple textures per model
 		case .Texture3D: gpu.bind_texture_3d(texture.gpu_id); // todo(josh): handle multiple textures per model
-		case cast(gpu.Texture_Target)0: { }
+		case cast(gpu.Texture_Target)0: { } // todo(josh): should this be an error/warning?
 		case: panic(tprint(texture.target));
 	}
 }
@@ -920,6 +914,7 @@ draw_model :: proc(model: Model,
 		gpu.bind_ibo(mesh.ibo);
 
 		// todo(josh): handle multiple textures per model
+		#partial
 		switch texture.target {
 			case .Texture2D: gpu.bind_texture_2d(texture.gpu_id);
 			case .Texture3D: gpu.bind_texture_3d(texture.gpu_id);

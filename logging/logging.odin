@@ -1,14 +1,13 @@
 package workbench
 
 import "core:fmt"
+import "../basic"
 
-using import "../basic"
-
-logln :: proc(args: ..any, location := #caller_location) {
-	file, ok := get_file_name(location.file_path);
+ln :: proc(args: ..any, location := #caller_location) {
+	file, ok := basic.get_file_name(location.file_path);
 	assert(ok);
 
-	fmt.print(pretty_location(location));
+	fmt.print(basic.pretty_location(location));
 	fmt.print(..args);
 	fmt.print('\n');
 

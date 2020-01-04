@@ -1,16 +1,16 @@
 package animation
 
-using import "../math"
-using import        "core:fmt"
-using import        "../gpu"
-using import        "../logging"
-      import        "core:os"
-      import        "core:sort"
-      import rt     "core:runtime"
-      import        "core:strings"
-      import        "core:mem"
+import "../math"
+import        "core:fmt"
+import        "../gpu"
+import        "../logging"
+import        "core:os"
+import        "core:sort"
+import rt     "core:runtime"
+import        "core:strings"
+import        "core:mem"
 
-      import ai     "../external/assimp"
+import ai     "../external/assimp"
 
 loaded_animations: map[string]Animation;
 
@@ -70,7 +70,7 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
     }
 }
 
-get_animation_data :: proc(mesh: Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
+get_animation_data :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
     if !(animation_name in loaded_animations) do return;
     if len(current_state) < 1 do return;
 
@@ -78,7 +78,7 @@ get_animation_data :: proc(mesh: Mesh, animation_name: string, time: f32, curren
     read_node_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_node_hierarchy :: proc(mesh: Mesh, time: f32, animation: Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
+read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
     channel, exists := get_animation_channel(animation, node.name);
     node_transform := node.local_transform;
 
@@ -273,3 +273,18 @@ Anim_Frame_Rotation :: struct {
 Anim_Frame_Scale :: struct {
     scale: Vec3,
 }
+
+
+
+
+
+
+Vec3 :: math.Vec3;
+Vec4 :: math.Vec4;
+Quat :: math.Quat;
+Mat4 :: math.Mat4;
+mul :: math.mul;
+identity :: math.identity;
+quat_norm :: math.quat_norm;
+slerp :: math.slerp;
+quat_to_mat4 :: math.quat_to_mat4;

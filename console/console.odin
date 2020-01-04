@@ -1,13 +1,15 @@
 package console
 
-      import "../external/imgui"
-      import "core:fmt"
-      import "core:strings"
-      import "core:runtime"
-      import "core:mem"
+when false {
 
-using import "../math"
-      import "../laas"
+import "../external/imgui"
+import "core:fmt"
+import "core:strings"
+import "core:runtime"
+import "core:mem"
+
+import "../math"
+import "../laas"
 
 
 when ODIN_DEBUG {
@@ -247,4 +249,6 @@ _execute_command :: proc(using console: ^Console, cmd: string, args: ..string) {
 @(default_calling_convention="c")
 foreign cimgui {
 	@(link_name = "ImGuiTextBuffer_appendf")  im_text_buffer_appendf :: proc(buffer : ^imgui.TextBuffer, fmt_ : cstring) ---;
+}
+
 }

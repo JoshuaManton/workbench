@@ -1,20 +1,20 @@
 package workbench
 
-using import        "core:fmt"
-      import        "core:sort"
-      import        "core:strings"
-      import        "core:mem"
-      import        "core:os"
-      import        "core:sys/win32"
+import "core:fmt"
+import "core:sort"
+import "core:strings"
+import "core:mem"
+import "core:os"
+import "core:sys/win32"
 
-      import "../gpu"
+import "../gpu"
 
-using import "../math"
+import "../math"
 
-      import imgui  "../external/imgui"
+import "../external/imgui"
 
-      import stb    "../external/stb"
-      import        "../external/glfw"
+import "../external/stb"
+import "../external/glfw"
 
 Window :: glfw.Window_Handle;
 
@@ -118,3 +118,11 @@ update_platform :: proc() {
 	mouse_unit_position   = mouse_screen_position / Vec2{cast(f32)current_window_width, cast(f32)current_window_height};
 	window_is_focused = _new_window_is_focused;
 }
+
+
+
+
+Vec2 :: math.Vec2;
+Vec3 :: math.Vec3;
+Vec4 :: math.Vec4;
+Mat3 :: math.Mat3;

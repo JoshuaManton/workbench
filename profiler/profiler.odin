@@ -1,12 +1,12 @@
 package profiler
 
-using import    "core:fmt"
-      import    "core:hash"
-      import rt "core:runtime"
+import "core:fmt"
+import "core:hash"
+import rt "core:runtime"
 
-using import "../math"
+import "../math"
 
-      import imgui "shared:workbench/external/imgui"
+import "shared:workbench/external/imgui"
 
 Profiler :: struct {
 	is_recording: bool,
@@ -146,3 +146,9 @@ END_TIMED_SECTION :: proc(using info: _Timed_Section_Info, _valid: bool) {
 main :: proc() {
 
 }
+
+
+
+
+tprint :: fmt.tprint;
+tprintf :: fmt.tprintf;

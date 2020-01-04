@@ -1,13 +1,13 @@
 package workbench
 
-      import "core:intrinsics"
-      import "core:sys/win32"
+import "core:intrinsics"
+import "core:sys/win32"
 
-      import "core:mem"
-      import "core:hash"
-using import "core:fmt"
+import "core:mem"
+import "core:hash"
+import "core:fmt"
 
-using import "../logging"
+import "../logging"
 
 Hashtable :: struct(Key: typeid, Value: typeid) {
 	key_headers: []Key_Header(Key),
@@ -102,7 +102,7 @@ get :: proc(using table: ^Hashtable($Key, $Value), key: Key) -> (Value, bool) {
 get_key_header :: proc(using table: ^Hashtable($Key, $Value), key: Key, $log: bool) -> (^Key_Header(Key), u64) { // note(josh): can return nil
 	h := hash_key(key);
 	when log {
-		// logln(h);
+		// logging.ln(h);
 	}
 	len_key_headers := cast(u64)len(key_headers);
 	hash_idx := h % len_key_headers;
@@ -222,7 +222,7 @@ main :: proc() {
 			insert(&my_table, i, i * 3);
 		}
 		insert_end := get_time();
-		logln("My map inserting ", NUM_ELEMS, " elements:   ", (insert_end-insert_start)/freq, "s");
+		logging.ln("My map inserting ", NUM_ELEMS, " elements:   ", (insert_end-insert_start)/freq, "s");
 	}
 
 	odin_table: map[int]int;
@@ -232,7 +232,7 @@ main :: proc() {
 			odin_table[i] = i * 3;
 		}
 		insert_end := get_time();
-		logln("Odin map inserting ", NUM_ELEMS, " elements: ", (insert_end-insert_start)/freq, "s");
+		logging.ln("Odin map inserting ", NUM_ELEMS, " elements: ", (insert_end-insert_start)/freq, "s");
 	}
 
 	{
@@ -242,7 +242,7 @@ main :: proc() {
 			assert(ok); assert(val == i * 3);
 		}
 		lookup_end := get_time();
-		logln("My map retrieving ", NUM_ELEMS, " elements:   ", (lookup_end-lookup_start)/freq, "s");
+		logging.ln("My map retrieving ", NUM_ELEMS, " elements:   ", (lookup_end-lookup_start)/freq, "s");
 	}
 
 	{
@@ -252,7 +252,7 @@ main :: proc() {
 			assert(ok); assert(val == i * 3);
 		}
 		lookup_end := get_time();
-		logln("Odin map retrieving ", NUM_ELEMS, " elements: ", (lookup_end-lookup_start)/freq, "s");
+		logging.ln("Odin map retrieving ", NUM_ELEMS, " elements: ", (lookup_end-lookup_start)/freq, "s");
 	}
 
 	{
@@ -264,7 +264,7 @@ main :: proc() {
 			assert(value == key * 3);
 		}
 		iterate_end := get_time();
-		logln("My map iterating ", NUM_ELEMS, " elements:   ", (iterate_end-iterate_start)/freq, "s");
+		logging.ln("My map iterating ", NUM_ELEMS, " elements:   ", (iterate_end-iterate_start)/freq, "s");
 	}
 
 	{
@@ -273,7 +273,7 @@ main :: proc() {
 			assert(value == key * 3);
 		}
 		iterate_end := get_time();
-		logln("Odin map iterating ", NUM_ELEMS, " elements: ", (iterate_end-iterate_start)/freq, "s");
+		logging.ln("Odin map iterating ", NUM_ELEMS, " elements: ", (iterate_end-iterate_start)/freq, "s");
 	}
 
 	{
@@ -282,7 +282,7 @@ main :: proc() {
 			remove(&my_table, i);
 		}
 		removal_end := get_time();
-		logln("My map removing ", NUM_ELEMS, " elements:   ", (removal_end-removal_start)/freq, "s");
+		logging.ln("My map removing ", NUM_ELEMS, " elements:   ", (removal_end-removal_start)/freq, "s");
 	}
 
 	{
@@ -291,7 +291,7 @@ main :: proc() {
 			delete_key(&odin_table, i);
 		}
 		removal_end := get_time();
-		logln("Odin map removing ", NUM_ELEMS, " elements: ", (removal_end-removal_start)/freq, "s");
+		logging.ln("Odin map removing ", NUM_ELEMS, " elements: ", (removal_end-removal_start)/freq, "s");
 	}
 }
 

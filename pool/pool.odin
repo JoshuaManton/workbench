@@ -1,8 +1,7 @@
 package pool
 
-using import "core:fmt"
-
-using import "../math"
+import "core:fmt"
+import "../math"
 
 // todo(josh): I don't even know if this works anymore, but make it use the new iterator feature in odin
 

@@ -1,9 +1,5 @@
 package workbench
 
-using import "basic"
-using import "types"
-using import "math"
-
 create_cube_model :: proc() -> Model {
 	indices := []u32 {
 		 0,  2,  1,  0,  3,  2,

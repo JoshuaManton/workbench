@@ -1,19 +1,19 @@
 package workbench
 
-using import "core:runtime"
-using import "core:fmt"
-      import "core:mem";
-      import "core:strconv"
-      import "core:strings"
-      import "core:os";
-      import "core:sys/win32"
+import rt "core:runtime"
+import "core:fmt"
+import "core:mem";
+import "core:strconv"
+import "core:strings"
+import "core:os";
+import "core:sys/win32"
 
 
-      import "gpu"
-      import "laas"
-using import "math";
-using import "platform"
-using import "logging"
+import "gpu"
+import "laas"
+import "math";
+import "platform"
+import "logging"
 
 import    "external/glfw"
 import    "external/stb"
@@ -272,16 +272,16 @@ init_dear_imgui :: proc() {
 
 imgui_begin_new_frame :: proc(dt: f32) {
     io := imgui.get_io();
-    io.display_size.x = current_window_width;
-    io.display_size.y = current_window_height;
+    io.display_size.x = platform.current_window_width;
+    io.display_size.y = platform.current_window_height;
 
-    if window_is_focused {
+    if platform.window_is_focused {
     	posx, posy := glfw.GetCursorPos(main_window);
         io.mouse_pos.x = cast(f32)posx;
         io.mouse_pos.y = cast(f32)posy;
-        io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Left) == glfw.Action.Press;
-        io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)Input.Mouse_Right) == glfw.Action.Press;
-        io.mouse_wheel   = mouse_scroll;
+        io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Left) == glfw.Action.Press;
+        io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Right) == glfw.Action.Press;
+        io.mouse_wheel   = platform.mouse_scroll;
 
         io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);
         io.key_shift = win32.is_key_down(win32.Key_Code.Lshift)   || win32.is_key_down(win32.Key_Code.Rshift);
@@ -289,7 +289,7 @@ imgui_begin_new_frame :: proc(dt: f32) {
         io.key_super = win32.is_key_down(win32.Key_Code.Lwin)     || win32.is_key_down(win32.Key_Code.Rwin);
 
         for i in 0..511 {
-            io.keys_down[i] = get_input_imgui(cast(Input)i);
+            io.keys_down[i] = platform.get_input_imgui(cast(platform.Input)i);
         }
 
     } else {
@@ -471,7 +471,7 @@ _imgui_struct_block_field_end :: proc(name: string) {
 }
 
 _readonly: bool;
-imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string = "", do_header := true, type_name: string = "") {
+imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: string = "", do_header := true, type_name: string = "") {
     imgui.push_id(name);
     defer imgui.pop_id();
 
@@ -503,8 +503,9 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
         range_max = parse_f32(range_max_str);
     }
 
+    #partial
     switch kind in &ti.variant {
-        case Type_Info_Integer: {
+        case rt.Type_Info_Integer: {
             if kind.signed {
                 switch ti.size {
                     case 8: new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
@@ -524,7 +525,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 }
             }
         }
-        case Type_Info_Float: {
+        case rt.Type_Info_Float: {
             switch ti.size {
                 case 8: {
                     new_data := cast(f32)(cast(^f64)data)^;
@@ -555,12 +556,12 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 case: assert(false, tprint(ti.size));
             }
         }
-        case Type_Info_String: {
+        case rt.Type_Info_String: {
             assert(ti.size == size_of(string));
             // todo(josh): arbitrary string length, right now there is a max length
             // https://github.com/ocornut/imgui/issues/1008
             text_edit_buffer: [256]u8;
-            bprint(text_edit_buffer[:], (cast(^string)data)^);
+            fmt.bprint(text_edit_buffer[:], (cast(^string)data)^);
 
             if imgui.input_text(name, text_edit_buffer[:], .EnterReturnsTrue) {
                 result := text_edit_buffer[:];
@@ -574,18 +575,18 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 (cast(^string)data)^ = str; // @Leak
             }
         }
-        case Type_Info_Boolean: {
+        case rt.Type_Info_Boolean: {
             assert(ti.size == size_of(bool));
             imgui.checkbox(name, cast(^bool)data);
         }
-        case Type_Info_Pointer: {
+        case rt.Type_Info_Pointer: {
             result := tprint(name, " = ", "\"", data, "\"");
             imgui.text(result);
         }
-        case Type_Info_Named: {
+        case rt.Type_Info_Named: {
             imgui_struct_ti(name, data, kind.base, "", do_header, kind.name);
         }
-        case Type_Info_Struct: {
+        case rt.Type_Info_Struct: {
             if !do_header || _imgui_struct_block_field_start(name, type_name) {
                 defer if do_header do _imgui_struct_block_field_end(name);
 
@@ -612,10 +613,9 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 }
             }
         }
-        case Type_Info_Enum: {
+        case rt.Type_Info_Enum: {
             if len(kind.values) > 0 {
                 current_item_index : i32 = -1;
-                #complete
                 switch _ in kind.values[0] {
                     case u8:        for v, idx in kind.values { if (cast(^u8     )data)^ == v.(u8)      { current_item_index = cast(i32)idx; break; } }
                     case u16:       for v, idx in kind.values { if (cast(^u16    )data)^ == v.(u16)     { current_item_index = cast(i32)idx; break; } }
@@ -653,7 +653,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 }
             }
         }
-        case Type_Info_Slice: {
+        case rt.Type_Info_Slice: {
             if !do_header || _imgui_struct_block_field_start(name, tprint("[]", kind.elem)) {
                 defer if do_header do _imgui_struct_block_field_end(name);
 
@@ -665,7 +665,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 }
             }
         }
-        case Type_Info_Array: {
+        case rt.Type_Info_Array: {
             if !do_header || _imgui_struct_block_field_start(name, tprint("[", kind.count, "]", kind.elem)) {
                 defer if do_header do _imgui_struct_block_field_end(name);
 
@@ -676,7 +676,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 }
             }
         }
-        case Type_Info_Dynamic_Array: {
+        case rt.Type_Info_Dynamic_Array: {
             if !do_header || _imgui_struct_block_field_start(name, tprint("[dynamic]", kind.elem)) {
                 defer if do_header do _imgui_struct_block_field_end(name);
 
@@ -688,12 +688,12 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^Type_Info, tags: string
                 }
             }
         }
-        case Type_Info_Any: {
+        case rt.Type_Info_Any: {
             a := cast(^any)data;
             if a.data == nil do return;
             imgui_struct_ti(name, a.data, type_info_of(a.id));
         }
-        case Type_Info_Union: {
+        case rt.Type_Info_Union: {
             tag_ptr := uintptr(data) + kind.tag_offset;
             tag_any := any{rawptr(tag_ptr), kind.tag_type.id};
 

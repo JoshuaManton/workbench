@@ -1,6 +1,6 @@
 package laas
 
-using import "core:fmt"
+import "core:fmt"
 import "core:strconv"
 
 /*
@@ -317,8 +317,7 @@ _dec :: inline proc(using lexer: ^Lexer) {
 }
 
 _inc :: proc(using lexer: ^Lexer, location := #caller_location) -> bool {
-	if lex_idx >= len(lexer_text) do
-		printf(tprint(location));
+	if lex_idx >= len(lexer_text) do printf(tprint(location));
 	r := lexer_text[lex_idx];
 	lex_idx += 1;
 
@@ -343,3 +342,9 @@ main :: proc() {
 		fmt.println(token);
 	}
 }
+
+
+
+
+tprint :: fmt.tprint;
+printf :: fmt.printf;

@@ -1,6 +1,6 @@
 package workbench
 
-using import "../math"
+import "../math"
 
 Colorf :: struct {
 	r: f32 `imgui_range="0":"1"`,
@@ -15,10 +15,10 @@ Colori :: struct {
 
 color_lerp :: proc(c1, c2: $T, t: f32) -> T where T == Colorf || T == Colori {
 	return T {
-		r = lerp(c1.r, c2.r, t),
-		g = lerp(c1.g, c2.g, t),
-		b = lerp(c1.b, c2.b, t),
-		a = lerp(c1.a, c2.a, t),
+		r = math.lerp(c1.r, c2.r, t),
+		g = math.lerp(c1.g, c2.g, t),
+		b = math.lerp(c1.b, c2.b, t),
+		a = math.lerp(c1.a, c2.a, t),
 	};
 }
 

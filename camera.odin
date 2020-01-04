@@ -1,9 +1,9 @@
 package workbench
 
-using import "math"
+import "math"
 
-      import "platform"
-      import "gpu"
+import "platform"
+import "gpu"
 
 do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
 	speed := normal_speed;

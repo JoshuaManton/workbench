@@ -1,9 +1,9 @@
 package workbench
 
-      import "core:math/rand"
+import "core:math/rand"
 
-using import "math"
-using import "types"
+import "math"
+import "types"
 
 rstate: rand.Rand;
 

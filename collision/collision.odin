@@ -2,8 +2,9 @@ package collision
 
 import rt "core:runtime"
 
-using import "core:fmt"
-using import "../math"
+import "core:fmt"
+import "../math"
+import "../basic"
 
 import "core:sort"
 
@@ -54,14 +55,14 @@ add_collider_to_scene :: proc(using scene: ^Collision_Scene, collider: Collider,
 }
 
 get_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, loc := #caller_location) -> (Collider, bool) {
-	assert(handle != 0, tprint(loc));
+	assert(handle != 0, fmt.tprint(loc));
 
 	coll, ok := colliders[handle];
 	return coll, ok;
 }
 
 update_collider :: proc(using scene: ^Collision_Scene, auto_cast handle: i32, collider: Collider, loc := #caller_location) {
-	assert(handle != 0, tprint(loc));
+	assert(handle != 0, fmt.tprint(loc));
 
 	_, ok := colliders[handle];
 	assert(ok);
@@ -131,7 +132,7 @@ _temp_hit_buffer_user: rt.Source_Code_Location;
 @(deferred_out=_RETURN_TEMP_HITS_BUFFER)
 GET_TEMP_HITS_BUFFER :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
 	if _temp_hit_buffer_in_use {
-		panic(tprint("temp_hit_buffer is already in use by ", pretty_location(_temp_hit_buffer_user), ". Caller: ", pretty_location(loc)));
+		panic(fmt.tprint("temp_hit_buffer is already in use by ", basic.pretty_location(_temp_hit_buffer_user), ". Caller: ", basic.pretty_location(loc)));
 	}
 	_temp_hit_buffer_in_use = true;
 	_temp_hit_buffer_user = loc;
@@ -147,7 +148,7 @@ _RETURN_TEMP_HITS_BUFFER :: proc(_: ^[dynamic]Hit_Info) {
 // raw stuff
 //
 
-sqr_magnitude :: inline proc(a: Vec3) -> f32 do return dot(a, a);
+sqr_magnitude :: inline proc(a: Vec3) -> f32 do return math.dot(a, a);
 
 closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 	direction := p2 - p1;
@@ -158,7 +159,7 @@ closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 		return p1;
 	}
 
-	dot := dot(origin - p1, p2 - p1) / square_length;
+	dot := math.dot(origin - p1, p2 - p1) / square_length;
 	t := max(min(dot, 1), 0);
 	projection := p1 + t * (p2 - p1);
 	return projection;
@@ -210,16 +211,16 @@ cast_box_circle :: proc(box_min, box_max: Vec3, box_direction: Vec3, circle_posi
 // todo(josh): test this, not sure if it works
 cast_line_circle :: proc(line_origin, line_velocity: Vec3, circle_center: Vec3, circle_radius: f32, circle_handle : i32 = 0) -> (Hit_Info, bool) {
 	direction := line_origin - circle_center;
-	a := dot(line_velocity, line_velocity);
-	b := dot(direction, line_velocity);
-	c := dot(direction, direction) - circle_radius * circle_radius;
+	a := math.dot(line_velocity, line_velocity);
+	b := math.dot(direction, line_velocity);
+	c := math.dot(direction, direction) - circle_radius * circle_radius;
 
 	disc := b * b - a * c;
 	if (disc < 0) {
 		return Hit_Info{}, false;
 	}
 
-	sqrt_disc := sqrt(disc);
+	sqrt_disc := math.sqrt(disc);
 	invA: f32 = 1.0 / a;
 
 	tmin := (-b - sqrt_disc) * invA;
@@ -329,42 +330,6 @@ overlap_box_box_2d :: proc(min1, max1: Vec2, min2, max2: Vec2) -> bool {
 
 
 
-
-
-// utility stuff
-
-
-
-pretty_location :: inline proc(location: rt.Source_Code_Location) -> string {
-	file := file_from_path(location.file_path);
-	return fmt.tprintf("%s.%s():%d", file, location.procedure, location.line);
-}
-
-file_from_path :: proc(path: string) -> string {
-	file := path;
-	start := 0;
-	end := len(file);
-
-	if last_slash_idx, ok := find_from_right(file, '/'); ok {
-		start = last_slash_idx;
-	}
-
-	if dot, ok := find_from_right(file, '.'); ok {
-		end = dot;
-	}
-
-	file = file[start+1:end];
-
-	return file;
-}
-
-find_from_right :: proc(str: string, c: rune) -> (int, bool) {
-	u := cast(u8)c;
-	for i := len(str)-1; i >= 0; i -= 1 {
-		if str[i] == u {
-			return i, true;
-		}
-	}
-
-	return 0, false;
-}
+Vec2 :: math.Vec2;
+Vec3 :: math.Vec3;
+Vec4 :: math.Vec4;

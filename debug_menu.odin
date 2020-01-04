@@ -1,13 +1,11 @@
 package workbench
 
-using import "math"
-using import "logging"
+import "logging"
 
-      import "platform"
-      import wbm "math"
-      import     "external/imgui"
-      import pf  "profiler"
-      import     "gpu"
+import "platform"
+import "external/imgui"
+import pf "profiler"
+import "gpu"
 
 //
 // API
@@ -24,7 +22,7 @@ unregister_debug_program :: proc(name: string) {
 			return;
 		}
 	}
-	logln("Warning: Tried to unregister program that didn't exist: ", name);
+	logging.ln("Warning: Tried to unregister program that didn't exist: ", name);
 }
 
 

@@ -1,27 +1,27 @@
 package workbench
 
-using import        "core:fmt"
-      import        "core:sort"
-      import        "core:strings"
-      import        "core:mem"
-      import        "core:os"
-      import        "core:sys/win32"
-	  import        "core:runtime"
+import "core:fmt"
+import "core:sort"
+import "core:strings"
+import "core:mem"
+import "core:os"
+import "core:sys/win32"
+import "core:runtime"
 
-using import        "math"
-      import        "gpu"
-      import        "platform"
-using import        "logging"
-using import        "types"
-using import        "basic"
+import "math"
+import "gpu"
+import "platform"
+import "logging"
+import "types"
+import "basic"
 
-      import imgui  "external/imgui"
+import "external/imgui"
 
-      import stb    "external/stb"
-      import        "external/glfw"
+import "external/stb"
+import "external/glfw"
 
-	  import        "console"
-      import pf     "profiler"
+import "console"
+import pf     "profiler"
 
 DEVELOPER :: true;
 
@@ -52,10 +52,10 @@ wb_catalog: Asset_Catalog;
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
-	defer logln("workbench successfully shutdown.");
+	defer logging.ln("workbench successfully shutdown.");
 
 	wbpathok: bool;
-	WORKBENCH_PATH, wbpathok = get_file_directory(#location().file_path);
+	WORKBENCH_PATH, wbpathok = basic.get_file_directory(#location().file_path);
 	assert(wbpathok);
 
 	startup_start_time := glfw.GetTime();
@@ -88,7 +88,7 @@ make_simple_window :: proc(window_width, window_height: int,
 	init_workspace(workspace);
 
 	startup_end_time := glfw.GetTime();
-	logln("Startup time: ", startup_end_time - startup_start_time);
+	logging.ln("Startup time: ", startup_end_time - startup_start_time);
 
 	last_frame_start_time: f32;
 
@@ -114,7 +114,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
 				if do_log_frame_boundaries {
-					logln("[WB] FRAME #", frame_count);
+					logging.ln("[WB] FRAME #", frame_count);
 				}
 
 				precise_time = glfw.GetTime();

@@ -1,16 +1,16 @@
 package workbench
 
-      import "core:sys/win32"
-      import "core:strings"
-      import "core:os"
-      import rt "core:runtime"
-      import "core:mem"
-using import "core:fmt"
-using import "logging"
-      import "gpu"
-      import "profiler"
-      import "laas"
-using import "basic"
+import "core:sys/win32"
+import "core:strings"
+import "core:os"
+import rt "core:runtime"
+import "core:mem"
+import "core:fmt"
+import "logging"
+import "gpu"
+import "profiler"
+import "laas"
+import "basic"
 
 Asset_Catalog :: struct {
 	handlers: map[^rt.Type_Info]Asset_Handler,
@@ -68,7 +68,7 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 		add_asset_handler(catalog, gpu.Shader_Program, {"shader", "compute"}, catalog_load_shader,  catalog_delete_shader);
 	}
 
-	files := get_all_filepaths_recursively(path);
+	files := basic.get_all_filepaths_recursively(path);
 	defer delete(files); // note(josh): dont delete the elements in `files` because they get stored in Asset_Catalog.loaded_files
 
 	for filepath in files {
@@ -81,13 +81,13 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 }
 
 load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
-	name, nameok := get_file_name(filepath);
+	name, nameok := basic.get_file_name(filepath);
 	assert(nameok, filepath);
-	ext, extok := get_file_extension(filepath);
+	ext, extok := basic.get_file_extension(filepath);
 	assert(extok, filepath);
-	root_directory, dirok := get_file_directory(filepath);
+	root_directory, dirok := basic.get_file_directory(filepath);
 	assert(dirok, filepath);
-	name_and_ext, neok := get_file_name_and_extension(filepath);
+	name_and_ext, neok := basic.get_file_name_and_extension(filepath);
 	assert(neok, filepath);
 
 	data, fileok := os.read_entire_file(filepath);
@@ -101,7 +101,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 		for handler_extension in handler.extensions {
 			if handler_extension == ext {
 				if name in handler.assets {
-					logln("New asset with name '", name, "'. Deleting old one.");
+					logging.ln("New asset with name '", name, "'. Deleting old one.");
 					handler.delete_proc(handler.assets[name]);
 				}
 
@@ -110,7 +110,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) {
 					handler.assets[name] = asset;
 				}
 				else {
-					logln("Loading asset '", name, "' failed.");
+					logging.ln("Loading asset '", name, "' failed.");
 				}
 
 				break handler_loop;
@@ -151,7 +151,7 @@ try_get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> (
 
 get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> Type {
 	asset, ok := try_get_asset(Type, catalog, name);
-	assert(ok, tprint("Couldn't find asset: ", name));
+	assert(ok, fmt.tprint("Couldn't find asset: ", name));
 	return asset;
 }
 
@@ -164,7 +164,7 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 		new_last_write_time, err := os.last_write_time_by_name(file.path);
 		assert(err == 0); // todo(josh): check for deleted files?
 		if new_last_write_time > file.last_write_time {
-			logln("file update: ", file.path);
+			logging.ln("file update: ", file.path);
 			file.last_write_time = new_last_write_time;
 			load_asset(catalog, file.path);
 		}
@@ -248,24 +248,24 @@ parse_shader :: proc(text: string, root_folder: string) -> (gpu.Shader_Program, 
 		lines := strings.split(text, "\n");
 		defer delete(lines);
 		for line in lines {
-			if string_starts_with(line, "@include") {
+			if basic.string_starts_with(line, "@include") {
 				rest_of_line := line[len("@include "):];
 				assert(len(rest_of_line) > 0);
 				lexer := laas.make_lexer(rest_of_line);
 				file_to_include := laas.expect_string(&lexer);
-				file_path := tprint(root_folder, "/", file_to_include);
+				file_path := fmt.tprint(root_folder, "/", file_to_include);
 				file_data, ok := os.read_entire_file(file_path);
 				defer delete(file_data);
 
 				if !ok {
-					logln("Error: Couldn't find file for include: ", file_to_include);
+					logging.ln("Error: Couldn't find file for include: ", file_to_include);
 					return false;
 				}
 
 				process_includes(builder, cast(string)file_data, root_folder);
 			}
 			else {
-				sbprint(builder, line, "\n");
+				fmt.sbprint(builder, line, "\n");
 			}
 		}
 
@@ -287,15 +287,15 @@ parse_shader :: proc(text: string, root_folder: string) -> (gpu.Shader_Program, 
 	lines := strings.split(all_text, "\n");
 	defer delete(lines);
 	for line in lines {
-		if string_starts_with(line, "@vert") {
+		if basic.string_starts_with(line, "@vert") {
 			current_builder = &vertex_builder;
 		}
-		else if string_starts_with(line, "@frag") {
+		else if basic.string_starts_with(line, "@frag") {
 			current_builder = &fragment_builder;
 		}
 		else {
 			if current_builder != nil {
-				sbprint(current_builder, line, "\n");
+				fmt.sbprint(current_builder, line, "\n");
 			}
 		}
 	}

@@ -1,9 +1,9 @@
 package wbml
 
-using import "core:fmt"
-using import "../../math"
+import "core:fmt"
+import "../../math"
 
-      import wbml ".."
+import wbml ".."
 
 main :: proc() {
 	run_tests();
@@ -259,3 +259,11 @@ run_tests :: proc() {
 
 	println("Tests done!");
 }
+
+
+
+
+
+tprint :: fmt.tprint;
+tprintf :: fmt.tprintf;
+println :: fmt.println;

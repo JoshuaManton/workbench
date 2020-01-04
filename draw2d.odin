@@ -1,22 +1,22 @@
 package workbench
 
-using import        "core:fmt"
-      import        "core:sort"
-      import        "core:strings"
-      import        "core:mem"
-      import        "core:os"
+import        "core:fmt"
+import        "core:sort"
+import        "core:strings"
+import        "core:mem"
+import        "core:os"
 
-      import        "platform"
-      import        "gpu"
-using import        "math"
-using import        "types"
-using import        "logging"
+import        "platform"
+import        "gpu"
+import        "math"
+import        "types"
+import        "logging"
 
-      import        "external/stb"
-      import        "external/glfw"
-      import        "external/imgui"
+import        "external/stb"
+import        "external/glfw"
+import        "external/imgui"
 
-      import pf     "profiler"
+import pf     "profiler"
 
 //
 // API
@@ -231,7 +231,7 @@ pop_render_layer :: proc(layer: int) {
 // Scissor
 
 im_scissor :: proc(x1, y1, ww, hh: int) {
-	if do_scissor do logln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
+	if do_scissor do logging.ln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
 	do_scissor = true;
 	current_scissor_rect = {x1, y1, ww, hh};
 }
@@ -310,7 +310,6 @@ im_flush :: proc() {
 			}
 		}
 
-		#complete
 		switch kind in cmd.kind {
 			case Draw_Quad_Command: {
 				// weird order because of backface culling
@@ -358,7 +357,7 @@ draw_vertex_list :: proc(list: []Vertex2D, shader: gpu.Shader_Program, texture: 
 
 	update_mesh(&_internal_im_model, 0, list, []u32{});
 	gpu.use_program(shader);
-	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, COLOR_WHITE, false, {}, loc);
+	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, types.COLOR_WHITE, false, {}, loc);
 }
 
 Draw_Command :: struct {

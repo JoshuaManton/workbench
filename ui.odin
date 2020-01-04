@@ -1,20 +1,20 @@
 package workbench
 
-using import "core:runtime"
-using import "core:fmt"
-      import "core:mem"
-      import "core:strings"
-      import "core:os"
+import rt "core:runtime"
+import "core:fmt"
+import "core:mem"
+import "core:strings"
+import "core:os"
 
-using import "logging"
-using import "basic"
-using import "types"
-using import "math"
-      import "platform"
-      import "wbml"
-      import "gpu"
+import "logging"
+import "basic"
+import "types"
+import "math"
+import "platform"
+import "wbml"
+import "gpu"
 
-      import imgui  "external/imgui"
+import "external/imgui"
 
 //
 // API
@@ -26,7 +26,7 @@ IMGUI_Rect :: struct {
 	imgui_id:  IMGUI_ID,
 	kind: IMGUI_Rect_Kind,
 	code_line: string, // note(josh): not set for items in the system, only set right before drawing the UI debug window
-	location: Source_Code_Location,
+	location: rt.Source_Code_Location,
 
 	unit_rect: Unit_Rect,
 	pixel_rect: Pixel_Rect,
@@ -50,7 +50,7 @@ ui_push_rect :: proc(x1, y1, x2, y2: f32, _top := 0, _right := 0, _bottom := 0, 
 	right  := _right;
 	bottom := _bottom;
 	left   := _left;
-	if len(ui_rect_stack) > 0 && last(ui_rect_stack[:]).kind == IMGUI_Rect_Kind.Scroll_View {
+	if len(ui_rect_stack) > 0 && basic.last(ui_rect_stack[:]).kind == IMGUI_Rect_Kind.Scroll_View {
 		top    -= cast(int)(current_scroll_view.scroll_offset.y);
 		right  -= cast(int)(current_scroll_view.scroll_offset.x);
 		bottom += cast(int)(current_scroll_view.scroll_offset.y);
@@ -268,7 +268,7 @@ ui_aspect_ratio_fitter :: proc(ww, hh: f32, fit_type: Aspect_Ratio_Fit_Kind = .C
 	aspect : f32 = hh / ww;
 	width:   f32;
 	height:  f32;
-	#complete switch fit_type {
+	switch fit_type {
 		case .Current_Rect: {
 			if aspect < current_rect_aspect {
 				width  = current_rect_height_unit;
@@ -342,7 +342,7 @@ ui_start_scroll_view :: proc(scroll_speed: f32, kind := Scroll_View_Kind.Vertica
 		// }
 
 		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.mouse_screen_position);
-		#complete switch kind {
+		switch kind {
 			case .Vertical:   sv.scroll_offset_target.y = offset.y;
 			case .Horizontal: sv.scroll_offset_target.x = offset.x;
 			case .Both:       sv.scroll_offset_target   = offset;
@@ -603,7 +603,7 @@ late_update_ui :: proc() {
 				rect := all_imgui_rects[ui_debug_cur_idx];
 				assert(rect.code_line == "");
 				text, ok := ui_debug_get_file_line(rect.location.file_path, rect.location.line);
-				rect.code_line = trim_whitespace(text);
+				rect.code_line = basic.trim_whitespace(text);
 
 				imgui_struct(&rect, "ui_element");
 
@@ -611,7 +611,7 @@ late_update_ui :: proc() {
 					if ui_debug_cur_idx == i {
 						imgui.bullet();
 					}
-					if imgui.small_button(tprintf("%s##%d", pretty_location(rect.location), i)) {
+					if imgui.small_button(fmt.tprintf("%s##%d", basic.pretty_location(rect.location), i)) {
 						ui_debug_cur_idx = i;
 					}
 
@@ -635,13 +635,13 @@ late_update_ui :: proc() {
 
 Location_ID_Mapping :: struct {
 	id: IMGUI_ID,
-	using loc: Source_Code_Location,
+	using loc: rt.Source_Code_Location,
 	index: int,
 }
 
 all_imgui_mappings: [dynamic]Location_ID_Mapping;
 
-get_imgui_id_from_location :: proc(loc: Source_Code_Location, loc2 := #caller_location) -> IMGUI_ID {
+get_imgui_id_from_location :: proc(loc: rt.Source_Code_Location, loc2 := #caller_location) -> IMGUI_ID {
 	count, ok := id_counts[loc.file_path];
 	if !ok {
 		id_counts[loc.file_path] = 0;

@@ -1,17 +1,17 @@
 package workbench
 
-using import "core:fmt"
+import "core:fmt"
 
-using import "basic"
-using import "types"
-using import "logging"
+import "basic"
+import "types"
+import "logging"
 
-      import    "platform"
-      import    "collision"
-using import    "math"
-      import    "gpu"
-      import    "external/imgui"
-      import    "external/gl"
+import    "platform"
+import    "collision"
+import    "math"
+import    "gpu"
+import    "external/imgui"
+import    "external/gl"
 
 direction_unary := [3]Vec3{ Vec3{1,0,0}, Vec3{0,1,0}, Vec3{0,0,1}  };
 direction_color := [4]Colorf{ Colorf{1,0,0,1}, Colorf{0,1,0,1}, Colorf{0,0,1,1}, Colorf{1,1,1,1} };
@@ -81,8 +81,9 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
 
 
+    #partial
     switch operation {
-        case Operation.Translate: {
+        case .Translate: {
 
             mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
             mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
@@ -128,8 +129,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
                             q_p1 := quad_origin;
                             q_p2 := quad_origin + (dir_y + dir_x)*quad_size;
-                            min := Vec3{ minv(q_p1.x, q_p2.x), minv(q_p1.y, q_p2.y), minv(q_p1.z, q_p2.z) };
-                            max := Vec3{ maxv(q_p1.x, q_p2.x), maxv(q_p1.y, q_p2.y), maxv(q_p1.z, q_p2.z) };
+                            min := Vec3{ min(q_p1.x, q_p2.x), min(q_p1.y, q_p2.y), min(q_p1.z, q_p2.z) };
+                            max := Vec3{ max(q_p1.x, q_p2.x), max(q_p1.y, q_p2.y), max(q_p1.z, q_p2.z) };
 
                             contains :=
                                 q_i.x >= min.x &&
@@ -152,6 +153,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
             intersect: Vec3;
             if move_type != .NONE {
                 plane_norm: Vec3;
+                #partial
                 switch move_type {
                     case .MOVE_X:  plane_norm = rotated_direction(rotation^, Vec3{0, 0, 1});
                     case .MOVE_Y:  plane_norm = rotated_direction(rotation^, Vec3{0, 0, 1});
@@ -178,6 +180,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                 if platform.get_input(.Mouse_Left) {
                     delta_move := intersect - last_point;
 
+                    #partial
                     switch move_type
                     {
                         case .MOVE_X: {
@@ -237,7 +240,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
             break;
         }
-        case Operation.Rotate: {
+        case .Rotate: {
             @static closest_index := -1;
             mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
             mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
@@ -373,7 +376,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
 
             break;
         }
-        case Operation.Scale: {
+        case .Scale: {
             break;
         }
     }
@@ -403,8 +406,9 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
     gpu.disable(.Cull_Face);
     defer if was_cull_enabled do gpu.enable(.Cull_Face);
 
+    #partial
     switch operation {
-        case Operation.Translate: {
+        case .Translate: {
             gpu.use_program(get_shader(&wb_catalog, "default"));
             detail :: 10;
 
@@ -511,7 +515,7 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
             }
             break;
         }
-        case Operation.Rotate: {
+        case .Rotate: {
 
             hoop_segments :: 52;
             tube_segments :: 10;
@@ -614,7 +618,7 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
 
             break;
         }
-        case Operation.Scale: {
+        case .Scale: {
             break;
         }
     }

@@ -1,11 +1,11 @@
 package basic
 
-      import "core:sys/win32"
-      import "core:strings"
-using import "core:fmt"
-      import "core:mem"
-      import rt "core:runtime"
-using import "../math"
+import "core:sys/win32"
+import "core:strings"
+import "core:fmt"
+import "core:mem"
+import rt "core:runtime"
+import "../math"
 
 //
 // Arrays
@@ -106,7 +106,7 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 	recurse(path_c, &results);
 
 	recurse :: proc(path: cstring, results: ^[dynamic]string) {
-		query_path := strings.clone_to_cstring(tprint(path, "/*.*"));
+		query_path := strings.clone_to_cstring(fmt.tprint(path, "/*.*"));
 		defer delete(query_path);
 
 		ffd: win32.Find_Data_A;
@@ -114,7 +114,7 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 		defer win32.find_close(hnd);
 
 		if hnd == win32.INVALID_HANDLE {
-			println(pretty_location(#location()), "Path not found: ", query_path);
+			fmt.println(pretty_location(#location()), "Path not found: ", query_path);
 			return;
 		}
 
@@ -123,12 +123,12 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 
 			if file_name != "." && file_name != ".." {
 				if (ffd.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY) > 0 {
-					nested_path := strings.clone_to_cstring(tprint(path, "/", cast(cstring)&ffd.file_name[0]));
+					nested_path := strings.clone_to_cstring(fmt.tprint(path, "/", cast(cstring)&ffd.file_name[0]));
 					defer delete(nested_path);
 					recurse(nested_path, results);
 				}
 				else {
-					str := strings.clone(tprint(path, "/", file_name));
+					str := strings.clone(fmt.tprint(path, "/", file_name));
 					append(results, str);
 				}
 			}
@@ -155,7 +155,7 @@ get_all_paths :: proc(path: string) -> []Path {
 	path_c := strings.clone_to_cstring(path);
 	defer delete(path_c);
 
-	query_path := strings.clone_to_cstring(tprint(path, "/*.*"));
+	query_path := strings.clone_to_cstring(fmt.tprint(path, "/*.*"));
 	defer delete(query_path);
 
 	ffd: win32.Find_Data_A;
@@ -163,7 +163,7 @@ get_all_paths :: proc(path: string) -> []Path {
 	defer win32.find_close(hnd);
 
 	if hnd == win32.INVALID_HANDLE {
-		println(pretty_location(#location()), "Path not found: ", query_path);
+		fmt.println(pretty_location(#location()), "Path not found: ", query_path);
 		return {};
 	}
 
@@ -176,11 +176,11 @@ get_all_paths :: proc(path: string) -> []Path {
 				is_dir = true;
 			}
 
-			str := strings.clone(tprint(path, "/", file_name));
+			str := strings.clone(fmt.tprint(path, "/", file_name));
 			extension, eok := get_file_extension(str);
-			append(&results, Path{ 
-				str, 
-				tprint(file_name), 
+			append(&results, Path{
+				str,
+				fmt.tprint(file_name),
 				is_dir,
 				path,
 				extension
@@ -266,7 +266,7 @@ string_starts_with :: proc(str: string, start: string) -> bool {
 	return true;
 }
 
-// note(josh): returned string is tprint'ed, save manually on user-side if persistence is needed
+// note(josh): returned string is fmt.tprint'ed, save manually on user-side if persistence is needed
 string_to_lower :: proc(str: string) -> string {
 	lower := transmute([]u8)fmt.tprint(str);
 	for r, i in lower {
@@ -300,8 +300,8 @@ _free_temp_cstring :: proc(cstr: cstring) {
 
 
 
-to_vec2 :: inline proc(a: $T/[$N]$E) -> Vec2 {
-	result: Vec2;
+to_vec2 :: inline proc(a: $T/[$N]$E) -> math.Vec2 {
+	result: math.Vec2;
 	idx := 0;
 	for idx < len(a) && idx < len(result) {
 		result[idx] = a[idx];
@@ -310,8 +310,8 @@ to_vec2 :: inline proc(a: $T/[$N]$E) -> Vec2 {
 	return result;
 }
 
-to_vec3 :: inline proc(a: $T/[$N]$E) -> Vec3 {
-	result: Vec3;
+to_vec3 :: inline proc(a: $T/[$N]$E) -> math.Vec3 {
+	result: math.Vec3;
 	idx := 0;
 	for idx < len(a) && idx < len(result) {
 		result[idx] = a[idx];
@@ -320,8 +320,8 @@ to_vec3 :: inline proc(a: $T/[$N]$E) -> Vec3 {
 	return result;
 }
 
-to_vec4 :: inline proc(a: $T/[$N]$E) -> Vec4 {
-	result: Vec4;
+to_vec4 :: inline proc(a: $T/[$N]$E) -> math.Vec4 {
+	result: math.Vec4;
 	idx := 0;
 	for idx < len(a) && idx < len(result) {
 		result[idx] = a[idx];
