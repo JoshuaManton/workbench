@@ -54,13 +54,18 @@ last :: inline proc(slice: []$E) -> ^E {
 	return &slice[len(slice)-1];
 }
 
+slice_unordered_remove :: proc(slice: ^$T/[]$E, idx: int) {
+	slice[idx] = slice[len(slice)-1];
+	slice^ = slice^[:len(slice)-1];
+}
+
 //
 // Paths
 //
 
 // "path/to/filename.txt" -> "filename"
-get_file_name :: proc(_filepath: string) -> (string, bool) {
-	filepath := _filepath;
+get_file_name :: proc(filepath: string) -> (string, bool) {
+	filepath := filepath;
 	if slash_idx, ok := find_from_right(filepath, '/'); ok {
 		filepath = filepath[slash_idx+1:];
 	}
