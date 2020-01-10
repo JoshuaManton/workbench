@@ -22,7 +22,6 @@ Terrain_Vertex :: struct {
 }
 
 create_terrain :: proc(size: int, height_map: [][]f32) -> Terrain {
-
     assert(size <= len(height_map), "Height map too smalle for terrain");
 
     terrain := Terrain {
@@ -40,20 +39,14 @@ create_terrain :: proc(size: int, height_map: [][]f32) -> Terrain {
         for z in 0..size {
 
             height := height_map[x][z];
-            colour := Colorf{1,1,1,1};
-            if ((size * x) + z) % 2 == 0 {
-                colour = terrain.color0;
-            } else {
-                colour = terrain.color1;
-            }
 
             append(&verts, Terrain_Vertex {
                 Vec3 {
-                    f32(z) / f32(size - 1) * f32(size),
+                    f32(x),
                     height,
-                    f32(x) / f32(size - 1) * f32(size),
+                    f32(z),
                 },
-                colour,
+                types.color_lerp(terrain.color0, terrain.color1, height),
             });
         }
     }
@@ -61,17 +54,18 @@ create_terrain :: proc(size: int, height_map: [][]f32) -> Terrain {
     inds := make([dynamic]u32, 0, size);
     for x in 0..size-1 {
         for z in 0..size-1 {
-            bottom_left := (size * x) + z;
-            bottom_right := bottom_left + size;
+            bottom_left := ((size+1) * x) + z;
+            bottom_right := bottom_left + (size+1);
             top_left := bottom_left + 1;
             top_right := bottom_right + 1;
 
             append(&inds, u32(bottom_left));
+            append(&inds, u32(top_right));
             append(&inds, u32(bottom_right));
-            append(&inds, u32(top_right));
+
             append(&inds, u32(bottom_left));
-            append(&inds, u32(top_right));
             append(&inds, u32(top_left));
+            append(&inds, u32(top_right));
         }
     }
 

@@ -52,7 +52,7 @@ void main() {
     for (int i=0; i<3; i++) {
         gl_Position = projection_matrix * view_matrix * model_matrix * gl_in[i].gl_Position;
         v_color = vert_color[0];// * vec4(lighting.xyz, 1);
-        vert_normal = normal;
+        vert_normal = -1 * normal;
         EmitVertex();
     }
     EndPrimitive();
