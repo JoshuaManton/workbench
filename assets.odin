@@ -278,7 +278,7 @@ catalog_delete_model :: proc(model: ^Model) {
 catalog_load_shader :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Shader_Asset, Asset_Load_Result) {
 	switch ctx.extension {
 		case "shader": {
-			shader, result := parse_shader_vert_frag(cast(string)data, ctx);
+			shader, result := parse_shader(cast(string)data, ctx);
 			if result != .Ok {
 				return nil, result;
 			}
@@ -309,7 +309,7 @@ catalog_delete_shader :: proc(shader: ^Shader_Asset) {
 	free(shader);
 }
 
-parse_shader_vert_frag :: proc(text: string, ctx: Asset_Load_Context) -> (Shader_Asset, Asset_Load_Result) {
+parse_shader :: proc(text: string, ctx: Asset_Load_Context) -> (Shader_Asset, Asset_Load_Result) {
 
 	process_includes :: proc(builder: ^strings.Builder, text: string, ctx: Asset_Load_Context) -> Asset_Load_Result {
 		assert(builder != nil);
@@ -357,6 +357,7 @@ parse_shader_vert_frag :: proc(text: string, ctx: Asset_Load_Context) -> (Shader
 
 	vertex_builder: strings.Builder;   defer strings.destroy_builder(&vertex_builder);
 	fragment_builder: strings.Builder; defer strings.destroy_builder(&fragment_builder);
+	geometry_builder: strings.Builder; defer strings.destroy_builder(&geometry_builder);
 	current_builder: ^strings.Builder;
 
 	lines := strings.split(all_text, "\n");
@@ -368,6 +369,9 @@ parse_shader_vert_frag :: proc(text: string, ctx: Asset_Load_Context) -> (Shader
 		else if basic.string_starts_with(line, "@frag") {
 			current_builder = &fragment_builder;
 		}
+		else if basic.string_starts_with(line, "@geom") {
+			current_builder = &geometry_builder;
+		}
 		else {
 			if current_builder != nil {
 				fmt.sbprint(current_builder, line, "\n");
@@ -375,12 +379,23 @@ parse_shader_vert_frag :: proc(text: string, ctx: Asset_Load_Context) -> (Shader
 		}
 	}
 
-	assert(strings.to_string(vertex_builder) != "");
-	assert(strings.to_string(fragment_builder) != "");
+	vert_source := strings.to_string(vertex_builder);
+	frag_source := strings.to_string(fragment_builder);
+	geo_source := strings.to_string(geometry_builder);
 
-	shader, compileok := gpu.load_shader_vert_frag(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
-	if compileok {
-		return Shader_Asset{shader, strings.to_string(all_text_builder)}, .Ok;
+	assert(vert_source != "");
+	assert(frag_source != "");
+
+	if geo_source != "" {
+		shader, compileok := gpu.load_shader_vert_geo_frag(vert_source, geo_source, frag_source);
+		if compileok {
+			return Shader_Asset{shader, strings.to_string(all_text_builder)}, .Ok;
+		}
+	} else {
+		shader, compileok := gpu.load_shader_vert_frag(strings.to_string(vertex_builder), strings.to_string(fragment_builder));
+		if compileok {
+			return Shader_Asset{shader, strings.to_string(all_text_builder)}, .Ok;
+		}
 	}
 
 	catalog_error(ctx.catalog, "Shader '", ctx.file_name, "' failed to compile.");

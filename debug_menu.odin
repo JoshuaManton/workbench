@@ -39,9 +39,9 @@ Debug_Program :: struct {
 }
 
 debug_programs: [dynamic]Debug_Program;
+debug_window_open: bool;
 
 update_debug_menu :: proc(dt: f32) {
-	@static debug_window_open: bool;
 
 	if platform.get_input_down(.F1) do debug_window_open = !debug_window_open;
 

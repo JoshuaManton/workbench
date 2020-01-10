@@ -249,6 +249,30 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
         return cast(Shader_Program)program_id, true;
     }
 
+    load_shader_vert_geo_frag :: proc(vs_code, gs_code, fs_code: string) -> (program: Shader_Program, success: bool) {
+        vertex_shader_id, ok1 := compile_shader_from_text(vs_code, .VERTEX_SHADER);
+        defer odingl.DeleteShader(vertex_shader_id);
+
+        geo_shader_id, ok2 := compile_shader_from_text(gs_code, .GEOMETRY_SHADER);
+        defer odingl.DeleteShader(geo_shader_id);
+
+        fragment_shader_id, ok3 := compile_shader_from_text(fs_code, .FRAGMENT_SHADER);
+        defer odingl.DeleteShader(fragment_shader_id);
+
+        if !ok1 || !ok2 || !ok3 {
+            return 0, false;
+        }
+
+        program_id, ok := create_and_link_program([]u32{vertex_shader_id, geo_shader_id, fragment_shader_id});
+        if !ok {
+            return 0, false;
+        }
+
+        // print_uniforms(cast(Shader_Program)program_id);
+
+        return cast(Shader_Program)program_id, true;
+    }
+
     load_shader_compute :: proc(source: string) -> (program: Shader_Program, success: bool) {
         shader, ok1 := compile_shader_from_text(source, .COMPUTE_SHADER);
         defer odingl.DeleteShader(shader);
