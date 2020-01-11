@@ -9,7 +9,6 @@
 #version 330 core
 
 in vec4 vert_color;
-in vec3 vert_normal;
 in vec3 tex_coord;
 
 uniform sampler2D texture_handle;

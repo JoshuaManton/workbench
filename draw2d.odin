@@ -406,18 +406,18 @@ draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0,
 }
 
 debug_geo_flush :: proc() {
-	old_polygon_mode := current_camera.polygon_mode;
-	defer current_camera.polygon_mode = old_polygon_mode;
-	current_camera.polygon_mode = .Line;
+	PUSH_POLYGON_MODE(.Line);
+	PUSH_GPU_ENABLED(.Cull_Face, false);
 
 	// todo(josh): support all rendermodes
 	PUSH_RENDERMODE(.World);
 
 	gpu.use_program(get_shader(&wb_catalog, "default"));
 	for line in debug_lines {
-		verts: [2]Vertex3D;
+		verts: [3]Vertex3D;
 		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
 		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
+		verts[2] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
 		update_mesh(&debug_line_model, 0, verts[:], []u32{});
 		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, line.depth_test);
 	}

@@ -589,6 +589,29 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	}
 }
 
+@(deferred_out=pop_polygon_mode)
+PUSH_POLYGON_MODE :: proc(mode: gpu.Polygon_Mode) -> gpu.Polygon_Mode {
+	old := current_camera.polygon_mode;
+	current_camera.polygon_mode = mode;
+	return old;
+}
+
+pop_polygon_mode :: proc(old_mode: gpu.Polygon_Mode) {
+	current_camera.polygon_mode = old_mode;
+}
+
+@(deferred_out=pop_gpu_enabled)
+PUSH_GPU_ENABLED :: proc(cap: gpu.Capabilities, enable: bool) -> (gpu.Capabilities, bool) {
+	old := gpu.is_enabled(cap);
+	if enable do gpu.enable(cap);
+	else      do gpu.disable(cap);
+	return cap, old;
+}
+pop_gpu_enabled :: proc(old: gpu.Capabilities, enable: bool) {
+	if enable do gpu.enable(old);
+	else      do gpu.disable(old);
+}
+
 
 
 Material :: struct {
@@ -898,12 +921,7 @@ draw_model :: proc(model: Model,
 
 	gpu.uniform_float(program, "time", time);
 
-	if depth_test {
-		gpu.enable(.Depth_Test);
-	}
-	else {
-		gpu.disable(.Depth_Test);
-	}
+	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
 	gpu.log_errors(#procedure);
 
 	for mesh, i in model.meshes {

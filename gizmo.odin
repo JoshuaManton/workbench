@@ -96,7 +96,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                     outer: for i in 0..2 {
                         center_on_screen := world_to_unit(origin, &wb_camera);
                         tip_on_screen := world_to_unit(origin + rotated_direction(rotation^, direction_unary[i]) * size, &wb_camera);
-                        draw_debug_line(origin, origin + rotated_direction(rotation^, direction_unary[i]) * size, Colorf{1, 0, 1, 1});
+                        // draw_debug_line(origin, origin + rotated_direction(rotation^, direction_unary[i]) * size, Colorf{1, 0, 1, 1});
 
                         p := collision.closest_point_on_line(to_vec3(platform.mouse_unit_position), center_on_screen, tip_on_screen);
                         dist := length(p - to_vec3(platform.mouse_unit_position));
@@ -272,8 +272,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat) {
                         v1 := norm(cross(dir, dir_norm));
                         v2 := norm(cross(v1, dir_norm));
 
-                        if i != -1 do
-                            draw_debug_line(position^, position^ + dir_norm, direction_color[i]);
+                        // if i != -1 do draw_debug_line(position^, position^ + dir_norm, direction_color[i]);
 
                         plane_norm := dir_norm;
 
@@ -402,9 +401,7 @@ gizmo_render :: proc(position: Vec3, scale: Vec3, rotation: Quat) {
         rotation = Quat{0, 0, 0, 1};
     }
 
-    was_cull_enabled := gpu.is_enabled(.Cull_Face);
-    gpu.disable(.Cull_Face);
-    defer if was_cull_enabled do gpu.enable(.Cull_Face);
+    PUSH_GPU_ENABLED(.Cull_Face, false);
 
     #partial
     switch operation {

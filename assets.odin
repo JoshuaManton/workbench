@@ -355,7 +355,7 @@ parse_shader_vert_frag :: proc(text: string, ctx: Asset_Load_Context) -> (Shader
 
 	all_text := strings.to_string(all_text_builder);
 
-	vertex_builder: strings.Builder;   defer strings.destroy_builder(&vertex_builder);
+	vertex_builder:   strings.Builder; defer strings.destroy_builder(&vertex_builder);
 	fragment_builder: strings.Builder; defer strings.destroy_builder(&fragment_builder);
 	current_builder: ^strings.Builder;
 
