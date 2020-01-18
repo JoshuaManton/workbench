@@ -21,7 +21,7 @@ import "external/stb"
 import "external/glfw"
 
 import "console"
-import pf     "profiler"
+import pf "profiler"
 
 DEVELOPER :: true;
 

@@ -406,7 +406,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-			// note(josh): hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
+			// note(josh): @ShadowFlickerHack hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
 			radius := cast(f32)cast(int)(length(frustum_corners[0] - frustum_corners[6]) / 2 + 1.0);
 
 
