@@ -44,18 +44,18 @@ EPSILON      :: 1.19209290e-7;
 τ :: TAU;
 π :: PI;
 
-Vec2 :: distinct [2]f32;
-Vec3 :: distinct [3]f32;
-Vec4 :: distinct [4]f32;
+Vec2 :: [2]f32;
+Vec3 :: [3]f32;
+Vec4 :: [4]f32;
 
-Vec2i :: distinct [2]int;
-Vec3i :: distinct [3]int;
-Vec4i :: distinct [4]int;
+Vec2i :: [2]int;
+Vec3i :: [3]int;
+Vec4i :: [4]int;
 
 // Column major
-Mat2 :: distinct [2][2]f32;
-Mat3 :: distinct [3][3]f32;
-Mat4 :: distinct [4][4]f32;
+Mat2 :: [2][2]f32;
+Mat3 :: [3][3]f32;
+Mat4 :: [4][4]f32;
 
 Quat :: struct {
 	x: f32 `imgui_range="-1":"1"`, y: f32 `imgui_range="-1":"1"`, z: f32 `imgui_range="-1":"1"`, w: f32 `imgui_range="-1":"1"`,

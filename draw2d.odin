@@ -397,23 +397,22 @@ Draw_Sprite_Command :: struct {
 // Debug
 
 // todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
-draw_debug_line :: proc(a, b: Vec3, color: Colorf, depth_test := true) {
-	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}, depth_test});
+draw_debug_line :: proc(a, b: Vec3, color: Colorf, rendermode := Rendermode.World, depth_test := true) {
+	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}, rendermode, depth_test});
 }
 
-draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}, depth_test := true) {
-	append(&debug_cubes, Debug_Cube{position, scale, rotation, color, depth_test});
+draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}, rendermode := Rendermode.World, depth_test := true) {
+	append(&debug_cubes, Debug_Cube{position, scale, rotation, color, rendermode, depth_test});
 }
 
 debug_geo_flush :: proc() {
 	PUSH_POLYGON_MODE(.Line);
 	PUSH_GPU_ENABLED(.Cull_Face, false);
 
-	// todo(josh): support all rendermodes
-	PUSH_RENDERMODE(.World);
 
 	gpu.use_program(get_shader(&wb_catalog, "default"));
 	for line in debug_lines {
+		PUSH_RENDERMODE(line.rendermode);
 		verts: [3]Vertex3D;
 		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
 		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
@@ -423,6 +422,7 @@ debug_geo_flush :: proc() {
 	}
 
 	for cube in debug_cubes {
+		PUSH_RENDERMODE(cube.rendermode);
 		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, cube.depth_test);
 	}
 }
@@ -433,6 +433,7 @@ Debug_Line :: struct {
 	a, b: Vec3,
 	color: Colorf,
 	rotation: Quat,
+	rendermode: Rendermode,
 	depth_test: bool,
 }
 Debug_Cube :: struct {
@@ -440,5 +441,6 @@ Debug_Cube :: struct {
 	scale: Vec3,
 	rotation: Quat,
 	color: Colorf,
+	rendermode: Rendermode,
 	depth_test: bool,
 }
