@@ -406,7 +406,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
-			// note(josh): hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
+			// note(josh): @ShadowFlickerHack hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
 			radius := cast(f32)cast(int)(length(frustum_corners[0] - frustum_corners[6]) / 2 + 1.0);
 
 
@@ -587,6 +587,29 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	if done_postprocessing_proc != nil {
 		done_postprocessing_proc();
 	}
+}
+
+@(deferred_out=pop_polygon_mode)
+PUSH_POLYGON_MODE :: proc(mode: gpu.Polygon_Mode) -> gpu.Polygon_Mode {
+	old := current_camera.polygon_mode;
+	current_camera.polygon_mode = mode;
+	return old;
+}
+
+pop_polygon_mode :: proc(old_mode: gpu.Polygon_Mode) {
+	current_camera.polygon_mode = old_mode;
+}
+
+@(deferred_out=pop_gpu_enabled)
+PUSH_GPU_ENABLED :: proc(cap: gpu.Capabilities, enable: bool) -> (gpu.Capabilities, bool) {
+	old := gpu.is_enabled(cap);
+	if enable do gpu.enable(cap);
+	else      do gpu.disable(cap);
+	return cap, old;
+}
+pop_gpu_enabled :: proc(old: gpu.Capabilities, enable: bool) {
+	if enable do gpu.enable(old);
+	else      do gpu.disable(old);
 }
 
 
@@ -898,12 +921,7 @@ draw_model :: proc(model: Model,
 
 	gpu.uniform_float(program, "time", time);
 
-	if depth_test {
-		gpu.enable(.Depth_Test);
-	}
-	else {
-		gpu.disable(.Depth_Test);
-	}
+	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
 	gpu.log_errors(#procedure);
 
 	for mesh, i in model.meshes {

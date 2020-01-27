@@ -103,15 +103,15 @@ on_render_object: proc(rawptr);
 render_workspace :: proc(workspace: Workspace) {
 	check_for_file_updates(&wb_catalog);
 
-	gpu.enable(.Cull_Face);
+	PUSH_GPU_ENABLED(.Cull_Face, true);
 
 	assert(current_camera == nil);
 
 	PUSH_CAMERA(&screen_camera);
+	PUSH_POLYGON_MODE(.Fill);
 
 	camera_render(&wb_camera, workspace.render);
 
-	gpu.polygon_mode(.Front_And_Back, .Fill);
 	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height); // note(josh): this is only needed because pop_framebuffer can't reset the value for viewport() if we are popping to an empty framebuffer (the screen camera)
 
 	// do gamma correction and draw to screen!
