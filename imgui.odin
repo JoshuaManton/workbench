@@ -741,6 +741,11 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
                 imgui_struct_ti(name, data, data_ti, "", true, type_name);
             }
         }
+        case rt.Type_Info_Type_Id: {
+            ptr := cast(^typeid)data;
+            ti := type_info_of(ptr^);
+            imgui.text(tprint(ti));
+        }
         case: imgui.text(tprint("UNHANDLED TYPE: ", kind));
     }
 }
