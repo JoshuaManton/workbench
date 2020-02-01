@@ -145,14 +145,17 @@ Text_Data :: struct {
 
 	center: b64,
 
+	push_new_rect: bool,
 	x1, y1, x2, y2: f32,
 	top, right, bottom, left: int,
 }
 
 ui_text :: proc{ui_text_data, ui_text_args};
 ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
-	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
-	defer ui_pop_rect(loc);
+	if push_new_rect {
+		ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
+	}
+	defer if push_new_rect do ui_pop_rect(loc);
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * size;

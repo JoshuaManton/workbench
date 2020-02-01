@@ -258,7 +258,7 @@ catalog_delete_texture :: proc(texture: ^Texture) {
 }
 
 catalog_load_font :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Font, Asset_Load_Result) {
-	font := load_font(data, 54); // todo(josh): multiple sizes for fonts? probably would be good
+	font := load_font(data, 128); // todo(josh): multiple sizes for fonts? probably would be good
 	return new_clone(font), .Ok;
 }
 catalog_delete_font :: proc(font: ^Font) {

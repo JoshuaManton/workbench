@@ -215,6 +215,7 @@ destroy_bloom :: proc(camera: ^Camera) {
 	if fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
     	for fbo in fbos do delete_framebuffer(fbo);
     }
+    camera.bloom_ping_pong_framebuffers = {};
 }
 
 setup_shadow_maps :: proc(camera: ^Camera) {
