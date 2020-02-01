@@ -34,9 +34,15 @@ Asset_Handler :: struct {
 
 Asset_Load_Context :: struct {
 	file_name: string,
-	root_directory: string,
 	extension: string,
 	catalog: ^Asset_Catalog,
+}
+
+add_default_handlers :: proc(catalog: ^Asset_Catalog) {
+	add_asset_handler(catalog, Texture,      {"png"},                       catalog_load_texture, catalog_delete_texture);
+	add_asset_handler(catalog, Font,         {"ttf"},                       catalog_load_font,    catalog_delete_font);
+	add_asset_handler(catalog, Model,        {"fbx"},                       catalog_load_model,   catalog_delete_model);
+	add_asset_handler(catalog, Shader_Asset, {"shader", "compute", "glsl"}, catalog_load_shader,  catalog_delete_shader);
 }
 
 add_asset_handler :: proc(catalog: ^Asset_Catalog, $Type: typeid, extensions: []string, load_proc: proc([]byte, Asset_Load_Context) -> (^Type, Asset_Load_Result), delete_proc: proc(^Type)) {
@@ -67,10 +73,7 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_location) {
 	if catalog.handlers == nil {
-		add_asset_handler(catalog, Texture,      {"png"},                       catalog_load_texture, catalog_delete_texture);
-		add_asset_handler(catalog, Font,         {"ttf"},                       catalog_load_font,    catalog_delete_font);
-		add_asset_handler(catalog, Model,        {"fbx"},                       catalog_load_model,   catalog_delete_model);
-		add_asset_handler(catalog, Shader_Asset, {"shader", "compute", "glsl"}, catalog_load_shader,  catalog_delete_shader);
+		add_default_handlers(catalog);
 	}
 
 	files := basic.get_all_filepaths_recursively(path);
@@ -93,7 +96,7 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 		for file_idx := len(files)-1; file_idx >= 0; file_idx -= 1 {
 			filepath := files[file_idx];
 
-			result := load_asset(catalog, filepath);
+			result := load_asset_from_file(catalog, filepath);
 			switch result {
 				case .Ok: {
 					basic.slice_unordered_remove(&files, file_idx);
@@ -139,13 +142,11 @@ Asset_Load_Result :: enum {
 	Yield,
 }
 
-load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset_Load_Result {
+load_asset_from_file :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset_Load_Result {
 	name, nameok := basic.get_file_name(filepath);
 	assert(nameok, filepath);
 	ext, extok := basic.get_file_extension(filepath);
 	assert(extok, filepath);
-	root_directory, dirok := basic.get_file_directory(filepath);
-	assert(dirok, filepath);
 	name_and_ext, neok := basic.get_file_name_and_extension(filepath);
 	assert(neok, filepath);
 
@@ -153,13 +154,18 @@ load_asset :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset_Load_Resu
 	assert(fileok);
 	defer delete(data);
 
+	res := load_asset(catalog, name, ext, data);
+	return res;
+}
+
+load_asset :: proc(catalog: ^Asset_Catalog, name: string, ext: string, data: []byte) -> Asset_Load_Result {
 	handler_loop: for ti in catalog.handlers {
 		handler := catalog.handlers[ti];
 		defer catalog.handlers[ti] = handler; // ugh, PLEASE GIVE MAP POINTERS BILL
 
 		for handler_extension in handler.extensions {
 			if handler_extension == ext {
-				asset, result := handler.load_proc(data, Asset_Load_Context{name, root_directory, ext, catalog});
+				asset, result := handler.load_proc(data, Asset_Load_Context{name, ext, catalog});
 				switch result {
 					case .Ok: {
 						assert(asset != nil);
@@ -220,9 +226,9 @@ try_get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> (
 	return {}, false;
 }
 
-get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> Type {
+get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string, loc := #caller_location) -> Type {
 	asset, ok := try_get_asset(Type, catalog, name);
-	assert(ok, fmt.tprint("Couldn't find asset: ", name));
+	assert(ok, fmt.tprint("Couldn't find asset: ", name, loc));
 	return asset;
 }
 
@@ -237,7 +243,7 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 		if new_last_write_time > file.last_write_time {
 			logging.ln("file update: ", file.path);
 			file.last_write_time = new_last_write_time;
-			load_asset(catalog, file.path);
+			load_asset_from_file(catalog, file.path);
 		}
 	}
 

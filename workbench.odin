@@ -25,8 +25,6 @@ import pf "profiler"
 
 DEVELOPER :: true;
 
-WORKBENCH_PATH: string;
-
 //
 // Game loop stuff
 //
@@ -54,10 +52,6 @@ make_simple_window :: proc(window_width, window_height: int,
                            workspace: Workspace) {
 	defer logging.ln("workbench successfully shutdown.");
 
-	wbpathok: bool;
-	WORKBENCH_PATH, wbpathok = basic.get_file_directory(#location().file_path);
-	assert(wbpathok);
-
 	startup_start_time := glfw.GetTime();
 
 	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
@@ -70,11 +64,10 @@ make_simple_window :: proc(window_width, window_height: int,
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
 
-	assert(WORKBENCH_PATH != "");
-	load_asset_folder(tprint(WORKBENCH_PATH, "/resources"), &wb_catalog);
+	add_default_handlers(&wb_catalog);
 	defer delete_asset_catalog(wb_catalog);
 
-	init_default_fonts();
+	init_builtin_assets();
 
 	init_gizmo();
 
@@ -193,11 +186,43 @@ end_workspace :: proc(workspace: Workspace) {
 
 
 
-default_font:      Font;
-default_font_mono: Font;
-init_default_fonts :: proc() {
-	default_font      = get_asset(Font, &wb_catalog, "Roboto-Regular");
-	default_font_mono = get_asset(Font, &wb_catalog, "RobotoMono-Regular");
+
+
+// wba = wb asset
+wba_font_default_data              := #load("resources/fonts/Roboto-Regular.ttf");
+wba_font_mono_data                 := #load("resources/fonts/RobotoMono-Regular.ttf");
+wba_bloom_shader_data              := #load("resources/shaders/bloom.shader");
+wba_blur_shader_data               := #load("resources/shaders/blur.shader");
+wba_default_shader_data            := #load("resources/shaders/default.shader");
+wba_default_3d_texture_shader_data := #load("resources/shaders/default_3d_texture.shader");
+wba_default_vert_glsl_data         := #load("resources/shaders/default_vert.glsl");
+wba_depth_shader_data              := #load("resources/shaders/depth.shader");
+wba_error_shader_data              := #load("resources/shaders/error.shader");
+wba_gamma_shader_data              := #load("resources/shaders/gamma.shader");
+wba_lit_shader_data                := #load("resources/shaders/lit.shader");
+wba_outline_shader_data            := #load("resources/shaders/outline.shader");
+wba_particle_shader_data           := #load("resources/shaders/particle.shader");
+wba_shadow_shader_data             := #load("resources/shaders/shadow.shader");
+wba_skinning_shader_data           := #load("resources/shaders/skinning.shader");
+wba_text_shader_data               := #load("resources/shaders/text.shader");
+
+init_builtin_assets :: proc() {
+	load_asset(&wb_catalog, "default",            "ttf",    wba_font_default_data);
+	load_asset(&wb_catalog, "mono",               "ttf",    wba_font_mono_data);
+	load_asset(&wb_catalog, "default_vert",       "glsl",   wba_default_vert_glsl_data);
+	load_asset(&wb_catalog, "default_3d_texture", "shader", wba_default_3d_texture_shader_data);
+	load_asset(&wb_catalog, "default",            "shader", wba_default_shader_data);
+	load_asset(&wb_catalog, "bloom",              "shader", wba_bloom_shader_data);
+	load_asset(&wb_catalog, "blur",               "shader", wba_blur_shader_data);
+	load_asset(&wb_catalog, "depth",              "shader", wba_depth_shader_data);
+	load_asset(&wb_catalog, "error",              "shader", wba_error_shader_data);
+	load_asset(&wb_catalog, "gamma",              "shader", wba_gamma_shader_data);
+	load_asset(&wb_catalog, "lit",                "shader", wba_lit_shader_data);
+	load_asset(&wb_catalog, "outline",            "shader", wba_outline_shader_data);
+	load_asset(&wb_catalog, "particle",           "shader", wba_particle_shader_data);
+	load_asset(&wb_catalog, "shadow",             "shader", wba_shadow_shader_data);
+	load_asset(&wb_catalog, "skinning",           "shader", wba_skinning_shader_data);
+	load_asset(&wb_catalog, "text",               "shader", wba_text_shader_data);
 }
 
 
