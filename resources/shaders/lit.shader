@@ -50,8 +50,8 @@ uniform float sun_intensity;
 uniform float bloom_threshhold;
 
 
-out vec4 out_color;
-out vec4 bloom_color;
+layout (location=0) out vec4 out_color;
+layout (location=1) out vec4 bloom_color;
 
 
 

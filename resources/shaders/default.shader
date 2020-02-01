@@ -14,7 +14,7 @@ in vec3 tex_coord;
 uniform sampler2D texture_handle;
 uniform int has_texture;
 
-out vec4 out_color;
+layout (location=0) out vec4 out_color;
 
 void main() {
     vec4 tex_color = vec4(1, 1, 1, 1);
