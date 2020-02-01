@@ -1070,15 +1070,57 @@ mat4_to_quat :: proc(m: Mat4) -> Quat {
 	return Quat{x,y,z,w};
 }
 
-quat_look_at :: proc(eye, centre, up: Vec3) -> Quat {
-	f := norm(centre - eye);
+trace :: proc(m: $T/[$N][N]$E) -> (tr: E) {
+	for i in 0..<N {
+		tr += m[i][i];
+	}
+	return;
+}
+
+quaternion_from_forward_and_up :: proc(forward, up: Vec3) -> Quat {
+	f := norm(forward);
 	s := norm(cross(f, up));
 	u := cross(s, f);
+	m := Mat3{
+		{+s.x, +u.x, -f.x},
+		{+s.y, +u.y, -f.y},
+		{+s.z, +u.z, -f.z},
+	};
 
-	w := sqrt(1 + s.x + u.y - f.z) / 2;
-	w4 := w * 4;
-	x := (u.z - -f.y) / w4;
-	y := (-f.x - s.z) / w4;
-	z := (s.y - u.x) / w4;
-	return Quat{x,y,z,w};
+	tr := trace(m);
+
+	q: Quat;
+
+	switch {
+	case tr > 0:
+		S := 2 * sqrt(1 + tr);
+		q.w = 0.25 * S;
+		q.x = (m[2][1] - m[1][2]) / S;
+		q.y = (m[0][2] - m[2][0]) / S;
+		q.z = (m[1][0] - m[0][1]) / S;
+	case (m[0][0] > m[1][1]) && (m[0][0] > m[2][2]):
+		S := 2 * sqrt(1 + m[0][0] - m[1][1] - m[2][2]);
+		q.w = (m[2][1] - m[1][2]) / S;
+		q.x = 0.25 * S;
+		q.y = (m[0][1] + m[1][0]) / S;
+		q.z = (m[0][2] + m[2][0]) / S;
+	case m[1][1] > m[2][2]:
+		S := 2 * sqrt(1 + m[1][1] - m[0][0] - m[2][2]);
+		q.w = (m[0][2] - m[2][0]) / S;
+		q.x = (m[0][1] + m[1][0]) / S;
+		q.y = 0.25 * S;
+		q.z = (m[1][2] + m[2][1]) / S;
+	case:
+		S := 2 * sqrt(1 + m[2][2] - m[0][0] - m[1][1]);
+		q.w = (m[1][0] - m[0][1]) / S;
+		q.x = (m[0][2] - m[2][0]) / S;
+		q.y = (m[1][2] + m[2][1]) / S;
+		q.z = 0.25 * S;
+	}
+
+	return quat_norm(q);
+}
+
+quat_look_at :: proc(eye, centre: Vec3, up: Vec3) -> Quat {
+	return quaternion_from_forward_and_up(centre-eye, up);
 }
