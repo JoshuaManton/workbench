@@ -10,6 +10,8 @@ import "core:strings"
 import "core:fmt"
 import "../laas"
 
+type_info_table: map[string]^rt.Type_Info;
+
 serialize :: proc(value: ^$Type) -> string {
 	sb: strings.Builder;
 	serialize_string_builder(value, &sb);
@@ -18,6 +20,10 @@ serialize :: proc(value: ^$Type) -> string {
 
 serialize_string_builder :: proc(value: ^$Type, sb: ^strings.Builder) {
 	ti := type_info_of(Type);
+	serialize_with_type_info("", value, ti, sb, 0);
+}
+
+serialize_string_builder_ti :: proc(value: rawptr, ti: ^rt.Type_Info, sb: ^strings.Builder) {
 	serialize_with_type_info("", value, ti, sb, 0);
 }
 
@@ -178,6 +184,16 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 				serialize_with_type_info(name, mem.ptr_offset(cast(^byte)value, cast(int)kind.offsets[idx]), kind.types[idx], sb, indent_level);
 			}
 			indent_level -= 1; print_indents(indent_level, sb); print_to_buf(sb, "}");
+		}
+
+		case rt.Type_Info_Type_Id: {
+			ti := type_info_of((cast(^typeid)value)^);
+			if ti.id != nil {
+				print_to_buf(sb, "\"", ti, "\"");
+			}
+			else {
+				print_to_buf(sb, "nil");
+			}
 		}
 
 		case rt.Type_Info_Union: {
@@ -546,6 +562,21 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 				case 4: (cast(^b32)ptr)^  = cast(b32)b.value;
 				case 8: (cast(^b64)ptr)^  = cast(b64)b.value;
 				case: panic(tprint(ti.size));
+			}
+		}
+
+		case rt.Type_Info_Type_Id: {
+			#partial
+			switch node_kind in node.kind {
+				case Node_Nil: {
+					// note(josh): Do nothing!
+				}
+				case Node_String: {
+					ti, ok := type_info_table[node_kind.value];
+					assert(ok, fmt.tprint(node_kind.value));
+					(cast(^typeid)ptr)^ = ti.id;
+				}
+				case: panic(tprint(node_kind));
 			}
 		}
 

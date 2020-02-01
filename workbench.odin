@@ -21,7 +21,7 @@ import "external/stb"
 import "external/glfw"
 
 import "console"
-import pf     "profiler"
+import pf "profiler"
 
 DEVELOPER :: true;
 
@@ -125,6 +125,7 @@ make_simple_window :: proc(window_width, window_height: int,
 				imgui_begin_new_frame(fixed_delta_time);
 	    		imgui.push_font(imgui_font_default);
 
+	    		gizmo_new_frame();
 	    		update_draw();
 				update_tween(fixed_delta_time);
 				update_ui();
