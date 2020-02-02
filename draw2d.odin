@@ -112,7 +112,7 @@ im_text :: proc(
 	position: Vec2,
 	color: Colorf,
 	size: f32,
-	layer: int,
+	layer: int = current_render_layer,
 	actually_draw: bool = true,
 	loc := #caller_location) -> f32 {
 
