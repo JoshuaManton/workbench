@@ -201,7 +201,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
 			union_ti := reflection.get_union_type_info(any{value, ti.id});
 			if union_ti == nil {
-				print_to_buf(sb, "nil");
+				print_to_buf(sb, "nil\n");
 			}
 			else {
 				print_to_buf(sb, ".", tprint(union_ti), " ");
@@ -252,7 +252,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			unimplemented();
 		}
 
-		case: panic(tprint(kind));
+		case: panic(tprint(name, kind));
 	}
 
 	if do_newline {
