@@ -348,7 +348,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                 e, ok := scene.entity_datas[eid];
                 assert(ok);
 
-                if imgui.selectable_val(e.name, eid == selected_entity) {
+                if imgui.selectable(e.name, eid == selected_entity, .AllowDoubleClick) {
                     selected_entity = eid;
                 }
 
