@@ -501,10 +501,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 
 		// set material data
-		gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
-		gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
-		gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
-		gpu.uniform_float(shader, "material.shine",    material.shine);
+		flush_material(material, shader);
 
 
 		// issue draw call
@@ -620,6 +617,13 @@ Material :: struct {
 	diffuse:  Colorf,
 	specular: Colorf,
 	shine:    f32,
+}
+
+flush_material :: proc(using material: Material, shader: gpu.Shader_Program) {
+	gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
+	gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
+	gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
+	gpu.uniform_float(shader, "material.shine",    material.shine);
 }
 
 submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State, userdata : rawptr = {}) {
