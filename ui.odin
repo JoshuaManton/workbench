@@ -200,26 +200,19 @@ Button_Data :: struct {
 	on_clicked:  proc(button: ^Button_Data),
 
 	color: Colorf,
-	clicked: u64,
+	pressed: bool,
 }
 
 ui_default_button :: proc() -> Button_Data {
-	return Button_Data{0, 0, 1, 1, 0, 0, 0, 0, nil, nil, nil, nil, Colorf{1, 1, 1, 1}, 0};
+	return Button_Data{0, 0, 1, 1, 0, 0, 0, 0, nil, nil, nil, nil, Colorf{1, 1, 1, 1}, false};
 }
 
 ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text_Data = nil, loc := #caller_location) -> bool {
-	result: bool;
-
-	clicked_this_frame := button.clicked == frame_count;
-	if clicked_this_frame {
-		if button.on_clicked != nil {
-			button.on_clicked(button);
-		}
-		return true;
-	}
 
 	rect := ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Button, loc);
 	defer ui_pop_rect(loc);
+
+	mouse_in := ui_current_contains_mouse();
 
 	// Draw button stuff
 	ui_draw_colored_quad(color);
@@ -232,26 +225,32 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		ui_text(str, text_data, loc);
 	}
 
-	if previously_hot == rect.imgui_id || (hot == rect.imgui_id && previously_warm == rect.imgui_id) {
-		if button.on_released != nil do button.on_released(button);
+	// were we recently pressed and are now releasing?
+	if pressed && platform.get_input_up(.Mouse_Left) {
+		pressed = false;
+		if mouse_in do 
+			if on_clicked != nil do button.on_clicked(button);
+		if on_released != nil do button.on_released(button);
+		return true;
 	}
 
-	if previously_hot == rect.imgui_id && warm == rect.imgui_id {
-		result = true;
-		if button.on_released != nil do button.on_released(button);
-		if button.on_clicked  != nil do button.on_clicked(button);
+	// pressing
+	if mouse_in && platform.get_input_down(.Mouse_Left) {
+		pressed = true;
+		if on_pressed != nil do button.on_pressed(button);
+	} 
+
+	// hover. mayber else if?
+	if mouse_in {
+		if on_hover != nil do button.on_hover(button);
 	}
 
-	if (hot == rect.imgui_id && platform.get_input_down(.Mouse_Left)) || (hot == rect.imgui_id && previously_warm != rect.imgui_id && warm == rect.imgui_id) {
-		if button.on_pressed != nil do button.on_pressed(button);
-	}
-
-	return result;
+	return false;
 }
 
-ui_button_click :: proc(using button: ^Button_Data) {
-	clicked = frame_count;
-}
+// ui_button_click :: proc(using button: ^Button_Data) {
+// 	clicked = frame_count;
+// }
 
 // Aspect Ratio Fitter
 
@@ -417,6 +416,15 @@ ui_grid_layout_next :: proc(using grid: ^Grid_Layout) -> bool {
 
 ui_grid_layout_end :: proc() {
 	ui_pop_rect();
+}
+
+ui_current_contains_mouse :: proc() -> bool {
+	if len(ui_rect_stack) == 0 do return false;
+
+	return platform.mouse_screen_position.x >= f32(ui_current_rect_pixels.x1) && 
+		   platform.mouse_screen_position.y >= f32(ui_current_rect_pixels.y1) &&
+		   platform.mouse_screen_position.x <= f32(ui_current_rect_pixels.x2) &&
+		   platform.mouse_screen_position.y <= f32(ui_current_rect_pixels.y2);
 }
 
 // Directional Layout Groups
