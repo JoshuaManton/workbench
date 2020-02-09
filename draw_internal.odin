@@ -18,8 +18,9 @@ import "external/imgui"
 // Internal
 //
 
-screen_camera: Camera;
-wb_camera: Camera;
+_screen_camera: Camera;
+_default_camera: Camera;
+main_camera: ^Camera;
 
 wb_cube_model: Model;
 wb_quad_model: Model;
@@ -44,15 +45,16 @@ init_draw :: proc(screen_width, screen_height: int) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
 
-	init_camera(&screen_camera, false, 10, screen_width, screen_height);
-	screen_camera.clear_color = {1, 0, 1, 1};
-	screen_camera.auto_resize_framebuffer = true;
+	init_camera(&_screen_camera, false, 10, screen_width, screen_height);
+	_screen_camera.clear_color = {1, 0, 1, 1};
+	_screen_camera.auto_resize_framebuffer = true;
 
-	init_camera(&wb_camera, true, 85, screen_width, screen_height, create_framebuffer(screen_width, screen_height, 2));
-	setup_bloom(&wb_camera);
-	setup_shadow_maps(&wb_camera);
-	wb_camera.clear_color = {.1, 0.7, 0.5, 1};
-	wb_camera.auto_resize_framebuffer = true;
+	init_camera(&_default_camera, true, 85, screen_width, screen_height, create_framebuffer(screen_width, screen_height, 2));
+	setup_bloom(&_default_camera);
+	setup_shadow_maps(&_default_camera);
+	_default_camera.clear_color = {.1, 0.7, 0.5, 1};
+	_default_camera.auto_resize_framebuffer = true;
+	push_camera_non_deferred(&_default_camera);
 
 	add_mesh_to_model(&_internal_im_model, []Vertex2D{}, []u32{}, {});
 
@@ -71,8 +73,8 @@ init_draw :: proc(screen_width, screen_height: int) {
 }
 rendering_debug_program :: proc(_: rawptr) {
 	if imgui.begin("Rendering") {
-		imgui_struct(&wb_camera.draw_mode, "Draw Mode");
-		imgui_struct(&wb_camera.polygon_mode, "Polygon Mode");
+		imgui_struct(&main_camera.draw_mode, "Draw Mode");
+		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
 		imgui_struct(&render_settings, "Render Settings");
 	}
 	imgui.end();
@@ -81,7 +83,7 @@ scene_view_debug_program :: proc(_: rawptr) {
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
 
-		imgui.image(rawptr(uintptr(wb_camera.framebuffer.textures[0].gpu_id)),
+		imgui.image(rawptr(uintptr(main_camera.framebuffer.textures[0].gpu_id)),
 			imgui.Vec2{window_size.x - 10, window_size.y - 30},
 			imgui.Vec2{0,1},
 			imgui.Vec2{1,0});
@@ -105,27 +107,25 @@ render_workspace :: proc(workspace: Workspace) {
 
 	PUSH_GPU_ENABLED(.Cull_Face, true);
 
-	assert(current_camera == nil);
+	camera_render(main_camera, workspace.render);
 
-	PUSH_CAMERA(&screen_camera);
+	old_main_camera := main_camera;
+
+	PUSH_CAMERA(&_screen_camera);
 	PUSH_POLYGON_MODE(.Fill);
-
-	camera_render(&wb_camera, workspace.render);
-
-	gpu.viewport(0, 0, cast(int)platform.current_window_width, cast(int)platform.current_window_height); // note(josh): this is only needed because pop_framebuffer can't reset the value for viewport() if we are popping to an empty framebuffer (the screen camera)
 
 	// do gamma correction and draw to screen!
 	shader_gamma := get_shader(&wb_catalog, "gamma");
 	gpu.use_program(shader_gamma);
 	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
-	draw_texture(wb_camera.framebuffer.textures[0], {0, 0}, {1, 1});
+	draw_texture(old_main_camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 	imgui_render(true);
 }
 
 deinit_draw :: proc() {
-	delete_camera(&wb_camera);
+	delete_camera(&_default_camera);
 
 	// todo(josh): figure out why deleting shaders was causing errors
 	// delete_asset_catalog(wb_catalog);

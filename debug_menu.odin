@@ -93,8 +93,8 @@ wb_info_program :: proc(_: rawptr) {
 
 	if imgui.begin("WB Info") {
 		data := WB_Debug_Data{
-			wb_camera.position,
-			wb_camera.rotation,
+			main_camera.position,
+			main_camera.rotation,
 			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 		};

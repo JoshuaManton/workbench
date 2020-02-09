@@ -44,7 +44,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
         move_type = .NONE;
     }
 
-    camera_pos := wb_camera.position;
+    camera_pos := main_camera.position;
     origin := position^;
 
     direction_to_camera := norm(origin - camera_pos);
@@ -68,8 +68,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
     #partial
     switch operation {
         case .Translate: {
-            mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
-            mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
+            mouse_world := get_mouse_world_position(main_camera, platform.mouse_unit_position);
+            mouse_direction := get_mouse_direction_from_camera(main_camera, platform.mouse_unit_position);
 
 
             was_active := move_type != .NONE;
@@ -77,8 +77,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
                 // arrows
                 current_closest := max(f32);
                 outer: for i in 0..2 {
-                    center_on_screen := world_to_unit(origin, &wb_camera);
-                    tip_on_screen := world_to_unit(origin + rotated_direction(rotation^, direction_unary[i]) * size, &wb_camera);
+                    center_on_screen := world_to_unit(origin, main_camera);
+                    tip_on_screen := world_to_unit(origin + rotated_direction(rotation^, direction_unary[i]) * size, main_camera);
                     // draw_debug_line(origin, origin + rotated_direction(rotation^, direction_unary[i]) * size, Colorf{1, 0, 1, 1});
 
                     p := collision.closest_point_on_line(to_vec3(platform.mouse_unit_position), center_on_screen, tip_on_screen);
@@ -197,8 +197,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
             break;
         }
         case .Rotate: {
-            mouse_world := get_mouse_world_position(&wb_camera, platform.mouse_unit_position);
-            mouse_direction := get_mouse_direction_from_camera(&wb_camera, platform.mouse_unit_position);
+            mouse_world := get_mouse_world_position(main_camera, platform.mouse_unit_position);
+            mouse_direction := get_mouse_direction_from_camera(main_camera, platform.mouse_unit_position);
 
             if move_type == .NONE {
 
@@ -399,9 +399,9 @@ gizmo_render :: proc() {
                     quad_verts[2] = Vertex3D{quad_origin + (dir_y + dir_x)*quad_size, {}, color, {}, {}, {} };
                     quad_verts[3] = Vertex3D{quad_origin + dir_x*quad_size, {}, color, {}, {}, {} };
 
-                    prev_draw_mode := wb_camera.draw_mode;
-                    wb_camera.draw_mode = gpu.Draw_Mode.Triangle_Fan;
-                    defer wb_camera.draw_mode = prev_draw_mode;
+                    prev_draw_mode := main_camera.draw_mode;
+                    main_camera.draw_mode = gpu.Draw_Mode.Triangle_Fan;
+                    defer main_camera.draw_mode = prev_draw_mode;
 
                     update_mesh(&gizmo_mesh, 0, quad_verts[:], []u32{});
                     draw_model(gizmo_mesh, position, {1,1,1}, rotation, {}, {1, 1, 1, 1}, false);

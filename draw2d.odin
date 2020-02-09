@@ -274,8 +274,8 @@ im_flush :: proc() {
 
 	@static im_queued_for_drawing: [dynamic]Vertex2D;
 
-	old_rendermode := current_camera.current_rendermode;
-	defer current_camera.current_rendermode = old_rendermode;
+	old_rendermode := main_camera.current_rendermode;
+	defer main_camera.current_rendermode = old_rendermode;
 
 	current_rendermode: Rendermode;
 	is_scissor := false;
@@ -297,7 +297,7 @@ im_flush :: proc() {
 		if texture_mismatch    do current_texture = cmd.texture;
 		if rendermode_mismatch {
 			current_rendermode = cmd.rendermode;
-			current_camera.current_rendermode = current_rendermode;
+			main_camera.current_rendermode = current_rendermode;
 		}
 
 		if scissor_mismatch {

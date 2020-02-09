@@ -8,11 +8,9 @@ import "core:os"
 import "core:sys/win32"
 
 import "../gpu"
-
+import "../logging"
 import "../math"
-
 import "../external/imgui"
-
 import "../external/stb"
 import "../external/glfw"
 
@@ -100,6 +98,10 @@ init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _
 	glfw.SetScrollCallback(window, glfw_scroll_callback);
 
 	out_window^ = window;
+
+	assert(_new_window_width != 0 && _new_window_height != 0);
+	update_platform();
+
 	return true;
 }
 

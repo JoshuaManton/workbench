@@ -87,7 +87,6 @@ import "external/imgui"
 
 */
 
-current_camera: ^Camera;
 current_framebuffer: Framebuffer;
 
 //
@@ -175,6 +174,8 @@ Mesh_State :: struct {
 }
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
+	framebuffer := framebuffer;
+
     camera.is_perspective = is_perspective;
     camera.size = size;
     camera.near_plane = 0.01;
@@ -188,6 +189,11 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     camera.pixel_height = cast(f32)pixel_height;
     camera.aspect = camera.pixel_width / camera.pixel_height;
 
+    if framebuffer.fbo == 0 {
+    	// put valid values into cameras without real framebuffers
+    	framebuffer.width = pixel_width;
+    	framebuffer.height = pixel_height;
+    }
     assert(camera.framebuffer.fbo == 0);
     camera.framebuffer = framebuffer;
 }
@@ -248,8 +254,8 @@ PUSH_CAMERA :: proc(camera: ^Camera) -> ^Camera {
 }
 
 push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
-	old_camera := current_camera;
-	current_camera = camera;
+	old_camera := main_camera;
+	main_camera = camera;
 
 	if camera.auto_resize_framebuffer {
 		update_camera_pixel_size(camera, platform.current_window_width, platform.current_window_height);
@@ -267,11 +273,11 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 }
 
 pop_camera :: proc(old_camera: ^Camera) {
-	current_camera = old_camera;
+	main_camera = old_camera;
 
-	if current_camera != nil {
-		gpu.viewport(0, 0, cast(int)current_camera.pixel_width, cast(int)current_camera.pixel_height);
-		pop_framebuffer(current_camera.framebuffer);
+	if main_camera != nil {
+		gpu.viewport(0, 0, cast(int)main_camera.pixel_width, cast(int)main_camera.pixel_height);
+		pop_framebuffer(main_camera.framebuffer);
 	}
 	else {
 		pop_framebuffer({});
@@ -285,14 +291,18 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
     pixel_height = new_height;
     aspect = new_width / new_height;
 
-    if framebuffer.fbo != 0 {
-        if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
-            logging.ln("Rebuilding framebuffer...");
+    if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
+        logging.ln("Rebuilding framebuffer...");
 
-        	num_color_buffers := len(framebuffer.attachments);
-            delete_framebuffer(framebuffer);
-            framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
-        }
+	    if framebuffer.fbo != 0 {
+			num_color_buffers := len(framebuffer.attachments);
+	        delete_framebuffer(framebuffer);
+	        framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
+	    }
+	    else {
+    	    framebuffer.width  = cast(int)new_width;
+	        framebuffer.height = cast(int)new_height;
+	    }
     }
 }
 
@@ -589,13 +599,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 @(deferred_out=pop_polygon_mode)
 PUSH_POLYGON_MODE :: proc(mode: gpu.Polygon_Mode) -> gpu.Polygon_Mode {
-	old := current_camera.polygon_mode;
-	current_camera.polygon_mode = mode;
+	old := main_camera.polygon_mode;
+	main_camera.polygon_mode = mode;
 	return old;
 }
 
 pop_polygon_mode :: proc(old_mode: gpu.Polygon_Mode) {
-	current_camera.polygon_mode = old_mode;
+	main_camera.polygon_mode = old_mode;
 }
 
 @(deferred_out=pop_gpu_enabled)
@@ -627,25 +637,25 @@ flush_material :: proc(using material: Material, shader: gpu.Shader_Program) {
 }
 
 submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State, userdata : rawptr = {}) {
-	append(&current_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state, userdata});
+	append(&main_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state, userdata});
 }
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
-	if current_camera.num_point_lights >= MAX_LIGHTS {
+	if main_camera.num_point_lights >= MAX_LIGHTS {
 		logging.ln("Too many lights! The max is ", MAX_LIGHTS);
 		return;
 	}
 
-	current_camera.point_light_positions  [current_camera.num_point_lights] = position;
-	current_camera.point_light_colors     [current_camera.num_point_lights] = transmute(Vec4)color;
-	current_camera.point_light_intensities[current_camera.num_point_lights] = intensity;
-	current_camera.num_point_lights += 1;
+	main_camera.point_light_positions  [main_camera.num_point_lights] = position;
+	main_camera.point_light_colors     [main_camera.num_point_lights] = transmute(Vec4)color;
+	main_camera.point_light_intensities[main_camera.num_point_lights] = intensity;
+	main_camera.num_point_lights += 1;
 }
 
 set_sun_data :: proc(rotation: Quat, color: Colorf, intensity: f32) {
-	current_camera.sun_direction  = quaternion_forward(rotation);
-	current_camera.sun_color      = transmute(Vec4)color;
-	current_camera.sun_intensity  = intensity;
-	current_camera.sun_rotation   = rotation;
+	main_camera.sun_direction  = quaternion_forward(rotation);
+	main_camera.sun_color      = transmute(Vec4)color;
+	main_camera.sun_intensity  = intensity;
+	main_camera.sun_rotation   = rotation;
 }
 
 
@@ -892,13 +902,13 @@ draw_model :: proc(model: Model,
 				   anim_state := Model_Animation_State{},
 				   loc := #caller_location) {
 
-	gpu.polygon_mode(.Front_And_Back, current_camera.polygon_mode);
+	gpu.polygon_mode(.Front_And_Back, main_camera.polygon_mode);
 
 	// projection matrix
-	projection_matrix := construct_rendermode_matrix(current_camera);
+	projection_matrix := construct_rendermode_matrix(main_camera);
 
 	// view matrix
-	view_matrix := construct_view_matrix(current_camera);
+	view_matrix := construct_view_matrix(main_camera);
 
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
@@ -913,7 +923,7 @@ draw_model :: proc(model: Model,
 	gpu.uniform_int(program, "texture_handle", 0);
 	gpu.uniform_int(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
 
-	gpu.uniform_vec3(program, "camera_position", current_camera.position);
+	gpu.uniform_vec3(program, "camera_position", main_camera.position);
 	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
 	gpu.uniform_float(program, "bloom_threshhold", render_settings.bloom_threshhold);
 
@@ -960,10 +970,10 @@ draw_model :: proc(model: Model,
 		gpu.log_errors(#procedure);
 
 		if mesh.index_count > 0 {
-			gpu.draw_elephants(current_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
+			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 		}
 		else {
-			gpu.draw_arrays(current_camera.draw_mode, 0, mesh.vertex_count);
+			gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
 		}
 	}
 }
@@ -985,12 +995,12 @@ Rendermode :: enum {
 
 @(deferred_out=pop_rendermode)
 PUSH_RENDERMODE :: proc(r: Rendermode) -> Rendermode {
-	old := current_camera.current_rendermode;
-	current_camera.current_rendermode = r;
+	old := main_camera.current_rendermode;
+	main_camera.current_rendermode = r;
 	return old;
 }
 pop_rendermode :: proc(r: Rendermode) {
-	current_camera.current_rendermode = r;
+	main_camera.current_rendermode = r;
 }
 
 
