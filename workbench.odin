@@ -20,7 +20,6 @@ import "external/imgui"
 import "external/stb"
 import "external/glfw"
 
-import "console"
 import pf "profiler"
 
 DEVELOPER :: true;
