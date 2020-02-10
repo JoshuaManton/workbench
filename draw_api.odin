@@ -284,8 +284,6 @@ pop_camera :: proc(old_camera: ^Camera) {
 	}
 }
 
-
-
 update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
     pixel_width = new_width;
     pixel_height = new_height;
@@ -595,6 +593,59 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	if done_postprocessing_proc != nil {
 		done_postprocessing_proc();
 	}
+}
+
+do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
+	speed := normal_speed;
+
+	if platform.get_input(.Left_Shift) {
+		speed = fast_speed;
+	}
+	else if platform.get_input(.Left_Alt) {
+		speed = slow_speed;
+	}
+
+    up      := quaternion_up(camera.rotation);
+    forward := quaternion_forward(camera.rotation);
+	right   := quaternion_right(camera.rotation);
+
+    down := -up;
+    back := -forward;
+    left := -right;
+
+	if platform.get_input(.E) { camera.position += up      * speed * dt; }
+	if platform.get_input(.Q) { camera.position += down    * speed * dt; }
+	if platform.get_input(.W) { camera.position += forward * speed * dt; }
+	if platform.get_input(.S) { camera.position += back    * speed * dt; }
+	if platform.get_input(.A) { camera.position += left    * speed * dt; }
+	if platform.get_input(.D) { camera.position += right   * speed * dt; }
+
+	rotate_vector: Vec3;
+	if platform.get_input(.Mouse_Right) {
+		MOUSE_ROTATE_SENSITIVITY :: 0.1;
+		delta := platform.mouse_screen_position_delta;
+		delta *= MOUSE_ROTATE_SENSITIVITY;
+		rotate_vector = Vec3{delta.y, -delta.x, 0};
+
+		camera.size -= platform.mouse_scroll * camera.size * 0.05;
+	}
+	else {
+		KEY_ROTATE_SENSITIVITY :: 1;
+		if platform.get_input(.J) do rotate_vector.y =  KEY_ROTATE_SENSITIVITY;
+		if platform.get_input(.L) do rotate_vector.y = -KEY_ROTATE_SENSITIVITY;
+		if platform.get_input(.I) do rotate_vector.x =  KEY_ROTATE_SENSITIVITY;
+		if platform.get_input(.K) do rotate_vector.x = -KEY_ROTATE_SENSITIVITY;
+	}
+
+	// rotate quat by degrees
+	x := axis_angle(Vec3{1, 0, 0}, to_radians(rotate_vector.x));
+	y := axis_angle(Vec3{0, 1, 0}, to_radians(rotate_vector.y));
+	z := axis_angle(Vec3{0, 0, 1}, to_radians(rotate_vector.z));
+	result := mul(y, camera.rotation);
+	result  = mul(result, x);
+	result  = mul(result, z);
+	result  = quat_norm(result);
+	camera.rotation = result;
 }
 
 @(deferred_out=pop_polygon_mode)
