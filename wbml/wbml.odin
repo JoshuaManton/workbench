@@ -2,6 +2,7 @@ package wbml
 
 import rt "core:runtime"
 import "core:mem"
+import la "core:math/linalg"
 import "core:reflect"
 
 import "../reflection"
@@ -13,8 +14,12 @@ import "../laas"
 type_info_table: map[string]^rt.Type_Info;
 
 serialize :: proc(value: ^$Type) -> string {
+	return serialize_ti(value, type_info_of(Type));
+}
+
+serialize_ti :: proc(ptr: rawptr, ti: ^rt.Type_Info) -> string {
 	sb: strings.Builder;
-	serialize_string_builder(value, &sb);
+	serialize_string_builder_ti(ptr, ti, &sb);
 	return strings.to_string(sb);
 }
 
@@ -252,6 +257,11 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			unimplemented();
 		}
 
+		case rt.Type_Info_Quaternion: {
+			q := cast(^la.Quaternion)value;
+			print_to_buf(sb, "quat ", q.w, q.x, q.y, q.z);
+		}
+
 		case: panic(tprint(name, kind));
 	}
 
@@ -389,6 +399,16 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
 				case "nil":                     return new_clone(Node{Node_Nil{}});
+				case "quat": {
+					w := parse_value(lexer); _, wok := w.kind.(Node_Number); assert(wok);
+					x := parse_value(lexer); _, xok := x.kind.(Node_Number); assert(xok);
+					y := parse_value(lexer); _, yok := y.kind.(Node_Number); assert(yok);
+					z := parse_value(lexer); _, zok := z.kind.(Node_Number); assert(zok);
+
+
+					return new_clone(Node{Node_Quat{w, x, y, z}});
+				}
+				case: panic(tprint(value_kind.value));
 			}
 
 			// assume it's an enum
@@ -628,6 +648,16 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 			}
 		}
 
+		case rt.Type_Info_Quaternion: {
+			assert(ti.size == 16);
+			qnode := node.kind.(Node_Quat);
+			q := cast(^la.Quaternion)ptr;
+			q.w = cast(f32)qnode.w.kind.(Node_Number).float_value;
+			q.x = cast(f32)qnode.x.kind.(Node_Number).float_value;
+			q.y = cast(f32)qnode.y.kind.(Node_Number).float_value;
+			q.z = cast(f32)qnode.z.kind.(Node_Number).float_value;
+		}
+
 		case: panic(tprint(variant));
 	}
 }
@@ -654,6 +684,12 @@ delete_node :: proc(node: ^Node) {
 		}
 		case Node_Union: {
 			delete_node(kind.value);
+		}
+		case Node_Quat: {
+			delete_node(kind.w);
+			delete_node(kind.x);
+			delete_node(kind.y);
+			delete_node(kind.z);
 		}
 		case: {
 			panic(tprint(kind));
@@ -687,6 +723,7 @@ Node :: struct {
 		Node_Object,
 		Node_Array,
 		Node_Union,
+		Node_Quat,
 	},
 }
 
@@ -726,6 +763,10 @@ Node_Array :: struct {
 Node_Union :: struct {
 	variant_name: string, // note(josh): slice of source text
 	value: ^Node,
+}
+
+Node_Quat :: struct {
+	w, x, y, z: ^Node,
 }
 
 
