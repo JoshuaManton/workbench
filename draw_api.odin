@@ -129,6 +129,7 @@ Camera :: struct {
 
 
     // render data for this frame
+	new_render_queue: [dynamic]Draw_Command_3D,
 	render_queue: [dynamic]Model_Draw_Info,
 
 	// todo(josh): maybe these should be pointers. this is blowing up the size of the camera struct a LOT
@@ -165,6 +166,8 @@ Model_Draw_Info :: struct {
 }
 
 Model_Animation_State :: struct {
+	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
+	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
 	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
 	mesh_states: [dynamic]Mesh_State // array of bones per mesh in the model
 }
@@ -457,6 +460,11 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				if on_render_object != nil do on_render_object(userdata);
 				draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 			}
+
+			for cmd in camera.new_render_queue {
+				if on_render_object != nil do on_render_object(cmd.userdata);
+				execute_draw_command(cmd);
+			}
 		}
 	}
 
@@ -468,20 +476,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 		gpu.use_program(shader);
 
-
-		// flush lights to gpu
-		if camera.num_point_lights > 0 {
-			gpu.uniform_vec3_array(shader,  "point_light_positions",   camera.point_light_positions[:camera.num_point_lights]);
-			gpu.uniform_vec4_array(shader,  "point_light_colors",      camera.point_light_colors[:camera.num_point_lights]);
-			gpu.uniform_float_array(shader, "point_light_intensities", camera.point_light_intensities[:camera.num_point_lights]);
-		}
-		gpu.uniform_int(shader, "num_point_lights", camera.num_point_lights);
-
-		if len(camera.sun_direction) > 0 {
-			gpu.uniform_vec3(shader,  "sun_direction", camera.sun_direction);
-			gpu.uniform_vec4(shader,  "sun_color",     camera.sun_color);
-			gpu.uniform_float(shader, "sun_intensity", camera.sun_intensity);
-		}
+		flush_lights(camera, shader);
 
 		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
 			// set up cascade cameras
@@ -515,6 +510,37 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		// issue draw call
 		if on_render_object != nil do on_render_object(userdata);
 		draw_model(model, position, scale, rotation, texture, color, true, animation_state);
+	}
+
+	for _, idx in camera.new_render_queue {
+		cmd := &camera.new_render_queue[idx];
+
+		shader := cmd.shader;
+		gpu.use_program(shader);
+
+		flush_lights(camera, shader);
+
+		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+			// set up cascade cameras
+			gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
+
+			assert(NUM_SHADOW_MAPS == 4);
+			light_matrices: [NUM_SHADOW_MAPS]Mat4;
+			for shadow_map, map_idx in shadow_maps {
+				add_texture_binding(cmd, tprint_cstring("shadow_maps[", map_idx, "]"), shadow_map.framebuffer.depth_texture);
+
+				light_view := construct_view_matrix(shadow_map);
+				light_proj := construct_projection_matrix(shadow_map);
+				light_space := mul(light_proj, light_view);
+				light_matrices[map_idx] = light_space;
+			}
+			gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
+		}
+
+		// issue draw call
+		if on_render_object != nil do on_render_object(cmd.userdata);
+		execute_draw_command(cmd^);
+		// draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 	}
 
 	// todo(josh): ambient occlusion
@@ -554,9 +580,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
 			shader_bloom := get_shader(&wb_catalog, "bloom");
 			gpu.use_program(shader_bloom);
-			gpu.uniform_int(shader_bloom, "bloom_texture", 1);
-			gpu.active_texture1();
-			gpu.bind_texture_2d(last_bloom_fbo.textures[0].gpu_id);
+			bind_texture("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
 			draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 			if render_settings.visualize_bloom_texture {
@@ -583,15 +607,38 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
 	}
 
-
 	// clear render_queue
 	clear(&camera.render_queue);
+
+	for cmd in camera.new_render_queue {
+		// put the texture and uniform bindings back in the pool
+		pooled_cmd: Draw_Command_3D;
+		pooled_cmd.texture_bindings = cmd.texture_bindings; clear(&pooled_cmd.texture_bindings);
+		pooled_cmd.uniform_bindings = cmd.uniform_bindings; clear(&pooled_cmd.uniform_bindings);
+		append(&_pooled_draw_commands, pooled_cmd);
+	}
+	clear(&camera.new_render_queue);
 
 	// clear lights
 	camera.num_point_lights = 0;
 
 	if done_postprocessing_proc != nil {
 		done_postprocessing_proc();
+	}
+}
+
+flush_lights :: proc(camera: ^Camera, shader: gpu.Shader_Program) {
+	if camera.num_point_lights > 0 {
+		gpu.uniform_vec3_array(shader,  "point_light_positions",   camera.point_light_positions[:camera.num_point_lights]);
+		gpu.uniform_vec4_array(shader,  "point_light_colors",      camera.point_light_colors[:camera.num_point_lights]);
+		gpu.uniform_float_array(shader, "point_light_intensities", camera.point_light_intensities[:camera.num_point_lights]);
+	}
+	gpu.uniform_int(shader, "num_point_lights", camera.num_point_lights);
+
+	if len(camera.sun_direction) > 0 {
+		gpu.uniform_vec3(shader,  "sun_direction", camera.sun_direction);
+		gpu.uniform_vec4(shader,  "sun_color",     camera.sun_color);
+		gpu.uniform_float(shader, "sun_intensity", camera.sun_intensity);
 	}
 }
 
@@ -760,14 +807,25 @@ draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf
 	draw_model(wb_quad_model, center, size, {0, 0, 0, 1}, texture, color, false);
 }
 
-bind_texture :: proc(texture: Texture) {
+bind_texture :: proc(name: cstring, texture: Texture, texture_unit: int, shader: gpu.Shader_Program) {
+	gpu.active_texture(u32(texture_unit));
+	gpu.uniform_int(shader, name, i32(texture_unit));
 	#partial
 	switch texture.target {
-		case .Texture2D: gpu.bind_texture_2d(texture.gpu_id); // todo(josh): handle multiple textures per model
-		case .Texture3D: gpu.bind_texture_3d(texture.gpu_id); // todo(josh): handle multiple textures per model
-		case cast(gpu.Texture_Target)0: { } // todo(josh): should this be an error/warning?
+		case .Texture2D: gpu.bind_texture_2d(texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture3D: gpu.bind_texture_3d(texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case cast(gpu.Texture_Target)0: gpu.uniform_int(shader, tprint_cstring("has_", name), 0); // todo(josh): should this be an error/warning?
 		case: panic(tprint(texture.target));
 	}
+}
+
+tprint_cstring :: proc(args: ..any) -> cstring {
+	sb := strings.make_builder(context.temp_allocator);
+	sbprint(&sb, ..args);
+	sbprint(&sb, '\x00');
+	str := strings.to_string(sb);
+	cstr := strings.unsafe_string_to_cstring(str);
+	return cstr;
 }
 
 write_texture_to_file :: proc(filepath: string, texture: Texture) {
@@ -972,7 +1030,7 @@ draw_model :: proc(model: Model,
 
 	gpu.active_texture0();
 	gpu.uniform_int(program, "texture_handle", 0);
-	gpu.uniform_int(program, "has_texture", texture.gpu_id != 0 ? 1 : 0);
+	gpu.uniform_int(program, "has_texture_handle", texture.gpu_id != 0 ? 1 : 0);
 
 	gpu.uniform_vec3(program, "camera_position", main_camera.position);
 	gpu.uniform_vec4(program, "mesh_color", transmute(Vec4)color);
@@ -1013,6 +1071,165 @@ draw_model :: proc(model: Model,
 				s := mesh_state.state[i];
 				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
 				gpu.uniform_matrix4fv(program, bone, 1, false, &s[0][0]);
+			}
+		}
+
+		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
+		gpu.set_vertex_format(mesh.vertex_type);
+		gpu.log_errors(#procedure);
+
+		if mesh.index_count > 0 {
+			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
+		}
+		else {
+			gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
+		}
+	}
+}
+
+
+
+//
+// Draw Commands
+//
+
+Draw_Command_3D :: struct {
+	model: Model,
+	color: Colorf,
+	position: Vec3,
+	scale: Vec3,
+	rotation: Quat,
+	depth_test: bool,
+
+	shader: gpu.Shader_Program,
+	material: Material,
+	texture_bindings: [dynamic]Texture_Binding,
+	uniform_bindings: [dynamic]Uniform_Binding,
+	anim_state: Model_Animation_State,
+
+	userdata: rawptr,
+}
+Texture_Binding :: struct {
+	name: cstring,
+	texture: Texture,
+}
+Uniform_Binding :: struct {
+	name: cstring,
+	value: union {
+		f32,
+		i32,
+		Vec2,
+		Vec3,
+		Vec4,
+		Mat4,
+		Colorf,
+
+		[]f32,
+		[]i32,
+		[]Vec2,
+		[]Vec3,
+		[]Vec4,
+		[]Mat4,
+		[]Colorf,
+	},
+}
+
+add_texture_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, texture: Texture) {
+	append(&cmd.texture_bindings, Texture_Binding{name, texture});
+}
+
+add_uniform_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, value: $T) {
+	append(&cmd.uniform_bindings, Uniform_Binding{name, value});
+}
+
+_pooled_draw_commands: [dynamic]Draw_Command_3D;
+
+get_pooled_draw_command :: proc() -> Draw_Command_3D {
+	if len(_pooled_draw_commands) > 0 {
+		return pop(&_pooled_draw_commands);
+	}
+	return Draw_Command_3D{};
+}
+
+submit_draw_command :: proc(cmd: Draw_Command_3D) {
+	append(&main_camera.new_render_queue, cmd);
+}
+
+execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
+	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
+
+	bound_shader := gpu.get_current_shader();
+
+	for binding, idx in texture_bindings {
+		bind_texture(binding.name, binding.texture, idx, bound_shader);
+	}
+	for _, bidx in uniform_bindings {
+		binding := &uniform_bindings[bidx];
+		switch value in &binding.value {
+			case f32:      gpu.uniform_float(bound_shader, binding.name, value^);
+			case i32:      gpu.uniform_int  (bound_shader, binding.name, value^);
+			case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value^);
+			case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value^);
+			case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value^);
+			case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, value);
+			case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value^);
+
+			case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value^);
+			case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value^);
+			case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value^);
+			case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value^);
+			case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value^);
+			case []Mat4:   gpu.uniform_mat4_array (bound_shader, binding.name, value[:]);
+			case []Colorf: gpu.uniform_vec4_array (bound_shader, binding.name, transmute([]Vec4)value[:]);
+			case: panic(tprint(binding.value));
+		}
+	}
+
+	flush_material(cmd.material, bound_shader);
+
+	// projection matrix
+	projection_matrix := construct_rendermode_matrix(main_camera);
+
+	// view matrix
+	view_matrix := construct_view_matrix(main_camera);
+
+	// model_matrix
+	model_p := translate(identity(Mat4), position);
+	model_s := mat4_scale(identity(Mat4), scale);
+	model_r := quat_to_mat4(rotation);
+	model_matrix := mul(mul(model_p, model_r), model_s);
+
+	gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
+
+	gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
+
+	gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
+	gpu.uniform_mat4(bound_shader, "view_matrix",       &view_matrix);
+	gpu.uniform_mat4(bound_shader, "projection_matrix", &projection_matrix);
+
+	gpu.uniform_vec3(bound_shader, "position", position);
+	gpu.uniform_vec3(bound_shader, "scale", scale);
+	gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
+
+	gpu.uniform_float(bound_shader, "time", time);
+
+	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
+	gpu.polygon_mode(.Front_And_Back, main_camera.polygon_mode);
+	gpu.log_errors(#procedure);
+
+	for mesh, i in model.meshes {
+		gpu.bind_vao(mesh.vao);
+		gpu.bind_vbo(mesh.vbo);
+		gpu.bind_ibo(mesh.ibo);
+		gpu.log_errors(#procedure);
+
+		if len(anim_state.mesh_states) > i {
+
+			mesh_state := anim_state.mesh_states[i];
+			for _, i in mesh_state.state {
+				s := mesh_state.state[i];
+				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
+				gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
 			}
 		}
 

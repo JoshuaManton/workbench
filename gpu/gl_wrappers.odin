@@ -714,10 +714,10 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
     }
 
     uniform_mat4 :: inline proc(program: Shader_Program, name: cstring, p: ^Mat4, transpose := false, loc := #caller_location) {
-        uniform_matrix4fv(program, name, 1, transpose, &p[0][0]);
+        uniform_matrix4fv(program, name, 1, transpose, &p[0][0], loc);
     }
     uniform_mat4_array :: inline proc(program: Shader_Program, name: cstring, p: []Mat4, transpose := false, loc := #caller_location) {
-        uniform_matrix4fv(program, name, cast(i32)len(p), transpose, &p[0][0][0]);
+        uniform_matrix4fv(program, name, cast(i32)len(p), transpose, &p[0][0][0], loc);
     }
 
 

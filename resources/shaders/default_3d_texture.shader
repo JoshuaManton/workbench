@@ -15,13 +15,13 @@ in vec3 tex_coord;
 uniform float slice_z;
 
 uniform sampler3D texture_handle;
-uniform int has_texture;
+uniform int has_texture_handle;
 
 out vec4 out_color;
 
 void main() {
     vec4 tex_color = vec4(1, 1, 1, 1);
-    if (has_texture == 1) {
+    if (has_texture_handle == 1) {
         tex_color = texture(texture_handle, vec3(tex_coord.xy, slice_z));
     }
     out_color = vert_color * tex_color;
