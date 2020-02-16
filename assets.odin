@@ -12,6 +12,8 @@ import "profiler"
 import "laas"
 import "basic"
 
+// todo(josh): @Leak: we don't currently delete the asset, we just remove the Loaded_Asset which is just a path and timestamp :DeleteAssetWhenFileIsDeleted
+
 Asset_Catalog :: struct {
 	handlers: map[^rt.Type_Info]Asset_Handler,
 	loaded_files: [dynamic]Loaded_File,
@@ -61,7 +63,7 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 	delete(catalog.handlers);
 
 	for f in catalog.loaded_files {
-		delete(f.path);
+		delete_loaded_file(f);
 	}
 	delete(catalog.loaded_files);
 
@@ -69,6 +71,10 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 		delete(e);
 	}
 	delete(catalog.errors);
+}
+
+delete_loaded_file :: proc(file: Loaded_File) {
+	delete(file.path);
 }
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_location) {
@@ -236,14 +242,23 @@ get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string, loc := #
 
 check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 	profiler.TIMED_SECTION(&wb_profiler);
-	for _, idx in catalog.loaded_files {
+	for idx := len(catalog.loaded_files)-1; idx >= 0; idx -= 1 {
 		file := &catalog.loaded_files[idx];
 		new_last_write_time, err := os.last_write_time_by_name(file.path);
-		assert(err == 0); // todo(josh): check for deleted files?
-		if new_last_write_time > file.last_write_time {
-			logging.ln("file update: ", file.path);
-			file.last_write_time = new_last_write_time;
-			load_asset_from_file(catalog, file.path);
+		if err != 0 {
+			// the file was deleted!!
+
+			// :DeleteAssetWhenFileIsDeleted
+
+			delete_loaded_file(file^);
+			unordered_remove(&catalog.loaded_files, idx);
+		}
+		else {
+			if new_last_write_time > file.last_write_time {
+				logging.ln("file update: ", file.path);
+				file.last_write_time = new_last_write_time;
+				load_asset_from_file(catalog, file.path);
+			}
 		}
 	}
 
