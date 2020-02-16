@@ -11,11 +11,23 @@ import "core:strings"
 import "core:fmt"
 import "../laas"
 
-// todo(josh): maybe use # directives for quats and unions: `foo #quat 1 2 3 4` and `foo #union Bar { bar_field 123 }` :HashDirectiveQuatsAndUnions
+// todo(josh): maybe use # directives for quats, unions, and typeids: `foo #quat 1 2 3 4`, `foo #typeid Bar`, `foo #union Bar { bar_field 123 }` :HashDirectives
 // todo(josh): handle #no_nil unions :NoNilUnions
 // todo(josh): write_value currently does a partial switch. should handle all cases even if its just `unimplemented();` :HandleAllWriteValues
 
-type_info_table: map[string]^rt.Type_Info;
+// note(josh): used for mapping typeids to Type_Infos when deserializing
+_type_info_table: map[string]^rt.Type_Info;
+
+@(deferred_out=_set_type_info_table)
+PUSH_TYPE_INFO_TABLE :: proc(table: map[string]^rt.Type_Info) -> map[string]^rt.Type_Info {
+	old := _type_info_table;
+	_type_info_table = table;
+	return old;
+}
+
+_set_type_info_table :: proc(old_table: map[string]^rt.Type_Info) {
+	_type_info_table = old_table;
+}
 
 serialize :: proc(value: ^$Type) -> string {
 	return serialize_ti(value, type_info_of(Type));
@@ -196,6 +208,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_Type_Id: {
+			// :HashDirectives
 			ti := type_info_of((cast(^typeid)value)^);
 			if ti.id != nil {
 				print_to_buf(sb, "\"", ti, "\"");
@@ -206,6 +219,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_Union: {
+			// :HashDirectives
 			assert(kind.no_nil == false); // :NoNilUnions
 			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
 			union_ti := reflection.get_union_type_info(any{value, ti.id});
@@ -262,6 +276,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_Quaternion: {
+			// :HashDirectives
 			q := cast(^la.Quaternion)value;
 			print_to_buf(sb, "quat ", q.w, q.x, q.y, q.z);
 		}
@@ -376,7 +391,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 					return new_clone(Node{Node_Array{elements[:]}});
 				}
 
-				case '.': { // :HashDirectiveQuatsAndUnions
+				case '.': { // :HashDirectives
 					type_token: laas.Token;
 					ok := laas.get_next_token(lexer, &type_token);
 					assert(ok);
@@ -403,14 +418,14 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
 				case "nil":                     return new_clone(Node{Node_Nil{}});
-				case "quat": { // :HashDirectiveQuatsAndUnions
+				case "quat": { // :HashDirectives
 					w := parse_value(lexer); _, wok := w.kind.(Node_Number); assert(wok);
 					x := parse_value(lexer); _, xok := x.kind.(Node_Number); assert(xok);
 					y := parse_value(lexer); _, yok := y.kind.(Node_Number); assert(yok);
 					z := parse_value(lexer); _, zok := z.kind.(Node_Number); assert(zok);
 					return new_clone(Node{Node_Quat{w, x, y, z}});
 				}
-				case: return new_clone(Node{Node_Enum_Value{value_kind.value}}); 
+				case: return new_clone(Node{Node_Enum_Value{value_kind.value}});
 			}
 		}
 
@@ -598,7 +613,8 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 					// note(josh): Do nothing!
 				}
 				case Node_String: {
-					ti, ok := type_info_table[node_kind.value];
+					// :HashDirectives
+					ti, ok := _type_info_table[node_kind.value];
 					assert(ok, fmt.tprint(node_kind.value));
 					(cast(^typeid)ptr)^ = ti.id;
 				}
