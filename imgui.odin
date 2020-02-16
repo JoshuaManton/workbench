@@ -471,6 +471,11 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
     imgui.push_id(name);
     defer imgui.pop_id();
 
+    do_header := do_header;
+    if strings.contains(tags, "imgui_noheader") {
+        do_header = false;
+    }
+
     if strings.contains(tags, "imgui_readonly") {
         imgui.label_text(name, tprint(any{data, ti.id}));
         return;
