@@ -147,6 +147,42 @@ get_all_filepaths_recursively :: proc(path: string) -> []string {
 	return results[:];
 }
 
+get_all_filepaths :: proc(path: string) -> []string {
+	results: [dynamic]string;
+
+	path_c := strings.clone_to_cstring(path);
+	defer delete(path_c);
+	
+	query_path := strings.clone_to_cstring(fmt.tprint(path, "/*.*"));
+	defer delete(query_path);
+
+	ffd: win32.Find_Data_A;
+	hnd := win32.find_first_file_a(query_path, &ffd);
+	defer win32.find_close(hnd);
+
+	if hnd == win32.INVALID_HANDLE {
+		fmt.println(pretty_location(#location()), "Path not found: ", query_path);
+		return nil;
+	}
+
+	for {
+		file_name := cast(cstring)&ffd.file_name[0];
+
+		if file_name != "." && file_name != ".." {
+			if (ffd.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY) == 0 {
+				str := strings.clone(fmt.tprint(path, "/", file_name));
+				append(&results, str);
+			}
+		}
+
+		if !win32.find_next_file_a(hnd, &ffd) {
+			break;
+		}
+	}
+
+	return results[:];
+}
+
 Path :: struct {
 	path: string,
 	file_name: string,
