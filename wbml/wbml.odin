@@ -11,6 +11,10 @@ import "core:strings"
 import "core:fmt"
 import "../laas"
 
+// todo(josh): maybe use # directives for quats and unions: `foo #quat 1 2 3 4` and `foo #union Bar { bar_field 123 }` :HashDirectiveQuatsAndUnions
+// todo(josh): handle #no_nil unions :NoNilUnions
+// todo(josh): write_value currently does a partial switch. should handle all cases even if its just `unimplemented();` :HandleAllWriteValues
+
 type_info_table: map[string]^rt.Type_Info;
 
 serialize :: proc(value: ^$Type) -> string {
@@ -202,7 +206,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_Union: {
-			assert(kind.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
+			assert(kind.no_nil == false); // :NoNilUnions
 			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
 			union_ti := reflection.get_union_type_info(any{value, ti.id});
 			if union_ti == nil {
@@ -372,7 +376,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 					return new_clone(Node{Node_Array{elements[:]}});
 				}
 
-				case '.': {
+				case '.': { // :HashDirectiveQuatsAndUnions
 					type_token: laas.Token;
 					ok := laas.get_next_token(lexer, &type_token);
 					assert(ok);
@@ -399,20 +403,15 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
 				case "nil":                     return new_clone(Node{Node_Nil{}});
-				case "quat": {
+				case "quat": { // :HashDirectiveQuatsAndUnions
 					w := parse_value(lexer); _, wok := w.kind.(Node_Number); assert(wok);
 					x := parse_value(lexer); _, xok := x.kind.(Node_Number); assert(xok);
 					y := parse_value(lexer); _, yok := y.kind.(Node_Number); assert(yok);
 					z := parse_value(lexer); _, zok := z.kind.(Node_Number); assert(zok);
-
-
 					return new_clone(Node{Node_Quat{w, x, y, z}});
 				}
-				case: panic(tprint(value_kind.value));
+				case: return new_clone(Node{Node_Enum_Value{value_kind.value}}); 
 			}
-
-			// assume it's an enum
-			return new_clone(Node{Node_Enum_Value{value_kind.value}});
 		}
 
 		case laas.Number: {
@@ -428,8 +427,15 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 	return nil;
 }
 
-write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
-	// todo(josh): remove this #partial?
+write_value :: proc{write_value_poly, write_value_ti};
+
+write_value_poly :: proc(node: ^Node, ptr: ^$Type) {
+	ti := type_info_of(Type);
+	write_value(node, ptr, ti);
+}
+
+write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
+	// :HandleAllWriteValues
 	#partial
 	switch variant in ti.variant {
 		case rt.Type_Info_Named: {
