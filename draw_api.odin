@@ -1151,6 +1151,20 @@ get_pooled_draw_command :: proc() -> Draw_Command_3D {
 	return Draw_Command_3D{};
 }
 
+create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position, scale: Vec3, rotation: Quat, color: Colorf) -> Draw_Command_3D {
+    cmd := get_pooled_draw_command();
+    cmd.depth_test = true;
+    cmd.model = model;
+    cmd.shader = shader;
+    add_texture_binding(&cmd, "texture_handle", texture);
+    cmd.material = material;
+    cmd.position = position;
+    cmd.scale = scale;
+    cmd.rotation = rotation;
+    cmd.color = color;
+    return cmd;
+}
+
 submit_draw_command :: proc(cmd: Draw_Command_3D) {
 	append(&main_camera.new_render_queue, cmd);
 }
