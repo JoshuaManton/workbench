@@ -608,9 +608,10 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
                 for field_name, i in kind.names {
                     t := kind.types[i];
                     offset := kind.offsets[i];
+                    is_using := kind.usings[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
                     tag := kind.tags[i];
-                    imgui_struct_ti(field_name, data, t, tag);
+                    imgui_struct_ti(field_name, data, t, tag, !is_using);
                 }
             }
         }
