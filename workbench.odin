@@ -204,6 +204,7 @@ wba_particle_shader_data           := #load("resources/shaders/particle.shader")
 wba_shadow_shader_data             := #load("resources/shaders/shadow.shader");
 wba_skinning_shader_data           := #load("resources/shaders/skinning.shader");
 wba_text_shader_data               := #load("resources/shaders/text.shader");
+wba_terrain_shader_data            := #load("resources/shaders/terrain.shader");
 
 init_builtin_assets :: proc() {
 	load_asset(&wb_catalog, "default",            "ttf",    wba_font_default_data);
@@ -222,6 +223,7 @@ init_builtin_assets :: proc() {
 	load_asset(&wb_catalog, "shadow",             "shader", wba_shadow_shader_data);
 	load_asset(&wb_catalog, "skinning",           "shader", wba_skinning_shader_data);
 	load_asset(&wb_catalog, "text",               "shader", wba_text_shader_data);
+	load_asset(&wb_catalog, "terrain",            "shader", wba_terrain_shader_data);
 }
 
 

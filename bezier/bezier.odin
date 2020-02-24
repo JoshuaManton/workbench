@@ -48,6 +48,22 @@ sample_curve :: proc(c: Curve($N), t: f32) -> [N]f32 {
 	return buf[0];
 }
 
+approximate_length :: proc(c: Curve($N), granularity : int = 10) -> f32 {
+	prev : [N]f32;
+	len : f32 = 0;
+	for i in 0..<granularity {
+		t := f32(i) / 10;
+		pt := sample_curve(c, t);
+		if (i > 0) {
+			diff := math.magnitude(pt - prev);
+			len += diff;
+		}
+		prev = pt;
+	}
+
+	return len;
+}
+
 delete_animation_curve :: proc(curve: Curve($N)) {
 	delete(curve.points);
 }

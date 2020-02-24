@@ -91,7 +91,7 @@ load_model_from_file :: proc(path: string, name: string, loc := #caller_location
                             // cast(u32) ai.Post_Process_Steps.Find_Degenerates |
                             // cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
                             // cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
-                            cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
+                            // cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
                             cast(u32) ai.Post_Process_Steps.Triangulate |
                             cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
                             cast(u32) ai.Post_Process_Steps.Flip_UVs
@@ -114,7 +114,7 @@ load_model_from_memory :: proc(data: []byte, name: string, loc := #caller_locati
                                         // cast(u32) ai.Post_Process_Steps.Gen_UV_Coords |
                                         // cast(u32) ai.Post_Process_Steps.Find_Degenerates |
                                         // cast(u32) ai.Post_Process_Steps.Transform_UV_Coords |
-                                        cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
+                                        // cast(u32) ai.Post_Process_Steps.Pre_Transform_Vertices |
                                         // cast(u32) ai.Post_Process_Steps.Flip_Winding_Order |
 			                            cast(u32) ai.Post_Process_Steps.Triangulate |
 			                            cast(u32) ai.Post_Process_Steps.Gen_Smooth_Normals |
