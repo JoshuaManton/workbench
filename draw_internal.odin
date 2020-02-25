@@ -94,7 +94,6 @@ scene_view_debug_program :: proc(_: rawptr) {
 update_draw :: proc() {
 	clear(&debug_lines);
 	clear(&debug_cubes);
-	clear(&buffered_draw_commands);
 }
 
 // todo(josh): maybe put this in the Workspace?

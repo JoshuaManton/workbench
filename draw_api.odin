@@ -130,7 +130,9 @@ Camera :: struct {
 
     // render data for this frame
 	new_render_queue: [dynamic]Draw_Command_3D,
-	render_queue: [dynamic]Model_Draw_Info,
+	render_queue:     [dynamic]Model_Draw_Info,
+
+	im_draw_commands: [dynamic]Draw_Command_2D,
 
 	// todo(josh): maybe these should be pointers. this is blowing up the size of the camera struct a LOT
 	point_light_positions:   [MAX_LIGHTS]Vec3,
@@ -591,7 +593,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	}
 
 	// todo(josh): should this be before bloom?
-	im_flush();
+	im_flush(camera);
 
 	debug_geo_flush();
 

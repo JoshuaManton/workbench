@@ -591,20 +591,6 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             if !do_header || _imgui_struct_block_field_start(name, type_name) {
                 defer if do_header do _imgui_struct_block_field_end(name);
 
-                // if kind == &type_info_of(Quat).variant.(Type_Info_Named).base.variant.(Type_Info_Struct) {
-                //     q := cast(^Quat)data;
-                //     dir := quaternion_to_euler(q^);
-                //     if imgui.input_float("##782783", &dir.x, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
-                //         q^ = euler_angles(expand_to_tuple(dir));
-                //     }
-                //     if imgui.input_float("##42424", &dir.y, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
-                //         q^ = euler_angles(expand_to_tuple(dir));
-                //     }
-                //     if imgui.input_float("##54512", &dir.z, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
-                //         q^ = euler_angles(expand_to_tuple(dir));
-                //     }
-                // }
-
                 for field_name, i in kind.names {
                     t := kind.types[i];
                     offset := kind.offsets[i];
