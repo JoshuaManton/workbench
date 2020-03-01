@@ -28,6 +28,7 @@ create_terrain :: proc(size: int, height_map: [][]f32) -> Terrain {
         gpu.Model {
             "terrain",
             make([dynamic]Mesh, 0, 1),
+            {}, {},
         },
         {36.0/255.0, 191.0/255.0, 70.0/255.0, 1},
         {150.0/255.0, 130.0/255.0, 65.0/255.0, 1},

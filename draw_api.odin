@@ -943,16 +943,38 @@ pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 	gpu.viewport(0, 0, cast(int)old_framebuffer.width, cast(int)old_framebuffer.height);
 }
 
+
+
 add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, skin: Skinned_Mesh, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();
 	vbo := gpu.gen_vbo();
 	ibo := gpu.gen_ebo();
 
+	center: Vec3;
+	vmin := Vec3{max(f32), max(f32), max(f32)};
+	vmax := Vec3{min(f32), min(f32), min(f32)};
+
+	for v in vertices {
+		pos := to_vec3(v.position);
+		center += pos;
+
+		if pos.x < vmin.x do vmin.x = pos.x;
+		if pos.y < vmin.y do vmin.y = pos.y;
+		if pos.z < vmin.z do vmin.z = pos.z;
+		if pos.x > vmax.x do vmax.x = pos.x;
+		if pos.y > vmax.y do vmax.y = pos.y;
+		if pos.z > vmax.z do vmax.z = pos.z;
+	}
+	if len(vertices) > 0 {
+		center /= cast(f32)len(vertices);
+	}
+
 	idx := len(model.meshes);
-	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices), skin};
+	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin};
 	append(&model.meshes, mesh, loc);
 
 	update_mesh(model, idx, vertices, indices);
+	update_model(model);
 
 	return idx;
 }
@@ -962,6 +984,7 @@ remove_mesh_from_model :: proc(model: ^Model, idx: int, loc := #caller_location)
 	mesh := model.meshes[idx];
 	_internal_delete_mesh(mesh, loc);
 	unordered_remove(&model.meshes, idx);
+	update_model(model);
 }
 
 update_mesh :: proc(model: ^Model, idx: int, vertices: []$Vertex_Type, indices: []u32) {
@@ -981,6 +1004,26 @@ update_mesh :: proc(model: ^Model, idx: int, vertices: []$Vertex_Type, indices: 
 	mesh.vertex_type  = type_info_of(Vertex_Type);
 	mesh.index_count  = len(indices);
 	mesh.vertex_count = len(vertices);
+}
+
+update_model :: proc(model: ^Model) {
+	center: Vec3;
+	vmin := Vec3{max(f32), max(f32), max(f32)};
+	vmax := Vec3{min(f32), min(f32), min(f32)};
+	for mesh in model.meshes {
+		center += mesh.center;
+		if mesh.vmin.x < vmin.x do vmin.x = mesh.vmin.x;
+		if mesh.vmin.y < vmin.y do vmin.y = mesh.vmin.y;
+		if mesh.vmin.z < vmin.z do vmin.z = mesh.vmin.z;
+		if mesh.vmax.x > vmax.x do vmax.x = mesh.vmax.x;
+		if mesh.vmax.y > vmax.y do vmax.y = mesh.vmax.y;
+		if mesh.vmax.z > vmax.z do vmax.z = mesh.vmax.z;
+	}
+	if len(model.meshes) > 0 {
+		center /= cast(f32)len(model.meshes);
+	}
+	model.center = center;
+	model.size = vmax - vmin;
 }
 
 delete_model :: proc(model: Model, loc := #caller_location) {

@@ -14,8 +14,10 @@ import odingl "../external/gl"
 //
 
 Model :: struct {
-	name: string,
+    name: string,
     meshes: [dynamic]Mesh,
+    center: Vec3,
+    size: Vec3,
 }
 
 Mesh :: struct {
@@ -26,6 +28,10 @@ Mesh :: struct {
 
     index_count:  int,
     vertex_count: int,
+
+    center: Vec3,
+    vmin: Vec3,
+    vmax: Vec3,
 
 	skin: Skinned_Mesh,
 }
