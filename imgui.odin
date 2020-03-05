@@ -509,7 +509,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         case rt.Type_Info_Integer: {
             if kind.signed {
                 switch ti.size {
-                    case 8: new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
+                    case 8: imgui.label_text(name, tprint((cast(^i64)data)^), "// todo(josh): allow editing 64-bit values"); // new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
                     case 4: new_data := cast(i32)(cast(^i32)data)^; imgui.input_int(name, &new_data); (cast(^i32)data)^ = cast(i32)new_data;
                     case 2: new_data := cast(i32)(cast(^i16)data)^; imgui.input_int(name, &new_data); (cast(^i16)data)^ = cast(i16)new_data;
                     case 1: new_data := cast(i32)(cast(^i8 )data)^; imgui.input_int(name, &new_data); (cast(^i8 )data)^ = cast(i8 )new_data;
@@ -518,7 +518,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             }
             else {
                 switch ti.size {
-                    case 8: new_data := cast(i32)(cast(^u64)data)^; imgui.input_int(name, &new_data); (cast(^u64)data)^ = cast(u64)new_data;
+                    case 8: imgui.label_text(name, tprint((cast(^u64)data)^), "// todo(josh): allow editing 64-bit values"); // new_data := cast(i32)(cast(^u64)data)^; imgui.input_int(name, &new_data); (cast(^u64)data)^ = cast(u64)new_data;
                     case 4: new_data := cast(i32)(cast(^u32)data)^; imgui.input_int(name, &new_data); (cast(^u32)data)^ = cast(u32)new_data;
                     case 2: new_data := cast(i32)(cast(^u16)data)^; imgui.input_int(name, &new_data); (cast(^u16)data)^ = cast(u16)new_data;
                     case 1: new_data := cast(i32)(cast(^u8 )data)^; imgui.input_int(name, &new_data); (cast(^u8 )data)^ = cast(u8 )new_data;
@@ -529,17 +529,18 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         case rt.Type_Info_Float: {
             switch ti.size {
                 case 8: {
-                    new_data := cast(f32)(cast(^f64)data)^;
-                    imgui.push_item_width(100);
-                    imgui.input_float(tprint(name, "##non_range"), &new_data);
-                    imgui.pop_item_width();
-                    if has_range_constraint {
-                        imgui.same_line();
-                        imgui.push_item_width(200);
-                        imgui.slider_float(name, &new_data, range_min, range_max);
-                        imgui.pop_item_width();
-                    }
-                    (cast(^f64)data)^ = cast(f64)new_data;
+                    imgui.label_text(name, tprint((cast(^f32)data)^), "// todo(josh): allow editing 64-bit values");
+                    // new_data := cast(f32)(cast(^f64)data)^;
+                    // imgui.push_item_width(100);
+                    // imgui.input_float(tprint(name, "##non_range"), &new_data);
+                    // imgui.pop_item_width();
+                    // if has_range_constraint {
+                    //     imgui.same_line();
+                    //     imgui.push_item_width(200);
+                    //     imgui.slider_float(name, &new_data, range_min, range_max);
+                    //     imgui.pop_item_width();
+                    // }
+                    // (cast(^f64)data)^ = cast(f64)new_data;
                 }
                 case 4: {
                     new_data := cast(f32)(cast(^f32)data)^;

@@ -114,7 +114,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				platform.update_platform();
 				imgui_begin_new_frame(fixed_delta_time);
-	    		imgui.push_font(imgui_font_default);
+	    		imgui.push_font(imgui_font_default); // todo(josh): pop this?
 
 	    		gizmo_new_frame();
 	    		update_draw();

@@ -299,6 +299,8 @@ gizmo_render :: proc() {
     gpu.use_program(get_shader(&wb_catalog, "default"));
 
     for g in im_gizmos {
+        g := g;
+
         using g;
         using g.state;
 
