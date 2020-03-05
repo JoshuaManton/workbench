@@ -6,6 +6,11 @@ tprint :: fmt.tprint;
 println :: fmt.println;
 sbprint :: fmt.sbprint;
 
+import "logging"
+
+logln :: logging.logln;
+logf :: logging.logf;
+
 import "math"
 
 TAU :: math.TAU;

@@ -581,8 +581,19 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             imgui.checkbox(name, cast(^bool)data);
         }
         case rt.Type_Info_Pointer: {
-            result := tprint(name, " = ", "\"", data, "\"");
-            imgui.text(result);
+            ptr := (cast(^rawptr)data)^;
+            if ptr == nil {
+                imgui.text(tprint(name, " = nil"));
+            }
+            else {
+                if kind.elem == nil {
+                    // kind.elem being nil means it's a rawptr
+                    imgui.text(tprint("rawptr ", name, " = ", "\"", ptr, "\""));
+                }
+                else {
+                    imgui_struct_ti(name, ptr, kind.elem);
+                }
+            }
         }
         case rt.Type_Info_Named: {
             imgui_struct_ti(name, data, kind.base, "", do_header, kind.name);

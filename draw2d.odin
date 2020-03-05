@@ -230,7 +230,7 @@ pop_render_layer :: proc(layer: int) {
 // Scissor
 
 im_scissor :: proc(x1, y1, ww, hh: int) {
-	if do_scissor do logging.ln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
+	if do_scissor do logln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
 	do_scissor = true;
 	current_scissor_rect = {x1, y1, ww, hh};
 }

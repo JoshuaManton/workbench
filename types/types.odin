@@ -33,6 +33,7 @@ Maybe :: union(T: typeid) {
 	T,
 }
 
-getval :: inline proc(m: Maybe($T)) -> (T, bool) {
-	return m.(T);
+getval :: inline proc(m: ^Maybe($T)) -> (^T, bool) {
+	if _, ok := m.(T); !ok do return nil, false;
+	return &m.(T), true;
 }

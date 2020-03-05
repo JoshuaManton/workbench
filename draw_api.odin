@@ -10,7 +10,6 @@ import "core:os"
 import "platform"
 import "profiler"
 import "gpu"
-import "logging"
 
 import "external/stb"
 import "external/glfw"
@@ -223,7 +222,7 @@ setup_bloom :: proc(camera: ^Camera) {
 	camera.bloom_ping_pong_framebuffers = fbos;
 }
 destroy_bloom :: proc(camera: ^Camera) {
-	if fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
+	if fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok {
     	for fbo in fbos do delete_framebuffer(fbo);
     }
     camera.bloom_ping_pong_framebuffers = {};
@@ -243,7 +242,7 @@ setup_shadow_maps :: proc(camera: ^Camera) {
 	camera.shadow_map_cameras = shadow_maps;
 }
 destroy_shadow_maps :: proc(camera: ^Camera) {
-	if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 		for cascade_camera in shadow_maps {
 	    	if cascade_camera != nil {
 	    		delete_camera(cascade_camera);
@@ -295,7 +294,7 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
     aspect = new_width / new_height;
 
     if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
-        logging.ln("Rebuilding framebuffer...");
+        logln("Rebuilding framebuffer...");
 
 	    if framebuffer.fbo != 0 {
 			num_color_buffers := len(framebuffer.attachments);
@@ -375,10 +374,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// draw shadow maps
 	shadow_cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
-	if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 		for shadow_map_camera, map_idx in shadow_maps {
 			assert(shadow_map_camera != nil);
 
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
 			frustum_corners := [8]Vec3 {
 				{-1,  1, -1},
 				{ 1,  1, -1},
@@ -480,7 +482,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 		flush_lights(camera, shader);
 
-		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 			// set up cascade cameras
 			gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
 
@@ -522,7 +524,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 		flush_lights(camera, shader);
 
-		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 			// set up cascade cameras
 			gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
 
@@ -552,7 +554,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	}
 
 	// do bloom
-	if bloom_fbos, ok := getval(camera.bloom_ping_pong_framebuffers); ok {
+	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok {
 		for fbo in bloom_fbos {
 			PUSH_FRAMEBUFFER(fbo);
 			gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
@@ -579,7 +581,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			first = false;
 		}
 
-		if last_bloom_fbo, ok := getval(last_bloom_fbo); ok {
+		if last_bloom_fbo, ok := getval(&last_bloom_fbo); ok {
 			shader_bloom := get_shader(&wb_catalog, "bloom");
 			gpu.use_program(shader_bloom);
 			bind_texture("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
@@ -599,7 +601,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// visualize depth buffer
 	if render_settings.visualize_shadow_texture {
-		if shadow_maps, ok := getval(camera.shadow_map_cameras); ok {
+		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader(&wb_catalog, "depth"));
 				for shadow_map, map_idx in shadow_maps {
@@ -741,7 +743,7 @@ submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture,
 }
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
 	if main_camera.num_point_lights >= MAX_LIGHTS {
-		logging.ln("Too many lights! The max is ", MAX_LIGHTS);
+		logln("Too many lights! The max is ", MAX_LIGHTS);
 		return;
 	}
 

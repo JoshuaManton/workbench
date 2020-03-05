@@ -19,11 +19,15 @@ main :: proc() {
 Collider :: struct {
 	userdata: rawptr,
 	position: Vec3,
-	kind: Collider_Kind,
+	scale: Vec3,
+	info: Collider_Info,
 }
 
-Collider_Kind :: union {
-	Box,
+Collider_Info :: struct {
+	offset: Vec3,
+	kind: union {
+		Box,
+	},
 }
 
 Box :: struct {
@@ -31,8 +35,7 @@ Box :: struct {
 }
 
 Collision_Scene :: struct {
-	last_collider_id: int,
-	colliders: map[int]Collider,
+	colliders: [dynamic]^Collider,
 }
 
 Hit_Info :: struct {
@@ -53,42 +56,42 @@ Hit_Info :: struct {
 	// normal1: Vec3,
 }
 
-add_collider_to_scene :: proc(using scene: ^Collision_Scene, position: Vec3, kind: Collider_Kind, userdata: rawptr = nil) -> int {
-	last_collider_id += 1;
-	colliders[last_collider_id] = Collider{userdata, position, kind};
-	return last_collider_id;
+add_collider_to_scene :: proc(using scene: ^Collision_Scene, position, scale: Vec3, info: Collider_Info, userdata: rawptr = nil) -> ^Collider {
+	collider := new_clone(Collider{userdata, position, scale, info});
+	append(&colliders, collider);
+	return collider;
 }
 
-remove_collider :: proc(using scene: ^Collision_Scene, id: int) {
-	delete_key(&colliders, id);
+update_collider :: proc(collider: ^Collider, position, scale: Vec3, info: Collider_Info, userdata: rawptr = nil) {
+	collider^ = Collider{userdata, position, scale, info};
 }
 
-update_collider :: proc(using scene: ^Collision_Scene, id: int, position: Vec3, kind: Collider_Kind) {
-	coll, ok := colliders[id];
-	assert(ok);
-	coll.position = position;
-	coll.kind = kind;
-	colliders[id] = coll;
+delete_collider :: proc(using scene: ^Collision_Scene, collider: ^Collider) {
+	for coll, idx in colliders {
+		if coll == collider {
+			unordered_remove(&colliders, idx);
+			break;
+		}
+	}
+	free(collider);
 }
 
 delete_collision_scene :: proc(using scene: ^Collision_Scene) {
+	for coll in colliders {
+		free(coll);
+	}
 	delete(colliders);
-}
-
-clear_collision_scene :: proc(using scene: ^Collision_Scene) {
-	clear(&colliders);
-	last_collider_id = 0; // todo(josh): not sure if this is dangerous
 }
 
 
 
 linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
-	for id, collider in colliders {
+	for collider in colliders {
 		info: Hit_Info;
 		ok: bool;
-		switch kind in collider.kind {
-			case Box: info, ok = cast_line_box(origin, velocity, collider.position, kind.size);
+		switch kind in collider.info.kind {
+			case Box: info, ok = cast_line_box(origin, velocity, collider.position + collider.info.offset, kind.size * collider.scale);
 			case: panic(fmt.tprint(kind));
 		}
 		info.userdata = collider.userdata;
@@ -103,11 +106,11 @@ linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, ou
 // todo(josh): test this, not sure if it works
 boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
-	for id, collider in colliders {
+	for collider in colliders {
 		info: Hit_Info;
 		ok: bool;
-		switch kind in collider.kind {
-			case Box: info, ok = cast_box_box(origin, size, velocity, collider.position, kind.size);
+		switch kind in collider.info.kind {
+			case Box: info, ok = cast_box_box(origin, size, velocity, collider.position + collider.info.offset, kind.size * collider.scale);
 			case: panic(fmt.tprint(kind));
 		}
 		info.userdata = collider.userdata;
@@ -121,14 +124,14 @@ boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, out
 
 overlap_point :: proc(using scene: ^Collision_Scene, origin: Vec3, out_hits: ^[dynamic]Hit_Info) {
 	clear(out_hits);
-	collider_loop: for id, collider in colliders {
+	collider_loop: for collider in colliders {
 		// note(josh): all cases in this switch should `continue collider_loop;` if they detect a hit didn't happen so we can assume a hit did happen if execution continues passed the switch
 		// note(josh): all cases in this switch should `continue collider_loop;` if they detect a hit didn't happen so we can assume a hit did happen if execution continues passed the switch
 		// note(josh): all cases in this switch should `continue collider_loop;` if they detect a hit didn't happen so we can assume a hit did happen if execution continues passed the switch
-		switch kind in collider.kind {
+		switch kind in collider.info.kind {
 			case Box: {
-				min := collider.position-kind.size*0.5;
-				max := collider.position+kind.size*0.5;
+				min := (collider.position + collider.info.offset) - (kind.size * collider.scale * 0.5);
+				max := (collider.position + collider.info.offset) + (kind.size * collider.scale * 0.5);
 
 				if origin.x < min.x || origin.x > max.x do continue collider_loop;
 				if origin.y < min.y || origin.y > max.y do continue collider_loop;
@@ -147,25 +150,6 @@ overlap_point :: proc(using scene: ^Collision_Scene, origin: Vec3, out_hits: ^[d
 }
 
 
-
-_temp_hit_buffer: [dynamic]Hit_Info;
-_temp_hit_buffer_in_use: bool;
-_temp_hit_buffer_user: rt.Source_Code_Location;
-
-@(deferred_out=_RETURN_TEMP_HITS_BUFFER)
-GET_TEMP_HITS_BUFFER :: proc(loc := #caller_location) -> ^[dynamic]Hit_Info {
-	if _temp_hit_buffer_in_use {
-		panic(fmt.tprint("temp_hit_buffer is already in use by ", basic.pretty_location(_temp_hit_buffer_user), ". Caller: ", basic.pretty_location(loc)));
-	}
-	_temp_hit_buffer_in_use = true;
-	_temp_hit_buffer_user = loc;
-	return &_temp_hit_buffer;
-}
-
-_RETURN_TEMP_HITS_BUFFER :: proc(_: ^[dynamic]Hit_Info) {
-	_temp_hit_buffer_in_use = false;
-	_temp_hit_buffer_user = {};
-}
 
 //
 // raw stuff
@@ -188,7 +172,7 @@ closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 	return projection;
 }
 
-cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, _b2size: Vec3,) -> (Hit_Info, bool) {
+cast_box_box :: proc(b1pos, b1size: Vec3, box_direction: Vec3, b2pos, _b2size: Vec3) -> (Hit_Info, bool) {
 	b2size := _b2size;
 	b2size += b1size;
 	return cast_line_box(b1pos, box_direction, b2pos, b2size);

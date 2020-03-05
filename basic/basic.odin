@@ -152,7 +152,7 @@ get_all_filepaths :: proc(path: string) -> []string {
 
 	path_c := strings.clone_to_cstring(path);
 	defer delete(path_c);
-	
+
 	query_path := strings.clone_to_cstring(fmt.tprint(path, "/*.*"));
 	defer delete(query_path);
 
@@ -243,7 +243,7 @@ get_all_paths :: proc(path: string) -> []Path {
 pretty_location :: inline proc(location: rt.Source_Code_Location) -> string {
 	file, ok := get_file_name(location.file_path);
 	assert(ok);
-	return fmt.tprintf("<%s.%s():%d> ", file, location.procedure, location.line);
+	return fmt.tprintf("<%s.%s():%d>", file, location.procedure, location.line);
 }
 
 //

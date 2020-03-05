@@ -11,7 +11,6 @@ import "core:runtime"
 import "math"
 import "gpu"
 import "platform"
-import "logging"
 import "types"
 import "basic"
 
@@ -49,7 +48,7 @@ wb_catalog: Asset_Catalog;
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
-	defer logging.ln("workbench successfully shutdown.");
+	defer logln("workbench successfully shutdown.");
 
 	startup_start_time := glfw.GetTime();
 
@@ -80,7 +79,7 @@ make_simple_window :: proc(window_width, window_height: int,
 	init_workspace(workspace);
 
 	startup_end_time := glfw.GetTime();
-	logging.ln("Startup time: ", startup_end_time - startup_start_time);
+	logln("Startup time: ", startup_end_time - startup_start_time);
 
 	last_frame_start_time: f32;
 
@@ -106,7 +105,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
 				if do_log_frame_boundaries {
-					logging.ln("[WB] FRAME #", frame_count);
+					logln("[WB] FRAME #", frame_count);
 				}
 
 				precise_time = glfw.GetTime();

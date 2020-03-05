@@ -6,7 +6,6 @@ import "core:os"
 import rt "core:runtime"
 import "core:mem"
 import "core:fmt"
-import "logging"
 import "gpu"
 import "profiler"
 import "laas"
@@ -128,7 +127,7 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 
 catalog_flush_errors :: proc(catalog: ^Asset_Catalog) {
 	for e in catalog.errors {
-		logging.ln("Catalog error: ", e);
+		logln("Catalog error: ", e);
 		delete(e);
 	}
 	clear(&catalog.errors);
@@ -176,7 +175,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, name: string, ext: string, data: []b
 					case .Ok: {
 						assert(asset != nil);
 						if name in handler.assets {
-							logging.ln("New asset with name '", name, "'. Deleting old one.");
+							logln("New asset with name '", name, "'. Deleting old one.");
 							handler.delete_proc(handler.assets[name]);
 						}
 
@@ -255,7 +254,7 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 		}
 		else {
 			if new_last_write_time > file.last_write_time {
-				logging.ln("file update: ", file.path);
+				logln("file update: ", file.path);
 				file.last_write_time = new_last_write_time;
 				load_asset_from_file(catalog, file.path);
 			}

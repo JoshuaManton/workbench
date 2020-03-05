@@ -1,7 +1,5 @@
 package workbench
 
-import "logging"
-
 import "platform"
 import "external/imgui"
 import pf "profiler"
@@ -22,7 +20,7 @@ unregister_debug_program :: proc(name: string) {
 			return;
 		}
 	}
-	logging.ln("Warning: Tried to unregister program that didn't exist: ", name);
+	logln("Warning: Tried to unregister program that didn't exist: ", name);
 }
 
 
