@@ -1,6 +1,6 @@
 package gpu
 
-when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
+when GPU_BACKEND == "OPENGL" {
 
     import rt "core:runtime"
     import "core:fmt"
