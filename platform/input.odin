@@ -1,4 +1,4 @@
-package workbench
+package platform
 
 import "../external/glfw"
 import "../external/imgui"
@@ -21,9 +21,10 @@ get_axis :: proc(controller_index: int, axis: Axis) -> f32
 
 */
 
-get_input :: inline proc(input: Input) -> bool {
-	for held in _held {
+get_input :: inline proc(input: Input, consume := false) -> bool {
+	for held, idx in _held {
 		if held == input {
+			if consume do unordered_remove(&_held, idx);
 			return true;
 		}
 	}
@@ -39,18 +40,20 @@ get_input_imgui :: inline proc(input: Input) -> bool {
 	return false;
 }
 
-get_input_down :: inline proc(input: Input) -> bool {
-	for down in _down {
+get_input_down :: inline proc(input: Input, consume := false) -> bool {
+	for down, idx in _down {
 		if down == input {
+			if consume do unordered_remove(&_down, idx);
 			return true;
 		}
 	}
 	return false;
 }
 
-get_input_up :: inline proc(input: Input) -> bool {
-	for up in _up {
+get_input_up :: inline proc(input: Input, consume := false) -> bool {
+	for up, idx in _up {
 		if up == input {
+			if consume do unordered_remove(&_up, idx);
 			return true;
 		}
 	}

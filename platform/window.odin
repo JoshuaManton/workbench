@@ -1,4 +1,4 @@
-package workbench
+package platform
 
 import "core:fmt"
 import "core:sort"
