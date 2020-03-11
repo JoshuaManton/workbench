@@ -19,6 +19,7 @@ selection_color := Colorf{1,1,0.1,1};
 
 Gizmo_State :: struct {
     size: f32,
+    is_manipulating: bool,
     last_point: Vec3,
     move_type: Move_Type,
     hovered_type: Move_Type,
@@ -242,6 +243,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
         }
     }
 
+    is_manipulating = move_type != .NONE;
     append(&im_gizmos, IM_Gizmo{position^, scale^, rotation^, gizmo_state^});
 }
 
