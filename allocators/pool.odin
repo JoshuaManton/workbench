@@ -5,8 +5,9 @@ import "core:mem"
 Pool :: struct {
 	memory: []byte,
 	occupancy: []bool,
+	generations: []int,
 	chunk_size_aligned: int,
-	freelist: [dynamic]Pool_Chunk,
+	freelist: [dynamic]int,
 	high_water_mark: int,
 	last_allocated_chunk: Pool_Chunk,
 }
@@ -20,6 +21,7 @@ pool_init :: proc(using pool: ^Pool, chunk_size, num_chunks: int) {
 	chunk_size_aligned = mem.align_forward_int(chunk_size, mem.DEFAULT_ALIGNMENT);
 	memory = make([]byte, chunk_size_aligned * num_chunks);
 	occupancy = make([]bool, num_chunks);
+	generations = make([]int, num_chunks);
 }
 
 pool_allocator :: proc(pool: ^Pool) -> mem.Allocator {
@@ -36,22 +38,25 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 	switch mode {
 		case .Alloc: {
 			assert(memory != nil);
-			chunk: Pool_Chunk;
+			index := -1;
 			if len(freelist) > 0 {
-				chunk = pop(&freelist);
+				index = pop(&freelist);
 			}
 			else {
-				chunk = Pool_Chunk{high_water_mark, 0};
+				index = high_water_mark;
 				high_water_mark += 1;
 			}
-			assert(occupancy[chunk.index] == false);
-			occupancy[chunk.index] = true;
-			chunk.generation += 1;
-			last_allocated_chunk = chunk;
-			return &memory[chunk.index * chunk_size_aligned];
+			assert(index >= 0);
+			assert(occupancy[index] == false);
+			occupancy[index] = true;
+			generations[index] += 1;
+			last_allocated_chunk = Pool_Chunk{index, generations[index]};
+			ptr := &memory[index * chunk_size_aligned];
+			mem.zero(ptr, chunk_size_aligned);
+			return ptr;
 		}
 		case .Free: {
-			assert(chunk_size_aligned != 0);
+			assert(chunk_size_aligned > 0);
 			assert(uintptr(old_memory) >= uintptr(&memory[0]));
 			assert(uintptr(old_memory) < uintptr(#no_bounds_check &memory[len(memory)]));
 			offset := (int(uintptr(old_memory)) - int(uintptr(&memory[0])));
@@ -59,9 +64,7 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 			index := offset / chunk_size_aligned;
 			assert(occupancy[index] == true);
 			occupancy[index] = false;
-			ptr := &memory[index * chunk_size_aligned];
-			mem.zero(ptr, chunk_size_aligned);
-			append(&freelist, Pool_Chunk{index, });
+			append(&freelist, index);
 		}
 		case .Free_All: {
 			unimplemented();
@@ -72,9 +75,6 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 	}
 	unreachable();
 	return nil;
-}
-
-pool_free :: proc(using pool: ^Pool, chunk: Pool_Chunk) {
 }
 
 Pool_Iterator :: struct {
