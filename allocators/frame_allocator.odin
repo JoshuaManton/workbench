@@ -34,7 +34,9 @@ frame_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 			frame.cur_offset = int(offset) + size;
 			return ptr;
 		}
-		case .Free: { }
+		case .Free: {
+			return nil;
+		}
 		case .Free_All: {
 			frame.cur_offset = 0;
 			return nil;

@@ -2,7 +2,7 @@ package allocators
 
 import "core:mem"
 
-Pool :: struct {
+Pool_Allocator :: struct {
 	memory: []byte,
 	occupancy: []bool,
 	generations: []int,
@@ -16,7 +16,7 @@ Pool_Chunk :: struct {
 	generation: int,
 }
 
-pool_init :: proc(using pool: ^Pool, chunk_size, num_chunks: int) {
+init_pool_allocator :: proc(using pool: ^Pool_Allocator, chunk_size, num_chunks: int) {
 	assert(memory == nil);
 	chunk_size_aligned = mem.align_forward_int(chunk_size, mem.DEFAULT_ALIGNMENT);
 	memory = make([]byte, chunk_size_aligned * num_chunks);
@@ -24,7 +24,7 @@ pool_init :: proc(using pool: ^Pool, chunk_size, num_chunks: int) {
 	generations = make([]int, num_chunks);
 }
 
-pool_allocator :: proc(pool: ^Pool) -> mem.Allocator {
+pool_allocator :: proc(pool: ^Pool_Allocator) -> mem.Allocator {
 	return mem.Allocator{pool_allocator_proc, pool};
 }
 
@@ -33,7 +33,7 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
                             old_memory: rawptr, old_size: int,
                             flags: u64 = 0, loc := #caller_location) -> rawptr {
 
-	using pool := cast(^Pool)allocator_data;
+	using pool := cast(^Pool_Allocator)allocator_data;
 
 	switch mode {
 		case .Alloc: {
@@ -78,12 +78,12 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 }
 
 Pool_Iterator :: struct {
-	pool: ^Pool,
+	pool: ^Pool_Allocator,
 	index: int,
 	chunk_index: int,
 }
 
-pool_iterator :: proc(using pool: ^Pool) -> Pool_Iterator {
+pool_iterator :: proc(using pool: ^Pool_Allocator) -> Pool_Iterator {
 	return Pool_Iterator{pool, 0, -1};
 }
 
