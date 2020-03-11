@@ -61,7 +61,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
 
     size = magnitude(plane_point - camera_pos) * 0.05;
 
-    if move_type == .NONE && !platform.get_input(.Mouse_Button_2) {
+    // todo(josh): remove hardcoded Mouse_Right thing. this is only here because the scene view in Mathy Game uses right click to know when to move the camera in edit mode
+    if move_type == .NONE && !platform.get_input(.Mouse_Right) {
         if platform.get_input_down(.Q, true) do if manipulation_mode == .World do manipulation_mode = .Local else do manipulation_mode = .World;
         if platform.get_input_down(.W, true) do operation = .Translate;
         if platform.get_input_down(.E, true) do operation = .Rotate;
@@ -193,11 +194,15 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
             for i in 0..2 {
                 dir := rotated_direction(rotation^, direction_unary[i]);
                 intersect_point, ok := plane_intersect(position^, dir, camera_pos, mouse_direction);
-                if ok && length(position^ - intersect_point) < size*2 { // todo(josh): I don't think we should need a `*2` here, `size` should be the radius of the rotation gizmo I think?
-                    dist := length(camera_pos - intersect_point);
-                    if dist < closest_plane_distance {
-                        closest_plane_distance = dist;
-                        closest_index = i;
+                if ok {
+                    dist_from_position := length(position^ - intersect_point);
+                    // todo(josh): I don't think we should need a `size*NUM` here. `size` should be the radius of the rotation gizmo I think?
+                    if dist_from_position < size*1.1 && dist_from_position > size*0.9 {
+                        dist_to_camera := length(camera_pos - intersect_point);
+                        if dist_to_camera < closest_plane_distance {
+                            closest_plane_distance = dist_to_camera;
+                            closest_index = i;
+                        }
                     }
                 }
             }
@@ -383,7 +388,6 @@ gizmo_render :: proc() {
 
                 hoop_segments :: 52;
                 tube_segments :: 10;
-                hoop_radius :f32= 1.25;
                 tube_radius :f32= 0.02;
 
                 for direction in 0..2 {
@@ -424,39 +428,39 @@ gizmo_render :: proc() {
 
                             // triangle 1
                             pt1 := make_point(Vec3 {
-                                (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a1),
-                                (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a1),
+                                (1 + tube_radius * cos(angle_b1)) * cos(angle_a1),
+                                (1 + tube_radius * cos(angle_b1)) * sin(angle_a1),
                                 tube_radius * sin(angle_b1)
                             }, dir_x, dir_y, dir_z);
 
                             pt2 := make_point(Vec3 {
-                                (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a1),
-                                (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a1),
+                                (1 + tube_radius * cos(angle_b2)) * cos(angle_a1),
+                                (1 + tube_radius * cos(angle_b2)) * sin(angle_a1),
                                 tube_radius * sin(angle_b2)
                             }, dir_x, dir_y, dir_z);
 
                             pt3 := make_point(Vec3 {
-                                (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a2),
-                                (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a2),
+                                (1 + tube_radius * cos(angle_b1)) * cos(angle_a2),
+                                (1 + tube_radius * cos(angle_b1)) * sin(angle_a2),
                                 tube_radius * sin(angle_b1)
                             }, dir_x, dir_y, dir_z);
 
                             // triangle 2
                             pt4 := make_point(Vec3 {
-                                (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a2),
-                                (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a2),
+                                (1 + tube_radius * cos(angle_b2)) * cos(angle_a2),
+                                (1 + tube_radius * cos(angle_b2)) * sin(angle_a2),
                                 tube_radius * sin(angle_b2)
                             }, dir_x, dir_y, dir_z);
 
                             pt5 := make_point(Vec3 {
-                                (hoop_radius + tube_radius * cos(angle_b1)) * cos(angle_a2),
-                                (hoop_radius + tube_radius * cos(angle_b1)) * sin(angle_a2),
+                                (1 + tube_radius * cos(angle_b1)) * cos(angle_a2),
+                                (1 + tube_radius * cos(angle_b1)) * sin(angle_a2),
                                 tube_radius * sin(angle_b1)
                             }, dir_x, dir_y, dir_z);
 
                             pt6 := make_point(Vec3 {
-                                (hoop_radius + tube_radius * cos(angle_b2)) * cos(angle_a1),
-                                (hoop_radius + tube_radius * cos(angle_b2)) * sin(angle_a1),
+                                (1 + tube_radius * cos(angle_b2)) * cos(angle_a1),
+                                (1 + tube_radius * cos(angle_b2)) * sin(angle_a1),
                                 tube_radius * sin(angle_b2)
                             }, dir_x, dir_y, dir_z);
 
