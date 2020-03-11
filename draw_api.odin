@@ -114,6 +114,7 @@ Camera :: struct {
 
     position: Vec3,
     rotation: Quat,
+	view_matrix: Mat4, // note(josh): do not move or rotate the camera during rendering since we cache the view matrix at the start of rendering
 
     pixel_width: f32,
     pixel_height: f32,
@@ -269,6 +270,8 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	gpu.set_clear_color(camera.clear_color);
 	gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 
+	camera.view_matrix = construct_view_matrix(camera);
+
 	return old_camera;
 }
 
@@ -370,7 +373,11 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// draw shadow maps
 	shadow_cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
+	assert(NUM_SHADOW_MAPS == 4);
+	light_matrices: [NUM_SHADOW_MAPS]Mat4;
 	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
+		profiler.TIMED_SECTION(&wb_profiler, "camera_render.shadow_maps");
+
 		for shadow_map_camera, map_idx in shadow_maps {
 			assert(shadow_map_camera != nil);
 
@@ -460,40 +467,38 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				if on_render_object != nil do on_render_object(cmd.userdata);
 				execute_draw_command(cmd);
 			}
+
+			light_matrices[map_idx] = mul(construct_rendermode_matrix(shadow_map_camera), shadow_map_camera.view_matrix);
 		}
 	}
 
 	// draw scene for real
-	PUSH_RENDERMODE(.World);
+	{
+		profiler.TIMED_SECTION(&wb_profiler, "camera_render.draw_for_real");
 
-	for _, idx in camera.render_queue {
-		cmd := &camera.render_queue[idx];
+		PUSH_RENDERMODE(.World);
 
-		shader := cmd.shader;
-		gpu.use_program(shader);
+		for _, idx in camera.render_queue {
+			cmd := &camera.render_queue[idx];
 
-		flush_lights(camera, shader);
+			shader := cmd.shader;
+			gpu.use_program(shader);
 
-		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
-			// set up cascade cameras
-			gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
+			flush_lights(camera, shader);
 
-			assert(NUM_SHADOW_MAPS == 4);
-			light_matrices: [NUM_SHADOW_MAPS]Mat4;
-			for shadow_map, map_idx in shadow_maps {
-				add_texture_binding(cmd, tprint_cstring("shadow_maps[", map_idx, "]"), shadow_map.framebuffer.depth_texture);
+			if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
+				gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
 
-				light_view := construct_view_matrix(shadow_map);
-				light_proj := construct_projection_matrix(shadow_map);
-				light_space := mul(light_proj, light_view);
-				light_matrices[map_idx] = light_space;
+				for shadow_map, map_idx in shadow_maps {
+					add_texture_binding(cmd, tprint_cstring("shadow_maps[", map_idx, "]"), shadow_map.framebuffer.depth_texture);
+				}
+				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
 			}
-			gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
-		}
 
-		// issue draw call
-		if on_render_object != nil do on_render_object(cmd.userdata);
-		execute_draw_command(cmd^);
+			// issue draw call
+			if on_render_object != nil do on_render_object(cmd.userdata);
+			execute_draw_command(cmd^);
+		}
 	}
 
 	// todo(josh): ambient occlusion
@@ -504,6 +509,8 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// do bloom
 	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok {
+		profiler.TIMED_SECTION(&wb_profiler, "camera_render.bloom");
+
 		for fbo in bloom_fbos {
 			PUSH_FRAMEBUFFER(fbo);
 			gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
@@ -1161,6 +1168,8 @@ submit_draw_command :: proc(cmd: Draw_Command_3D) {
 
 execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
+	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
+	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 
 	bound_shader := gpu.get_current_shader();
 
@@ -1191,12 +1200,6 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 
 	flush_material(cmd.material, bound_shader);
 
-	// projection matrix
-	projection_matrix := construct_rendermode_matrix(main_camera);
-
-	// view matrix
-	view_matrix := construct_view_matrix(main_camera);
-
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
 	model_s := mat4_scale(identity(Mat4), scale);
@@ -1208,8 +1211,10 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 	gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
 
 	gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
-	gpu.uniform_mat4(bound_shader, "view_matrix",       &view_matrix);
-	gpu.uniform_mat4(bound_shader, "projection_matrix", &projection_matrix);
+	gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
+
+	rendermode_matrix := construct_rendermode_matrix(main_camera);
+	gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
 
 	gpu.uniform_vec3(bound_shader, "position", position);
 	gpu.uniform_vec3(bound_shader, "scale", scale);
