@@ -126,11 +126,8 @@ Camera :: struct {
     draw_mode: gpu.Draw_Mode,
     polygon_mode: gpu.Polygon_Mode,
 
-
     // render data for this frame
-	new_render_queue: [dynamic]Draw_Command_3D,
-	render_queue:     [dynamic]Model_Draw_Info,
-
+	render_queue: [dynamic]Draw_Command_3D,
 	im_draw_commands: [dynamic]Draw_Command_2D,
 
 	// todo(josh): maybe these should be pointers. this is blowing up the size of the camera struct a LOT
@@ -208,7 +205,6 @@ delete_camera :: proc(camera: ^Camera) { // note(josh): does NOT free the camera
     }
     destroy_bloom(camera);
     destroy_shadow_maps(camera);
-    delete(camera.render_queue);
 }
 
 setup_bloom :: proc(camera: ^Camera) {
@@ -423,6 +419,8 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 			// todo(josh): this radius changes very slightly as the camera rotates around for some reason. this shouldn't be happening and I believe it's causing the flickering
 			// note(josh): @ShadowFlickerHack hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
+			// note(josh): @ShadowFlickerHack hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
+			// note(josh): @ShadowFlickerHack hacked around the problem by clamping the radius to an int. pretty shitty, should investigate a proper solution
 			radius := cast(f32)cast(int)(length(frustum_corners[0] - frustum_corners[6]) / 2 + 1.0);
 
 
@@ -458,14 +456,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 			PUSH_RENDERMODE(.World);
 
-			for info in camera.render_queue {
-				using info;
-
-				if on_render_object != nil do on_render_object(userdata);
-				draw_model(model, position, scale, rotation, texture, color, true, animation_state);
-			}
-
-			for cmd in camera.new_render_queue {
+			for cmd in camera.render_queue {
 				if on_render_object != nil do on_render_object(cmd.userdata);
 				execute_draw_command(cmd);
 			}
@@ -475,49 +466,8 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	// draw scene for real
 	PUSH_RENDERMODE(.World);
 
-	for info in camera.render_queue {
-		using info;
-
-		gpu.use_program(shader);
-
-		flush_lights(camera, shader);
-
-		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
-			// set up cascade cameras
-			gpu.uniform_float_array(shader, "cascade_distances", shadow_cascade_positions[1:]);
-
-			assert(NUM_SHADOW_MAPS == 4);
-			tex_indices := [NUM_SHADOW_MAPS]i32{1, 2, 3, 4};
-			gpu.uniform_int_array(shader, "shadow_maps", tex_indices[:]);
-			light_matrices: [NUM_SHADOW_MAPS]Mat4;
-			for shadow_map, map_idx in shadow_maps {
-				// todo(josh): this texture binding stuff makes me a little uncomfortable because
-				// draw_model does some texture binding too and I fear it might stomp on these ones
-				// in the future. should consolidate this somehow
-				gpu.active_texture(1 + cast(u32)map_idx);
-				gpu.bind_texture_2d(shadow_map.framebuffer.depth_texture.gpu_id);
-
-				light_view := construct_view_matrix(shadow_map);
-				light_proj := construct_projection_matrix(shadow_map);
-				light_space := mul(light_proj, light_view);
-				light_matrices[map_idx] = light_space;
-			}
-			gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
-		}
-
-
-
-		// set material data
-		flush_material(material, shader);
-
-
-		// issue draw call
-		if on_render_object != nil do on_render_object(userdata);
-		draw_model(model, position, scale, rotation, texture, color, true, animation_state);
-	}
-
-	for _, idx in camera.new_render_queue {
-		cmd := &camera.new_render_queue[idx];
+	for _, idx in camera.render_queue {
+		cmd := &camera.render_queue[idx];
 
 		shader := cmd.shader;
 		gpu.use_program(shader);
@@ -544,7 +494,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		// issue draw call
 		if on_render_object != nil do on_render_object(cmd.userdata);
 		execute_draw_command(cmd^);
-		// draw_model(model, position, scale, rotation, texture, color, true, animation_state);
 	}
 
 	// todo(josh): ambient occlusion
@@ -611,17 +560,14 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
 	}
 
-	// clear render_queue
-	clear(&camera.render_queue);
-
-	for cmd in camera.new_render_queue {
+	for cmd in camera.render_queue {
 		// put the texture and uniform bindings back in the pool
 		pooled_cmd: Draw_Command_3D;
 		pooled_cmd.texture_bindings = cmd.texture_bindings; clear(&pooled_cmd.texture_bindings);
 		pooled_cmd.uniform_bindings = cmd.uniform_bindings; clear(&pooled_cmd.uniform_bindings);
 		append(&_pooled_draw_commands, pooled_cmd);
 	}
-	clear(&camera.new_render_queue);
+	clear(&camera.render_queue);
 
 	// clear lights
 	camera.num_point_lights = 0;
@@ -738,9 +684,6 @@ flush_material :: proc(using material: Material, shader: gpu.Shader_Program) {
 	gpu.uniform_float(shader, "material.shine",    material.shine);
 }
 
-submit_model :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position: Vec3, scale: Vec3, rotation: Quat, color: Colorf, anim_state: Model_Animation_State, userdata : rawptr = {}) {
-	append(&main_camera.render_queue, Model_Draw_Info{model, shader, texture, material, position, scale, rotation, color, anim_state, userdata});
-}
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
 	if main_camera.num_point_lights >= MAX_LIGHTS {
 		logln("Too many lights! The max is ", MAX_LIGHTS);
@@ -1213,7 +1156,7 @@ create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, texture: T
 }
 
 submit_draw_command :: proc(cmd: Draw_Command_3D) {
-	append(&main_camera.new_render_queue, cmd);
+	append(&main_camera.render_queue, cmd);
 }
 
 execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
