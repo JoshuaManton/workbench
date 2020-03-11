@@ -43,7 +43,21 @@ get_input_imgui :: inline proc(input: Input) -> bool {
 get_input_down :: inline proc(input: Input, consume := false) -> bool {
 	for down, idx in _down {
 		if down == input {
-			if consume do unordered_remove(&_down, idx);
+			if consume {
+				unordered_remove(&_down, idx);
+				for held, idx2 in _held {
+					if held == input {
+						unordered_remove(&_held, idx2);
+						break;
+					}
+				}
+				for held, idx2 in _held_mid_frame {
+					if held == input {
+						unordered_remove(&_held_mid_frame, idx2);
+						break;
+					}
+				}
+			}
 			return true;
 		}
 	}
@@ -467,16 +481,12 @@ wb_button_press :: proc(button: $Input_Type) {
 	append(&_down_mid_frame, cast(Input)button);
 }
 wb_button_release :: proc(button: $Input_Type) {
-	idx := -1;
-	for held, i in _held_mid_frame {
+	// we sometimes get a release with no press/hold
+	for held, idx in _held_mid_frame {
 		if held == cast(Input)button {
-			idx = i;
+			unordered_remove(&_held_mid_frame, idx);
 			break;
 		}
-	}
-	// idx being -1 means that we got a release but no press, which sometimes happens
-	if idx != -1 {
-		unordered_remove(&_held_mid_frame, idx);
 	}
 	append(&_up_mid_frame, cast(Input)button);
 }
