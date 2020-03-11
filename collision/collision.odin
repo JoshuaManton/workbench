@@ -4,6 +4,7 @@ import rt "core:runtime"
 
 import "core:fmt"
 import "../math"
+import "../logging"
 import "../basic"
 
 import "core:sort"
@@ -57,12 +58,14 @@ Hit_Info :: struct {
 }
 
 add_collider_to_scene :: proc(using scene: ^Collision_Scene, position, scale: Vec3, info: Collider_Info, userdata: rawptr = nil) -> ^Collider {
+	assert(info.kind != nil);
 	collider := new_clone(Collider{userdata, position, scale, info});
 	append(&colliders, collider);
 	return collider;
 }
 
 update_collider :: proc(collider: ^Collider, position, scale: Vec3, info: Collider_Info, userdata: rawptr = nil) {
+	assert(info.kind != nil);
 	collider^ = Collider{userdata, position, scale, info};
 }
 
@@ -97,6 +100,7 @@ linecast :: proc(using scene: ^Collision_Scene, origin: Vec3, velocity: Vec3, ou
 		info.userdata = collider.userdata;
 		if ok do append(out_hits, info);
 	}
+	// sort so the outputs are in order of closest -> farthest
 	sort.quick_sort_proc(out_hits[:], proc(a, b: Hit_Info) -> int {
 		if a.fraction0 < b.fraction0 do return -1;
 		return 1;
@@ -116,6 +120,7 @@ boxcast :: proc(using scene: ^Collision_Scene, origin, size, velocity: Vec3, out
 		info.userdata = collider.userdata;
 		if ok do append(out_hits, info);
 	}
+	// sort so the outputs are in order of closest -> farthest
 	sort.quick_sort_proc(out_hits[:], proc(a, b: Hit_Info) -> int {
 		if a.fraction0 < b.fraction0 do return -1;
 		return 1;
@@ -268,6 +273,9 @@ overlap_box_box_2d :: proc(min1, max1: Vec2, min2, max2: Vec2) -> bool {
 }
 
 
+
+logln :: logging.logln;
+logf :: logging.logf;
 
 Vec2 :: math.Vec2;
 Vec3 :: math.Vec3;

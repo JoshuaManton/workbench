@@ -17,6 +17,7 @@ Asset_Catalog :: struct {
 	handlers: map[^rt.Type_Info]Asset_Handler,
 	loaded_files: [dynamic]Loaded_File,
 	errors: [dynamic]string,
+	has_default_handlers: bool,
 }
 Loaded_File :: struct {
 	path: string,
@@ -77,7 +78,8 @@ delete_loaded_file :: proc(file: Loaded_File) {
 }
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_location) {
-	if catalog.handlers == nil {
+	if !catalog.has_default_handlers {
+		catalog.has_default_handlers = true;
 		add_default_handlers(catalog);
 	}
 
