@@ -20,6 +20,7 @@ import "external/stb"
 import "external/glfw"
 
 import pf "profiler"
+import "allocators"
 
 DEVELOPER :: true;
 
@@ -45,12 +46,19 @@ precise_lossy_delta_time: f64;
 
 wb_catalog: Asset_Catalog;
 
+frame_allocator_raw: allocators.Frame_Allocator;
+frame_allocator: mem.Allocator;
+
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
 	defer logln("workbench successfully shutdown.");
 
 	startup_start_time := glfw.GetTime();
+
+	allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 1 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+    context.temp_allocator = allocators.frame_allocator(&frame_allocator_raw);
+    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
 
 	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
 	defer pf.destroy_profiler(&wb_profiler);
@@ -101,21 +109,30 @@ make_simple_window :: proc(window_width, window_height: int,
 
 		if acc >= fixed_delta_time {
 			for {
+				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
+
 				acc -= fixed_delta_time;
 
-				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
+			    if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
+			        logln("Frame allocator over half capacity");
+			    }
+			    free_all(frame_allocator);
+
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
 				}
 
+				//
 				precise_time = glfw.GetTime();
 				time = cast(f32)precise_time;
 				frame_count += 1;
 
+				//
 				platform.update_platform();
 				imgui_begin_new_frame(fixed_delta_time);
 	    		imgui.push_font(imgui_font_default); // todo(josh): pop this?
 
+	    		//
 	    		gizmo_new_frame();
 	    		update_draw();
 				update_tween(fixed_delta_time);

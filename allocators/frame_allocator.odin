@@ -14,6 +14,11 @@ init_frame_allocator :: proc(using frame_allocator: ^Frame_Allocator, backing: [
 	frame_allocator.memory = backing;
 }
 
+destroy_frame_allocator :: proc(using frame_allocator: ^Frame_Allocator) {
+	delete(memory);
+	frame_allocator^ = {};
+}
+
 frame_allocator :: proc(using frame_allocator: ^Frame_Allocator) -> mem.Allocator {
 	return mem.Allocator{frame_allocator_proc, frame_allocator};
 }
