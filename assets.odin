@@ -214,6 +214,8 @@ add_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string, asset: ^
 }
 
 try_get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> (Type, bool) {
+	if name == "" do return {}, false;
+
 	ti := type_info_of(Type);
 	handler, ok := catalog.handlers[ti];
 	assert(ok, name);
