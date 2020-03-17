@@ -46,23 +46,27 @@ precise_lossy_delta_time: f64;
 
 wb_catalog: Asset_Catalog;
 
-frame_allocator_raw: allocators.Frame_Allocator;
 frame_allocator: mem.Allocator;
 
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
-	defer logln("workbench successfully shutdown.");
 
 	startup_start_time := glfw.GetTime();
 
-	allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 1 * 1024 * 1024)); // todo(josh): destroy the frame allocator
-    context.temp_allocator = allocators.frame_allocator(&frame_allocator_raw);
+	// init frame allocator
+	@static frame_allocator_raw: allocators.Frame_Allocator;
+	allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
     defer allocators.destroy_frame_allocator(&frame_allocator_raw);
 
+	frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
+    context.temp_allocator = frame_allocator;
+
+    // init profiler
 	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
 	defer pf.destroy_profiler(&wb_profiler);
 
+	// init platform and graphics
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
 	init_draw(window_width, window_height);
 	defer deinit_draw();
@@ -70,27 +74,23 @@ make_simple_window :: proc(window_width, window_height: int,
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
 
+	// init catalog
 	add_default_handlers(&wb_catalog);
 	defer delete_asset_catalog(wb_catalog);
-
 	init_builtin_assets();
 
 	init_gizmo();
 
 	init_builtin_debug_programs();
 
-
-
-	acc: f32;
-	fixed_delta_time = cast(f32)1 / target_framerate;
-
 	init_workspace(workspace);
 
 	startup_end_time := glfw.GetTime();
 	logln("Startup time: ", startup_end_time - startup_start_time);
 
+	acc: f32;
+	fixed_delta_time = cast(f32)1 / target_framerate;
 	last_frame_start_time: f32;
-
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
 		pf.profiler_new_frame(&wb_profiler);
@@ -114,9 +114,9 @@ make_simple_window :: proc(window_width, window_height: int,
 				acc -= fixed_delta_time;
 
 			    if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
-			        logln("Frame allocator over half capacity");
+			        logln("Frame allocator over half capacity: ", frame_allocator_raw.cur_offset, " / ", len(frame_allocator_raw.memory));
 			    }
-			    free_all(frame_allocator);
+			    mem.free_all(frame_allocator);
 
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
@@ -165,6 +165,8 @@ make_simple_window :: proc(window_width, window_height: int,
 	}
 
 	end_workspace(workspace);
+
+	logln("workbench successfully shutdown.");
 }
 
 wb_should_close: bool;

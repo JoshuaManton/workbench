@@ -10,7 +10,7 @@ Frame_Allocator :: struct {
 
 init_frame_allocator :: proc(using frame_allocator: ^Frame_Allocator, backing: []byte) {
 	assert(frame_allocator.memory == nil);
-	frame_allocator^= {};
+	frame_allocator^ = {};
 	frame_allocator.memory = backing;
 }
 
@@ -32,7 +32,10 @@ frame_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 
 	switch mode {
 		case .Alloc: {
-			assert(frame.cur_offset+size <= len(frame.memory), "frame_allocator ran out of memory");
+			if frame.cur_offset+size > len(frame.memory) {
+				panic(fmt.aprint("frame_allocator ran out of memory. caller: ", loc));
+			}
+
 			offset := mem.align_forward_uintptr(uintptr(frame.cur_offset), uintptr(alignment));
 			ptr := &frame.memory[offset];
 			mem.zero(ptr, size);
