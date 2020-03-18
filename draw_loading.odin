@@ -17,11 +17,10 @@ import anim "animation"
 // Textures
 //
 
-create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
+decode_png_data :: proc(png_data: []byte) -> (^byte, i32, i32, gpu.Pixel_Data_Format, gpu.Internal_Color_Format) {
 	width, height, channels: i32;
 	pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
 	assert(pixel_data != nil);
-	defer stb.image_free(pixel_data);
 
 	color_format : gpu.Internal_Color_Format;
 	pixel_format : gpu.Pixel_Data_Format;
@@ -39,37 +38,30 @@ create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
 		}
 	}
 
+	return pixel_data, width, height, pixel_format, color_format;
+}
+
+delete_png_data :: proc(data: ^byte) {
+	stb.image_free(data);
+}
+
+create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
+	pixel_data, width, height, data_format, gpu_format := decode_png_data(png_data);
+	defer delete_png_data(pixel_data);
+
 	assert(mem.is_power_of_two(cast(uintptr)cast(int)width), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
 	assert(mem.is_power_of_two(cast(uintptr)cast(int)height), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
-	tex := create_texture_2d(cast(int)width, cast(int)height, color_format, pixel_format, .Unsigned_Byte, pixel_data);
+	tex := create_texture_2d(cast(int)width, cast(int)height, gpu_format, data_format, .Unsigned_Byte, pixel_data);
 	return tex;
 }
 
 // todo(josh): check `channels` like we do above and don't hardcode the .RGB's passed to tex_image2d
 update_texture_from_png_data :: proc(texture: Texture, png_data: []byte) {
-	width, height, channels: i32;
-	pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
-	assert(pixel_data != nil);
-	defer stb.image_free(pixel_data);
-
-	color_format : gpu.Internal_Color_Format;
-	pixel_format : gpu.Pixel_Data_Format;
-	switch channels {
-		case 3: {
-			color_format = .RGB16F;
-			pixel_format = .RGB;
-		}
-		case 4: {
-			color_format = .RGBA16F;
-			pixel_format = .RGBA;
-		}
-		case: {
-			assert(false); // RGB or RGBA
-		}
-	}
+	pixel_data, width, height, data_format, gpu_format := decode_png_data(png_data);
+	defer delete_png_data(pixel_data);
 
 	gpu.bind_texture_2d(texture.gpu_id);
-	gpu.tex_image_2d(0, color_format, width, height, 0, pixel_format, .Unsigned_Byte, pixel_data);
+	gpu.tex_image_2d(0, gpu_format, width, height, 0, data_format, .Unsigned_Byte, pixel_data);
 }
 
 
@@ -351,24 +343,22 @@ Sprite :: struct {
 	id:     Texture,
 }
 
-create_atlas :: inline proc(width, height: int) -> Texture_Atlas {
-	panic("I dont know if this works. I changed the create_texture API so if it breaks you'll have to fix it, sorry :^)");
-	texture := create_texture_2d(width, height, .RGBA, .RGBA, .Unsigned_Byte);
+create_atlas :: proc(width, height: int) -> Texture_Atlas {
+	// panic("I dont know if this works. I changed the create_texture API so if it breaks you'll have to fix it, sorry :^)");
+	texture := create_texture_2d(width, height, .RGBA);
 	data := Texture_Atlas{texture, cast(i32)width, cast(i32)height, 0, 0, 0};
 	return data;
 }
 
-delete_atlas :: inline proc(atlas: Texture_Atlas) {
+delete_atlas :: proc(atlas: Texture_Atlas) {
 	delete_texture(atlas.texture);
 }
 
+// todo(josh): handle case where it doesn't fit in the atlas
 add_sprite_to_atlas :: proc(atlas: ^Texture_Atlas, pixels_rgba: []byte, pixels_per_world_unit : f32 = 32) -> (Sprite, bool) {
-	stb.set_flip_vertically_on_load(1);
-	sprite_width, sprite_height, channels: i32;
-	pixel_data := stb.load_from_memory(&pixels_rgba[0], cast(i32)len(pixels_rgba), &sprite_width, &sprite_height, &channels, 0);
-	assert(pixel_data != nil);
-
-	defer stb.image_free(pixel_data);
+	// stb.set_flip_vertically_on_load(1);
+	pixel_data, sprite_width, sprite_height, data_format, gpu_format := decode_png_data(pixels_rgba);
+	defer delete_png_data(pixel_data);
 
 	gpu.bind_texture_2d(atlas.texture.gpu_id);
 
@@ -379,7 +369,7 @@ add_sprite_to_atlas :: proc(atlas: ^Texture_Atlas, pixels_rgba: []byte, pixels_p
 	}
 
 	if sprite_height > atlas.biggest_height do atlas.biggest_height = sprite_height;
-	gpu.tex_sub_image2d(.Texture2D, 0, atlas.atlas_x, atlas.atlas_y, sprite_width, sprite_height, .RGBA, .Unsigned_Byte, pixel_data);
+	gpu.tex_sub_image2d(.Texture2D, 0, atlas.atlas_x, atlas.atlas_y, sprite_width, sprite_height, data_format, .Unsigned_Byte, pixel_data);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Mirrored_Repeat);
 	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Mirrored_Repeat);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);

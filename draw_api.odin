@@ -736,7 +736,7 @@ Texture :: struct {
     element_type: gpu.Texture2D_Data_Type,
 }
 
-create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format: gpu.Pixel_Data_Format, initial_data_element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
+create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_2d(texture);
 
@@ -747,7 +747,7 @@ create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, in
 	return Texture{texture, ww, hh, 1, .Texture2D, initial_data_format, initial_data_element_type};
 }
 
-create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, initial_data_format: gpu.Pixel_Data_Format, initial_data_element_type: gpu.Texture2D_Data_Type, initial_data: ^u8 = nil) -> Texture {
+create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_3d(texture);
 	gpu.tex_image_3d(0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
