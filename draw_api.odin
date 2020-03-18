@@ -17,6 +17,8 @@ import "external/imgui"
 
 /*
 
+// todo(josh): these are quite out of date. we should have a preprocessor for documentation generation or something.
+
 --- Cameras
 {
 	init_camera                 :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, make_framebuffer := false)
@@ -28,7 +30,7 @@ import "external/imgui"
 	update_camera_pixel_size    :: proc(using camera: ^Camera, new_width: f32, new_height: f32)
 	construct_view_matrix       :: proc(camera: ^Camera) -> Mat4
 	construct_projection_matrix :: proc(camera: ^Camera) -> Mat4
-	construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4
+	construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4
 }
 
 --- Textures
@@ -270,7 +272,7 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	gpu.set_clear_color(camera.clear_color);
 	gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 
-	camera.view_matrix = construct_view_matrix(camera);
+	camera.view_matrix = construct_rendermode_view_matrix(camera);
 
 	return old_camera;
 }
@@ -308,16 +310,47 @@ update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_heig
 }
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
-construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
+construct_rendermode_view_matrix :: proc(camera: ^Camera) -> Mat4 {
 	if camera.current_rendermode != .World {
 		return identity(Mat4);
 	}
 
+	return construct_view_matrix(camera);
+}
+
+construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
 	view_matrix := translate(identity(Mat4), -camera.position);
 	rotation := camera.rotation;
     rotation_matrix := quat_to_mat4(inverse(rotation));
     view_matrix = mul(rotation_matrix, view_matrix);
     return view_matrix;
+}
+
+construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
+    switch camera.current_rendermode {
+        case .World: {
+            return construct_projection_matrix(camera);
+        }
+        case .Unit: {
+            unit := mat4_scale(identity(Mat4), Vec3{2, 2, 0});
+            unit = translate(unit, Vec3{-1, -1, 0});
+            return unit;
+        }
+        case .Pixel: {
+            pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
+            pixel = mat4_scale(pixel, 2);
+            pixel = translate(pixel, Vec3{-1, -1, 0});
+            return pixel;
+        }
+        case .Aspect: {
+        	aspect := mat4_scale(identity(Mat4), Vec3{1/camera.aspect, 1, 0});
+            return aspect;
+        }
+        case: panic(tprint(camera.current_rendermode));
+    }
+
+    unreachable();
+    return {};
 }
 
 construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
@@ -331,29 +364,6 @@ construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
         right  : f32 =  1 * camera.aspect * camera.size;
         return ortho3d(left, right, bottom, top, camera.near_plane, camera.far_plane);
     }
-}
-
-construct_rendermode_matrix :: proc(camera: ^Camera) -> Mat4 {
-    switch camera.current_rendermode {
-        case .World: {
-            return construct_projection_matrix(camera);
-        }
-        case .Unit: {
-            unit := translate(identity(Mat4), Vec3{-1, -1, 0});
-            unit = mat4_scale(unit, 2);
-            return unit;
-        }
-        case .Pixel: {
-            pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-            pixel = mat4_scale(pixel, 2);
-            pixel = translate(pixel, Vec3{-1, -1, 0});
-            return pixel;
-        }
-        case: panic(tprint(camera.current_rendermode));
-    }
-
-    unreachable();
-    return {};
 }
 
 camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
@@ -399,7 +409,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 			// calculate sub-frustum for this cascade
 			cascade_proj := perspective(to_radians(camera.size), camera.aspect, camera.near_plane + shadow_cascade_positions[map_idx], min(camera.far_plane, camera.near_plane + shadow_cascade_positions[map_idx+1]));
-			cascade_view := construct_view_matrix(camera);
+			cascade_view := construct_rendermode_view_matrix(camera);
 			cascade_viewport_to_world := mat4_inverse(mul(cascade_proj, cascade_view));
 
 			transform_point :: proc(matrix: Mat4, pos: Vec3) -> Vec3 {
@@ -468,7 +478,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				execute_draw_command(cmd);
 			}
 
-			light_matrices[map_idx] = mul(construct_rendermode_matrix(shadow_map_camera), shadow_map_camera.view_matrix);
+			light_matrices[map_idx] = mul(construct_rendermode_projection_matrix(shadow_map_camera), shadow_map_camera.view_matrix);
 		}
 	}
 
@@ -1011,10 +1021,10 @@ draw_model :: proc(model: Model,
 	gpu.polygon_mode(.Front_And_Back, main_camera.polygon_mode);
 
 	// projection matrix
-	projection_matrix := construct_rendermode_matrix(main_camera);
+	projection_matrix := construct_rendermode_projection_matrix(main_camera);
 
 	// view matrix
-	view_matrix := construct_view_matrix(main_camera);
+	view_matrix := construct_rendermode_view_matrix(main_camera);
 
 	// model_matrix
 	model_p := translate(identity(Mat4), position);
@@ -1213,7 +1223,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 	gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
 	gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
 
-	rendermode_matrix := construct_rendermode_matrix(main_camera);
+	rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
 	gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
 
 	gpu.uniform_vec3(bound_shader, "position", position);
@@ -1268,6 +1278,7 @@ Rendermode :: enum {
     World,
     Unit,
     Pixel,
+    Aspect,
 }
 
 @(deferred_out=pop_rendermode)
@@ -1329,6 +1340,11 @@ world_to_unit :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
 	result = viewport_to_unit(result);
 	return result;
 }
+world_to_aspect :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
+	vp := world_to_viewport(a, camera);
+	result := viewport_to_aspect(vp, camera.aspect);
+	return result;
+}
 
 unit_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	result := a * Vec3{pixel_width, pixel_height, 1};
@@ -1336,6 +1352,11 @@ unit_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 }
 unit_to_viewport :: proc(a: Vec3) -> Vec3 {
 	result := (a * 2) - Vec3{1, 1, 0};
+	return result;
+}
+unit_to_aspect :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
+	result := (a * 2) - Vec3{1, 1, 0};
+	result.x *= camera.aspect;
 	return result;
 }
 
@@ -1351,6 +1372,17 @@ pixel_to_unit :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	return a;
 }
 
+viewport_to_world :: proc(camera: ^Camera, viewport_position: Vec3) -> Vec3 {
+	viewport_position4 := to_vec4(viewport_position);
+
+	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
+
+	viewport_position4 = mul(inv, viewport_position4);
+	if viewport_position4.w != 0 do viewport_position4 /= viewport_position4.w;
+	world_position := to_vec3(viewport_position4);
+
+	return world_position;
+}
 viewport_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	a := a;
 	a += Vec3{1, 1, 0};
@@ -1365,14 +1397,9 @@ viewport_to_unit :: proc(a: Vec3) -> Vec3 {
 	a.z = 0;
 	return a;
 }
-viewport_to_world :: proc(camera: ^Camera, viewport_position: Vec3) -> Vec3 {
-	viewport_position4 := to_vec4(viewport_position);
-
-	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
-
-	viewport_position4 = mul(inv, viewport_position4);
-	if viewport_position4.w != 0 do viewport_position4 /= viewport_position4.w;
-	world_position := to_vec3(viewport_position4);
-
-	return world_position;
+viewport_to_aspect :: proc(a: Vec3, aspect: f32) -> Vec3 {
+	a := a;
+	a.x *= aspect;
+	a.z = 0;
+	return a;
 }
