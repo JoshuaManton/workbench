@@ -18,6 +18,7 @@ import anim "animation"
 //
 
 decode_png_data :: proc(png_data: []byte) -> (^byte, i32, i32, gpu.Pixel_Data_Format, gpu.Internal_Color_Format) {
+	stb.set_flip_vertically_on_load(1);
 	width, height, channels: i32;
 	pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
 	assert(pixel_data != nil);
@@ -356,7 +357,6 @@ delete_atlas :: proc(atlas: Texture_Atlas) {
 
 // todo(josh): handle case where it doesn't fit in the atlas
 add_sprite_to_atlas :: proc(atlas: ^Texture_Atlas, pixels_rgba: []byte, pixels_per_world_unit : f32 = 32) -> (Sprite, bool) {
-	// stb.set_flip_vertically_on_load(1);
 	pixel_data, sprite_width, sprite_height, data_format, gpu_format := decode_png_data(pixels_rgba);
 	defer delete_png_data(pixel_data);
 
@@ -382,9 +382,9 @@ add_sprite_to_atlas :: proc(atlas: ^Texture_Atlas, pixels_rgba: []byte, pixels_p
 
 	coords := [4]Vec2 {
 		{bottom_left_x,                  bottom_left_y},
-		{bottom_left_x,                  bottom_left_y + height_fraction},
-		{bottom_left_x + width_fraction, bottom_left_y + height_fraction},
 		{bottom_left_x + width_fraction, bottom_left_y},
+		{bottom_left_x + width_fraction, bottom_left_y + height_fraction},
+		{bottom_left_x,                  bottom_left_y + height_fraction},
 	};
 
 	atlas.atlas_x += sprite_width;
