@@ -50,8 +50,8 @@ create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
 	pixel_data, width, height, data_format, gpu_format := decode_png_data(png_data);
 	defer delete_png_data(pixel_data);
 
-	assert(mem.is_power_of_two(cast(uintptr)cast(int)width), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
-	assert(mem.is_power_of_two(cast(uintptr)cast(int)height), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
+	// assert(mem.is_power_of_two(cast(uintptr)cast(int)width), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
+	// assert(mem.is_power_of_two(cast(uintptr)cast(int)height), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
 	tex := create_texture_2d(cast(int)width, cast(int)height, gpu_format, data_format, .Unsigned_Byte, pixel_data);
 	return tex;
 }
