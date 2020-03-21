@@ -63,24 +63,28 @@ im_sprite :: inline proc(
 	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	position, scale: Vec2,
-	sprite: Sprite,
+	uvs:    [4]Vec2,
+	width:  f32,
+	height: f32,
+	id:     Texture,
 	color := Colorf{1, 1, 1, 1},
 	pivot := Vec2{0.5, 0.5},
 	auto_cast render_order: int = current_render_layer) {
 
-		size := (Vec2{sprite.width, sprite.height} * scale);
+		size := (Vec2{width, height} * scale);
 		min := position;
 		max := min + size;
 		min -= size * pivot;
 		max -= size * pivot;
 
-		im_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
+		im_sprite_minmax(rendermode, shader, min, max, uvs, id, color, render_order);
 }
 im_sprite_minmax :: inline proc(
 	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
-	sprite: Sprite,
+	uvs:    [4]Vec2,
+	id:     Texture,
 	color := Colorf{1, 1, 1, 1},
 	auto_cast render_order: int = current_render_layer) {
 
@@ -89,7 +93,7 @@ im_sprite_minmax :: inline proc(
 			serial_number = len(main_camera.im_draw_commands),
 			rendermode = rendermode,
 			shader = shader,
-			texture = sprite.id,
+			texture = id,
 			scissor = do_scissor,
 			scissor_rect = current_scissor_rect,
 
@@ -97,7 +101,7 @@ im_sprite_minmax :: inline proc(
 				min = min,
 				max = max,
 				color = color,
-				uvs = sprite.uvs,
+				uvs = uvs,
 			},
 		};
 
@@ -171,11 +175,11 @@ im_text :: proc(
 				uv1 := Vec2{quad.s1, quad.t1};
 				uv2 := Vec2{quad.s1, quad.t0};
 				uv3 := Vec2{quad.s0, quad.t0};
-				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture};
+				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture, nil};
 			}
 
 			if !is_space && actually_draw {
-				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite, color, layer);
+				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite.uvs, sprite.id, color, layer);
 			}
 
 			width := max.x - min.x;
