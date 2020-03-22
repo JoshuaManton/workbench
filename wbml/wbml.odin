@@ -6,6 +6,7 @@ import la "core:math/linalg"
 import "core:reflect"
 
 import "../reflection"
+import "../logging"
 
 import "core:strings"
 import "core:fmt"
@@ -184,7 +185,12 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_String: {
-			print_to_buf(sb, "\"", (cast(^string)value)^, "\"");
+			if kind.is_cstring {
+				print_to_buf(sb, "\"", (cast(^cstring)value)^, "\"");
+			}
+			else {
+				print_to_buf(sb, "\"", (cast(^string)value)^, "\"");
+			}
 		}
 
 		case rt.Type_Info_Named: {
@@ -410,7 +416,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 
 		// primitives
 		case laas.String: {
-			return new_clone(Node{Node_String{value_kind.value}});
+			return new_clone(Node{Node_String{strings.clone(value_kind.value)}});
 		}
 
 		case laas.Identifier: {
@@ -459,7 +465,7 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 
 		case rt.Type_Info_Struct: {
 			object := &node.kind.(Node_Object);
-			for field in object.fields {
+			field_loop: for field in object.fields {
 				for name, idx in variant.names {
 					if name == field.name {
 						tag := variant.tags[idx];
@@ -467,9 +473,11 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 							field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
 							field_ti  := variant.types[idx];
 							write_value(field.value, field_ptr, field_ti);
+							continue field_loop;
 						}
 					}
 				}
+				logln("Couldn't find ", field.name);
 			}
 		}
 
@@ -795,3 +803,6 @@ Node_Quat :: struct {
 
 tprint :: fmt.tprint;
 sbprint :: fmt.sbprint;
+
+logln :: logging.logln;
+logf :: logging.logf;
