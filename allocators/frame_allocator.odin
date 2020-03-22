@@ -32,11 +32,11 @@ frame_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 
 	switch mode {
 		case .Alloc: {
-			if frame.cur_offset+size > len(frame.memory) {
+			offset := cast(int)mem.align_forward_uintptr(uintptr(frame.cur_offset), uintptr(alignment));
+			if offset+size > len(frame.memory) {
 				panic(fmt.aprint("frame_allocator ran out of memory. caller: ", loc));
 			}
 
-			offset := mem.align_forward_uintptr(uintptr(frame.cur_offset), uintptr(alignment));
 			ptr := &frame.memory[offset];
 			mem.zero(ptr, size);
 			frame.cur_offset = int(offset) + size;
