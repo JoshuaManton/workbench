@@ -206,6 +206,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			for name, idx in kind.names {
 				tag := kind.tags[idx];
 				if strings.contains(tag, "wbml_noserialize") do continue;
+				if strings.contains(tag, "wbml_deprecated")  do continue;
 
 				print_indents(indent_level, sb);
 				serialize_with_type_info(name, mem.ptr_offset(cast(^byte)value, cast(int)kind.offsets[idx]), kind.types[idx], sb, indent_level);
@@ -466,9 +467,21 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		case rt.Type_Info_Struct: {
 			object := &node.kind.(Node_Object);
 			field_loop: for field in object.fields {
-				for name, idx in variant.names {
+				for _, idx in variant.names {
+					tag  := variant.tags [idx];
+					name := variant.names[idx];
+					if oldname_idx := strings.index(tag, "wbml_oldname"); oldname_idx != -1 {
+						lexer := laas.make_lexer(tag[oldname_idx:]);
+						root, ok := laas.expect(&lexer, laas.Identifier);
+						assert(ok);
+						assert(root.value == "wbml_oldname");
+						laas.expect_symbol(&lexer, '=');
+						old_name, ok2 := laas.expect(&lexer, laas.Identifier);
+						assert(ok2);
+						name = old_name.value;
+					}
+
 					if name == field.name {
-						tag := variant.tags[idx];
 						if !strings.contains(tag, "wbml_noserialize") {
 							field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
 							field_ti  := variant.types[idx];
