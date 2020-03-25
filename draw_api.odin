@@ -1189,19 +1189,19 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 	for _, bidx in uniform_bindings {
 		binding := &uniform_bindings[bidx];
 		switch value in &binding.value {
-			case f32:      gpu.uniform_float(bound_shader, binding.name, value^);
-			case i32:      gpu.uniform_int  (bound_shader, binding.name, value^);
-			case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value^);
-			case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value^);
-			case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value^);
-			case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, value);
-			case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value^);
+			case f32:      gpu.uniform_float(bound_shader, binding.name, value);
+			case i32:      gpu.uniform_int  (bound_shader, binding.name, value);
+			case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value);
+			case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value);
+			case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value);
+			case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, &value);
+			case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value);
 
-			case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value^);
-			case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value^);
-			case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value^);
-			case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value^);
-			case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value^);
+			case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value);
+			case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value);
+			case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value);
+			case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value);
+			case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value);
 			case []Mat4:   gpu.uniform_mat4_array (bound_shader, binding.name, value[:]);
 			case []Colorf: gpu.uniform_vec4_array (bound_shader, binding.name, transmute([]Vec4)value[:]);
 			case: panic(tprint(binding.value));
