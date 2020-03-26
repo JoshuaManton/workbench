@@ -471,6 +471,11 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
     imgui.push_id(name);
     defer imgui.pop_id();
 
+    do_header := do_header;
+    if strings.contains(tags, "imgui_noheader") {
+        do_header = false;
+    }
+
     if strings.contains(tags, "imgui_readonly") {
         imgui.label_text(name, tprint(any{data, ti.id}));
         return;
@@ -504,7 +509,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         case rt.Type_Info_Integer: {
             if kind.signed {
                 switch ti.size {
-                    case 8: new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
+                    case 8: imgui.label_text(name, tprint((cast(^i64)data)^), "// todo(josh): allow editing 64-bit values"); // new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
                     case 4: new_data := cast(i32)(cast(^i32)data)^; imgui.input_int(name, &new_data); (cast(^i32)data)^ = cast(i32)new_data;
                     case 2: new_data := cast(i32)(cast(^i16)data)^; imgui.input_int(name, &new_data); (cast(^i16)data)^ = cast(i16)new_data;
                     case 1: new_data := cast(i32)(cast(^i8 )data)^; imgui.input_int(name, &new_data); (cast(^i8 )data)^ = cast(i8 )new_data;
@@ -513,7 +518,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             }
             else {
                 switch ti.size {
-                    case 8: new_data := cast(i32)(cast(^u64)data)^; imgui.input_int(name, &new_data); (cast(^u64)data)^ = cast(u64)new_data;
+                    case 8: imgui.label_text(name, tprint((cast(^u64)data)^), "// todo(josh): allow editing 64-bit values"); // new_data := cast(i32)(cast(^u64)data)^; imgui.input_int(name, &new_data); (cast(^u64)data)^ = cast(u64)new_data;
                     case 4: new_data := cast(i32)(cast(^u32)data)^; imgui.input_int(name, &new_data); (cast(^u32)data)^ = cast(u32)new_data;
                     case 2: new_data := cast(i32)(cast(^u16)data)^; imgui.input_int(name, &new_data); (cast(^u16)data)^ = cast(u16)new_data;
                     case 1: new_data := cast(i32)(cast(^u8 )data)^; imgui.input_int(name, &new_data); (cast(^u8 )data)^ = cast(u8 )new_data;
@@ -524,17 +529,18 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         case rt.Type_Info_Float: {
             switch ti.size {
                 case 8: {
-                    new_data := cast(f32)(cast(^f64)data)^;
-                    imgui.push_item_width(100);
-                    imgui.input_float(tprint(name, "##non_range"), &new_data);
-                    imgui.pop_item_width();
-                    if has_range_constraint {
-                        imgui.same_line();
-                        imgui.push_item_width(200);
-                        imgui.slider_float(name, &new_data, range_min, range_max);
-                        imgui.pop_item_width();
-                    }
-                    (cast(^f64)data)^ = cast(f64)new_data;
+                    imgui.label_text(name, tprint((cast(^f32)data)^), "// todo(josh): allow editing 64-bit values");
+                    // new_data := cast(f32)(cast(^f64)data)^;
+                    // imgui.push_item_width(100);
+                    // imgui.input_float(tprint(name, "##non_range"), &new_data);
+                    // imgui.pop_item_width();
+                    // if has_range_constraint {
+                    //     imgui.same_line();
+                    //     imgui.push_item_width(200);
+                    //     imgui.slider_float(name, &new_data, range_min, range_max);
+                    //     imgui.pop_item_width();
+                    // }
+                    // (cast(^f64)data)^ = cast(f64)new_data;
                 }
                 case 4: {
                     new_data := cast(f32)(cast(^f32)data)^;
@@ -576,8 +582,19 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             imgui.checkbox(name, cast(^bool)data);
         }
         case rt.Type_Info_Pointer: {
-            result := tprint(name, " = ", "\"", data, "\"");
-            imgui.text(result);
+            ptr := (cast(^rawptr)data)^;
+            if ptr == nil {
+                imgui.text(tprint(name, " = nil"));
+            }
+            else {
+                if kind.elem == nil {
+                    // kind.elem being nil means it's a rawptr
+                    imgui.text(tprint("rawptr ", name, " = ", "\"", ptr, "\""));
+                }
+                else {
+                    imgui_struct_ti(name, ptr, kind.elem);
+                }
+            }
         }
         case rt.Type_Info_Named: {
             imgui_struct_ti(name, data, kind.base, "", do_header, kind.name);
@@ -586,26 +603,13 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             if !do_header || _imgui_struct_block_field_start(name, type_name) {
                 defer if do_header do _imgui_struct_block_field_end(name);
 
-                // if kind == &type_info_of(Quat).variant.(Type_Info_Named).base.variant.(Type_Info_Struct) {
-                //     q := cast(^Quat)data;
-                //     dir := quaternion_to_euler(q^);
-                //     if imgui.input_float("##782783", &dir.x, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
-                //         q^ = euler_angles(expand_to_tuple(dir));
-                //     }
-                //     if imgui.input_float("##42424", &dir.y, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
-                //         q^ = euler_angles(expand_to_tuple(dir));
-                //     }
-                //     if imgui.input_float("##54512", &dir.z, 0, 0, -1, imgui.Input_Text_Flags.EnterReturnsTrue) {
-                //         q^ = euler_angles(expand_to_tuple(dir));
-                //     }
-                // }
-
                 for field_name, i in kind.names {
                     t := kind.types[i];
                     offset := kind.offsets[i];
+                    is_using := kind.usings[i];
                     data := mem.ptr_offset(cast(^byte)data, cast(int)offset);
                     tag := kind.tags[i];
-                    imgui_struct_ti(field_name, data, t, tag);
+                    imgui_struct_ti(field_name, data, t, tag, !is_using);
                 }
             }
         }

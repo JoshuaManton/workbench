@@ -2,19 +2,41 @@ package wbml
 
 import rt "core:runtime"
 import "core:mem"
+import la "core:math/linalg"
 import "core:reflect"
 
 import "../reflection"
+import "../logging"
 
 import "core:strings"
 import "core:fmt"
 import "../laas"
 
-type_info_table: map[string]^rt.Type_Info;
+// todo(josh): maybe use # directives for quats, unions, and typeids: `foo #quat 1 2 3 4`, `foo #typeid Bar`, `foo #union Bar { bar_field 123 }` :HashDirectives
+// todo(josh): handle #no_nil unions :NoNilUnions
+// todo(josh): write_value currently does a partial switch. should handle all cases even if its just `unimplemented();` :HandleAllWriteValues
+
+// note(josh): used for mapping typeids to Type_Infos when deserializing
+_type_info_table: map[string]^rt.Type_Info;
+
+@(deferred_out=_set_type_info_table)
+PUSH_TYPE_INFO_TABLE :: proc(table: map[string]^rt.Type_Info) -> map[string]^rt.Type_Info {
+	old := _type_info_table;
+	_type_info_table = table;
+	return old;
+}
+
+_set_type_info_table :: proc(old_table: map[string]^rt.Type_Info) {
+	_type_info_table = old_table;
+}
 
 serialize :: proc(value: ^$Type) -> string {
+	return serialize_ti(value, type_info_of(Type));
+}
+
+serialize_ti :: proc(ptr: rawptr, ti: ^rt.Type_Info) -> string {
 	sb: strings.Builder;
-	serialize_string_builder(value, &sb);
+	serialize_string_builder_ti(ptr, ti, &sb);
 	return strings.to_string(sb);
 }
 
@@ -163,7 +185,12 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_String: {
-			print_to_buf(sb, "\"", (cast(^string)value)^, "\"");
+			if kind.is_cstring {
+				print_to_buf(sb, "\"", (cast(^cstring)value)^, "\"");
+			}
+			else {
+				print_to_buf(sb, "\"", (cast(^string)value)^, "\"");
+			}
 		}
 
 		case rt.Type_Info_Named: {
@@ -179,6 +206,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			for name, idx in kind.names {
 				tag := kind.tags[idx];
 				if strings.contains(tag, "wbml_noserialize") do continue;
+				if strings.contains(tag, "wbml_deprecated")  do continue;
 
 				print_indents(indent_level, sb);
 				serialize_with_type_info(name, mem.ptr_offset(cast(^byte)value, cast(int)kind.offsets[idx]), kind.types[idx], sb, indent_level);
@@ -187,6 +215,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_Type_Id: {
+			// :HashDirectives
 			ti := type_info_of((cast(^typeid)value)^);
 			if ti.id != nil {
 				print_to_buf(sb, "\"", ti, "\"");
@@ -197,7 +226,8 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 
 		case rt.Type_Info_Union: {
-			assert(kind.no_nil == false); // todo(josh): not sure how I want to handle #no_nil unions
+			// :HashDirectives
+			assert(kind.no_nil == false); // :NoNilUnions
 			do_newline = false; // recursing into serialize_with_type_info would cause two newlines to be written
 			union_ti := reflection.get_union_type_info(any{value, ti.id});
 			if union_ti == nil {
@@ -250,6 +280,12 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		case rt.Type_Info_Map: {
 			// todo(josh): support map
 			unimplemented();
+		}
+
+		case rt.Type_Info_Quaternion: {
+			// :HashDirectives
+			q := cast(^la.Quaternion)value;
+			print_to_buf(sb, "quat ", q.w, q.x, q.y, q.z);
 		}
 
 		case: panic(tprint(name, kind));
@@ -362,7 +398,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 					return new_clone(Node{Node_Array{elements[:]}});
 				}
 
-				case '.': {
+				case '.': { // :HashDirectives
 					type_token: laas.Token;
 					ok := laas.get_next_token(lexer, &type_token);
 					assert(ok);
@@ -381,7 +417,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 
 		// primitives
 		case laas.String: {
-			return new_clone(Node{Node_String{value_kind.value}});
+			return new_clone(Node{Node_String{strings.clone(value_kind.value)}});
 		}
 
 		case laas.Identifier: {
@@ -389,10 +425,15 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
 				case "nil":                     return new_clone(Node{Node_Nil{}});
+				case "quat": { // :HashDirectives
+					w := parse_value(lexer); _, wok := w.kind.(Node_Number); assert(wok);
+					x := parse_value(lexer); _, xok := x.kind.(Node_Number); assert(xok);
+					y := parse_value(lexer); _, yok := y.kind.(Node_Number); assert(yok);
+					z := parse_value(lexer); _, zok := z.kind.(Node_Number); assert(zok);
+					return new_clone(Node{Node_Quat{w, x, y, z}});
+				}
+				case: return new_clone(Node{Node_Enum_Value{value_kind.value}});
 			}
-
-			// assume it's an enum
-			return new_clone(Node{Node_Enum_Value{value_kind.value}});
 		}
 
 		case laas.Number: {
@@ -408,8 +449,15 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 	return nil;
 }
 
-write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
-	// todo(josh): remove this #partial?
+write_value :: proc{write_value_poly, write_value_ti};
+
+write_value_poly :: proc(node: ^Node, ptr: ^$Type) {
+	ti := type_info_of(Type);
+	write_value(node, ptr, ti);
+}
+
+write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
+	// :HandleAllWriteValues
 	#partial
 	switch variant in ti.variant {
 		case rt.Type_Info_Named: {
@@ -418,17 +466,31 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 
 		case rt.Type_Info_Struct: {
 			object := &node.kind.(Node_Object);
-			for field in object.fields {
-				for name, idx in variant.names {
+			field_loop: for field in object.fields {
+				for _, idx in variant.names {
+					tag  := variant.tags [idx];
+					name := variant.names[idx];
+					if oldname_idx := strings.index(tag, "wbml_oldname"); oldname_idx != -1 {
+						lexer := laas.make_lexer(tag[oldname_idx:]);
+						root, ok := laas.expect(&lexer, laas.Identifier);
+						assert(ok);
+						assert(root.value == "wbml_oldname");
+						laas.expect_symbol(&lexer, '=');
+						old_name, ok2 := laas.expect(&lexer, laas.Identifier);
+						assert(ok2);
+						name = old_name.value;
+					}
+
 					if name == field.name {
-						tag := variant.tags[idx];
 						if !strings.contains(tag, "wbml_noserialize") {
 							field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
 							field_ti  := variant.types[idx];
 							write_value(field.value, field_ptr, field_ti);
+							continue field_loop;
 						}
 					}
 				}
+				logln("Couldn't find ", field.name);
 			}
 		}
 
@@ -572,7 +634,8 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 					// note(josh): Do nothing!
 				}
 				case Node_String: {
-					ti, ok := type_info_table[node_kind.value];
+					// :HashDirectives
+					ti, ok := _type_info_table[node_kind.value];
 					assert(ok, fmt.tprint(node_kind.value));
 					(cast(^typeid)ptr)^ = ti.id;
 				}
@@ -628,6 +691,16 @@ write_value :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 			}
 		}
 
+		case rt.Type_Info_Quaternion: {
+			assert(ti.size == 16);
+			qnode := node.kind.(Node_Quat);
+			q := cast(^la.Quaternion)ptr;
+			q.w = cast(f32)qnode.w.kind.(Node_Number).float_value;
+			q.x = cast(f32)qnode.x.kind.(Node_Number).float_value;
+			q.y = cast(f32)qnode.y.kind.(Node_Number).float_value;
+			q.z = cast(f32)qnode.z.kind.(Node_Number).float_value;
+		}
+
 		case: panic(tprint(variant));
 	}
 }
@@ -654,6 +727,12 @@ delete_node :: proc(node: ^Node) {
 		}
 		case Node_Union: {
 			delete_node(kind.value);
+		}
+		case Node_Quat: {
+			delete_node(kind.w);
+			delete_node(kind.x);
+			delete_node(kind.y);
+			delete_node(kind.z);
 		}
 		case: {
 			panic(tprint(kind));
@@ -687,6 +766,7 @@ Node :: struct {
 		Node_Object,
 		Node_Array,
 		Node_Union,
+		Node_Quat,
 	},
 }
 
@@ -728,7 +808,14 @@ Node_Union :: struct {
 	value: ^Node,
 }
 
+Node_Quat :: struct {
+	w, x, y, z: ^Node,
+}
+
 
 
 tprint :: fmt.tprint;
 sbprint :: fmt.sbprint;
+
+logln :: logging.logln;
+logf :: logging.logf;

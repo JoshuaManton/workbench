@@ -11,7 +11,6 @@ import "core:runtime"
 import "math"
 import "gpu"
 import "platform"
-import "logging"
 import "types"
 import "basic"
 
@@ -21,6 +20,7 @@ import "external/stb"
 import "external/glfw"
 
 import pf "profiler"
+import "allocators"
 
 DEVELOPER :: true;
 
@@ -46,16 +46,27 @@ precise_lossy_delta_time: f64;
 
 wb_catalog: Asset_Catalog;
 
+frame_allocator: mem.Allocator;
+
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
-	defer logging.ln("workbench successfully shutdown.");
 
 	startup_start_time := glfw.GetTime();
 
+	// init frame allocator
+	@static frame_allocator_raw: allocators.Frame_Allocator;
+	allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
+
+	frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
+    context.temp_allocator = frame_allocator;
+
+    // init profiler
 	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
 	defer pf.destroy_profiler(&wb_profiler);
 
+	// init platform and graphics
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
 	init_draw(window_width, window_height);
 	defer deinit_draw();
@@ -63,27 +74,23 @@ make_simple_window :: proc(window_width, window_height: int,
 	init_random(cast(u64)glfw.GetTime());
 	init_dear_imgui();
 
+	// init catalog
 	add_default_handlers(&wb_catalog);
 	defer delete_asset_catalog(wb_catalog);
-
 	init_builtin_assets();
 
 	init_gizmo();
 
 	init_builtin_debug_programs();
 
-
-
-	acc: f32;
-	fixed_delta_time = cast(f32)1 / target_framerate;
-
 	init_workspace(workspace);
 
 	startup_end_time := glfw.GetTime();
-	logging.ln("Startup time: ", startup_end_time - startup_start_time);
+	logln("Startup time: ", startup_end_time - startup_start_time);
 
+	acc: f32;
+	fixed_delta_time = cast(f32)1 / target_framerate;
 	last_frame_start_time: f32;
-
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
 		pf.profiler_new_frame(&wb_profiler);
@@ -102,21 +109,30 @@ make_simple_window :: proc(window_width, window_height: int,
 
 		if acc >= fixed_delta_time {
 			for {
+				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
+
 				acc -= fixed_delta_time;
 
-				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
+			    if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
+			        logln("Frame allocator over half capacity: ", frame_allocator_raw.cur_offset, " / ", len(frame_allocator_raw.memory));
+			    }
+			    mem.free_all(frame_allocator);
+
 				if do_log_frame_boundaries {
-					logging.ln("[WB] FRAME #", frame_count);
+					logln("[WB] FRAME #", frame_count);
 				}
 
+				//
 				precise_time = glfw.GetTime();
 				time = cast(f32)precise_time;
 				frame_count += 1;
 
+				//
 				platform.update_platform();
 				imgui_begin_new_frame(fixed_delta_time);
-	    		imgui.push_font(imgui_font_default);
+	    		imgui.push_font(imgui_font_default); // todo(josh): pop this?
 
+	    		//
 	    		gizmo_new_frame();
 	    		update_draw();
 				update_tween(fixed_delta_time);
@@ -149,6 +165,8 @@ make_simple_window :: proc(window_width, window_height: int,
 	}
 
 	end_workspace(workspace);
+
+	logln("workbench successfully shutdown.");
 }
 
 wb_should_close: bool;
@@ -190,6 +208,7 @@ end_workspace :: proc(workspace: Workspace) {
 // wba = wb asset
 wba_font_default_data              := #load("resources/fonts/Roboto-Regular.ttf");
 wba_font_mono_data                 := #load("resources/fonts/RobotoMono-Regular.ttf");
+wba_font_fredoka_data              := #load("resources/fonts/FredokaOne-Regular.ttf");
 wba_bloom_shader_data              := #load("resources/shaders/bloom.shader");
 wba_blur_shader_data               := #load("resources/shaders/blur.shader");
 wba_default_shader_data            := #load("resources/shaders/default.shader");
@@ -209,6 +228,7 @@ wba_terrain_shader_data            := #load("resources/shaders/terrain.shader");
 init_builtin_assets :: proc() {
 	load_asset(&wb_catalog, "default",            "ttf",    wba_font_default_data);
 	load_asset(&wb_catalog, "mono",               "ttf",    wba_font_mono_data);
+	load_asset(&wb_catalog, "fredoka",            "ttf",    wba_font_fredoka_data);
 	load_asset(&wb_catalog, "default_vert",       "glsl",   wba_default_vert_glsl_data);
 	load_asset(&wb_catalog, "default_3d_texture", "shader", wba_default_3d_texture_shader_data);
 	load_asset(&wb_catalog, "default",            "shader", wba_default_shader_data);

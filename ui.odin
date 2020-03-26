@@ -118,17 +118,58 @@ ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top
 	ui_pop_rect(loc);
 }
 
-ui_draw_sprite :: proc{ui_draw_sprite_current, ui_draw_sprite_push};
-ui_draw_sprite_current :: proc(sprite: Sprite, loc := #caller_location) {
+ui_draw_sprite :: proc{ui_draw_sprite_current, ui_draw_sprite_push, ui_draw_sprite_default};
+ui_draw_sprite_default :: proc(sprite: Sprite, loc := #caller_location) {
+	ui_draw_sprite_current(sprite, get_shader(&wb_catalog, "default"), loc);
+}
+ui_draw_sprite_current :: proc(sprite: Sprite, shader: gpu.Shader_Program, loc := #caller_location) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	im_sprite(.Pixel, get_shader(&wb_catalog, "default"), min, max, sprite);
+	im_sprite_minmax(.Pixel, shader, min, max, sprite.uvs, sprite.id);
+}
+ui_draw_sprite_current_decomp :: proc(uvs: [4]Vec2, id: Texture, shader: gpu.Shader_Program, loc := #caller_location) {
+	rect := ui_current_rect_pixels;
+	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+	im_sprite_minmax(.Pixel, shader, min, max, uvs, id);
 }
 ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Sprite, loc);
-	ui_draw_sprite_current(sprite, loc);
+	ui_draw_sprite_default(sprite, loc);
 	ui_pop_rect(loc);
+}
+ui_draw_sprite_push_decomp :: inline proc(uvs: [4]Vec2, id: Texture, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
+	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Sprite, loc);
+	ui_draw_sprite_current_decomp(uvs, id, get_shader(&wb_catalog, "default"), loc);
+	ui_pop_rect(loc);
+}
+
+ui_draw_sliced_sprite :: proc(sprite: Sprite, loc := #caller_location) {
+	rect := ui_current_rect_pixels;
+	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
+	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
+
+	sprite := sprite;
+	slice_info, ok := getval(&sprite.slice_info);
+	assert(ok, "Cannot draw sliced sprite. No slice info.", loc);
+
+	x1 := slice_info.slice_min.x / f32(rect.x2 - rect.x1);
+	y1 := slice_info.slice_min.y / f32(rect.y2 - rect.y1);
+	x2 := 1 - slice_info.slice_max.x / f32(rect.x2 - rect.x1);
+	y2 := 1 - slice_info.slice_max.y / f32(rect.y2 - rect.y1);
+
+	ui_draw_sprite_push_decomp(slice_info.uvs[0], sprite.id,  0,  0, x1, y1);
+	ui_draw_sprite_push_decomp(slice_info.uvs[1], sprite.id,  0, y1, x1, y2);
+	ui_draw_sprite_push_decomp(slice_info.uvs[2], sprite.id,  0, y2, x1,  1);
+	
+	ui_draw_sprite_push_decomp(slice_info.uvs[3], sprite.id, x1,  0, x2, y1);
+	ui_draw_sprite_push_decomp(slice_info.uvs[4], sprite.id, x1, y1, x2, y2);
+	ui_draw_sprite_push_decomp(slice_info.uvs[5], sprite.id, x1, y2, x2,  1);
+	
+	ui_draw_sprite_push_decomp(slice_info.uvs[6], sprite.id,  x2,  0,  1, y1);
+	ui_draw_sprite_push_decomp(slice_info.uvs[7], sprite.id,  x2, y1,  1, y2);
+	ui_draw_sprite_push_decomp(slice_info.uvs[8], sprite.id,  x2, y2,  1,  1);
 }
 
 // Text
@@ -151,7 +192,7 @@ Text_Data :: struct {
 }
 
 ui_text :: proc{ui_text_data, ui_text_args};
-ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
+ui_text_data :: proc(str: string, using data: ^Text_Data, fit_to_width := false, loc := #caller_location) {
 	if push_new_rect {
 		ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	}
@@ -159,6 +200,12 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * size;
+
+	if fit_to_width {
+		text_width := im_text(.Unit, font, str, position, color, height, current_render_layer, false); 
+		current_width := ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1;
+		height = (f32(current_width) / text_width / platform.current_window_width) * height ;
+	}
 
 	if center {
 		ww := get_string_width(.Unit, font, str, height);
@@ -185,6 +232,7 @@ ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := ca
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)platform.current_window_height / font.pixel_height;
+	
 	im_text(.Unit, font, str, position, color, height * size); // todo(josh): @TextRenderOrder: proper render order on text
 }
 
@@ -222,7 +270,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		if str == "" {
 			panic(tprint(loc));
 		}
-		ui_text(str, text_data, loc);
+		ui_text(str, text_data, false, loc);
 	}
 
 	// were we recently pressed and are now releasing?

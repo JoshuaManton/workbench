@@ -27,7 +27,11 @@ create_terrain :: proc(size: int, height_map: [][]f32, step : f32 = 0.25) -> Ter
     assert(size <= len(height_map), "Height map too smalle for terrain");
 
     terrain := Terrain {
-        gpu.Model { "terrain", make([dynamic]Mesh, 0, 1) },
+        gpu.Model {
+            "terrain",
+            make([dynamic]Mesh, 0, 1),
+            {}, {},
+        },
         {36.0/255.0, 191.0/255.0, 70.0/255.0, 1},
         {150.0/255.0, 130.0/255.0, 65.0/255.0, 1},
         height_map,

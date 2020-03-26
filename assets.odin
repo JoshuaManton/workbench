@@ -6,16 +6,18 @@ import "core:os"
 import rt "core:runtime"
 import "core:mem"
 import "core:fmt"
-import "logging"
 import "gpu"
 import "profiler"
 import "laas"
 import "basic"
 
+// todo(josh): @Leak: we don't currently delete the asset, we just remove the Loaded_Asset which is just a path and timestamp :DeleteAssetWhenFileIsDeleted
+
 Asset_Catalog :: struct {
 	handlers: map[^rt.Type_Info]Asset_Handler,
 	loaded_files: [dynamic]Loaded_File,
 	errors: [dynamic]string,
+	has_default_handlers: bool,
 }
 Loaded_File :: struct {
 	path: string,
@@ -61,7 +63,7 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 	delete(catalog.handlers);
 
 	for f in catalog.loaded_files {
-		delete(f.path);
+		delete_loaded_file(f);
 	}
 	delete(catalog.loaded_files);
 
@@ -71,8 +73,13 @@ delete_asset_catalog :: proc(catalog: Asset_Catalog) {
 	delete(catalog.errors);
 }
 
+delete_loaded_file :: proc(file: Loaded_File) {
+	delete(file.path);
+}
+
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_location) {
-	if catalog.handlers == nil {
+	if !catalog.has_default_handlers {
+		catalog.has_default_handlers = true;
 		add_default_handlers(catalog);
 	}
 
@@ -122,7 +129,7 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 
 catalog_flush_errors :: proc(catalog: ^Asset_Catalog) {
 	for e in catalog.errors {
-		logging.ln("Catalog error: ", e);
+		logln("Catalog error: ", e);
 		delete(e);
 	}
 	clear(&catalog.errors);
@@ -170,7 +177,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, name: string, ext: string, data: []b
 					case .Ok: {
 						assert(asset != nil);
 						if name in handler.assets {
-							logging.ln("New asset with name '", name, "'. Deleting old one.");
+							logln("New asset with name '", name, "'. Deleting old one.");
 							handler.delete_proc(handler.assets[name]);
 						}
 
@@ -207,6 +214,8 @@ add_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string, asset: ^
 }
 
 try_get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string) -> (Type, bool) {
+	if name == "" do return {}, false;
+
 	ti := type_info_of(Type);
 	handler, ok := catalog.handlers[ti];
 	assert(ok, name);
@@ -236,14 +245,23 @@ get_asset :: proc($Type: typeid, catalog: ^Asset_Catalog, name: string, loc := #
 
 check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 	profiler.TIMED_SECTION(&wb_profiler);
-	for _, idx in catalog.loaded_files {
+	for idx := len(catalog.loaded_files)-1; idx >= 0; idx -= 1 {
 		file := &catalog.loaded_files[idx];
 		new_last_write_time, err := os.last_write_time_by_name(file.path);
-		assert(err == 0); // todo(josh): check for deleted files?
-		if new_last_write_time > file.last_write_time {
-			logging.ln("file update: ", file.path);
-			file.last_write_time = new_last_write_time;
-			load_asset_from_file(catalog, file.path);
+		if err != 0 {
+			// the file was deleted!!
+
+			// :DeleteAssetWhenFileIsDeleted
+
+			delete_loaded_file(file^);
+			unordered_remove(&catalog.loaded_files, idx);
+		}
+		else {
+			if new_last_write_time > file.last_write_time {
+				logln("file update: ", file.path);
+				file.last_write_time = new_last_write_time;
+				load_asset_from_file(catalog, file.path);
+			}
 		}
 	}
 

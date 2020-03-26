@@ -1,6 +1,6 @@
 package gpu
 
-when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
+when GPU_BACKEND == "OPENGL" {
 
     import rt "core:runtime"
     import "core:fmt"
@@ -12,6 +12,8 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
     import "../types"
     import "../basic"
     import "../logging"
+    logln :: logging.logln;
+    logf :: logging.logf;
 
     import odingl "../external/gl"
 
@@ -212,14 +214,14 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
     load_shader_files :: inline proc(vs, fs: string) -> (Shader_Program, bool) {
         vs_code, ok1 := os.read_entire_file(vs);
         if !ok1 {
-            logging.ln("Couldn't open shader file: ", vs);
+            logln("Couldn't open shader file: ", vs);
             return Shader_Program{}, false;
         }
         defer delete(vs_code);
 
         fs_code, ok2 := os.read_entire_file(fs);
         if !ok2 {
-            logging.ln("Couldn't open shader file: ", fs);
+            logln("Couldn't open shader file: ", fs);
             return Shader_Program{}, false;
         }
         defer delete(fs_code);
@@ -286,14 +288,14 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
     print_uniforms :: proc(shader: Shader_Program) {
         count: i32;
         odingl.GetProgramiv(cast(u32)shader, odingl.ACTIVE_UNIFORMS, &count);
-        logging.ln("Active Uniforms: ", count);
+        logln("Active Uniforms: ", count);
         for i in 0..<count {
             name: [32]byte;
             name_len: i32;
             size_of_uniform: i32;
             uniform_type: u32;
             odingl.GetActiveUniform(cast(u32)shader, cast(u32)i, len(name), &name_len, &size_of_uniform, &uniform_type, &name[0]);
-            logging.ln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
+            logln("Uniform #", i, " Type: ", uniform_type, " Name: ", cast(string)name[:name_len]);
         }
     }
 
@@ -646,7 +648,7 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
 
             odingl.EnableVertexAttribArray(i);
             log_errors("set_vertex_format: EnableVertexAttribArray", loc);
-            // logging.ln(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
+            // logln(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
             if is_int {
                 odingl.VertexAttribIPointer(i, num_elements, type_of_elements, cast(i32)_ti.size, offset_in_struct);
             } else {
@@ -714,10 +716,10 @@ when !#defined(GPU_BACKEND) || GPU_BACKEND == "OPENGL" {
     }
 
     uniform_mat4 :: inline proc(program: Shader_Program, name: cstring, p: ^Mat4, transpose := false, loc := #caller_location) {
-        uniform_matrix4fv(program, name, 1, transpose, &p[0][0]);
+        uniform_matrix4fv(program, name, 1, transpose, &p[0][0], loc);
     }
     uniform_mat4_array :: inline proc(program: Shader_Program, name: cstring, p: []Mat4, transpose := false, loc := #caller_location) {
-        uniform_matrix4fv(program, name, cast(i32)len(p), transpose, &p[0][0][0]);
+        uniform_matrix4fv(program, name, cast(i32)len(p), transpose, &p[0][0][0], loc);
     }
 
 

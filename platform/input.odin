@@ -1,4 +1,4 @@
-package workbench
+package platform
 
 import "../external/glfw"
 import "../external/imgui"
@@ -21,9 +21,10 @@ get_axis :: proc(controller_index: int, axis: Axis) -> f32
 
 */
 
-get_input :: inline proc(input: Input) -> bool {
-	for held in _held {
+get_input :: inline proc(input: Input, consume := false) -> bool {
+	for held, idx in _held {
 		if held == input {
+			if consume do unordered_remove(&_held, idx);
 			return true;
 		}
 	}
@@ -39,18 +40,34 @@ get_input_imgui :: inline proc(input: Input) -> bool {
 	return false;
 }
 
-get_input_down :: inline proc(input: Input) -> bool {
-	for down in _down {
+get_input_down :: inline proc(input: Input, consume := false) -> bool {
+	for down, idx in _down {
 		if down == input {
+			if consume {
+				unordered_remove(&_down, idx);
+				for held, idx2 in _held {
+					if held == input {
+						unordered_remove(&_held, idx2);
+						break;
+					}
+				}
+				for held, idx2 in _held_mid_frame {
+					if held == input {
+						unordered_remove(&_held_mid_frame, idx2);
+						break;
+					}
+				}
+			}
 			return true;
 		}
 	}
 	return false;
 }
 
-get_input_up :: inline proc(input: Input) -> bool {
-	for up in _up {
+get_input_up :: inline proc(input: Input, consume := false) -> bool {
+	for up, idx in _up {
 		if up == input {
+			if consume do unordered_remove(&_up, idx);
 			return true;
 		}
 	}
@@ -464,16 +481,12 @@ wb_button_press :: proc(button: $Input_Type) {
 	append(&_down_mid_frame, cast(Input)button);
 }
 wb_button_release :: proc(button: $Input_Type) {
-	idx := -1;
-	for held, i in _held_mid_frame {
+	// we sometimes get a release with no press/hold
+	for held, idx in _held_mid_frame {
 		if held == cast(Input)button {
-			idx = i;
+			unordered_remove(&_held_mid_frame, idx);
 			break;
 		}
-	}
-	// idx being -1 means that we got a release but no press, which sometimes happens
-	if idx != -1 {
-		unordered_remove(&_held_mid_frame, idx);
 	}
 	append(&_up_mid_frame, cast(Input)button);
 }

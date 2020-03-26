@@ -30,9 +30,9 @@ im_quad :: inline proc(
 	texture: Texture, // note(josh): can be empty
 	auto_cast render_order: int = current_render_layer) {
 
-		cmd := Draw_Command{
+		cmd := Draw_Command_2D{
 			render_order = render_order,
-			serial_number = len(buffered_draw_commands),
+			serial_number = len(main_camera.im_draw_commands),
 			rendermode = rendermode,
 			shader = shader,
 			texture = texture,
@@ -46,7 +46,7 @@ im_quad :: inline proc(
 			},
 		};
 
-		append(&buffered_draw_commands, cmd);
+		append(&main_camera.im_draw_commands, cmd);
 }
 im_quad_pos :: inline proc(
 	rendermode: Rendermode,
@@ -63,33 +63,37 @@ im_sprite :: inline proc(
 	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	position, scale: Vec2,
-	sprite: Sprite,
+	uvs:    [4]Vec2,
+	width:  f32,
+	height: f32,
+	id:     Texture,
 	color := Colorf{1, 1, 1, 1},
 	pivot := Vec2{0.5, 0.5},
 	auto_cast render_order: int = current_render_layer) {
 
-		size := (Vec2{sprite.width, sprite.height} * scale);
+		size := (Vec2{width, height} * scale);
 		min := position;
 		max := min + size;
 		min -= size * pivot;
 		max -= size * pivot;
 
-		im_sprite_minmax(rendermode, shader, min, max, sprite, color, render_order);
+		im_sprite_minmax(rendermode, shader, min, max, uvs, id, color, render_order);
 }
 im_sprite_minmax :: inline proc(
 	rendermode: Rendermode,
 	shader: gpu.Shader_Program,
 	min, max: Vec2,
-	sprite: Sprite,
+	uvs:    [4]Vec2,
+	id:     Texture,
 	color := Colorf{1, 1, 1, 1},
 	auto_cast render_order: int = current_render_layer) {
 
-		cmd := Draw_Command{
+		cmd := Draw_Command_2D{
 			render_order = render_order,
-			serial_number = len(buffered_draw_commands),
+			serial_number = len(main_camera.im_draw_commands),
 			rendermode = rendermode,
 			shader = shader,
-			texture = sprite.id,
+			texture = id,
 			scissor = do_scissor,
 			scissor_rect = current_scissor_rect,
 
@@ -97,11 +101,11 @@ im_sprite_minmax :: inline proc(
 				min = min,
 				max = max,
 				color = color,
-				uvs = sprite.uvs,
+				uvs = uvs,
 			},
 		};
 
-		append(&buffered_draw_commands, cmd);
+		append(&main_camera.im_draw_commands, cmd);
 }
 
 // todo(josh): im_text hard-codes wb_catalog.shaders["text"]. could/should make that a parameter
@@ -171,11 +175,11 @@ im_text :: proc(
 				uv1 := Vec2{quad.s1, quad.t1};
 				uv2 := Vec2{quad.s1, quad.t0};
 				uv3 := Vec2{quad.s0, quad.t0};
-				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture};
+				sprite = Sprite{{uv0, uv1, uv2, uv3}, 0, 0, font.texture, nil};
 			}
 
 			if !is_space && actually_draw {
-				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite, color, layer);
+				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite.uvs, sprite.id, color, layer);
 			}
 
 			width := max.x - min.x;
@@ -199,16 +203,15 @@ get_string_width :: inline proc(
 
 // Camera utilities
 
-@(deferred_out=im_pop_camera)
-IM_PUSH_CAMERA :: proc(camera: ^Camera) -> ^Camera {
-	return push_camera_non_deferred(camera);
-}
+// @(deferred_out=im_pop_camera)
+// IM_PUSH_CAMERA :: proc(camera: ^Camera) -> ^Camera {
+// 	return push_camera_non_deferred(camera);
+// }
 
-@private
-im_pop_camera :: proc(old_camera: ^Camera) {
-	im_flush();
-	pop_camera(old_camera);
-}
+// @private
+// im_pop_camera :: proc(old_camera: ^Camera) {
+// 	pop_camera(old_camera);
+// }
 
 
 
@@ -231,7 +234,7 @@ pop_render_layer :: proc(layer: int) {
 // Scissor
 
 im_scissor :: proc(x1, y1, ww, hh: int) {
-	if do_scissor do logging.ln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
+	if do_scissor do logln("You are nesting scissors. I don't know if this is a problem, if it's not you can delete this log");
 	do_scissor = true;
 	current_scissor_rect = {x1, y1, ww, hh};
 }
@@ -249,24 +252,23 @@ im_scissor_end :: proc() {
 //
 
 _internal_im_model: Model;
-buffered_draw_commands: [dynamic]Draw_Command;
 
 do_scissor: bool;
 current_scissor_rect: [4]int;
 
 current_render_layer: int;
 
-im_flush :: proc() {
+im_flush :: proc(camera: ^Camera) {
 	pf.TIMED_SECTION(&wb_profiler);
 
-	if buffered_draw_commands == nil do return;
-	if len(buffered_draw_commands) == 0 do return;
+	if camera.im_draw_commands == nil do return;
+	if len(camera.im_draw_commands) == 0 do return;
 
-	defer clear(&buffered_draw_commands);
+	defer clear(&camera.im_draw_commands);
 
 
 
-	sort.quick_sort_proc(buffered_draw_commands[:], proc(a, b: Draw_Command) -> int {
+	sort.quick_sort_proc(camera.im_draw_commands[:], proc(a, b: Draw_Command_2D) -> int {
 			diff := a.render_order - b.render_order;
 			if diff != 0 do return diff;
 			return a.serial_number - b.serial_number;
@@ -283,7 +285,7 @@ im_flush :: proc() {
 	current_texture: Texture;
 
 	command_loop:
-	for cmd in buffered_draw_commands {
+	for cmd in camera.im_draw_commands {
 		shader_mismatch     := cmd.shader         != current_shader;
 		texture_mismatch    := cmd.texture.gpu_id != current_texture.gpu_id;
 		scissor_mismatch    := cmd.scissor        != is_scissor;
@@ -360,7 +362,7 @@ draw_vertex_list :: proc(list: []Vertex2D, shader: gpu.Shader_Program, texture: 
 	draw_model(_internal_im_model, Vec3{}, Vec3{1, 1, 1}, Quat{0, 0, 0, 1}, texture, types.COLOR_WHITE, false, {}, loc);
 }
 
-Draw_Command :: struct {
+Draw_Command_2D :: struct {
 	render_order:  int,
 	serial_number: int,
 

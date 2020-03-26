@@ -79,7 +79,7 @@ uniform vec3 camera_position;
 uniform Material material;
 
 uniform sampler2D texture_handle;
-uniform int has_texture;
+uniform int has_texture_handle;
 
 #define NUM_SHADOW_MAPS 4
 uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
@@ -117,7 +117,7 @@ void main() {
     vec4 result_color = v_color;
 
     // texture color
-    if (has_texture == 1) {
+    if (has_texture_handle == 1) {
         float gamma = 2.2; // todo(josh): dont hardcode this. not sure if it needs to change per texture?
         vec3 tex_sample = pow(texture(texture_handle, tex_coord.xy).rgb, vec3(gamma));
         result_color *= vec4(tex_sample, 1.0);
