@@ -192,7 +192,7 @@ Text_Data :: struct {
 }
 
 ui_text :: proc{ui_text_data, ui_text_args};
-ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_location) {
+ui_text_data :: proc(str: string, using data: ^Text_Data, fit_to_width := false, loc := #caller_location) {
 	if push_new_rect {
 		ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	}
@@ -200,6 +200,12 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * size;
+
+	if fit_to_width {
+		text_width := im_text(.Unit, font, str, position, color, height, current_render_layer, false); 
+		current_width := ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1;
+		height = (f32(current_width) / text_width / platform.current_window_width) * height ;
+	}
 
 	if center {
 		ww := get_string_width(.Unit, font, str, height);
@@ -220,16 +226,13 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, loc := #caller_locatio
 
 	im_text(.Unit, font, str, position, color, height); // todo(josh): @TextRenderOrder: proper render order on text
 }
-ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, use_height := false, loc := #caller_location) {
+ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
 	defer ui_pop_rect(loc);
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)platform.current_window_height / font.pixel_height;
 	
-	// current_width := im_text(.Unit, font, str, position, color, height * size, current_render_layer, false); 
-	// width := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1) * cast(f32)platform.current_window_width / font.pixel_width;
-
 	im_text(.Unit, font, str, position, color, height * size); // todo(josh): @TextRenderOrder: proper render order on text
 }
 
@@ -267,7 +270,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 		if str == "" {
 			panic(tprint(loc));
 		}
-		ui_text(str, text_data, loc);
+		ui_text(str, text_data, false, loc);
 	}
 
 	// were we recently pressed and are now releasing?
