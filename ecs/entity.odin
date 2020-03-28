@@ -64,6 +64,8 @@ import    "shared:workbench/external/imgui"
 
 */
 
+logln :: logging.logln;
+
 init :: proc() {
     add_component_type(Transform, nil, nil);
 }
@@ -111,10 +113,10 @@ save_scene :: proc() {
             assert(file != "");
             ok := wb.delete_file(file);
             if ok {
-                logging.ln("Deleted entity file: ", file);
+                logln("Deleted entity file: ", file);
             }
             else {
-                logging.ln("Error: Couldn't find entity file: ", file);
+                logln("Error: Couldn't find entity file: ", file);
             }
         }
         // todo(josh): I think we are @Leaking the file names. investigate
@@ -142,7 +144,7 @@ save_scene :: proc() {
         entity_file_name := tprint(scene.folder_path, "/", data.name, "-", eid, ".e");
         if data.serialized_file_on_disk != "" {
             if entity_file_name != data.serialized_file_on_disk {
-                logging.ln("Entity file changed from ", data.serialized_file_on_disk, " to ", entity_file_name, " Deleting old one.");
+                logln("Entity file changed from ", data.serialized_file_on_disk, " to ", entity_file_name, " Deleting old one.");
                 wb.delete_file(data.serialized_file_on_disk);
                 // todo(josh): @Leak data.serialized_file_on_disk
                 data.serialized_file_on_disk = aprint(entity_file_name); // todo(josh): @Leak figure out the lifetime of this allocation
@@ -259,7 +261,7 @@ draw_scene_window :: proc(userdata: rawptr) {
 
                 if imgui.button("Load") {
                     if scene_name == "" {
-                        logging.ln("You must provide a scene name to load.");
+                        logln("You must provide a scene name to load.");
                     }
                     else {
                         asking_to_save = true;
@@ -272,7 +274,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                 if imgui.button("New") {
                     if scene_name == "" {
                         // todo(josh): allow new scenes without having to make a folder until you save
-                        logging.ln("You must provide a scene name to make a new scene.");
+                        logln("You must provide a scene name to make a new scene.");
                     }
                     else {
                         asking_to_save = true;
@@ -318,7 +320,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                             do_new_after_save = false;
                             _, err := os.last_write_time_by_name(scene_folder);
                             if err == os.ERROR_NONE {
-                                logging.ln("Already have scene with the name ", scene_name);
+                                logln("Already have scene with the name ", scene_name);
                             }
                             else {
                                 assert(err == os.ERROR_FILE_NOT_FOUND);
@@ -441,7 +443,7 @@ draw_scene_window :: proc(userdata: rawptr) {
                         new_entity := make_entity();
                         to_clone_entity_data, ok := scene.entity_datas[entity_to_clone];
                         if !ok {
-                            logging.ln("entity_to_clone got deleted or something?");
+                            logln("entity_to_clone got deleted or something?");
                         }
                         else {
                             for c in to_clone_entity_data.components {
@@ -576,7 +578,7 @@ destroy_entity_immediate :: proc(eid: Entity) {
     data, ok := scene.entity_datas[eid];
     assert(ok); // todo(josh): maybe remove this assert and just return
 
-    logging.ln("destroying ", data.name);
+    logln("destroying ", data.name);
 
     if data.serialized_file_on_disk != "" {
         append(&scene.entity_files_to_destroy_on_save, data.serialized_file_on_disk);
@@ -656,7 +658,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
     name_token, name_ok := laas.expect(&lexer, laas.Identifier);
     entity_name := "Entity";
     if !name_ok {
-        logging.ln("Entity ", eid, " didn't have a name in the file.");
+        logln("Entity ", eid, " didn't have a name in the file.");
     }
     else {
         entity_name = strings.clone(name_token.value);
@@ -811,7 +813,7 @@ _add_component_internal :: proc(eid: Entity, tid: typeid, loc := #caller_locatio
     ti := type_info_of(tid);
 
     if _, already_exists := _get_component_internal(eid, tid); already_exists {
-        logging.ln("Error: Cannot add more than one of the same component: ", ti, loc);
+        logln("Error: Cannot add more than one of the same component: ", ti, loc);
         return nil;
     }
 
