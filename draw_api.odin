@@ -1158,7 +1158,7 @@ get_pooled_draw_command :: proc() -> Draw_Command_3D {
 	return Draw_Command_3D{};
 }
 
-create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, texture: Texture, material: Material, position, scale: Vec3, rotation: Quat, color: Colorf) -> Draw_Command_3D {
+create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, 1}) -> Draw_Command_3D {
     cmd := get_pooled_draw_command();
     cmd.depth_test = true;
     cmd.model = model;

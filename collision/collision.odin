@@ -162,6 +162,29 @@ overlap_point :: proc(using scene: ^Collision_Scene, origin: Vec3, out_hits: ^[d
 
 sqr_magnitude :: inline proc(a: Vec3) -> f32 do return math.dot(a, a);
 
+plane_intersect :: proc(plane_pos, plane_normal: Vec3, ray_pos, ray_direction: Vec3) -> (Vec3, bool) {
+    directions_dot := dot(plane_normal, ray_direction);
+    if directions_dot == 0 { // plane and ray are parallel
+        return {}, false;
+    }
+
+    plane_to_ray := norm(ray_pos - plane_pos);
+    plane_to_ray_dot := dot(plane_to_ray, plane_normal);
+    if plane_to_ray_dot > 0 { // the ray origin is in front of the plane
+        if directions_dot > 0 {
+            return {}, false;
+        }
+    }
+    else { // the ray origin is behind the plane
+        if directions_dot < 0 {
+            return {}, false;
+        }
+    }
+
+    diff := ray_pos - plane_pos;
+    return (diff + plane_pos) + (ray_direction * (-dot(diff, plane_normal) / dot(ray_direction, plane_normal))), true;
+}
+
 closest_point_on_line :: proc(origin: Vec3, p1, p2: Vec3) -> Vec3 {
 	direction := p2 - p1;
 	square_length := sqr_magnitude(direction);
@@ -276,6 +299,9 @@ overlap_box_box_2d :: proc(min1, max1: Vec2, min2, max2: Vec2) -> bool {
 
 logln :: logging.logln;
 logf :: logging.logf;
+
+dot :: math.dot;
+norm :: math.norm;
 
 Vec2 :: math.Vec2;
 Vec3 :: math.Vec3;

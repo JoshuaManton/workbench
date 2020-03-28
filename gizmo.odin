@@ -7,7 +7,7 @@ import "types"
 import "logging"
 
 import "platform"
-import "collision"
+import coll "collision"
 import "math"
 import "gpu"
 import "external/imgui"
@@ -87,7 +87,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
                     center_on_screen := world_to_unit(origin, main_camera);
                     tip_on_screen := world_to_unit(origin + rotated_direction(rotation^, direction_unary[i]) * size, main_camera);
 
-                    p := collision.closest_point_on_line(to_vec3(platform.mouse_unit_position), center_on_screen, tip_on_screen);
+                    p := coll.closest_point_on_line(to_vec3(platform.mouse_unit_position), center_on_screen, tip_on_screen);
                     dist := length(p - to_vec3(platform.mouse_unit_position));
                     if dist < 0.005 && dist < current_closest {
                         current_closest = dist;
@@ -107,7 +107,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
                     dir_y  := rotated_direction(rotation^, direction_unary[(i+2) %3]) * size;
 
                     quad_center := origin + (dir_y + dir_x) * TRANSLATE_PLANE_OFFSET;
-                    intersect_point, ok := plane_intersect(quad_center, normal, camera_pos, mouse_direction);
+                    intersect_point, ok := coll.plane_intersect(quad_center, normal, camera_pos, mouse_direction);
                     if length(intersect_point - quad_center) < (TRANSLATE_PLANE_SIZE * size) { // todo(josh): for the planes we are just doing a circle check right now. kinda dumb but it's easy :)
                         hovered_type = Move_Type.MOVE_YZ + Move_Type(i);
                         if platform.get_input_down(.Mouse_Left, true) {
@@ -194,7 +194,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
             closest_index := -1;
             for i in 0..2 {
                 dir := rotated_direction(rotation^, direction_unary[i]);
-                intersect_point, ok := plane_intersect(position^, dir, camera_pos, mouse_direction);
+                intersect_point, ok := coll.plane_intersect(position^, dir, camera_pos, mouse_direction);
                 if ok {
                     dist_from_position := length(position^ - intersect_point);
                     // todo(josh): I don't think we should need a `size*NUM` here. `size` should be the radius of the rotation gizmo I think?
@@ -493,29 +493,6 @@ gizmo_render :: proc() {
             }
         }
     }
-}
-
-plane_intersect :: proc(plane_pos, plane_normal: Vec3, ray_pos, ray_direction: Vec3) -> (Vec3, bool) {
-    directions_dot := dot(plane_normal, ray_direction);
-    if directions_dot == 0 { // plane and ray are parallel
-        return {}, false;
-    }
-
-    plane_to_ray := norm(ray_pos - plane_pos);
-    plane_to_ray_dot := dot(plane_to_ray, plane_normal);
-    if plane_to_ray_dot > 0 { // the ray origin is in front of the plane
-        if directions_dot > 0 {
-            return {}, false;
-        }
-    }
-    else { // the ray origin is behind the plane
-        if directions_dot < 0 {
-            return {}, false;
-        }
-    }
-
-    diff := ray_pos - plane_pos;
-    return (diff + plane_pos) + (ray_direction * (-dot(diff, plane_normal) / dot(ray_direction, plane_normal))), true;
 }
 
 Manipulation_Mode :: enum {
