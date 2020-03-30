@@ -230,6 +230,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 				weights := mem.slice_ptr(bone.weights, cast(int)bone.num_weights);
 				for weight in weights {
 					vertex_id := base_vert + int(weight.vertex_id);
+					if len(processed_verts) <= vertex_id do continue;
 					vert := processed_verts[vertex_id];
 					for j := 0; j < gpu.BONES_PER_VERTEX; j += 1 {
 						if vert.bone_weights[j] == 0 {
