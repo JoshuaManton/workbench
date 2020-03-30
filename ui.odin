@@ -162,17 +162,29 @@ ui_draw_sliced_sprite :: proc(sprite: Sprite, loc := #caller_location) {
 	ui_draw_sprite_push_decomp(slice_info.uvs[0], sprite.id,  0,  0, x1, y1);
 	ui_draw_sprite_push_decomp(slice_info.uvs[1], sprite.id,  0, y1, x1, y2);
 	ui_draw_sprite_push_decomp(slice_info.uvs[2], sprite.id,  0, y2, x1,  1);
-	
+
 	ui_draw_sprite_push_decomp(slice_info.uvs[3], sprite.id, x1,  0, x2, y1);
 	ui_draw_sprite_push_decomp(slice_info.uvs[4], sprite.id, x1, y1, x2, y2);
 	ui_draw_sprite_push_decomp(slice_info.uvs[5], sprite.id, x1, y2, x2,  1);
-	
+
 	ui_draw_sprite_push_decomp(slice_info.uvs[6], sprite.id,  x2,  0,  1, y1);
 	ui_draw_sprite_push_decomp(slice_info.uvs[7], sprite.id,  x2, y1,  1, y2);
 	ui_draw_sprite_push_decomp(slice_info.uvs[8], sprite.id,  x2, y2,  1,  1);
 }
 
 // Text
+
+Text_Visuals :: struct {
+	size: f32,
+	color: Colorf,
+	center: bool,
+	fit_to_rect: bool,
+
+	using shadow_params: struct {
+		shadow: int, // in pixels, 0 for none
+		shadow_color: Colorf,
+	},
+}
 
 Text_Data :: struct {
 	font: Font,
@@ -192,23 +204,25 @@ Text_Data :: struct {
 }
 
 ui_text :: proc{ui_text_data, ui_text_args};
-ui_text_data :: proc(str: string, using data: ^Text_Data, fit_to_width := false, loc := #caller_location) {
-	if push_new_rect {
-		ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
-	}
-	defer if push_new_rect do ui_pop_rect(loc);
+ui_text_data :: proc(str: string, font: Font, visuals: Text_Visuals, loc := #caller_location) {
+	// if push_new_rect {
+	// 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
+	// }
+	// defer if push_new_rect do ui_pop_rect(loc);
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * size;
+	current_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * visuals.size;
 
-	if fit_to_width {
-		text_width := im_text(.Unit, font, str, position, color, height, current_render_layer, false); 
-		current_width := ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1;
-		height = (f32(current_width) / text_width / platform.current_window_width) * height ;
+	text_height := current_height;
+
+	if visuals.fit_to_rect {
+		text_width := im_text(.Unit, font, str, position, visuals.color, text_height, current_render_layer, false);
+		current_width  := f32(ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1);
+		text_height = min(current_height, (current_width / text_width / platform.current_window_width) * current_height);
 	}
 
-	if center {
-		ww := get_string_width(.Unit, font, str, height);
+	if visuals.center {
+		ww := get_string_width(.Unit, font, str, text_height);
 		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
 		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
@@ -220,11 +234,11 @@ ui_text_data :: proc(str: string, using data: ^Text_Data, fit_to_width := false,
 						ui_current_rect_unit.y1};
 	}
 
-	if shadow != 0 {
-		im_text(.Unit, font, str, position+Vec2{cast(f32)shadow/platform.current_window_width, cast(f32)-shadow/platform.current_window_width}, shadow_color, height); // todo(josh): @TextRenderOrder: proper render order on text
+	if visuals.shadow != 0 {
+		im_text(.Unit, font, str, position+Vec2{cast(f32)visuals.shadow/platform.current_window_width, cast(f32)-visuals.shadow/platform.current_window_width}, visuals.shadow_color, text_height); // todo(josh): @TextRenderOrder: proper render order on text
 	}
 
-	im_text(.Unit, font, str, position, color, height); // todo(josh): @TextRenderOrder: proper render order on text
+	im_text(.Unit, font, str, position, visuals.color, text_height); // todo(josh): @TextRenderOrder: proper render order on text
 }
 ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := cast(f32)0, y1 := cast(f32)0, x2 := cast(f32)1, y2 := cast(f32)1, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Text, loc);
@@ -232,7 +246,7 @@ ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := ca
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
 	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)platform.current_window_height / font.pixel_height;
-	
+
 	im_text(.Unit, font, str, position, color, height * size); // todo(josh): @TextRenderOrder: proper render order on text
 }
 
@@ -255,7 +269,7 @@ ui_default_button :: proc() -> Button_Data {
 	return Button_Data{0, 0, 1, 1, 0, 0, 0, 0, nil, nil, nil, nil, Colorf{1, 1, 1, 1}, false};
 }
 
-ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text_Data = nil, loc := #caller_location) -> bool {
+ui_button :: proc(using button: ^Button_Data, str: string = "", font: Font = {}, visuals: Text_Visuals = {}, loc := #caller_location) -> bool {
 
 	rect := ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Button, loc);
 	defer ui_pop_rect(loc);
@@ -266,17 +280,14 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	ui_draw_colored_quad(color);
 
 	// Draw text stuff
-	if text_data != nil {
-		if str == "" {
-			panic(tprint(loc));
-		}
-		ui_text(str, text_data, false, loc);
+	if str != "" {
+		ui_text(str, font, visuals, loc);
 	}
 
 	// were we recently pressed and are now releasing?
 	if pressed && platform.get_input_up(.Mouse_Left) {
 		pressed = false;
-		if mouse_in do 
+		if mouse_in do
 			if on_clicked != nil do button.on_clicked(button);
 		if on_released != nil do button.on_released(button);
 		return true;
@@ -286,7 +297,7 @@ ui_button :: proc(using button: ^Button_Data, str: string = "", text_data: ^Text
 	if mouse_in && platform.get_input_down(.Mouse_Left) {
 		pressed = true;
 		if on_pressed != nil do button.on_pressed(button);
-	} 
+	}
 
 	// hover. mayber else if?
 	if mouse_in {
@@ -431,18 +442,26 @@ Grid_Layout :: struct {
 	// wb vars
 	ww, hh: int,
 	cur_x, cur_y: int,
+
+	pushed_rect: bool,
 }
 
 ui_grid_layout :: proc(ww, hh: int) -> Grid_Layout {
-	assert(ww > 0);
-	assert(hh > 0);
-	grid := Grid_Layout{-1, ww * hh, 0.0, ww, hh, -1, 0};
+	if ww == 0 || hh == 0 do return {};
+
+	grid := Grid_Layout{-1, ww * hh, 0.0, ww, hh, -1, 0, false};
 	ui_grid_layout_next(&grid);
 	return grid;
 }
 
 ui_grid_layout_next :: proc(using grid: ^Grid_Layout) -> bool {
-	if cur_x != -1 do ui_pop_rect();
+	if ww == 0 || hh == 0 do return false;
+	if element_index >= max do return false;
+
+	if cur_x != -1 {
+		ui_pop_rect();
+		pushed_rect = false;
+	}
 
 	cur_x += 1;
 	if cur_x >= ww {
@@ -456,20 +475,21 @@ ui_grid_layout_next :: proc(using grid: ^Grid_Layout) -> bool {
 	y1 := hhh*f32(hh - cur_y - 1);
 
 	ui_push_rect(x1, y1, x1 + www, y1 + hhh);
+	pushed_rect = true;
 
 	element_index += 1;
 	progress01 = cast(f32)element_index / cast(f32)max;
 	return element_index < max;
 }
 
-ui_grid_layout_end :: proc() {
-	ui_pop_rect();
+ui_grid_layout_end :: proc(grid: ^Grid_Layout) {
+	if grid.pushed_rect do ui_pop_rect();
 }
 
 ui_current_contains_mouse :: proc() -> bool {
 	if len(ui_rect_stack) == 0 do return false;
 
-	return platform.mouse_screen_position.x >= f32(ui_current_rect_pixels.x1) && 
+	return platform.mouse_screen_position.x >= f32(ui_current_rect_pixels.x1) &&
 		   platform.mouse_screen_position.y >= f32(ui_current_rect_pixels.y1) &&
 		   platform.mouse_screen_position.x <= f32(ui_current_rect_pixels.x2) &&
 		   platform.mouse_screen_position.y <= f32(ui_current_rect_pixels.y2);
@@ -494,30 +514,37 @@ ui_current_contains_mouse :: proc() -> bool {
 // todo(josh): do UI specs
 
 UI_Spec :: struct {
-	commands: []UI_Command,
-	allocator: mem.Allocator,
+	commands: [dynamic]UI_Command,
+	allocator: mem.Allocator `wbml_noserialize`,
 }
 
 UI_Command :: struct {
+	name: string,
 	kind: union {
-		UI_Command_Push_Quad,
+		UI_Command_Push_Rect,
 		UI_Command_Text,
 		UI_Command_Draw_Color,
+		UI_Command_Grid_Layout,
 	},
-	children: []UI_Command,
+	children: [dynamic]UI_Command `imgui_hidden`,
 }
 
-UI_Command_Push_Quad :: struct {
+UI_Command_Push_Rect :: struct {
 	x1, y1, x2, y2: f32,
-	top, right, bottom, left: int,
+	top, right, bottom, left: int `imgui_allow64bit`,
 }
 
 UI_Command_Text :: struct {
 	text: string,
+	visuals: Text_Visuals,
 }
 
 UI_Command_Draw_Color :: struct {
 	color: Colorf,
+}
+
+UI_Command_Grid_Layout :: struct {
+	width, height: int `imgui_allow64bit`,
 }
 
 // ui_spec_from_wbml :: proc(wbml_data: string) -> UI_Spec {
@@ -632,9 +659,6 @@ update_ui :: proc() {
 		previously_warm = old_warm;
 	}
 
-	// rendering_unit_space();
-	// im_quad(shader_rgba, Vec2{0.1, 0.1}, Vec2{0.2, 0.2}, COLOR_BLUE, 100);
-
 	clear(&id_counts);
 	assert(len(ui_rect_stack) == 0 || len(ui_rect_stack) == 1);
 	clear(&ui_rect_stack);
@@ -643,7 +667,6 @@ update_ui :: proc() {
 	ui_current_rect_unit = Unit_Rect{};
 
 	ui_push_rect(0, 0, 1, 1, 0, 0, 0, 0);
-	// ui_push_rect(0.3, 0.3, 0.7, 0.7, 0, 0, 0, 0);
 }
 
 late_update_ui :: proc() {

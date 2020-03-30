@@ -907,7 +907,7 @@ pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 
 
 
-add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32, skin: Skinned_Mesh, loc := #caller_location) -> int {
+add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32 = {}, skin: Skinned_Mesh = {}, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();
 	vbo := gpu.gen_vbo();
 	ibo := gpu.gen_ebo();

@@ -278,6 +278,9 @@ imgui_begin_new_frame :: proc(dt: f32) {
         io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Left) == glfw.Action.Press;
         io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Right) == glfw.Action.Press;
         io.mouse_wheel   = platform.mouse_scroll;
+        if io.want_capture_mouse {
+            platform.mouse_scroll = 0;
+        }
 
         io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);
         io.key_shift = win32.is_key_down(win32.Key_Code.Lshift)   || win32.is_key_down(win32.Key_Code.Rshift);
@@ -507,9 +510,13 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
     #partial
     switch kind in &ti.variant {
         case rt.Type_Info_Integer: {
+            allow_64_bit := strings.contains(tags, "imgui_allow64bit");
             if kind.signed {
                 switch ti.size {
-                    case 8: imgui.label_text(name, tprint((cast(^i64)data)^), "// todo(josh): allow editing 64-bit values"); // new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data;
+                    case 8: {
+                        if allow_64_bit { new_data := cast(i32)(cast(^i64)data)^; imgui.input_int(name, &new_data); (cast(^i64)data)^ = cast(i64)new_data; }
+                        else            { imgui.label_text(name, tprint((cast(^i64)data)^), "// todo(josh): allow editing 64-bit values"); }
+                    }
                     case 4: new_data := cast(i32)(cast(^i32)data)^; imgui.input_int(name, &new_data); (cast(^i32)data)^ = cast(i32)new_data;
                     case 2: new_data := cast(i32)(cast(^i16)data)^; imgui.input_int(name, &new_data); (cast(^i16)data)^ = cast(i16)new_data;
                     case 1: new_data := cast(i32)(cast(^i8 )data)^; imgui.input_int(name, &new_data); (cast(^i8 )data)^ = cast(i8 )new_data;
@@ -527,6 +534,7 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
             }
         }
         case rt.Type_Info_Float: {
+            allow_64_bit := strings.contains(tags, "imgui_allow64bit");
             switch ti.size {
                 case 8: {
                     imgui.label_text(name, tprint((cast(^f32)data)^), "// todo(josh): allow editing 64-bit values");
