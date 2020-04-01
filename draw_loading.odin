@@ -18,7 +18,6 @@ import anim "animation"
 //
 
 decode_png_data :: proc(png_data: []byte) -> (^byte, i32, i32, gpu.Pixel_Data_Format, gpu.Internal_Color_Format) {
-	stb.set_flip_vertically_on_load(1);
 	width, height, channels: i32;
 	pixel_data := stb.load_from_memory(&png_data[0], cast(i32)len(png_data), &width, &height, &channels, 0);
 	assert(pixel_data != nil);
