@@ -509,26 +509,32 @@ wb_button_release :: proc(button: $Input_Type) {
 
 // this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
 // so we need to save presses in a separate buffer and copy them over to have consistent behaviour
-_glfw_key_callback :: proc"c"(window: Window, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
-	#partial
-	switch action {
-		case glfw.Action.Press: {
-			wb_button_press(cast(Input)key);
-		}
-		case glfw.Action.Release: {
-			wb_button_release(cast(Input)key);
+_glfw_key_callback :: proc"c"(window: Window, key: Key, scancode: i32, action: Action, mods: i32) {
+	when shared.HEADLESS do return;
+	else {
+		#partial
+		switch action {
+			case glfw.Action.Press: {
+				wb_button_press(cast(Input)key);
+			}
+			case glfw.Action.Release: {
+				wb_button_release(cast(Input)key);
+			}
 		}
 	}
 }
 
-_glfw_mouse_button_callback :: proc"c"(window: Window, button: glfw.Mouse, action: glfw.Action, mods: i32) {
-	#partial
-	switch action {
-		case glfw.Action.Press: {
-			wb_button_press(button);
-		}
-		case glfw.Action.Release: {
-			wb_button_release(button);
+_glfw_mouse_button_callback :: proc"c"(window: Window, button: Mouse, action: Action, mods: i32) {
+	when shared.HEADLESS do return;
+	else {
+		#partial
+		switch action {
+			case glfw.Action.Press: {
+				wb_button_press(button);
+			}
+			case glfw.Action.Release: {
+				wb_button_release(button);
+			}
 		}
 	}
 }
