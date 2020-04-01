@@ -41,6 +41,8 @@ Render_Settings :: struct {
 }
 
 init_draw :: proc(screen_width, screen_height: int) {
+when HEADLESS do return;
+else {
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
@@ -71,7 +73,10 @@ init_draw :: proc(screen_width, screen_height: int) {
 	register_debug_program("Rendering", rendering_debug_program, nil);
 	register_debug_program("Scene View", scene_view_debug_program, nil);
 }
+}
 rendering_debug_program :: proc(_: rawptr) {
+when HEADLESS do return;
+else {
 	if imgui.begin("Rendering") {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
@@ -79,7 +84,10 @@ rendering_debug_program :: proc(_: rawptr) {
 	}
 	imgui.end();
 }
+}
 scene_view_debug_program :: proc(_: rawptr) {
+when HEADLESS do return;
+else {
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
 
@@ -90,10 +98,14 @@ scene_view_debug_program :: proc(_: rawptr) {
 	}
 	imgui.end();
 }
+}
 
 update_draw :: proc() {
+when HEADLESS do return;
+else {
 	clear(&debug_lines);
 	clear(&debug_cubes);
+}
 }
 
 // todo(josh): maybe put this in the Workspace?
@@ -102,6 +114,8 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
+when HEADLESS do return;
+else {
 	check_for_file_updates(&wb_catalog);
 
 	PUSH_GPU_ENABLED(.Cull_Face, true);
@@ -122,8 +136,11 @@ render_workspace :: proc(workspace: Workspace) {
 
 	imgui_render(true);
 }
+}
 
 deinit_draw :: proc() {
+when HEADLESS do return;
+else {
 	delete_camera(&_default_camera);
 
 	// todo(josh): figure out why deleting shaders was causing errors
@@ -149,4 +166,5 @@ deinit_draw :: proc() {
 
 	unregister_debug_program("Rendering");
 	unregister_debug_program("Scene View");
+}
 }

@@ -85,7 +85,7 @@ deinit :: proc() {
 //
 
 load_scene :: proc(folder_path: string) {
-    assert(scene == nil);
+    assert(scene == nil); 
 
     scene = new(Scene);
     scene.folder_path = strings.clone(folder_path);

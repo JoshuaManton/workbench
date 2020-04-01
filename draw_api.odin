@@ -12,7 +12,6 @@ import "profiler"
 import "gpu"
 
 import "external/stb"
-import "external/glfw"
 import "external/imgui"
 
 /*
