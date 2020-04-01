@@ -9,30 +9,29 @@ import "core:runtime"
 
 import "math"
 import "gpu"
-import "platform"
 import "types"
 import "basic"
 
 import "external/imgui"
-
 import "external/stb"
+
+import pf "profiler"
+import "allocators"
 
 HEADLESS :: true;
 
 when !HEADLESS {
 	import "external/glfw"
-}
+	import "platform"
 
-import pf "profiler"
-import "allocators"
+	main_window: platform.Window;
+}
 
 DEVELOPER :: true;
 
 //
 // Game loop stuff
 //
-
-main_window: platform.Window;
 
 update_loop_ra: Rolling_Average(f32, 100);
 whole_frame_time_ra: Rolling_Average(f32, 100);
