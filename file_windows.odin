@@ -16,10 +16,13 @@
 
 package workbench;
 
+import "core:os"
 import "core:fmt";
 import "core:strings";
 import "core:sys/win32";
 import "basic";
+
+when os.OS == "windows" {
 
 odin_to_wchar_string :: proc(str : string, loc := #caller_location) -> win32.Wstring {
     cstr := basic.TEMP_CSTRING(str);
@@ -147,4 +150,5 @@ get_file_size :: proc(path : string) -> int {
     win32.get_file_size_ex(h, &out);
     win32.close_handle(h);
     return int(out);
+}
 }

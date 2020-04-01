@@ -6,6 +6,7 @@ import "core:strings"
 import "core:mem"
 import "core:os"
 import "core:runtime"
+import core_time "core:time"
 
 import "math"
 import "gpu"
@@ -19,7 +20,7 @@ import pf "profiler"
 import "allocators"
 import "shared"
 
-HEADLESS :: shared.HEADLESS;
+HEADLESS :: true;
 when !HEADLESS {
 	import "external/glfw"
 	import "platform"
@@ -54,10 +55,7 @@ frame_allocator: mem.Allocator;
 make_simple_window :: proc(window_width, window_height: int,
                            target_framerate: f32,
                            workspace: Workspace) {
-
-	when !HEADLESS {
-		startup_start_time := glfw.GetTime();
-	}
+	startup_start_time := core_time.now()._nsec;
 
 	// init frame allocator
 	@static frame_allocator_raw: allocators.Frame_Allocator;
@@ -68,10 +66,10 @@ make_simple_window :: proc(window_width, window_height: int,
     context.temp_allocator = frame_allocator;
 
     // init profiler
-    when !HEADLESS {
-		wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
-		defer pf.destroy_profiler(&wb_profiler);
-	}
+	wb_profiler = pf.make_profiler(proc() -> f64 { return cast(f64) core_time.now()._nsec; } );
+	defer pf.destroy_profiler(&wb_profiler);
+
+	init_random(u64(core_time.now()._nsec));
 
 	when !HEADLESS { 
 		// init platform and graphics
@@ -79,8 +77,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 		init_draw(window_width, window_height);
 		defer deinit_draw();
-
-		init_random(cast(u64)glfw.GetTime());
+		
 		init_dear_imgui();
 	}
 
@@ -95,10 +92,8 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	init_workspace(workspace);
 
-	when !HEADLESS {
-		startup_end_time := glfw.GetTime();
-		logln("Startup time: ", startup_end_time - startup_start_time);
-	}
+	startup_end_time := core_time.now()._nsec;
+	logln("Startup time: ", startup_end_time - startup_start_time);
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / target_framerate;
@@ -140,10 +135,8 @@ make_simple_window :: proc(window_width, window_height: int,
 				}
 
 				//
-				when !HEADLESS {
-					precise_time = glfw.GetTime();
-					time = cast(f32)precise_time;
-				}
+				precise_time = f64(core_time.now()._nsec);
+				time = cast(f32)precise_time;
 				frame_count += 1;
 
 

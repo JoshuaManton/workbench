@@ -267,49 +267,52 @@ init_dear_imgui :: proc() {
 }
 
 imgui_begin_new_frame :: proc(dt: f32) {
-    io := imgui.get_io();
-    io.display_size.x = platform.current_window_width;
-    io.display_size.y = platform.current_window_height;
+    when HEADLESS do return;
+        else {
+        io := imgui.get_io();
+        io.display_size.x = platform.current_window_width;
+        io.display_size.y = platform.current_window_height;
 
-    if platform.window_is_focused {
-    	posx, posy := glfw.GetCursorPos(main_window);
-        io.mouse_pos.x = cast(f32)posx;
-        io.mouse_pos.y = cast(f32)posy;
-        io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Left) == glfw.Action.Press;
-        io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Right) == glfw.Action.Press;
-        io.mouse_wheel   = platform.mouse_scroll;
-        if io.want_capture_mouse {
-            platform.mouse_scroll = 0;
+        if platform.window_is_focused {
+        	posx, posy := glfw.GetCursorPos(main_window);
+            io.mouse_pos.x = cast(f32)posx;
+            io.mouse_pos.y = cast(f32)posy;
+            io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Left) == glfw.Action.Press;
+            io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Right) == glfw.Action.Press;
+            io.mouse_wheel   = platform.mouse_scroll;
+            if io.want_capture_mouse {
+                platform.mouse_scroll = 0;
+            }
+
+            io.key_ctrl  = platform.get_input_imgui(.Left_Control) || platform.get_input_imgui(.Right_Control);
+            io.key_shift = platform.get_input_imgui(.Left_Shift)   || platform.get_input_imgui(.Right_Shift);
+            io.key_alt   = platform.get_input_imgui(.Left_Alt)    || platform.get_input_imgui(.Right_Alt);
+            io.key_super = platform.get_input_imgui(.Left_Super)     || platform.get_input_imgui(.Right_Super);
+
+            for i in 0..511 {
+                io.keys_down[i] = platform.get_input_imgui(cast(platform.Input)i);
+            }
+
+        } else {
+            io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
+
+            io.mouse_down[0] = false;
+            io.mouse_down[1] = false;
+            io.mouse_wheel   = 0;
+            io.key_ctrl  = false;
+            io.key_shift = false;
+            io.key_alt   = false;
+            io.key_super = false;
+
+            for i in 0..511 {
+                io.keys_down[i] = false;
+            }
         }
 
-        io.key_ctrl  = platform.get_input_imgui(.Left_Control) || platform.get_input_imgui(.Right_Control);
-        io.key_shift = platform.get_input_imgui(.Left_Shift)   || platform.get_input_imgui(.Right_Shift);
-        io.key_alt   = platform.get_input_imgui(.Left_Alt)    || platform.get_input_imgui(.Right_Alt);
-        io.key_super = platform.get_input_imgui(.Left_Super)     || platform.get_input_imgui(.Right_Super);
-
-        for i in 0..511 {
-            io.keys_down[i] = platform.get_input_imgui(cast(platform.Input)i);
-        }
-
-    } else {
-        io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
-
-        io.mouse_down[0] = false;
-        io.mouse_down[1] = false;
-        io.mouse_wheel   = 0;
-        io.key_ctrl  = false;
-        io.key_shift = false;
-        io.key_alt   = false;
-        io.key_super = false;
-
-        for i in 0..511 {
-            io.keys_down[i] = false;
-        }
+        // ctx.imgui_state.mouse_wheel_delta = 0;
+        io.delta_time = dt;
+        imgui.new_frame();
     }
-
-    // ctx.imgui_state.mouse_wheel_delta = 0;
-    io.delta_time = dt;
-    imgui.new_frame();
 }
 
 imgui_render :: proc(render_to_screen : bool) {
