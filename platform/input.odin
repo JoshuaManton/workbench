@@ -76,31 +76,41 @@ get_input_up :: inline proc(input: Input, consume := false) -> bool {
 }
 
 get_button :: inline proc(controller_index: int, button: Button) -> bool {
-	controller := controllers[controller_index];
-	if !controller.connected do return false;
+	when shared.HEADLESS do return false;
+	else {
+		controller := controllers[controller_index];
+		if !controller.connected do return false;
 
-	return controller.held[cast(int)button] == 1;
+		return controller.held[cast(int)button] == 1;
+	}
 }
 
 get_button_down :: inline proc(controller_index: int, button: Button) -> bool {
+	when shared.HEADLESS do return false;
+	else {
 	controller := controllers[controller_index];
 	if !controller.connected do return false;
 
 	return controller.down[cast(int)button] == 1;
-}
+}}
 
 get_button_up :: inline proc(controller_index: int, button: Button) -> bool {
+	when shared.HEADLESS do return false;
+	else {
 	controller := controllers[controller_index];
 	if !controller.connected do return false;
 
 	return controller.up[cast(int)button] == 1;
-}
+}}
 
 get_axis :: inline proc(controller_index: int, axis: Axis) -> f32 {
+	when shared.HEADLESS do return 0;
+	else {
 	controller := controllers[controller_index];
 	if !controller.connected do return 0;
 
 	return controller.axes[cast(int)axis];
+}
 }
 
 Button :: enum {
