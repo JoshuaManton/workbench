@@ -282,10 +282,10 @@ imgui_begin_new_frame :: proc(dt: f32) {
             platform.mouse_scroll = 0;
         }
 
-        io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);
-        io.key_shift = win32.is_key_down(win32.Key_Code.Lshift)   || win32.is_key_down(win32.Key_Code.Rshift);
-        io.key_alt   = win32.is_key_down(win32.Key_Code.Lmenu)    || win32.is_key_down(win32.Key_Code.Rmenu);
-        io.key_super = win32.is_key_down(win32.Key_Code.Lwin)     || win32.is_key_down(win32.Key_Code.Rwin);
+        io.key_ctrl  = platform.get_input_imgui(.Left_Control) || platform.get_input_imgui(.Right_Control);
+        io.key_shift = platform.get_input_imgui(.Left_Shift)   || platform.get_input_imgui(.Right_Shift);
+        io.key_alt   = platform.get_input_imgui(.Left_Alt)    || platform.get_input_imgui(.Right_Alt);
+        io.key_super = platform.get_input_imgui(.Left_Super)     || platform.get_input_imgui(.Right_Super);
 
         for i in 0..511 {
             io.keys_down[i] = platform.get_input_imgui(cast(platform.Input)i);

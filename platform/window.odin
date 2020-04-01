@@ -5,7 +5,6 @@ import "core:sort"
 import "core:strings"
 import "core:mem"
 import "core:os"
-import "core:sys/win32"
 
 import "../gpu"
 import "../logging"
