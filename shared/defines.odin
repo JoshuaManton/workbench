@@ -1,0 +1,3 @@
+package shared;
+
+HEADLESS :: true;

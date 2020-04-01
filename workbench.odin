@@ -17,9 +17,9 @@ import "external/stb"
 
 import pf "profiler"
 import "allocators"
+import "shared"
 
-HEADLESS :: true;
-
+HEADLESS :: shared.HEADLESS;
 when !HEADLESS {
 	import "external/glfw"
 	import "platform"
