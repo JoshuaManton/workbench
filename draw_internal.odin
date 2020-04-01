@@ -11,8 +11,10 @@ import "gpu"
 import "logging"
 
 import "external/stb"
-import "external/glfw"
 import "external/imgui"
+when !HEADLESS {
+	import "external/glfw"
+}
 
 //
 // Internal
