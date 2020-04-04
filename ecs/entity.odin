@@ -631,6 +631,21 @@ get_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> (^T, 
     return cast(^T)ptr, ok;
 }
 
+has_component :: proc(eid: Entity, tid: typeid, loc := #caller_location) -> bool {
+    if eid == 0 do return false;
+
+    ti := type_info_of(tid);
+    data, ok := component_types[tid];
+
+    for i in 0..<data.storage.len {
+        ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)data.storage.data, i * ti.size);
+        if ptr.e == eid {
+            return true;
+        }
+    }
+    return false;
+}
+
 remove_component :: proc(eid: Entity, $T: typeid) -> bool {
     unimplemented();
     return {};

@@ -8,12 +8,13 @@ import "core:os"
 
 import "gpu"
 import "logging"
+import "shared"
 
 import "external/stb"
 import "external/imgui"
-when !HEADLESS {
-	import "external/glfw"
-}
+
+import "external/glfw"
+
 
 //
 // Internal
@@ -42,8 +43,9 @@ Render_Settings :: struct {
 }
 
 init_draw :: proc(screen_width, screen_height: int) {
-when HEADLESS do return;
-else {
+// when shared.HEADLESS do return;
+// else 
+{
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});
@@ -76,8 +78,9 @@ else {
 }
 }
 rendering_debug_program :: proc(_: rawptr) {
-when HEADLESS do return;
-else {
+// when shared.HEADLESS do return;
+// else 
+{
 	if imgui.begin("Rendering") {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
@@ -87,8 +90,9 @@ else {
 }
 }
 scene_view_debug_program :: proc(_: rawptr) {
-when HEADLESS do return;
-else {
+// when shared.HEADLESS do return;
+// else 
+{
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
 
@@ -102,8 +106,9 @@ else {
 }
 
 update_draw :: proc() {
-when HEADLESS do return;
-else {
+// when shared.HEADLESS do return;
+// else 
+{
 	clear(&debug_lines);
 	clear(&debug_cubes);
 }
@@ -115,8 +120,9 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
-when HEADLESS do return;
-else {
+// when shared.HEADLESS do return;
+// else 
+{
 	check_for_file_updates(&wb_catalog);
 
 	PUSH_GPU_ENABLED(.Cull_Face, true);
@@ -140,8 +146,9 @@ else {
 }
 
 deinit_draw :: proc() {
-when HEADLESS do return;
-else {
+// when shared.HEADLESS do return;
+// else 
+{
 	delete_camera(&_default_camera);
 
 	// todo(josh): figure out why deleting shaders was causing errors

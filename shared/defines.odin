@@ -1,3 +1,3 @@
 package shared
 
-HEADLESS :: true;
+HEADLESS :: false;

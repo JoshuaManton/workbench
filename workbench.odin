@@ -20,13 +20,11 @@ import pf "profiler"
 import "allocators"
 import "shared"
 
-HEADLESS :: true;
-when !HEADLESS {
-	import "external/glfw"
-	import "platform"
+import "external/glfw"
+import "platform"
 
 	main_window: platform.Window;
-}
+
 
 DEVELOPER :: true;
 
@@ -71,7 +69,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	init_random(u64(core_time.now()._nsec));
 
-	when !HEADLESS { 
+	when !shared.HEADLESS { 
 		// init platform and graphics
 		platform.init_platform(&main_window, workspace.name, window_width, window_height);
 
@@ -81,7 +79,7 @@ make_simple_window :: proc(window_width, window_height: int,
 		init_dear_imgui();
 	}
 
-	when !HEADLESS {
+	when !shared.HEADLESS {
 		// init catalog
 		add_default_handlers(&wb_catalog);
 		defer delete_asset_catalog(wb_catalog);
@@ -97,20 +95,20 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / target_framerate;
-	last_frame_start_time: f32;
+	last_frame_start_time: f64;
 	should_window_close := false;
 	game_loop:
 	for !should_window_close && !wb_should_close {
-		when !HEADLESS {
+		when !shared.HEADLESS {
 			should_window_close = glfw.WindowShouldClose(main_window);
-		
-			pf.profiler_new_frame(&wb_profiler);
-			pf.TIMED_SECTION(&wb_profiler, "full engine frame");
-			frame_start_time := cast(f32)glfw.GetTime();
-			lossy_delta_time = frame_start_time - last_frame_start_time;
-			last_frame_start_time = frame_start_time;
-			acc += lossy_delta_time;
 		}
+
+		pf.profiler_new_frame(&wb_profiler);
+		pf.TIMED_SECTION(&wb_profiler, "full engine frame");
+		frame_start_time := f64(core_time.now()._nsec) / f64(core_time.Second);
+		lossy_delta_time = f32(frame_start_time - last_frame_start_time);
+		last_frame_start_time = frame_start_time;
+		acc += lossy_delta_time;
 
 		if acc > 0.1 { // note(josh): stop spiral of death ensuring a minimum render framerate
 			acc = 0.1;
@@ -140,7 +138,7 @@ make_simple_window :: proc(window_width, window_height: int,
 				frame_count += 1;
 
 
-				when !HEADLESS {
+				when !shared.HEADLESS {
 					//
 					platform.update_platform();
 					imgui_begin_new_frame(fixed_delta_time);
@@ -156,7 +154,7 @@ make_simple_window :: proc(window_width, window_height: int,
 				update_tween(fixed_delta_time);
 				update_workspace(workspace, fixed_delta_time); // calls client updates
 
-	    		when !HEADLESS {
+	    		when !shared.HEADLESS {
 					late_update_ui();
 	    			imgui.pop_font();
 
@@ -172,7 +170,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 			render_workspace(workspace);
 
-			when !HEADLESS {
+			when !shared.HEADLESS {
 				glfw.SwapBuffers(main_window);
 			}
 

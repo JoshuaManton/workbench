@@ -14,6 +14,7 @@ import "laas"
 import "math";
 import "platform"
 import "logging"
+import "shared"
 
 import    "external/glfw"
 import    "external/stb"
@@ -267,7 +268,7 @@ init_dear_imgui :: proc() {
 }
 
 imgui_begin_new_frame :: proc(dt: f32) {
-    when HEADLESS do return;
+    when shared.HEADLESS do return;
         else {
         io := imgui.get_io();
         io.display_size.x = platform.current_window_width;
