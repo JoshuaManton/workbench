@@ -15,14 +15,17 @@ import "../external/stb"
 import "../external/glfw"
 
 
-// when !shared.HEADLESS 
-// {
+when !shared.HEADLESS {
 	Window :: glfw.Window_Handle;
 	Key :: glfw.Key;
 	Mouse :: glfw.Mouse;
 	Action :: glfw.Action;
-// }
-
+} else  {
+	Window :: struct {}
+	Key :: struct {}
+	Mouse :: struct {};
+	Action :: enum {};
+}
 window_is_focused := true;
 
 current_window_width:  f32;
