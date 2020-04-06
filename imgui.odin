@@ -6,7 +6,10 @@ import "core:mem";
 import "core:strconv"
 import "core:strings"
 import "core:os";
+
+when os.OS == "windows" {
 import "core:sys/win32"
+}
 
 
 import "gpu"
@@ -40,7 +43,10 @@ imgui_font_mono:    ^imgui.Font;
 init_dear_imgui :: proc() {
     // imgui.create_context();
     io := imgui.get_io();
-    io.ime_window_handle = win32.get_desktop_window();
+
+    when os.OS == "windows" {
+        io.ime_window_handle = win32.get_desktop_window();
+    }
 
     io.key_map[imgui.Key.Tab]        = i32(platform.Input.Tab);
     io.key_map[imgui.Key.LeftArrow]  = i32(platform.Input.Left);

@@ -19,10 +19,10 @@ package workbench;
 import "core:os"
 import "core:fmt";
 import "core:strings";
-import "core:sys/win32";
 import "basic";
 
 when os.OS == "windows" {
+import "core:sys/win32";
 
 odin_to_wchar_string :: proc(str : string, loc := #caller_location) -> win32.Wstring {
     cstr := basic.TEMP_CSTRING(str);

@@ -1,7 +1,6 @@
 package workbench
 
 import "core:intrinsics"
-import "core:sys/win32"
 
 import "core:mem"
 import "core:hash"
@@ -209,100 +208,88 @@ remove :: proc(using table: ^Hashtable($Key, $Value), key: Key) {
 	}
 }
 
-main :: proc() {
-	freq := get_freq();
+// main :: proc() {
+// 	freq := get_freq();
 
-	// NUM_ELEMS :: 10;
-	NUM_ELEMS :: 1024 * 10000;
+// 	// NUM_ELEMS :: 10;
+// 	NUM_ELEMS :: 1024 * 10000;
 
-	my_table: Hashtable(int, int);
-	{
-		insert_start := get_time();
-		for i in 0..NUM_ELEMS {
-			insert(&my_table, i, i * 3);
-		}
-		insert_end := get_time();
-		logging.ln("My map inserting ", NUM_ELEMS, " elements:   ", (insert_end-insert_start)/freq, "s");
-	}
+// 	my_table: Hashtable(int, int);
+// 	{
+// 		insert_start := get_time();
+// 		for i in 0..NUM_ELEMS {
+// 			insert(&my_table, i, i * 3);
+// 		}
+// 		insert_end := get_time();
+// 		logging.ln("My map inserting ", NUM_ELEMS, " elements:   ", (insert_end-insert_start)/freq, "s");
+// 	}
 
-	odin_table: map[int]int;
-	{
-		insert_start := get_time();
-		for i in 0..NUM_ELEMS {
-			odin_table[i] = i * 3;
-		}
-		insert_end := get_time();
-		logging.ln("Odin map inserting ", NUM_ELEMS, " elements: ", (insert_end-insert_start)/freq, "s");
-	}
+// 	odin_table: map[int]int;
+// 	{
+// 		insert_start := get_time();
+// 		for i in 0..NUM_ELEMS {
+// 			odin_table[i] = i * 3;
+// 		}
+// 		insert_end := get_time();
+// 		logging.ln("Odin map inserting ", NUM_ELEMS, " elements: ", (insert_end-insert_start)/freq, "s");
+// 	}
 
-	{
-		lookup_start := get_time();
-		for i in 0..NUM_ELEMS {
-			val, ok := get(&my_table, i);
-			assert(ok); assert(val == i * 3);
-		}
-		lookup_end := get_time();
-		logging.ln("My map retrieving ", NUM_ELEMS, " elements:   ", (lookup_end-lookup_start)/freq, "s");
-	}
+// 	{
+// 		lookup_start := get_time();
+// 		for i in 0..NUM_ELEMS {
+// 			val, ok := get(&my_table, i);
+// 			assert(ok); assert(val == i * 3);
+// 		}
+// 		lookup_end := get_time();
+// 		logging.ln("My map retrieving ", NUM_ELEMS, " elements:   ", (lookup_end-lookup_start)/freq, "s");
+// 	}
 
-	{
-		lookup_start := get_time();
-		for i in 0..NUM_ELEMS {
-			val, ok := odin_table[i];
-			assert(ok); assert(val == i * 3);
-		}
-		lookup_end := get_time();
-		logging.ln("Odin map retrieving ", NUM_ELEMS, " elements: ", (lookup_end-lookup_start)/freq, "s");
-	}
+// 	{
+// 		lookup_start := get_time();
+// 		for i in 0..NUM_ELEMS {
+// 			val, ok := odin_table[i];
+// 			assert(ok); assert(val == i * 3);
+// 		}
+// 		lookup_end := get_time();
+// 		logging.ln("Odin map retrieving ", NUM_ELEMS, " elements: ", (lookup_end-lookup_start)/freq, "s");
+// 	}
 
-	{
-		iterate_start := get_time();
-		for header, idx in my_table.key_headers {
-			if !header.filled do continue;
-			key := header.key;
-			value := my_table.values[idx].value;
-			assert(value == key * 3);
-		}
-		iterate_end := get_time();
-		logging.ln("My map iterating ", NUM_ELEMS, " elements:   ", (iterate_end-iterate_start)/freq, "s");
-	}
+// 	{
+// 		iterate_start := get_time();
+// 		for header, idx in my_table.key_headers {
+// 			if !header.filled do continue;
+// 			key := header.key;
+// 			value := my_table.values[idx].value;
+// 			assert(value == key * 3);
+// 		}
+// 		iterate_end := get_time();
+// 		logging.ln("My map iterating ", NUM_ELEMS, " elements:   ", (iterate_end-iterate_start)/freq, "s");
+// 	}
 
-	{
-		iterate_start := get_time();
-		for key, value in odin_table {
-			assert(value == key * 3);
-		}
-		iterate_end := get_time();
-		logging.ln("Odin map iterating ", NUM_ELEMS, " elements: ", (iterate_end-iterate_start)/freq, "s");
-	}
+// 	{
+// 		iterate_start := get_time();
+// 		for key, value in odin_table {
+// 			assert(value == key * 3);
+// 		}
+// 		iterate_end := get_time();
+// 		logging.ln("Odin map iterating ", NUM_ELEMS, " elements: ", (iterate_end-iterate_start)/freq, "s");
+// 	}
 
-	{
-		removal_start := get_time();
-		for i in 0..NUM_ELEMS {
-			remove(&my_table, i);
-		}
-		removal_end := get_time();
-		logging.ln("My map removing ", NUM_ELEMS, " elements:   ", (removal_end-removal_start)/freq, "s");
-	}
+// 	{
+// 		removal_start := get_time();
+// 		for i in 0..NUM_ELEMS {
+// 			remove(&my_table, i);
+// 		}
+// 		removal_end := get_time();
+// 		logging.ln("My map removing ", NUM_ELEMS, " elements:   ", (removal_end-removal_start)/freq, "s");
+// 	}
 
-	{
-		removal_start := get_time();
-		for i in 0..NUM_ELEMS {
-			delete_key(&odin_table, i);
-		}
-		removal_end := get_time();
-		logging.ln("Odin map removing ", NUM_ELEMS, " elements: ", (removal_end-removal_start)/freq, "s");
-	}
-}
-
-get_time :: inline proc() -> f64 {
-	res: i64;
-	win32.query_performance_counter(&res);
-	return cast(f64)res;
-}
-
-get_freq :: inline proc() -> f64 {
-	freq: i64;
-	win32.query_performance_frequency(&freq);
-	return cast(f64)freq;
-}
+// 	{
+// 		removal_start := get_time();
+// 		for i in 0..NUM_ELEMS {
+// 			delete_key(&odin_table, i);
+// 		}
+// 		removal_end := get_time();
+// 		logging.ln("Odin map removing ", NUM_ELEMS, " elements: ", (removal_end-removal_start)/freq, "s");
+// 	}
+// }
