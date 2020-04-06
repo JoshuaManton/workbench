@@ -323,7 +323,6 @@ draw_scene_window :: proc(userdata: rawptr) {
                                 logln("Already have scene with the name ", scene_name);
                             }
                             else {
-                                assert(err == os.ERROR_FILE_NOT_FOUND);
                                 ok := wb.create_directory(scene_folder);
                                 assert(ok, tprint("Couldn't create directory ", scene_folder));
                                 load_scene(scene_folder);
@@ -828,7 +827,7 @@ _add_component_internal :: proc(eid: Entity, tid: typeid, loc := #caller_locatio
     ti := type_info_of(tid);
 
     if _, already_exists := _get_component_internal(eid, tid); already_exists {
-        logln("Error: Cannot add more than one of the same component: ", ti, loc);
+        logln("Error: Cannot add more than one of the same component: ", eid, ti, loc);
         return nil;
     }
 

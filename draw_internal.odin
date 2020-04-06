@@ -43,8 +43,8 @@ Render_Settings :: struct {
 }
 
 init_draw :: proc(screen_width, screen_height: int) {
-// when shared.HEADLESS do return;
-// else 
+when shared.HEADLESS do return;
+else 
 {
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
@@ -78,8 +78,8 @@ init_draw :: proc(screen_width, screen_height: int) {
 }
 }
 rendering_debug_program :: proc(_: rawptr) {
-// when shared.HEADLESS do return;
-// else 
+when shared.HEADLESS do return;
+else 
 {
 	if imgui.begin("Rendering") {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
@@ -90,8 +90,8 @@ rendering_debug_program :: proc(_: rawptr) {
 }
 }
 scene_view_debug_program :: proc(_: rawptr) {
-// when shared.HEADLESS do return;
-// else 
+when shared.HEADLESS do return;
+else 
 {
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
@@ -106,8 +106,8 @@ scene_view_debug_program :: proc(_: rawptr) {
 }
 
 update_draw :: proc() {
-// when shared.HEADLESS do return;
-// else 
+when shared.HEADLESS do return;
+else 
 {
 	clear(&debug_lines);
 	clear(&debug_cubes);
@@ -120,8 +120,8 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
-// when shared.HEADLESS do return;
-// else 
+when shared.HEADLESS do return;
+else 
 {
 	check_for_file_updates(&wb_catalog);
 
@@ -146,8 +146,8 @@ render_workspace :: proc(workspace: Workspace) {
 }
 
 deinit_draw :: proc() {
-// when shared.HEADLESS do return;
-// else 
+when shared.HEADLESS do return;
+else 
 {
 	delete_camera(&_default_camera);
 

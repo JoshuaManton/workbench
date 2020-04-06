@@ -10,10 +10,12 @@ import "../math"
 when os.OS == "linux" {
 	get_all_filepaths_recursively :: proc(path: string) -> []string {
 		unimplemented();
+		return {};
 	}
 
 	get_all_filepaths :: proc(path: string) -> []string {
 		unimplemented();
+		return {};
 	}
 
 	Path :: struct {
@@ -26,5 +28,6 @@ when os.OS == "linux" {
 
 	get_all_paths :: proc(path: string) -> []Path {
 		unimplemented();
+		return {};
 	}
 }
