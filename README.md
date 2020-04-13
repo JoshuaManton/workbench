@@ -15,7 +15,7 @@ workbench is a collection of libraries for games handling things like rendering,
 
 // todo: more pictures and gifs
 
-### Editor and Entity System
+### Entity System and Editor
 
 ![Editor](https://i.imgur.com/tSwY37S.png)
 
