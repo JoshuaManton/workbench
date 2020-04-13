@@ -10,7 +10,7 @@ workbench is a collection of libraries for games handling things like rendering,
 * Bloom
 * Gamma correction
 
-![Renderer](https://imgur.com/BAEvzkQ)
+![Renderer](https://i.imgur.com/BAEvzkQ.png)
 
 ### Editor and Entity System
 
