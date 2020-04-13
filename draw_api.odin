@@ -151,24 +151,7 @@ MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
 SHADOW_MAP_DIM :: 2048;
 
-Model_Draw_Info :: struct {
-	model: Model,
-	shader: gpu.Shader_Program,
-	texture: Texture,
-	material: Material,
-	position: Vec3,
-	scale: Vec3,
-	rotation: Quat,
-	color: Colorf,
-	animation_state: Model_Animation_State,
-
-	userdata: rawptr,
-}
-
 Model_Animation_State :: struct {
-	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
-	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
-	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
 	mesh_states: [dynamic]Mesh_State // array of bones per mesh in the model
 }
 
@@ -1292,6 +1275,58 @@ PUSH_RENDERMODE :: proc(r: Rendermode) -> Rendermode {
 }
 pop_rendermode :: proc(r: Rendermode) {
 	main_camera.current_rendermode = r;
+}
+
+
+
+//
+// Debug
+//
+
+Debug_Line :: struct {
+	a, b: Vec3,
+	color: Colorf,
+	rotation: Quat,
+	rendermode: Rendermode,
+	depth_test: bool,
+}
+Debug_Cube :: struct {
+	position: Vec3,
+	scale: Vec3,
+	rotation: Quat,
+	color: Colorf,
+	rendermode: Rendermode,
+	depth_test: bool,
+}
+
+// todo(josh): test all rendermodes for debug lines/boxes
+draw_debug_line :: proc(a, b: Vec3, color: Colorf, rendermode := Rendermode.World, depth_test := true) {
+	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}, rendermode, depth_test});
+}
+
+draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}, rendermode := Rendermode.World, depth_test := true) {
+	append(&debug_cubes, Debug_Cube{position, scale, rotation, color, rendermode, depth_test});
+}
+
+debug_geo_flush :: proc() {
+	PUSH_POLYGON_MODE(.Line);
+	PUSH_GPU_ENABLED(.Cull_Face, false);
+
+	gpu.use_program(get_shader(&wb_catalog, "default"));
+	for line in debug_lines {
+		PUSH_RENDERMODE(line.rendermode);
+		verts: [3]Vertex3D;
+		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
+		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
+		verts[2] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
+		update_mesh(&debug_line_model, 0, verts[:], []u32{});
+		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, line.depth_test);
+	}
+
+	for cube in debug_cubes {
+		PUSH_RENDERMODE(cube.rendermode);
+		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, cube.depth_test);
+	}
 }
 
 
