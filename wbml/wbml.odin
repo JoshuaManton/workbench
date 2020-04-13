@@ -466,7 +466,8 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 
 		case rt.Type_Info_Struct: {
 			object := &node.kind.(Node_Object);
-			field_loop: for field in object.fields {
+			field_loop:
+			for field in object.fields {
 				for _, idx in variant.names {
 					tag  := variant.tags [idx];
 					name := variant.names[idx];
@@ -486,8 +487,8 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 							field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
 							field_ti  := variant.types[idx];
 							write_value(field.value, field_ptr, field_ti);
-							continue field_loop;
 						}
+						continue field_loop;
 					}
 				}
 				logln("Couldn't find ", field.name);
