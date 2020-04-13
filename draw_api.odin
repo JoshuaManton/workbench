@@ -133,10 +133,9 @@ Camera :: struct {
 	render_queue: [dynamic]Draw_Command_3D,
 	im_draw_commands: [dynamic]Draw_Command_2D,
 
-	// todo(josh): maybe these should be pointers. this is blowing up the size of the camera struct a LOT
-	point_light_positions:   [MAX_LIGHTS]Vec3,
-	point_light_colors:      [MAX_LIGHTS]Vec4,
-	point_light_intensities: [MAX_LIGHTS]f32,
+	point_light_positions:   []Vec3,
+	point_light_colors:      []Vec4,
+	point_light_intensities: []f32,
 	num_point_lights: i32,
 
 	sun_direction: Vec3,
@@ -200,6 +199,10 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     }
     assert(camera.framebuffer.fbo == 0);
     camera.framebuffer = framebuffer;
+
+    camera.point_light_positions   = make([]Vec3, MAX_LIGHTS);
+	camera.point_light_colors      = make([]Vec4, MAX_LIGHTS);
+	camera.point_light_intensities = make([]f32,  MAX_LIGHTS);
 }
 
 delete_camera :: proc(camera: ^Camera) { // note(josh): does NOT free the camera you pass in
