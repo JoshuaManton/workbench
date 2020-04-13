@@ -43,7 +43,7 @@ init_my_entity :: proc(entity: ^My_Entity) {
 update_my_entity :: proc(entity: ^My_Entity, dt: f32) {
     entity.position = lerp(entity.position, entity.target_position, entity.speed * dt);
     if entity.health <= 0 {
-        destroy_entity(&scene, entity);
+        destroy_entity(entity);
     }
 }
 ```
