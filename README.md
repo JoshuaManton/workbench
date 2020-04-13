@@ -34,7 +34,7 @@ init_my_entity :: proc(entity: ^My_Entity) {
     entity.render_info.model_id = "my_cool_model";
     entity.render_info.shader_id = "lit;
     entity.render_info.texture_id = "some_texture";
-    entity.render_info.color = Colorf{1, 1, 1, 1};
+    entity.render_info.color = Colorf{1, 0.2, 0.1, 1};
 }
 update_my_entity :: proc(entity: ^My_Entity, dt: f32) {
     entity.position = lerp(entity.position, entity.target_position, entity.speed * dt);
