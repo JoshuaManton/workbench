@@ -1,6 +1,6 @@
 # workbench
 
-workbench is a collection of libraries for games handling things like rendering, serialization, collision, and more.
+workbench is a collection of libraries for games handling rendering, serialization, collision, and more.
 
 ### Renderer
 
