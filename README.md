@@ -14,7 +14,7 @@ workbench is a collection of libraries for games handling things like rendering,
 
 ### Editor and Entity System
 
-![Editor](https://i.imgur.com/4yzyrK6.png)
+![Editor](https://i.imgur.com/hkVqpDC.png)
 
 ```odin
 My_Entity :: struct {
