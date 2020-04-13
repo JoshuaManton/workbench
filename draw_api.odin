@@ -377,6 +377,8 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	gpu.log_errors(#procedure);
 	PUSH_CAMERA(camera);
 
+	set_sun_data(Quat{0, 0, 0, 1}, Colorf{0, 0, 0, 0}, 0);
+
 	if user_render_proc != nil {
 		user_render_proc(lossy_delta_time);
 		gpu.log_errors(#procedure);
