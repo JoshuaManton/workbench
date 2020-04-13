@@ -229,7 +229,6 @@ init_builtin_assets :: proc() {
 	fileloc := #location().file_path;
 	wbfolder, ok := basic.get_file_directory(fileloc);
 	assert(ok);
-	logln(wbfolder);
 	resources_folder := fmt.aprint(wbfolder, "/resources");
 	defer delete(resources_folder);
 	load_asset_folder(resources_folder, &wb_catalog);

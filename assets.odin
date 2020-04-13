@@ -160,8 +160,16 @@ load_asset_from_file :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset
 	assert(neok, filepath);
 
 	data, fileok := os.read_entire_file(filepath);
-	assert(fileok);
 	defer delete(data);
+	if !fileok {
+		catalog_error(catalog, "os.read_entire_file() of ", filepath, " returned false. Yielding.");
+		return .Yield;
+	}
+
+	if len(data) == 0 {
+		catalog_error(catalog, "os.read_entire_file() of ", filepath, " returned 0 length. Yielding.");
+		return .Yield;
+	}
 
 	res := load_asset(catalog, name, ext, data);
 	return res;
@@ -175,6 +183,7 @@ load_asset :: proc(catalog: ^Asset_Catalog, name: string, ext: string, data: []b
 		for handler_extension in handler.extensions {
 			if handler_extension == ext {
 				asset, result := handler.load_proc(data, Asset_Load_Context{name, ext, catalog});
+
 				switch result {
 					case .Ok: {
 						assert(asset != nil);
@@ -255,14 +264,19 @@ check_for_file_updates :: proc(catalog: ^Asset_Catalog) {
 
 			// :DeleteAssetWhenFileIsDeleted
 
+			logln("File was deleted, leaking the asset: ", file.path);
 			delete_loaded_file(file^);
 			unordered_remove(&catalog.loaded_files, idx);
 		}
 		else {
 			if new_last_write_time > file.last_write_time {
-				logln("file update: ", file.path);
-				file.last_write_time = new_last_write_time;
-				load_asset_from_file(catalog, file.path);
+				result := load_asset_from_file(catalog, file.path);
+				switch result {
+					case .Ok:         file.last_write_time = new_last_write_time;
+					case .Error:      file.last_write_time = new_last_write_time;
+					case .No_Handler: panic("load_proc should never return No_Handler");
+					case .Yield:
+				}
 			}
 		}
 	}
