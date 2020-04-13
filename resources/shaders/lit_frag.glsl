@@ -45,9 +45,33 @@ layout (location=1) out vec4 bloom_color;
 
 
 
-vec3 calculate_point_light(Material, int, vec3);
-vec3 calculate_sun_light(Material, vec3);
-float calculate_shadow(int);
+float calculate_shadow(int shadow_map_idx) {
+    vec4 frag_position_light_space = cascade_light_space_matrices[shadow_map_idx] * vec4(frag_position, 1.0);
+    vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
+    proj_coords = proj_coords * 0.5 + 0.5;
+    if (proj_coords.z > 1.0) {
+        proj_coords.z = 1.0;
+    }
+
+    float bias = max(0.05 * (1.0 - clamp(dot(vert_normal, -sun_direction), 0, 1)), 0.005);
+    // float bias = 0.005 * clamp(dot(vert_normal, -sun_direction), 0, 1);
+
+#if 0
+    float depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
+    float shadow = depth + bias < proj_coords.z ? 1.0 : 0.0;
+    return shadow;
+#else
+    float shadow = 0.0;
+    vec2 texel_size = 1.0 / textureSize(shadow_maps[shadow_map_idx], 0);
+    for (int x = -2; x <= 2; x += 1) {
+        for (int y = -2; y <= 2; y += 1) {
+            float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy + vec2(x, y) * texel_size).r;
+            shadow += pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
+        }
+    }
+    return shadow / 25.0;
+#endif
+}
 
 #define PI 3.14159265359
 
@@ -116,10 +140,13 @@ void main() {
 
     // base color
     vec3 albedo = vert_color.rgb;
+    float frag_alpha = vert_color.a;
 
     // texture color
     if (has_texture_handle == 1) {
-        albedo *= pow(texture(texture_handle, tex_coord.xy).rgb, vec3(2.2)); // todo(josh): dont hardcode this. not sure if it needs to change per texture?
+        vec4 texture_sample = texture(texture_handle, tex_coord.xy);
+        albedo *= pow(texture_sample.rgb, vec3(2.2)); // todo(josh): dont hardcode this. not sure if it needs to change per texture?
+        frag_alpha *= texture_sample.a; // todo(josh): should alpha be gamma corrected? I suspect not
     }
 
     // float metallic = 0.1;
@@ -160,7 +187,7 @@ void main() {
     vec3 ambient = vec3(0.03) * albedo * material.ao;
     vec3 color = ambient + Lo;
 
-    out_color = vec4(color, 1.0);
+    out_color = vec4(color.rgb, frag_alpha);
 
     // visualize cascades
     // if (shadow_map_index == 0) {
@@ -179,38 +206,7 @@ void main() {
 
     // bloom color
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
-    if (brightness > bloom_threshhold) {
-        bloom_color = vec4(out_color.rgb * ((brightness / bloom_threshhold) - 1), 1.0);
+    {
+        bloom_color = vec4(0.0, 0.0, 0.0, 0.0);
     }
-    else {
-        bloom_color = vec4(0.0, 0.0, 0.0, 1.0);
-    }
-}
-
-float calculate_shadow(int shadow_map_idx) {
-    vec4 frag_position_light_space = cascade_light_space_matrices[shadow_map_idx] * vec4(frag_position, 1.0);
-    vec3 proj_coords = frag_position_light_space.xyz / frag_position_light_space.w; // todo(josh): check for divide by zero?
-    proj_coords = proj_coords * 0.5 + 0.5;
-    if (proj_coords.z > 1.0) {
-        proj_coords.z = 1.0;
-    }
-
-    float bias = max(0.05 * (1.0 - clamp(dot(vert_normal, -sun_direction), 0, 1)), 0.005);
-    // float bias = 0.005 * clamp(dot(vert_normal, -sun_direction), 0, 1);
-
-#if 0
-    float depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy).r;
-    float shadow = depth + bias < proj_coords.z ? 1.0 : 0.0;
-    return shadow;
-#else
-    float shadow = 0.0;
-    vec2 texel_size = 1.0 / textureSize(shadow_maps[shadow_map_idx], 0);
-    for (int x = -2; x <= 2; x += 1) {
-        for (int y = -2; y <= 2; y += 1) {
-            float pcf_depth = texture(shadow_maps[shadow_map_idx], proj_coords.xy + vec2(x, y) * texel_size).r;
-            shadow += pcf_depth + bias < proj_coords.z ? 1.0 : 0.0;
-        }
-    }
-    return shadow / 25.0;
-#endif
 }
