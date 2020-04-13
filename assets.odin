@@ -41,6 +41,8 @@ Asset_Load_Context :: struct {
 }
 
 add_default_handlers :: proc(catalog: ^Asset_Catalog) {
+	assert(catalog.has_default_handlers == false);
+	catalog.has_default_handlers = true;
 	add_asset_handler(catalog, Texture,      {"png"},                       catalog_load_texture, catalog_delete_texture);
 	add_asset_handler(catalog, Font,         {"ttf"},                       catalog_load_font,    catalog_delete_font);
 	add_asset_handler(catalog, Model,        {"fbx"},                       catalog_load_model,   catalog_delete_model);
@@ -79,8 +81,8 @@ delete_loaded_file :: proc(file: Loaded_File) {
 
 load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_location) {
 	if !catalog.has_default_handlers {
-		catalog.has_default_handlers = true;
 		add_default_handlers(catalog);
+		assert(catalog.has_default_handlers);
 	}
 
 	files := basic.get_all_filepaths_recursively(path);
