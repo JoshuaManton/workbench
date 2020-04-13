@@ -191,22 +191,24 @@ void main() {
 
     // visualize cascades
     // if (shadow_map_index == 0) {
-    //     out_color.rgb += vec3(1, 0, 0) * 0.2;
+    //     out_color.rgb += vec3(0.2, 0, 0);
     // }
     // else if (shadow_map_index == 1) {
-    //     out_color.rgb += vec3(0, 1, 0) * 0.2;
+    //     out_color.rgb += vec3(0, 0.2, 0);
     // }
     // else if (shadow_map_index == 2) {
-    //     out_color.rgb += vec3(0, 0, 1) * 0.2;
+    //     out_color.rgb += vec3(0, 0, 0.2);
     // }
     // else if (shadow_map_index == 3) {
-    //     out_color.rgb += vec3(1, 0, 1) * 0.2;
+    //     out_color.rgb += vec3(0.2, 0, 0.2);
     // }
-    // out_color = vec4(dist, dist, dist, 1);
 
     // bloom color
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
-    {
-        bloom_color = vec4(0.0, 0.0, 0.0, 0.0);
+    if (brightness > bloom_threshhold) {
+        bloom_color = vec4(out_color.rgb * ((brightness / bloom_threshhold) - 1), 1.0);
+    }
+    else {
+        bloom_color = vec4(0.0, 0.0, 0.0, 1.0);
     }
 }
