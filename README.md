@@ -6,6 +6,7 @@ workbench is a collection of libraries for games handling things like rendering,
 
 * Forward PBR renderer
 * Cascaded shadow maps
+* Skeletal animation
 * HDR
 * Bloom
 * Gamma correction
@@ -43,3 +44,23 @@ update_my_entity :: proc(entity: ^My_Entity, dt: f32) {
     }
 }
 ```
+
+### Serialization
+
+// todo
+
+### Collision
+
+// todo
+
+### Asset Loading
+
+// todo
+
+### UI Layouting
+
+// todo
+
+### Custom Allocators
+
+// todo
