@@ -691,17 +691,15 @@ pop_gpu_enabled :: proc(old: gpu.Capabilities, enable: bool) {
 
 
 Material :: struct {
-	ambient:  Colorf,
-	diffuse:  Colorf,
-	specular: Colorf,
-	shine:    f32,
+	metallic: f32,
+	roughness: f32,
+	ao: f32,
 }
 
-flush_material :: proc(using material: Material, shader: gpu.Shader_Program) {
-	gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
-	gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
-	gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
-	gpu.uniform_float(shader, "material.shine",    material.shine);
+flush_material :: proc(material: Material, shader: gpu.Shader_Program) {
+	gpu.uniform_float(shader, "material.metallic",  material.metallic);
+	gpu.uniform_float(shader, "material.roughness", material.roughness);
+	gpu.uniform_float(shader, "material.ao",        material.ao);
 }
 
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
@@ -1161,7 +1159,7 @@ get_pooled_draw_command :: proc() -> Draw_Command_3D {
 	return Draw_Command_3D{};
 }
 
-create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, 1}) -> Draw_Command_3D {
+create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {1, 1, 1}) -> Draw_Command_3D {
     cmd := get_pooled_draw_command();
     cmd.depth_test = true;
     cmd.model = model;
