@@ -234,9 +234,9 @@ init_builtin_assets :: proc() {
 	defer delete(resources_folder);
 	load_asset_folder(resources_folder, &wb_catalog);
 
-	// load_asset(&wb_catalog, "default",            "ttf",    wba_font_default_data);
-	// load_asset(&wb_catalog, "mono",               "ttf",    wba_font_mono_data);
-	// load_asset(&wb_catalog, "fredoka",            "ttf",    wba_font_fredoka_data);
+	load_asset(&wb_catalog, "default",            "ttf",    wba_font_default_data);
+	load_asset(&wb_catalog, "mono",               "ttf",    wba_font_mono_data);
+	load_asset(&wb_catalog, "fredoka",            "ttf",    wba_font_fredoka_data);
 	// load_asset(&wb_catalog, "default_vert",       "glsl",   wba_default_vert_glsl_data);
 	// load_asset(&wb_catalog, "default_3d_texture", "shader", wba_default_3d_texture_shader_data);
 	// load_asset(&wb_catalog, "default",            "shader", wba_default_shader_data);
