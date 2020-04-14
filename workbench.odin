@@ -56,15 +56,15 @@ make_simple_window :: proc(window_width, window_height: int,
 	startup_start_time := core_time.now()._nsec;
 
 	// init frame allocator
-	@static frame_allocator_raw: allocators.Frame_Allocator;
-	allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
-    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
+	// @static frame_allocator_raw: allocators.Frame_Allocator;
+	// allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 8 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+ //    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
 
-	frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
-    context.temp_allocator = frame_allocator;
+	// frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
+ //    context.temp_allocator = frame_allocator;
 
     // init profiler
-	wb_profiler = pf.make_profiler(proc() -> f64 { return cast(f64) core_time.now()._nsec; } );
+	wb_profiler = pf.make_profiler(proc() -> f64 { return cast(f64) core_time.now()._nsec / cast(f64) core_time.Millisecond; } );
 	defer pf.destroy_profiler(&wb_profiler);
 
 	init_random(u64(core_time.now()._nsec));
@@ -123,10 +123,10 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				acc -= fixed_delta_time;
 
-			    if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
-			        logln("Frame allocator over half capacity: ", frame_allocator_raw.cur_offset, " / ", len(frame_allocator_raw.memory));
-			    }
-			    mem.free_all(frame_allocator);
+			    // if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
+			    //     logln("Frame allocator over half capacity: ", frame_allocator_raw.cur_offset, " / ", len(frame_allocator_raw.memory));
+			    // }
+			    // mem.free_all(frame_allocator);
 
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
@@ -136,7 +136,6 @@ make_simple_window :: proc(window_width, window_height: int,
 				precise_time = f64(core_time.now()._nsec);
 				time = cast(f32)precise_time;
 				frame_count += 1;
-
 
 				when !shared.HEADLESS {
 					//
@@ -160,21 +159,22 @@ make_simple_window :: proc(window_width, window_height: int,
 
 					if acc >= fixed_delta_time {
 						imgui_render(false);
-						continue;
 					}
-					else {
-						break;
-					}
+				}
+
+				if acc >= fixed_delta_time {
+					continue;
+				}
+				else {
+					break;
 				}
 			}
 
-			render_workspace(workspace);
-
 			when !shared.HEADLESS {
+				render_workspace(workspace);
 				glfw.SwapBuffers(main_window);
+				gpu.log_errors("after SwapBuffers()");
 			}
-
-			gpu.log_errors("after SwapBuffers()");
 
 			rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 		}

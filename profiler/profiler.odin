@@ -7,6 +7,7 @@ import rt "core:runtime"
 import "../math"
 
 import "shared:workbench/external/imgui"
+import "shared:workbench/logging"
 
 Profiler :: struct {
 	is_recording: bool,
@@ -42,6 +43,7 @@ profiler_imgui_window :: proc(profiler: ^Profiler) {
 		if imgui.button("Clear") {
 			clear_profiler(profiler);
 		}
+
 
 		for id, _ in profiler.all_sections {
 			imgui.push_id(tprint(id)); defer imgui.pop_id();
@@ -87,7 +89,7 @@ destroy_profiler :: proc(using profiler: ^Profiler) {
 
 @(deferred_out=END_TIMED_SECTION)
 TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) -> (Timed_Section_Info, bool) {
-	if profiler.get_time_proc != nil {
+	if profiler.get_time_proc == nil {
 		//"No `get_time_proc` was set before calling TIMED_SECTION()."
 		return {}, false;
 	}

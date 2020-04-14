@@ -279,6 +279,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 
 		case rt.Type_Info_Map: {
 			// todo(josh): support map
+			logging.logln(name, kind);
 			unimplemented();
 		}
 

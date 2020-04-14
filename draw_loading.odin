@@ -25,6 +25,10 @@ decode_png_data :: proc(png_data: []byte) -> (^byte, i32, i32, gpu.Pixel_Data_Fo
 	color_format : gpu.Internal_Color_Format;
 	pixel_format : gpu.Pixel_Data_Format;
 	switch channels {
+		case 1: {
+			color_format = .Depth_Stencil;
+			pixel_format = .Depth_Stencil;
+		}
 		case 3: {
 			color_format = .RGB16F;
 			pixel_format = .RGB;
@@ -34,7 +38,7 @@ decode_png_data :: proc(png_data: []byte) -> (^byte, i32, i32, gpu.Pixel_Data_Fo
 			pixel_format = .RGBA;
 		}
 		case: {
-			assert(false); // RGB or RGBA
+			logln("Invalid Number of channels for png file: ", channels); //assert(false); // RGB or RGBA
 		}
 	}
 
@@ -95,8 +99,9 @@ load_model_from_file :: proc(path: string, name: string, loc := #caller_location
 	return model;
 }
 
-load_model_from_memory :: proc(data: []byte, name: string, loc := #caller_location) -> Model {
-	hint : cstring = "fbx"; // note(josh): its important that this is a cstring
+load_model_from_memory :: proc(data: []byte, name: string, _hint: string, loc := #caller_location) -> Model {
+	hint := strings.clone_to_cstring(_hint); // note(josh): its important that this is a cstring
+	defer delete(hint);
 
 	scene := ai.import_file_from_memory(&data[0], i32(len(data)),
                                         // cast(u32) ai.Post_Process_Steps.Calc_Tangent_Space |

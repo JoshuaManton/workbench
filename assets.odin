@@ -42,7 +42,7 @@ Asset_Load_Context :: struct {
 add_default_handlers :: proc(catalog: ^Asset_Catalog) {
 	add_asset_handler(catalog, Texture,      {"png"},                       catalog_load_texture, catalog_delete_texture);
 	add_asset_handler(catalog, Font,         {"ttf"},                       catalog_load_font,    catalog_delete_font);
-	add_asset_handler(catalog, Model,        {"fbx"},                       catalog_load_model,   catalog_delete_model);
+	add_asset_handler(catalog, Model,        {"fbx", "gltf", "obj"},                       catalog_load_model,   catalog_delete_model);
 	add_asset_handler(catalog, Shader_Asset, {"shader", "compute", "glsl"}, catalog_load_shader,  catalog_delete_shader);
 }
 
@@ -160,11 +160,13 @@ load_asset_from_file :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset
 	assert(fileok);
 	defer delete(data);
 
+	// logln(name);
 	res := load_asset(catalog, name, ext, data);
 	return res;
 }
 
 load_asset :: proc(catalog: ^Asset_Catalog, name: string, ext: string, data: []byte) -> Asset_Load_Result {
+
 	handler_loop: for ti in catalog.handlers {
 		handler := catalog.handlers[ti];
 		defer catalog.handlers[ti] = handler; // ugh, PLEASE GIVE MAP POINTERS BILL
@@ -290,7 +292,7 @@ catalog_delete_font :: proc(font: ^Font) {
 }
 
 catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, Asset_Load_Result) {
-	model := load_model_from_memory(data, ctx.file_name);
+	model := load_model_from_memory(data, ctx.file_name, ctx.extension);
 	return new_clone(model), .Ok;
 }
 catalog_delete_model :: proc(model: ^Model) {
