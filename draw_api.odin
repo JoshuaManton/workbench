@@ -246,11 +246,10 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := main_camera;
 	main_camera = camera;
 
-	if camera.auto_resize_framebuffer {
-		update_camera_pixel_size(camera, platform.current_window_width, platform.current_window_height);
-	}
-
-	push_framebuffer_non_deferred(camera.framebuffer);
+	push_framebuffer_non_deferred(&camera.framebuffer, camera.auto_resize_framebuffer);
+	camera.pixel_width  = cast(f32)camera.framebuffer.width;
+    camera.pixel_height = cast(f32)camera.framebuffer.height;
+    camera.aspect = camera.pixel_width / camera.pixel_height;
 
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(.Src_Alpha, .One_Minus_Src_Alpha);
@@ -273,26 +272,6 @@ pop_camera :: proc(old_camera: ^Camera) {
 	else {
 		pop_framebuffer({});
 	}
-}
-
-update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
-    pixel_width = new_width;
-    pixel_height = new_height;
-    aspect = new_width / new_height;
-
-    if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
-        logln("Rebuilding framebuffer...");
-
-	    if framebuffer.fbo != 0 {
-			num_color_buffers := len(framebuffer.attachments);
-	        delete_framebuffer(framebuffer);
-	        framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
-	    }
-	    else {
-    	    framebuffer.width  = cast(int)new_width;
-	        framebuffer.height = cast(int)new_height;
-	    }
-    }
 }
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
@@ -510,7 +489,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		profiler.TIMED_SECTION(&wb_profiler, "camera_render.bloom");
 
 		for fbo in bloom_fbos {
-			PUSH_FRAMEBUFFER(fbo);
+			PUSH_FRAMEBUFFER(&fbo, true);
 			gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 		}
 
@@ -521,7 +500,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		shader_blur := get_shader(&wb_catalog, "blur");
 		gpu.use_program(shader_blur);
 		for i in 0..<amount {
-			PUSH_FRAMEBUFFER(bloom_fbos[cast(int)horizontal]);
+			PUSH_FRAMEBUFFER(&bloom_fbos[cast(int)horizontal], true);
 			gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 			if first {
 				draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
@@ -803,7 +782,7 @@ Framebuffer :: struct {
     attachments: []gpu.Framebuffer_Attachment,
 }
 
-create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #caller_location) -> Framebuffer {
+create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_format := gpu.Internal_Color_Format.RGBA16F, data_format := gpu.Pixel_Data_Format.RGBA, data_element_format := gpu.Texture2D_Data_Type.Unsigned_Byte, loc := #caller_location) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
@@ -812,11 +791,11 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #c
 	assert(num_color_buffers <= 32, tprint(num_color_buffers, " is more than ", gpu.Framebuffer_Attachment.Color31));
 	for buf_idx in 0..<num_color_buffers {
 		texture := gpu.gen_texture();
-		append(&textures, Texture{texture, width, height, 1, .Texture2D, .RGBA, .Unsigned_Byte});
+		append(&textures, Texture{texture, width, height, 1, .Texture2D, data_format, data_element_format});
 		gpu.bind_texture_2d(texture);
 
 		// todo(josh): is 16-bit float enough?
-		gpu.tex_image_2d(0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+		gpu.tex_image_2d(0, texture_format, cast(i32)width, cast(i32)height, 0, data_format, data_element_format, nil);
 		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -872,14 +851,30 @@ delete_framebuffer :: proc(framebuffer: Framebuffer) {
 }
 
 @(deferred_out=pop_framebuffer)
-PUSH_FRAMEBUFFER :: proc(framebuffer: Framebuffer) -> Framebuffer {
-	return push_framebuffer_non_deferred(framebuffer);
+PUSH_FRAMEBUFFER :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: bool) -> Framebuffer {
+	return push_framebuffer_non_deferred(framebuffer, auto_resize_framebuffer);
 }
 
-push_framebuffer_non_deferred :: proc(framebuffer: Framebuffer) -> Framebuffer {
+push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: bool) -> Framebuffer {
+	if auto_resize_framebuffer {
+	    if framebuffer.width != cast(int)platform.current_window_width || framebuffer.height != cast(int)platform.current_window_height {
+	        logln("Rebuilding framebuffer...");
+
+		    if framebuffer.fbo != 0 {
+				num_color_buffers := len(framebuffer.attachments);
+		        delete_framebuffer(framebuffer^);
+		        framebuffer^ = create_framebuffer(cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5), num_color_buffers);
+		    }
+		    else {
+	    	    framebuffer.width  = cast(int)(platform.current_window_width+0.5);
+		        framebuffer.height = cast(int)(platform.current_window_height+0.5);
+		    }
+	    }
+	}
+
 	old := current_framebuffer;
 	gpu.bind_fbo(framebuffer.fbo); // note(josh): can be 0
-	current_framebuffer = framebuffer;
+	current_framebuffer = framebuffer^;
 	gpu.viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
 
 	return old;

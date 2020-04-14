@@ -484,24 +484,32 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
 
-    framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId) {
+    framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId, loc := #caller_location) {
         odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
+        log_errors(#procedure, loc);
     }
 
-    framebuffer_renderbuffer :: proc(attachment: Framebuffer_Attachment, rbo: RBO) {
+    framebuffer_renderbuffer :: proc(attachment: Framebuffer_Attachment, rbo: RBO, loc := #caller_location) {
         odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.RENDERBUFFER, cast(u32)rbo);
+        log_errors(#procedure, loc);
     }
 
-    assert_framebuffer_complete :: proc() {
+    assert_framebuffer_complete :: proc(loc := #caller_location) {
         if odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE {
             panic("Failed to setup frame buffer");
         }
+        log_errors(#procedure, loc);
     }
 
-    renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: i32) {
+    renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: i32, loc := #caller_location) {
         odingl.RenderbufferStorage(odingl.RENDERBUFFER, cast(u32)storage, width, height);
+        log_errors(#procedure, loc);
     }
 
+    read_pixels :: proc(x, y: i32, w, h: i32 /* sizei */, data_format: Pixel_Data_Format, data_type: Texture2D_Data_Type, out_data: []byte, loc := #caller_location) {
+        odingl.ReadPixels(x, y, w, h, cast(u32)data_format, cast(u32)data_type, &out_data[0]);
+        log_errors(#procedure, loc);
+    }
 
     // ActiveTexture() is guaranteed to go from 0-47 on all implementations of OpenGL, but can go higher on some
     active_texture :: inline proc(texture_idx: u32, loc := #caller_location) {
@@ -689,6 +697,10 @@ when GPU_BACKEND == "OPENGL" {
         uniform1iv(program, name, cast(i32)len(p), &p[0], loc);
     }
 
+    uniform_uint :: inline proc(program: Shader_Program, name: cstring, p: u32, loc := #caller_location) {
+        uniform1ui(program, name, p, loc);
+    }
+
     uniform_float :: inline proc(program: Shader_Program, name: cstring, p: f32, loc := #caller_location) {
         uniform1f(program, name, p, loc);
     }
@@ -762,6 +774,26 @@ when GPU_BACKEND == "OPENGL" {
     uniform4i :: inline proc(program: Shader_Program, name: cstring, v0: i32, v1: i32, v2: i32, v3: i32, loc := #caller_location) {
         location := get_uniform_location(program, name, loc);
         odingl.Uniform4i(cast(i32)location, v0, v1, v2, v3);
+        log_errors(#procedure, loc);
+    }
+    uniform1ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform1ui(cast(i32)location, v0);
+        log_errors(#procedure, loc);
+    }
+    uniform2ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, v1: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform2ui(cast(i32)location, v0, v1);
+        log_errors(#procedure, loc);
+    }
+    uniform3ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, v1: u32, v2: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform3ui(cast(i32)location, v0, v1, v2);
+        log_errors(#procedure, loc);
+    }
+    uniform4ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, v1: u32, v2: u32, v3: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform4ui(cast(i32)location, v0, v1, v2, v3);
         log_errors(#procedure, loc);
     }
 
