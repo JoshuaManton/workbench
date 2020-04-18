@@ -29,16 +29,8 @@ debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
 
-render_settings: Render_Settings;
-
-Render_Settings :: struct {
-	gamma: f32,
-	exposure: f32,
-	bloom_threshhold: f32,
-
-	visualize_bloom_texture: bool,
-	visualize_shadow_texture: bool,
-}
+visualize_bloom_texture: bool;
+visualize_shadow_texture: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
 	gpu.init(proc(p: rawptr, name: cstring) {
@@ -66,6 +58,9 @@ init_draw :: proc(screen_width, screen_height: int) {
 		gamma = 2.2,
 		exposure = 1,
 		bloom_threshhold = 5.0,
+		bloom_blur_passes = 5,
+		bloom_range = 10,
+		bloom_weight = 0.25,
 	};
 
 	register_debug_program("Rendering", rendering_debug_program, nil);
@@ -76,6 +71,8 @@ rendering_debug_program :: proc(_: rawptr) {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
 		imgui_struct(&render_settings, "Render Settings");
+		imgui.checkbox("visualize_bloom_texture",  &visualize_bloom_texture);
+		imgui.checkbox("visualize_shadow_texture", &visualize_shadow_texture);
 	}
 	imgui.end();
 }

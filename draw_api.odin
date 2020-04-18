@@ -139,6 +139,17 @@ Camera :: struct {
 	auto_resize_framebuffer: bool,
 }
 
+Render_Settings :: struct {
+	gamma: f32,
+	exposure: f32,
+	bloom_threshhold: f32,
+	bloom_blur_passes: i32,
+	bloom_range: i32,
+	bloom_weight: f32,
+}
+
+render_settings: Render_Settings;
+
 MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
 SHADOW_MAP_DIM :: 2048;
@@ -479,11 +490,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 		horizontal := true;
 		first := true;
-		amount := 5;
 		last_bloom_fbo: Maybe(Framebuffer);
 		shader_blur := get_shader(&wb_catalog, "blur");
 		gpu.use_program(shader_blur);
-		for i in 0..<amount {
+		gpu.uniform_int  (shader_blur, "bloom_range",  render_settings.bloom_range);
+		gpu.uniform_float(shader_blur, "bloom_weight", render_settings.bloom_weight);
+
+		for i in 0..<render_settings.bloom_blur_passes {
 			PUSH_FRAMEBUFFER(&bloom_fbos[cast(int)horizontal], true);
 			gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 			if first {
@@ -504,7 +517,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			bind_texture("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
 			draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
-			if render_settings.visualize_bloom_texture {
+			if visualize_bloom_texture {
 				gpu.use_program(get_shader(&wb_catalog, "default"));
 				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
 			}
@@ -517,7 +530,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	debug_geo_flush();
 
 	// visualize depth buffer
-	if render_settings.visualize_shadow_texture {
+	if visualize_shadow_texture {
 		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader(&wb_catalog, "depth"));
