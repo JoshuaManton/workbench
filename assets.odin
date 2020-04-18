@@ -173,7 +173,6 @@ load_asset_from_file :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset
 	}
 
 	res := load_asset(catalog, name, ext, data);
-	logln(name, res);
 	return res;
 }
 

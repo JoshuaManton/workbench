@@ -151,14 +151,6 @@ MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
 SHADOW_MAP_DIM :: 2048;
 
-Model_Animation_State :: struct {
-	mesh_states: [dynamic]Mesh_State, // array of bones per mesh in the model
-}
-
-Mesh_State :: struct {
-	state: [dynamic]Mat4,
-}
-
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
 	framebuffer := framebuffer;
 

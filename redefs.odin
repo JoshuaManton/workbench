@@ -53,6 +53,7 @@ inverse :: math.inverse;
 lerp :: math.lerp;
 quat_look_at :: math.quat_look_at;
 quat_mul_vec3 :: math.quat_mul_vec3;
+mod :: math.mod;
 
 import "types"
 

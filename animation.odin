@@ -10,6 +10,10 @@ import        "core:mem"
 import ai     "external/assimp"
 import "gpu"
 
+//
+// Loading
+//
+
 Loaded_Animation :: struct {
     name: string,
     target_name: string,
@@ -105,7 +109,70 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
     }
 }
 
-get_animation_data :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
+//
+// Playing
+//
+
+Animation_Player :: struct {
+    current_animation: string,
+
+    animation_state: Model_Animation_State,
+    time: f32,
+    running_time: f32,
+}
+
+Model_Animation_State :: struct {
+    mesh_states: [dynamic]Mesh_State, // array of bones per mesh in the model
+}
+
+Mesh_State :: struct {
+    state: [dynamic]Mat4,
+}
+
+init_animation_player :: proc(player: ^Animation_Player, model: Model) {
+    model := model;
+    player.animation_state.mesh_states = make([dynamic]Mesh_State, 0, len(model.meshes));
+    for mesh in &model.meshes {
+        arr := make([dynamic]Mat4, 0, len(mesh.skin.bones));
+
+        for bone in mesh.skin.bones {
+            append(&arr, bone.offset);
+        }
+
+        append(&player.animation_state.mesh_states, Mesh_State { arr });
+    }
+}
+
+destroy_animation_player :: proc(player: ^Animation_Player) {
+    for mesh_state in player.animation_state.mesh_states {
+        delete(mesh_state.state);
+    }
+    delete(player.animation_state.mesh_states);
+    // note(josh): we don't delete `current_animation` here. that's the user's job
+}
+
+tick_animation :: proc(player: ^Animation_Player, model: Model, dt: f32) {
+    assert(model.has_bones);
+
+    if player.current_animation in loaded_animations {
+        animation := loaded_animations[player.current_animation];
+
+        player.running_time += dt;
+
+        tps : f32 = 25.0;
+        if animation.ticks_per_second != 0 {
+            tps = animation.ticks_per_second;
+        }
+        time_in_ticks := player.running_time * tps;
+        player.time = mod(time_in_ticks, animation.duration);
+    }
+
+    for mesh, i in model.meshes {
+        sample_animation(mesh, player.current_animation, player.time, &player.animation_state.mesh_states[i].state);
+    }
+}
+
+sample_animation :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
     if !(animation_name in loaded_animations) do return;
     if len(current_state) < 1 do return;
 
@@ -262,9 +329,3 @@ frame_sort_proc :: proc(f1, f2: Anim_Frame) -> int {
     if f1.time < f2.time do return -1;
     return 0;
 }
-
-
-
-// identity :: math.identity;
-// quat_norm :: math.quat_norm;
-// quat_to_mat4 :: math.quat_to_mat4;
