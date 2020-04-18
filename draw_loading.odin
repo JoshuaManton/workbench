@@ -202,8 +202,9 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 
 		skin : Skinned_Mesh;
 		if mesh.num_bones > 0 {
+			model.has_bones = true;
 
-			// @alloc needs to be freed when the mesh is destroyed
+			// note(josh): freed in _internal_delete_mesh
 			bone_mapping := make(map[string]int, cast(int)mesh.num_bones);
 			bone_info := make([dynamic]Bone, 0, cast(int)mesh.num_bones);
 

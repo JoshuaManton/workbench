@@ -18,6 +18,7 @@ Model :: struct {
     meshes: [dynamic]Mesh,
     center: Vec3,
     size: Vec3,
+    has_bones: bool,
 }
 
 Mesh :: struct {
@@ -38,7 +39,7 @@ Mesh :: struct {
 
 Skinned_Mesh :: struct {
 	bones: []Bone,
-    nodes: [dynamic]Node,
+    nodes: [dynamic]Node, // todo(josh): pretty sure we @Leak these and any data inside them, pls fix!
 	name_mapping: map[string]int,
 	global_inverse: Mat4,
 

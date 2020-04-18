@@ -152,11 +152,11 @@ NUM_SHADOW_MAPS :: 4;
 SHADOW_MAP_DIM :: 2048;
 
 Model_Animation_State :: struct {
-	mesh_states: [dynamic]Mesh_State // array of bones per mesh in the model
+	mesh_states: [dynamic]Mesh_State, // array of bones per mesh in the model
 }
 
 Mesh_State :: struct {
-	state : [dynamic]Mat4
+	state: [dynamic]Mat4,
 }
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
@@ -780,6 +780,10 @@ Framebuffer :: struct {
 
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
+
+    texture_format: gpu.Internal_Color_Format,
+    data_format: gpu.Pixel_Data_Format,
+    data_element_format: gpu.Texture2D_Data_Type,
 }
 
 create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_format := gpu.Internal_Color_Format.RGBA16F, data_format := gpu.Pixel_Data_Format.RGBA, data_element_format := gpu.Texture2D_Data_Type.Unsigned_Byte, loc := #caller_location) -> Framebuffer {
@@ -836,7 +840,7 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_f
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:]};
+	framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:], texture_format, data_format, data_element_format};
 	return framebuffer;
 }
 
@@ -861,9 +865,12 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 	        logln("Rebuilding framebuffer...");
 
 		    if framebuffer.fbo != 0 {
+		    	texture_format := framebuffer.texture_format;
+				data_format := framebuffer.data_format;
+				data_element_format := framebuffer.data_element_format;
 				num_color_buffers := len(framebuffer.attachments);
 		        delete_framebuffer(framebuffer^);
-		        framebuffer^ = create_framebuffer(cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5), num_color_buffers);
+		        framebuffer^ = create_framebuffer(cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
 		    }
 		    else {
 	    	    framebuffer.width  = cast(int)(platform.current_window_width+0.5);
@@ -982,11 +989,14 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	gpu.delete_buffer(mesh.ibo);
 	gpu.log_errors(#procedure, loc);
 
+	for b in mesh.skin.bones {
+		delete(b.name);
+	}
+	delete(mesh.skin.bones);
 	for name in mesh.skin.name_mapping {
 		delete(name);
 	}
 	delete(mesh.skin.name_mapping);
-	delete(mesh.skin.bones);
 }
 
 draw_model :: proc(model: Model,
@@ -1224,13 +1234,16 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 		gpu.log_errors(#procedure);
 
 		if len(anim_state.mesh_states) > i {
-
+			gpu.uniform_int(bound_shader, "do_animation", 1);
 			mesh_state := anim_state.mesh_states[i];
 			for _, i in mesh_state.state {
 				s := mesh_state.state[i];
 				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
 				gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
 			}
+		}
+		else {
+			gpu.uniform_int(bound_shader, "do_animation", 0);
 		}
 
 		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls

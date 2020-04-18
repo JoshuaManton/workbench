@@ -55,11 +55,11 @@ make_simple_window :: proc(window_width, window_height: int,
 	startup_start_time := glfw.GetTime();
 
 	// init frame allocator
-	@static frame_allocator_raw: allocators.Frame_Allocator;
-	allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
-    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
+	@static frame_allocator_raw: allocators.Arena;
+	allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+    defer allocators.destroy_arena(&frame_allocator_raw);
 
-	frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
+	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
     context.temp_allocator = frame_allocator;
 
     // init profiler

@@ -12,14 +12,51 @@ import        "core:mem"
 
 import ai     "../external/assimp"
 
-loaded_animations: map[string]Animation;
+Loaded_Animation :: struct {
+    name: string,
+    target_name: string,
+    channels: [dynamic]Anim_Channel,
+
+    duration: f32,
+    ticks_per_second: f32,
+}
+
+Anim_Channel :: struct {
+    name: string,
+
+    pos_frames: []Anim_Frame,
+    scale_frames: []Anim_Frame,
+    rot_frames: []Anim_Frame,
+}
+
+Anim_Frame :: struct {
+    time: f64,
+
+    kind: union {
+        Anim_Frame_Pos,
+        Anim_Frame_Rotation,
+        Anim_Frame_Scale
+    }
+}
+
+Anim_Frame_Pos :: struct {
+    position: Vec3,
+}
+Anim_Frame_Rotation :: struct {
+    rotation: Quat,
+}
+Anim_Frame_Scale :: struct {
+    scale: Vec3,
+}
+
+loaded_animations: map[string]Loaded_Animation;
 
 load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
     ai_animations := mem.slice_ptr(scene.animations, cast(int) scene.num_animations);
     for _, anim_idx in ai_animations {
         ai_animation := ai_animations[anim_idx];
 
-        animation := Animation{};
+        animation := Loaded_Animation{};
         animation.channels = make([dynamic]Anim_Channel, 0, int(ai_animation.num_channels));
         animation.name = strings.clone(strings.string_from_ptr(&ai_animation.name.data[0], cast(int)ai_animation.name.length));
         animation.duration = f32(ai_animation.duration);
@@ -78,7 +115,7 @@ get_animation_data :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, cu
     read_node_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
+read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Loaded_Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
     channel, exists := get_animation_channel(animation, node.name);
     node_transform := node.local_transform;
 
@@ -203,7 +240,7 @@ read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Animation, nod
     }
 }
 
-get_animation_channel :: proc(using anim: Animation, channel_id: string) -> (Anim_Channel, bool) {
+get_animation_channel :: proc(using anim: Loaded_Animation, channel_id: string) -> (Anim_Channel, bool) {
     for channel in channels {
         if channel.name == channel_id {
             return channel, true;
@@ -236,46 +273,6 @@ ai_to_wb_vec3 :: proc(vec_in: ai.Vector3D) -> Vec3 {
 ai_to_wb_quat :: proc (quat_in: ai.Quaternion) -> Quat {
     return Quat{quat_in.x, quat_in.y, quat_in.z, quat_in.w};
 }
-
-Animation :: struct {
-    name: string,
-    target_name: string,
-    channels: [dynamic]Anim_Channel,
-
-    duration: f32,
-    ticks_per_second: f32,
-}
-
-Anim_Channel :: struct {
-    name: string,
-
-    pos_frames: []Anim_Frame,
-    scale_frames: []Anim_Frame,
-    rot_frames: []Anim_Frame,
-}
-
-Anim_Frame :: struct {
-    time: f64,
-
-    kind: union {
-        Anim_Frame_Pos,
-        Anim_Frame_Rotation,
-        Anim_Frame_Scale
-    }
-}
-
-Anim_Frame_Pos :: struct {
-    position: Vec3,
-}
-Anim_Frame_Rotation :: struct {
-    rotation: Quat,
-}
-Anim_Frame_Scale :: struct {
-    scale: Vec3,
-}
-
-
-
 
 
 
