@@ -205,7 +205,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 
 			// note(josh): freed in _internal_delete_mesh
 			bone_mapping := make(map[string]int, cast(int)mesh.num_bones);
-			bone_info := make([dynamic]Bone, 0, cast(int)mesh.num_bones);
+			bone_info := make([dynamic]Mesh_Bone, 0, cast(int)mesh.num_bones);
 
 			num_bones := 0;
 			bones := mem.slice_ptr(mesh.bones, cast(int)mesh.num_bones);
@@ -222,7 +222,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 				}
 
 				offset := ai_to_wb_mat4(bone.offset_matrix);
-				append(&bone_info, Bone{ offset, bone_name });
+				append(&bone_info, Mesh_Bone{ offset, bone_name });
 
 				if bone.num_weights == 0 do continue;
 
@@ -231,7 +231,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 					vertex_id := base_vert + int(weight.vertex_id);
 					if len(processed_verts) <= vertex_id do continue;
 					vert := processed_verts[vertex_id];
-					for j := 0; j < gpu.BONES_PER_VERTEX; j += 1 {
+					for j := 0; j < BONES_PER_VERTEX; j += 1 {
 						if vert.bone_weights[j] == 0 {
 							vert.bone_weights[j] = weight.weight;
 							vert.bone_indicies[j] = u32(bone_index);
@@ -245,7 +245,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 
 			skin = Skinned_Mesh{
 				bone_info[:],
-				make([dynamic]gpu.Node, 0, 50),
+				make([dynamic]Mesh_Node, 0, 50),
 				bone_mapping,
 				inverse(ai_to_wb(scene.root_node.transformation)),
 				nil,
@@ -265,17 +265,17 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 	return model;
 }
 
-read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^gpu.Node) {
+read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^Mesh_Node) {
 	node_name := strings.clone(strings.string_from_ptr(&ai_node.name.data[0], cast(int)ai_node.name.length));
 
 	node_transform := ai_to_wb(ai_node.transformation);
 	global_transform := mul(parent_transform, node_transform);
 
-	node := gpu.Node {
+	node := Mesh_Node {
         node_name,
         node_transform,
         parent_node,
-        make([dynamic]^gpu.Node, 0, cast(int)ai_node.num_children)
+        make([dynamic]^Mesh_Node, 0, cast(int)ai_node.num_children)
     };
 
 	append(&skin.nodes, node);

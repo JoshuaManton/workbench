@@ -9,7 +9,7 @@ import "types"
 import "profiler"
 
 Terrain :: struct {
-    model: gpu.Model,
+    model: Model,
 
     color0: Colorf,
     color1: Colorf,
@@ -27,7 +27,7 @@ create_terrain :: proc(size: int, height_map: [][]f32, step : f32 = 0.25) -> Ter
     assert(size <= len(height_map), "Height map too smalle for terrain");
 
     terrain := Terrain {
-        gpu.Model {
+        Model {
             "terrain",
             make([dynamic]Mesh, 0, 1),
             {}, {}, false,

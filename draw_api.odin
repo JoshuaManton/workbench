@@ -94,14 +94,6 @@ current_framebuffer: Framebuffer;
 // Camera
 //
 
-// todo(josh): why are these defined in gpu? move them here if possible
-Model :: gpu.Model;
-Mesh :: gpu.Mesh;
-Skinned_Mesh :: gpu.Skinned_Mesh;
-Vertex2D :: gpu.Vertex2D;
-Vertex3D :: gpu.Vertex3D;
-Bone :: gpu.Bone;
-
 Camera :: struct {
     is_perspective: bool,
 
@@ -886,6 +878,74 @@ pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 }
 
 
+
+//
+// Models and Meshes
+//
+
+BONES_PER_VERTEX :: 4;
+
+Model :: struct {
+    name: string,
+    meshes: [dynamic]Mesh,
+    center: Vec3,
+    size: Vec3,
+    has_bones: bool,
+}
+
+Mesh :: struct {
+    vao: gpu.VAO,
+    vbo: gpu.VBO,
+    ibo: gpu.EBO,
+    vertex_type: ^rt.Type_Info,
+
+    index_count:  int,
+    vertex_count: int,
+
+    center: Vec3,
+    vmin: Vec3,
+    vmax: Vec3,
+
+	skin: Skinned_Mesh,
+}
+
+Skinned_Mesh :: struct {
+	bones: []Mesh_Bone,
+    nodes: [dynamic]Mesh_Node, // todo(josh): pretty sure we @Leak these and any data inside them, pls fix!
+	name_mapping: map[string]int,
+	global_inverse: Mat4,
+
+    parent_node: ^Mesh_Node, // points into array above
+}
+
+Mesh_Bone :: struct {
+	offset: Mat4,
+	name: string,
+}
+
+Mesh_Node :: struct {
+    name: string,
+    local_transform: Mat4,
+
+    parent: ^Mesh_Node,
+    children: [dynamic]^Mesh_Node,
+}
+
+Vertex2D :: struct {
+	position: Vec2,
+	tex_coord: Vec2,
+	color: Colorf,
+}
+
+Vertex3D :: struct {
+	position: Vec3,
+	tex_coord: Vec3, // todo(josh): should this be a Vec2?
+	color: Colorf,
+	normal: Vec3,
+
+	bone_indicies: [BONES_PER_VERTEX]u32,
+	bone_weights: [BONES_PER_VERTEX]f32,
+}
 
 add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32 = {}, skin: Skinned_Mesh = {}, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();

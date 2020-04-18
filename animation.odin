@@ -172,7 +172,7 @@ tick_animation :: proc(player: ^Animation_Player, model: Model, dt: f32) {
     }
 }
 
-sample_animation :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
+sample_animation :: proc(mesh: Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
     if !(animation_name in loaded_animations) do return;
     if len(current_state) < 1 do return;
 
@@ -180,7 +180,7 @@ sample_animation :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, curr
     read_animation_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_animation_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Loaded_Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
+read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animation, node: ^Mesh_Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
     channel, exists := get_animation_channel(animation, node.name);
     node_transform := node.local_transform;
 

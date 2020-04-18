@@ -640,17 +640,29 @@ when GPU_BACKEND == "OPENGL" {
                     type_of_elements = odingl.UNSIGNED_BYTE;
                     is_int = true;
                 }
-                case [BONES_PER_VERTEX]u32: {
-                    num_elements = BONES_PER_VERTEX;
-                    type_of_elements = odingl.UNSIGNED_INT;
-                    is_int = true;
-                }
-                case [BONES_PER_VERTEX]f32: {
-                    num_elements = BONES_PER_VERTEX;
-                    type_of_elements = odingl.FLOAT;
-                }
                 case: {
-                    panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
+                    // fallback to using typeinfo
+                    #partial
+                    switch variant in ti.types[i].variant {
+                        case rt.Type_Info_Array: {
+                            num_elements = cast(i32)variant.count;
+                            switch variant.elem {
+                                case type_info_of(u32): {
+                                    type_of_elements = odingl.UNSIGNED_INT;
+                                    is_int = true;
+                                }
+                                case type_info_of(f32): {
+                                    type_of_elements = odingl.FLOAT;
+                                }
+                                case: {
+                                    panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
+                                }
+                            }
+                        }
+                        case: {
+                            panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
+                        }
+                    }
                 }
             }
 
