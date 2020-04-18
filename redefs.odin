@@ -38,6 +38,7 @@ acos :: math.acos;
 cos :: math.cos;
 sin :: math.sin;
 sqrt :: math.sqrt;
+slerp :: math.slerp;
 quat_norm :: math.quat_norm;
 round :: math.round;
 quaternion_forward :: math.quaternion_forward;

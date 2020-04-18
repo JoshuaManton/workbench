@@ -88,12 +88,6 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 	files := basic.get_all_filepaths_recursively(path);
 	defer delete(files); // note(josh): dont delete the elements in `files` because they get stored in Asset_Catalog.loaded_files
 
-	for file in files {
-		last_write_time, err := os.last_write_time_by_name(file);
-		assert(err == 0);
-		append(&catalog.loaded_files, Loaded_File{file, last_write_time});
-	}
-
 	for len(files) > 0 {
 		len_before := len(files);
 
@@ -105,16 +99,23 @@ load_asset_folder :: proc(path: string, catalog: ^Asset_Catalog, loc := #caller_
 		for file_idx := len(files)-1; file_idx >= 0; file_idx -= 1 {
 			filepath := files[file_idx];
 
+			last_write_time, err := os.last_write_time_by_name(filepath);
+			assert(err == 0);
+
 			result := load_asset_from_file(catalog, filepath);
 			switch result {
 				case .Ok: {
+					append(&catalog.loaded_files, Loaded_File{filepath, last_write_time});
 					basic.slice_unordered_remove(&files, file_idx);
 				}
 				case .Error: {
+					append(&catalog.loaded_files, Loaded_File{filepath, last_write_time});
 				}
 				case .Yield: {
+					append(&catalog.loaded_files, Loaded_File{filepath, last_write_time});
 				}
 				case .No_Handler: {
+					delete(filepath);
 					basic.slice_unordered_remove(&files, file_idx);
 				}
 				case: panic(tprint(result));
@@ -172,6 +173,7 @@ load_asset_from_file :: proc(catalog: ^Asset_Catalog, filepath: string) -> Asset
 	}
 
 	res := load_asset(catalog, name, ext, data);
+	logln(name, res);
 	return res;
 }
 

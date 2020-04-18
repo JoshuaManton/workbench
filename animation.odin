@@ -1,16 +1,14 @@
-package animation
+package workbench
 
-import "../math"
 import        "core:fmt"
-import        "../gpu"
-import        "../logging"
 import        "core:os"
 import        "core:sort"
 import rt     "core:runtime"
 import        "core:strings"
 import        "core:mem"
 
-import ai     "../external/assimp"
+import ai     "external/assimp"
+import "gpu"
 
 Loaded_Animation :: struct {
     name: string,
@@ -112,10 +110,10 @@ get_animation_data :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, cu
     if len(current_state) < 1 do return;
 
     animation := loaded_animations[animation_name];
-    read_node_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
+    read_animation_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Loaded_Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
+read_animation_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Loaded_Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
     channel, exists := get_animation_channel(animation, node.name);
     node_transform := node.local_transform;
 
@@ -236,7 +234,7 @@ read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Loaded_Animati
     }
 
     for _, i in node.children {
-        read_node_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
+        read_animation_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
     }
 }
 
@@ -265,23 +263,8 @@ frame_sort_proc :: proc(f1, f2: Anim_Frame) -> int {
     return 0;
 }
 
-ai_to_wb :: proc{ai_to_wb_vec3, ai_to_wb_quat};
-ai_to_wb_vec3 :: proc(vec_in: ai.Vector3D) -> Vec3 {
-    return Vec3{vec_in.x, vec_in.y, vec_in.z};
-}
-
-ai_to_wb_quat :: proc (quat_in: ai.Quaternion) -> Quat {
-    return Quat{quat_in.x, quat_in.y, quat_in.z, quat_in.w};
-}
 
 
-
-Vec3 :: math.Vec3;
-Vec4 :: math.Vec4;
-Quat :: math.Quat;
-Mat4 :: math.Mat4;
-mul :: math.mul;
-identity :: math.identity;
-quat_norm :: math.quat_norm;
-slerp :: math.slerp;
-quat_to_mat4 :: math.quat_to_mat4;
+// identity :: math.identity;
+// quat_norm :: math.quat_norm;
+// quat_to_mat4 :: math.quat_to_mat4;

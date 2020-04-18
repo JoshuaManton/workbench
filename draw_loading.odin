@@ -11,7 +11,6 @@ import "gpu"
 
 import "external/stb"
 import ai "external/assimp"
-import anim "animation"
 
 //
 // Textures
@@ -126,7 +125,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
 	base_vert := 0;
 
-	anim.load_animations_from_ai_scene(scene, model_name);
+	load_animations_from_ai_scene(scene, model_name);
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
@@ -222,7 +221,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 					num_bones += 1;
 				}
 
-				offset := ai_to_wb(bone.offset_matrix);
+				offset := ai_to_wb_mat4(bone.offset_matrix);
 				append(&bone_info, Bone{ offset, bone_name });
 
 				if bone.num_weights == 0 do continue;
@@ -264,15 +263,6 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 	}
 
 	return model;
-}
-
-ai_to_wb :: proc (m : ai.Matrix4x4) -> Mat4 {
-	return Mat4{
-		{m.a1, m.b1, m.c1, m.d1},
-		{m.a2, m.b2, m.c2, m.d2},
-		{m.a3, m.b3, m.c3, m.d3},
-		{m.a4, m.b4, m.c4, m.d4},
-	};
 }
 
 read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^gpu.Node) {
@@ -322,6 +312,24 @@ get_mesh_transform :: proc(node: ^ai.Node, mesh_name: string) -> Mat4 {
 	}
 
 	return ret;
+}
+
+ai_to_wb :: proc{ai_to_wb_vec3, ai_to_wb_quat, ai_to_wb_mat4};
+ai_to_wb_vec3 :: proc(vec_in: ai.Vector3D) -> Vec3 {
+    return Vec3{vec_in.x, vec_in.y, vec_in.z};
+}
+
+ai_to_wb_quat :: proc (quat_in: ai.Quaternion) -> Quat {
+    return Quat{quat_in.x, quat_in.y, quat_in.z, quat_in.w};
+}
+
+ai_to_wb_mat4 :: proc (m : ai.Matrix4x4) -> Mat4 {
+    return Mat4{
+        {m.a1, m.b1, m.c1, m.d1},
+        {m.a2, m.b2, m.c2, m.d2},
+        {m.a3, m.b3, m.c3, m.d3},
+        {m.a4, m.b4, m.c4, m.d4},
+    };
 }
 
 
