@@ -24,6 +24,9 @@ Gizmo_State :: struct {
     move_type: Move_Type,
     hovered_type: Move_Type,
     mouse_pixel_position_on_rotate_clicked: Vec2,
+
+    position_on_move_clicked: Vec3,
+    scale_on_scale_clicked: Vec3,
     rotation_on_rotate_clicked: Quat,
 }
 
@@ -42,9 +45,25 @@ gizmo_new_frame :: proc() {
     clear(&im_gizmos);
 }
 
-gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using gizmo_state: ^Gizmo_State) {
+Gizmo_Result :: union {
+    Gizmo_Move,
+    Gizmo_Rotate,
+    Gizmo_Scale,
+}
+Gizmo_Move :: struct {
+    from, to: Vec3,
+}
+Gizmo_Rotate :: struct {
+    from, to: Quat,
+}
+Gizmo_Scale :: struct {
+    from, to: Vec3,
+}
+
+gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using gizmo_state: ^Gizmo_State) -> Gizmo_Result {
     rotation^ = quat_norm(rotation^);
 
+    was_move_type := move_type;
     if platform.get_input_up(.Mouse_Left) {
         move_type = .NONE;
     }
@@ -93,6 +112,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
                         current_closest = dist;
                         hovered_type = Move_Type.MOVE_X + Move_Type(i);
                         if platform.get_input_down(.Mouse_Left, true) {
+                            gizmo_state.position_on_move_clicked = position^;
                             move_type = hovered_type;
                         }
                     }
@@ -111,6 +131,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
                     if length(intersect_point - quad_center) < (TRANSLATE_PLANE_SIZE * size) { // todo(josh): for the planes we are just doing a circle check right now. kinda dumb but it's easy :)
                         hovered_type = Move_Type.MOVE_YZ + Move_Type(i);
                         if platform.get_input_down(.Mouse_Left, true) {
+                            gizmo_state.position_on_move_clicked = position^;
                             move_type = hovered_type;
                             break;
                         }
@@ -245,6 +266,19 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
 
     is_manipulating = move_type != .NONE;
     append(&im_gizmos, IM_Gizmo{position^, scale^, rotation^, gizmo_state^});
+
+    if was_move_type != .NONE && move_type == .NONE {
+        switch was_move_type {
+            case .NONE: unreachable();
+            case .MOVE_X, .MOVE_Y, .MOVE_Z, .MOVE_YZ, .MOVE_ZX, .MOVE_XY: return Gizmo_Move{gizmo_state.position_on_move_clicked, position^};
+            case .ROTATE_X, .ROTATE_Y, .ROTATE_Z:                         return Gizmo_Rotate{gizmo_state.rotation_on_rotate_clicked, rotation^};
+        }
+    }
+    else {
+        return nil;
+    }
+    unreachable();
+    return nil;
 }
 
 rotated_direction :: proc(entity_rotation: Quat, direction: Vec3) -> Vec3 {
