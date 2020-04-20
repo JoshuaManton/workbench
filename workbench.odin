@@ -63,7 +63,7 @@ make_simple_window :: proc(window_width, window_height: int,
     // init allocation tracker
     @static allocation_tracker: allocators.Allocation_Tracker;
     defer allocators.destroy_allocation_tracker(&allocation_tracker);
-    context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+    // context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
 
     // init profiler
 	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
