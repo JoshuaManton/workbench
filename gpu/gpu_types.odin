@@ -163,10 +163,17 @@ Texture_Target :: enum i32 {
     Texture_Cube_Map_Array      = odingl.TEXTURE_CUBE_MAP_ARRAY,
     Texture2D_Multisample_Array = odingl.TEXTURE_2D_MULTISAMPLE_ARRAY,
 
-    Texture_Rectangle     = odingl.TEXTURE_RECTANGLE,
-    Texture_CubeMap       = odingl.TEXTURE_CUBE_MAP,
-    Texture2D_Multisample = odingl.TEXTURE_2D_MULTISAMPLE,
-    Texture_Buffer        = odingl.TEXTURE_BUFFER,
+    Texture_Rectangle      = odingl.TEXTURE_RECTANGLE,
+    Texture_Cube_Map       = odingl.TEXTURE_CUBE_MAP,
+    Texture2D_Multisample  = odingl.TEXTURE_2D_MULTISAMPLE,
+    Texture_Buffer         = odingl.TEXTURE_BUFFER,
+
+    Cube_Map_Positive_X = odingl.TEXTURE_CUBE_MAP_POSITIVE_X,
+    Cube_Map_Negative_X = odingl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+    Cube_Map_Positive_Y = odingl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+    Cube_Map_Negative_Y = odingl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+    Cube_Map_Positive_Z = odingl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+    Cube_Map_Negative_Z = odingl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
 }
 
 Internal_Color_Format :: enum i32 {

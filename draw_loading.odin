@@ -60,7 +60,7 @@ update_texture_from_png_data :: proc(texture: Texture, png_data: []byte) {
 	defer delete_png_data(pixel_data);
 
 	gpu.bind_texture_2d(texture.gpu_id);
-	gpu.tex_image_2d(0, gpu_format, width, height, 0, data_format, .Unsigned_Byte, pixel_data);
+	gpu.tex_image_2d(.Texture2D, 0, gpu_format, width, height, 0, data_format, .Unsigned_Byte, pixel_data);
 }
 
 

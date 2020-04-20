@@ -25,6 +25,8 @@ main_camera: ^Camera;
 wb_cube_model: Model;
 wb_quad_model: Model;
 
+wb_skybox_model: Model;
+
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
@@ -52,6 +54,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
+	wb_skybox_model = create_cube_model(2);
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{}, {});
 
 	render_settings = Render_Settings{

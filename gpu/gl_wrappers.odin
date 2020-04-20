@@ -377,6 +377,11 @@ when GPU_BACKEND == "OPENGL" {
         return cast(TextureId)texture;
     }
 
+    bind_texture :: inline proc(target: Texture_Target, texture: TextureId, loc := #caller_location) {
+        odingl.BindTexture(cast(u32)target, cast(u32)texture);
+        log_errors(#procedure, loc);
+    }
+
     bind_texture_1d :: inline proc(texture: TextureId, loc := #caller_location) {
         odingl.BindTexture(odingl.TEXTURE_1D, cast(u32)texture);
         log_errors(#procedure, loc);
@@ -410,7 +415,13 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
 
-    tex_image_2d :: proc(lod: i32,
+    depth_range :: proc(min, max: f32, loc := #caller_location) {
+        odingl.DepthRangef(min, max);
+        log_errors(#procedure, loc);
+    }
+
+    tex_image_2d :: proc(target: Texture_Target,
+                         lod: i32,
                          internal_format: Internal_Color_Format,
                          width: i32, height: i32,
                          border: i32,
@@ -419,11 +430,12 @@ when GPU_BACKEND == "OPENGL" {
                          data: rawptr,
                          loc := #caller_location) {
 
-        odingl.TexImage2D(cast(u32)Texture_Target.Texture2D, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
+        odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
         log_errors(#procedure, loc);
     }
 
-    tex_image_3d :: proc(lod: i32,
+    tex_image_3d :: proc(target: Texture_Target,
+                         lod: i32,
                          internal_format: Internal_Color_Format,
                          width, height, depth: i32,
                          border: i32,
@@ -432,7 +444,7 @@ when GPU_BACKEND == "OPENGL" {
                          data: rawptr,
                          loc := #caller_location) {
 
-        odingl.TexImage3D(cast(u32)Texture_Target.Texture3D, lod, cast(i32)internal_format, width, height, depth, border, cast(u32)format, cast(u32)type, data);
+        odingl.TexImage3D(cast(u32)target, lod, cast(i32)internal_format, width, height, depth, border, cast(u32)format, cast(u32)type, data);
         log_errors(#procedure, loc);
     }
 
@@ -473,7 +485,7 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
     draw_buffers :: proc(bufs: []Framebuffer_Attachment, loc := #caller_location) {
-#assert(size_of(Framebuffer_Attachment) == size_of(u32));
+        #assert(size_of(Framebuffer_Attachment) == size_of(u32));
         bufs_u32 := transmute([]u32)bufs;
         odingl.DrawBuffers(cast(i32)len(bufs), &bufs_u32[0]);
         log_errors(#procedure, loc);

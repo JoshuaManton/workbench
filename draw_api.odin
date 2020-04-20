@@ -137,6 +137,8 @@ Camera :: struct {
 	shadow_map_cameras: Maybe([NUM_SHADOW_MAPS]^Camera),
 
 	auto_resize_framebuffer: bool,
+
+	skybox: Maybe(Texture),
 }
 
 Render_Settings :: struct {
@@ -271,11 +273,24 @@ pop_camera :: proc(old_camera: ^Camera) {
 
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
 construct_rendermode_view_matrix :: proc(camera: ^Camera) -> Mat4 {
-	if camera.current_rendermode != .World {
-		return identity(Mat4);
+	#partial
+	switch camera.current_rendermode {
+		case .World: {
+			return construct_view_matrix(camera);
+		}
+		case .Viewport_World: {
+			view_matrix := identity(Mat4);
+		    rotation_matrix := quat_to_mat4(inverse(camera.rotation));
+		    view_matrix = mul(rotation_matrix, view_matrix);
+		    return view_matrix;
+		}
+		case: {
+			return identity(Mat4);
+		}
 	}
 
-	return construct_view_matrix(camera);
+	unreachable();
+	return {};
 }
 
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
@@ -305,6 +320,9 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
         case .Aspect: {
         	aspect := mat4_scale(identity(Mat4), Vec3{1/camera.aspect, 1, 0});
             return aspect;
+        }
+        case .Viewport_World: {
+            return construct_projection_matrix(camera);
         }
         case: panic(tprint(camera.current_rendermode));
     }
@@ -448,6 +466,15 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	{
 		profiler.TIMED_SECTION(&wb_profiler, "camera_render.draw_for_real");
 
+		if skybox_texture, ok := getval(&camera.skybox); ok {
+			PUSH_GPU_ENABLED(.Cull_Face, false);
+			skybox_shader := get_shader(&wb_catalog, "skybox");
+			gpu.use_program(skybox_shader);
+			PUSH_RENDERMODE(.Viewport_World);
+			draw_model(wb_skybox_model, {}, {1, 1, 1}, {0, 0, 0, 1}, skybox_texture^, {1, 1, 1, 1}, true);
+			gpu.clear_screen(.Depth_Buffer);
+		}
+
 		PUSH_RENDERMODE(.World);
 
 		for _, idx in camera.render_queue {
@@ -465,6 +492,10 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 					add_texture_binding(cmd, tprint_cstring("shadow_maps[", map_idx, "]"), shadow_map.framebuffer.depth_texture);
 				}
 				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
+			}
+
+			if skybox_texture, ok := getval(&camera.skybox); ok {
+				add_texture_binding(cmd, "skybox_texture", skybox_texture^);
 			}
 
 			// issue draw call
@@ -514,7 +545,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		if last_bloom_fbo, ok := getval(&last_bloom_fbo); ok {
 			shader_bloom := get_shader(&wb_catalog, "bloom");
 			gpu.use_program(shader_bloom);
-			bind_texture("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
+			bind_texture_to_shader("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
 			draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 			if visualize_bloom_texture {
@@ -652,9 +683,9 @@ pop_gpu_enabled :: proc(old: gpu.Capabilities, enable: bool) {
 
 
 Material :: struct {
-	metallic: f32,
-	roughness: f32,
-	ao: f32,
+	metallic:  f32 `imgui_range="0":"1"`,
+	roughness: f32 `imgui_range="0":"1"`,
+	ao:        f32 `imgui_range="0":"1"`,
 }
 
 flush_material :: proc(material: Material, shader: gpu.Shader_Program) {
@@ -702,7 +733,7 @@ create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, in
 	texture := gpu.gen_texture();
 	gpu.bind_texture_2d(texture);
 
-	gpu.tex_image_2d(0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
+	gpu.tex_image_2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 
@@ -712,14 +743,36 @@ create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, in
 create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_3d(texture);
-	gpu.tex_image_3d(0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
+	gpu.tex_image_3d(.Texture3D, 0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture3D, .Wrap_S, .Repeat);
 	gpu.tex_parameteri(.Texture3D, .Wrap_T, .Repeat);
 	gpu.tex_parameteri(.Texture3D, .Wrap_R, .Repeat);
-
 	return Texture{texture, ww, hh, dd, .Texture3D, initial_data_format, initial_data_element_type};
+}
+
+create_cubemap :: proc() -> Texture {
+	texture := gpu.gen_texture();
+	gpu.bind_texture(.Texture_Cube_Map, texture);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Mag_Filter, .Linear);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Min_Filter, .Linear);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_S, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_T, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_R, .Clamp_To_Edge);
+	return Texture{texture, 0, 0, 1, .Texture_Cube_Map, {}, {}};
+}
+
+set_cubemap_textures :: proc(cubemap: ^Texture, ww, hh: int, right, left, top, bottom, back, front: ^byte, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte) {
+	assert(cubemap.target == .Texture_Cube_Map);
+	faces := [6]^byte{right, left, top, bottom, back, front};
+	for face, i in faces {
+		gpu.tex_image_2d(.Cube_Map_Positive_X + gpu.Texture_Target(i), 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, face);
+	}
+	cubemap.width = ww;
+	cubemap.height = hh;
+	cubemap.format = initial_data_format;
+	cubemap.element_type = initial_data_element_type;
 }
 
 delete_texture :: proc(texture: Texture) {
@@ -733,13 +786,14 @@ draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf
 	draw_model(wb_quad_model, center, size, {0, 0, 0, 1}, texture, color, false);
 }
 
-bind_texture :: proc(name: cstring, texture: Texture, texture_unit: int, shader: gpu.Shader_Program) {
+bind_texture_to_shader :: proc(name: cstring, texture: Texture, texture_unit: int, shader: gpu.Shader_Program) {
 	gpu.active_texture(u32(texture_unit));
 	gpu.uniform_int(shader, name, i32(texture_unit));
 	#partial
 	switch texture.target {
-		case .Texture2D: gpu.bind_texture_2d(texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
-		case .Texture3D: gpu.bind_texture_3d(texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture2D:        gpu.bind_texture(.Texture2D,        texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture3D:        gpu.bind_texture(.Texture3D,        texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture_Cube_Map: gpu.bind_texture(.Texture_Cube_Map, texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
 		case cast(gpu.Texture_Target)0: gpu.uniform_int(shader, tprint_cstring("has_", name), 0); // todo(josh): should this be an error/warning?
 		case: panic(tprint(texture.target));
 	}
@@ -796,7 +850,7 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_f
 		gpu.bind_texture_2d(texture);
 
 		// todo(josh): is 16-bit float enough?
-		gpu.tex_image_2d(0, texture_format, cast(i32)width, cast(i32)height, 0, data_format, data_element_format, nil);
+		gpu.tex_image_2d(.Texture2D, 0, texture_format, cast(i32)width, cast(i32)height, 0, data_format, data_element_format, nil);
 		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -812,7 +866,7 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_f
 	gpu.bind_texture_2d(depth_texture_id);
 	depth_texture := Texture{depth_texture_id, width, height, 1, .Texture2D, .Depth_Component, .Float};
 
-	gpu.tex_image_2d(0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
+	gpu.tex_image_2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -1119,8 +1173,9 @@ draw_model :: proc(model: Model,
 		// todo(josh): handle multiple textures per model
 		#partial
 		switch texture.target {
-			case .Texture2D: gpu.bind_texture_2d(texture.gpu_id);
-			case .Texture3D: gpu.bind_texture_3d(texture.gpu_id);
+			case .Texture2D:        gpu.bind_texture(.Texture2D,        texture.gpu_id);
+			case .Texture3D:        gpu.bind_texture(.Texture3D,        texture.gpu_id);
+			case .Texture_Cube_Map: gpu.bind_texture(.Texture_Cube_Map, texture.gpu_id);
 			case cast(gpu.Texture_Target)0:
 			case: panic(tprint(texture.target));
 		}
@@ -1240,7 +1295,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 	bound_shader := gpu.get_current_shader();
 
 	for binding, idx in texture_bindings {
-		bind_texture(binding.name, binding.texture, idx, bound_shader);
+		bind_texture_to_shader(binding.name, binding.texture, idx, bound_shader);
 	}
 	for _, bidx in uniform_bindings {
 		binding := &uniform_bindings[bidx];
@@ -1338,6 +1393,7 @@ Rendermode :: enum {
     Unit,
     Pixel,
     Aspect,
+    Viewport_World,
 }
 
 @(deferred_out=pop_rendermode)

@@ -20,6 +20,8 @@ uniform Material material;
 uniform sampler2D texture_handle;
 uniform int has_texture_handle;
 
+uniform samplerCube skybox_texture;
+
 #define NUM_SHADOW_MAPS 4
 uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
 
@@ -183,6 +185,14 @@ void main() {
     vec3 sun_color = calculate_light(albedo, material.metallic, material.roughness, N, V, -normalize(sun_direction), sun_color.rgb * sun_intensity);
     sun_color *= shadow;
     Lo += sun_color;
+
+    // skybox light
+    // todo(josh): real IBL
+    vec3 reflected_direction = normalize(reflect(-V, N));
+    vec3 skybox_color = pow(texture(skybox_texture, reflected_direction).rgb, vec3(2.2)); // todo(josh): should we normalize tex_coord here?
+    Lo += calculate_light(albedo, material.metallic, material.roughness, N, V, reflected_direction, skybox_color);
+
+
 
     vec3 ambient = vec3(0.03) * albedo * material.ao;
     vec3 color = ambient + Lo;
