@@ -179,7 +179,7 @@ im_text :: proc(
 			}
 
 			if !is_space && actually_draw {
-				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite.uvs, sprite.id, color, layer);
+				im_sprite_minmax(rendermode, get_shader("text"), min, max, sprite.uvs, sprite.id, color, layer);
 			}
 
 			width := max.x - min.x;

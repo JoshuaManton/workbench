@@ -301,7 +301,7 @@ im_gizmos: [dynamic]IM_Gizmo;
 gizmo_render :: proc() {
     PUSH_RENDERMODE(.World);
     PUSH_GPU_ENABLED(.Cull_Face, false);
-    gpu.use_program(get_shader(&wb_catalog, "default"));
+    gpu.use_program(get_shader("default"));
 
     for g in im_gizmos {
         g := g;

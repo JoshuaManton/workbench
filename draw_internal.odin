@@ -102,8 +102,6 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
-	check_for_file_updates(&wb_catalog);
-
 	PUSH_GPU_ENABLED(.Cull_Face, true);
 
 	camera_render(main_camera, workspace.render);
@@ -114,7 +112,7 @@ render_workspace :: proc(workspace: Workspace) {
 	PUSH_POLYGON_MODE(.Fill);
 
 	// do gamma correction and draw to screen!
-	shader_gamma := get_shader(&wb_catalog, "gamma");
+	shader_gamma := get_shader("gamma");
 	gpu.use_program(shader_gamma);
 	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);

@@ -448,7 +448,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			// render scene from perspective of sun
 			PUSH_CAMERA(shadow_map_camera);
 
-			depth_shader := get_shader(&wb_catalog, "shadow");
+			depth_shader := get_shader("shadow");
 			gpu.use_program(depth_shader);
 
 			PUSH_RENDERMODE(.World);
@@ -468,7 +468,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 		if skybox_texture, ok := getval(&camera.skybox); ok {
 			PUSH_GPU_ENABLED(.Cull_Face, false);
-			skybox_shader := get_shader(&wb_catalog, "skybox");
+			skybox_shader := get_shader("skybox");
 			gpu.use_program(skybox_shader);
 			PUSH_RENDERMODE(.Viewport_World);
 			draw_model(wb_skybox_model, {}, {1, 1, 1}, {0, 0, 0, 1}, skybox_texture^, {1, 1, 1, 1}, true);
@@ -522,7 +522,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		horizontal := true;
 		first := true;
 		last_bloom_fbo: Maybe(Framebuffer);
-		shader_blur := get_shader(&wb_catalog, "blur");
+		shader_blur := get_shader("blur");
 		gpu.use_program(shader_blur);
 		gpu.uniform_int  (shader_blur, "bloom_range",  render_settings.bloom_range);
 		gpu.uniform_float(shader_blur, "bloom_weight", render_settings.bloom_weight);
@@ -543,13 +543,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
 
 		if last_bloom_fbo, ok := getval(&last_bloom_fbo); ok {
-			shader_bloom := get_shader(&wb_catalog, "bloom");
+			shader_bloom := get_shader("bloom");
 			gpu.use_program(shader_bloom);
 			bind_texture_to_shader("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
 			draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
 			if visualize_bloom_texture {
-				gpu.use_program(get_shader(&wb_catalog, "default"));
+				gpu.use_program(get_shader("default"));
 				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
 			}
 		}
@@ -564,7 +564,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	if visualize_shadow_texture {
 		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 			if length(camera.sun_direction) > 0 {
-				gpu.use_program(get_shader(&wb_catalog, "depth"));
+				gpu.use_program(get_shader("depth"));
 				for shadow_map, map_idx in shadow_maps {
 					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
 				}
@@ -1441,7 +1441,7 @@ debug_geo_flush :: proc() {
 	PUSH_POLYGON_MODE(.Line);
 	PUSH_GPU_ENABLED(.Cull_Face, false);
 
-	gpu.use_program(get_shader(&wb_catalog, "default"));
+	gpu.use_program(get_shader("default"));
 	for line in debug_lines {
 		PUSH_RENDERMODE(line.rendermode);
 		verts: [3]Vertex3D;
