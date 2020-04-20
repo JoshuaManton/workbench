@@ -33,6 +33,7 @@ debug_line_model: Model;
 
 visualize_bloom_texture: bool;
 visualize_shadow_texture: bool;
+visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
 	gpu.init(proc(p: rawptr, name: cstring) {
@@ -76,6 +77,7 @@ rendering_debug_program :: proc(_: rawptr) {
 		imgui_struct(&render_settings, "Render Settings");
 		imgui.checkbox("visualize_bloom_texture",  &visualize_bloom_texture);
 		imgui.checkbox("visualize_shadow_texture", &visualize_shadow_texture);
+		imgui.checkbox("visualize_shadow_cascades", &visualize_shadow_cascades);
 	}
 	imgui.end();
 }

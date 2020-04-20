@@ -60,6 +60,11 @@ make_simple_window :: proc(window_width, window_height: int,
 	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
     context.temp_allocator = frame_allocator;
 
+    // init allocation tracker
+    @static allocation_tracker: allocators.Allocation_Tracker;
+    defer allocators.destroy_allocation_tracker(&allocation_tracker);
+    context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+
     // init profiler
 	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
 	defer pf.destroy_profiler(&wb_profiler);
@@ -136,6 +141,11 @@ make_simple_window :: proc(window_width, window_height: int,
 				update_debug_menu(fixed_delta_time);
 
 				update_workspace(workspace, fixed_delta_time); // calls client updates
+
+				// if imgui.begin("Allocation Tracker") {
+				// 	imgui_struct(&allocation_tracker.infos, "Allocations");
+				// }
+				// imgui.end();
 
 				late_update_ui();
 

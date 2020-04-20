@@ -41,6 +41,8 @@ uniform float sun_intensity;
 
 uniform float bloom_threshhold;
 
+uniform int visualize_shadow_cascades;
+
 
 layout (location=0) out vec4 out_color;
 layout (location=1) out vec4 bloom_color;
@@ -174,9 +176,11 @@ void main() {
     // shadow color
     float dist = length(camera_position - frag_position);
     float shadow = 0;
+    int shadow_map_index = 0;
     for (int cascade_idx = 0; cascade_idx < NUM_SHADOW_MAPS; cascade_idx++) {
         if (dist < cascade_distances[cascade_idx]) {
             shadow = 1.0 - calculate_shadow(cascade_idx);
+            shadow_map_index = cascade_idx;
             break;
         }
     }
@@ -199,19 +203,20 @@ void main() {
 
     out_color = vec4(color.rgb, frag_alpha);
 
-    // visualize cascades
-    // if (shadow_map_index == 0) {
-    //     out_color.rgb += vec3(0.2, 0, 0);
-    // }
-    // else if (shadow_map_index == 1) {
-    //     out_color.rgb += vec3(0, 0.2, 0);
-    // }
-    // else if (shadow_map_index == 2) {
-    //     out_color.rgb += vec3(0, 0, 0.2);
-    // }
-    // else if (shadow_map_index == 3) {
-    //     out_color.rgb += vec3(0.2, 0, 0.2);
-    // }
+    if (visualize_shadow_cascades == 1) {
+        if (shadow_map_index == 0) {
+            out_color.rgb += vec3(0.2, 0, 0);
+        }
+        else if (shadow_map_index == 1) {
+            out_color.rgb += vec3(0, 0.2, 0);
+        }
+        else if (shadow_map_index == 2) {
+            out_color.rgb += vec3(0, 0, 0.2);
+        }
+        else if (shadow_map_index == 3) {
+            out_color.rgb += vec3(0.2, 0.2, 0);
+        }
+    }
 
     // bloom color
     float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable

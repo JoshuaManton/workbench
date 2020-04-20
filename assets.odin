@@ -23,9 +23,10 @@ yielded_files: [dynamic]string;
 
 Tracked_File :: struct {
 	path: string,
-	last_write_time: os.File_Time,
+	last_update_time: os.File_Time,
 	reference_count: int,
 	asset: any, // may be null, only loaded if reference_count > 0
+	dependencies: [dynamic]string, // note(josh): all these strings are allocated
 }
 
 Asset_Load_Proc   :: #type proc([]byte, Asset_Load_Context) -> (rawptr, Asset_Load_Result);
@@ -38,6 +39,7 @@ Asset_Handler :: struct {
 }
 
 Asset_Load_Context :: struct {
+	tracked_file: ^Tracked_File,
 	file_name: string,
 	extension: string,
 }
@@ -122,7 +124,7 @@ track_asset_folder :: proc(path: string, loc := #caller_location) {
 					// now that we know there's a handler for this asset type, add it to the list of tracked files
 					last_write_time, err := os.last_write_time_by_name(filepath);
 					assert(err == 0);
-					tracked_files[name] = Tracked_File{filepath, last_write_time, 0, nil};
+					tracked_files[name] = Tracked_File{filepath, last_write_time, 0, nil, nil};
 					continue filepath_loop;
 				}
 			}
@@ -140,7 +142,7 @@ track_asset_folder :: proc(path: string, loc := #caller_location) {
 // note(josh): use this procedure sparingly, it doesn't work for hotloading, it is meant for manually jamming assets into the asset system
 force_add_asset :: proc($Type: typeid, name: string, asset: ^Type) {
 	assert(name notin tracked_files);
-	tracked_files[strings.clone(name)] = Tracked_File{"", 0, 1, any{asset, typeid_of(Type)}};
+	tracked_files[strings.clone(name)] = Tracked_File{"", 0, 1, any{asset, typeid_of(Type)}, nil};
 }
 
 add_reference :: proc(name: string) {
@@ -164,8 +166,7 @@ flush_reference_changes :: proc() {
 			append(&to_load, name);
 		}
 		else if file.reference_count == 0 && file.asset != nil {
-			unload_asset(file.asset);
-			file.asset = nil;
+			unload_tracked_file(&file);
 		}
 	}
 
@@ -175,10 +176,9 @@ flush_reference_changes :: proc() {
 			file := &tracked_files[name];
 
 			// load the asset
-			asset, result := load_asset_from_file(file.path);
+			result := load_tracked_file(file);
 			switch result {
 				case .Ok: {
-					file.asset = asset;
 					unordered_remove(&to_load, idx);
 				}
 				case .Error: {
@@ -258,24 +258,31 @@ Asset_Load_Result :: enum {
 	Yield,
 }
 
-load_asset_from_file :: proc(filepath: string) -> (any, Asset_Load_Result) {
-	name, nameok := basic.get_file_name(filepath);
-	assert(nameok, filepath);
-	ext, extok := basic.get_file_extension(filepath);
-	assert(extok, filepath);
-	name_and_ext, neok := basic.get_file_name_and_extension(filepath);
-	assert(neok, filepath);
+load_tracked_file :: proc(tracked_file: ^Tracked_File) -> Asset_Load_Result {
+	assert(tracked_file.asset == nil);
+
+	for depend in tracked_file.dependencies {
+		delete(depend);
+	}
+	clear(&tracked_file.dependencies);
+
+	name, nameok := basic.get_file_name(tracked_file.path);
+	assert(nameok, tracked_file.path);
+	ext, extok := basic.get_file_extension(tracked_file.path);
+	assert(extok, tracked_file.path);
+	name_and_ext, neok := basic.get_file_name_and_extension(tracked_file.path);
+	assert(neok, tracked_file.path);
 
 	// load the file data
-	data, fileok := os.read_entire_file(filepath);
+	data, fileok := os.read_entire_file(tracked_file.path);
 	defer delete(data);
 	if !fileok {
-		logln("Error: os.read_entire_file() of ", filepath, " returned false. Yielding.");
-		return nil, .Yield;
+		logln("Error: os.read_entire_file() of ", tracked_file.path, " returned false. Yielding.");
+		return .Yield;
 	}
 	if len(data) == 0 {
-		logln("Error: os.read_entire_file() of ", filepath, " returned 0 length. Yielding.");
-		return nil, .Yield;
+		logln("Error: os.read_entire_file() of ", tracked_file.path, " returned 0 length. Yielding.");
+		return .Yield;
 	}
 
 	// find the handler type and call the load proc
@@ -283,44 +290,30 @@ load_asset_from_file :: proc(filepath: string) -> (any, Asset_Load_Result) {
 	for handler in &asset_handlers {
 		for handler_extension in handler.extensions {
 			if handler_extension == ext {
-				asset, result := handler.load_proc(data, Asset_Load_Context{name, ext});
+				asset, result := handler.load_proc(data, Asset_Load_Context{tracked_file, name, ext});
+				assert(result != .No_Handler);
 
-				switch result {
-					case .Ok: {
-						return any{asset, handler.type_info.id}, result;
-					}
-					case .Error: {
-						assert(asset == nil);
-						return nil, result;
-					}
-					case .Yield: {
-						assert(asset == nil);
-						return nil, result;
-					}
-					case .No_Handler: {
-						panic("Handler load proc should never return No_Handler");
-						return nil, result;
-					}
-					case: panic(tprint(result));
+				if result == .Ok {
+					tracked_file.asset = any{asset, handler.type_info.id};
 				}
 
-				unreachable();
-				return {}, {};
+				return result;
 			}
 		}
 	}
 
 	panic(tprint("No handler for extension: ", ext));
-	return {}, {};
+	return {};
 }
 
-unload_asset :: proc(asset: any) {
-	assert(asset != nil);
-	raw_any := transmute(mem.Raw_Any)asset;
+unload_tracked_file :: proc(tracked_file: ^Tracked_File) {
+	assert(tracked_file.asset != nil);
+	raw_any := transmute(mem.Raw_Any)tracked_file.asset;
 	ti := type_info_of(raw_any.id);
 	handler, ok := try_get_asset_handler(ti);
 	assert(ok);
 	handler.delete_proc(raw_any.data);
+	tracked_file.asset = nil;
 
 	try_get_asset_handler :: proc(ti: ^rt.Type_Info) -> (Asset_Handler, bool) {
 		for handler in asset_handlers {
@@ -333,8 +326,6 @@ unload_asset :: proc(asset: any) {
 check_for_file_updates :: proc() {
 	profiler.TIMED_SECTION(&wb_profiler);
 	for name, tracked_file in &tracked_files {
-		if tracked_file.asset == nil do continue;
-
 		if tracked_file.path != "" { // note(josh): some assets are put into the asset system manually and thus don't have a matching file on disk
 			new_last_write_time, err := os.last_write_time_by_name(tracked_file.path);
 			if err != 0 {
@@ -346,22 +337,31 @@ check_for_file_updates :: proc() {
 				tracked_file.asset = nil;
 			}
 			else {
-				if new_last_write_time > tracked_file.last_write_time {
-					asset, result := load_asset_from_file(tracked_file.path);
+				latest_dependency_change: os.File_Time;
+				for depend_name in tracked_file.dependencies {
+					depend, ok := tracked_files[depend_name];
+					assert(ok, depend_name); // todo(josh): error handling
+					latest_dependency_change = max(latest_dependency_change, depend.last_update_time);
+				}
+
+				new_update_time := max(new_last_write_time, latest_dependency_change);
+				if new_update_time > tracked_file.last_update_time {
+					if tracked_file.asset != nil {
+						unload_tracked_file(&tracked_file);
+					}
+					result := load_tracked_file(&tracked_file);
 					switch result {
 						case .Ok: {
 							assert(tracked_file.asset != nil);
-							unload_asset(tracked_file.asset);
-							tracked_file.asset = asset;
-							tracked_file.last_write_time = new_last_write_time;
-							logln("File updated: ", tracked_file.path);
+							tracked_file.last_update_time = new_update_time;
+							// logln("File updated: ", name);
 						}
 						case .Error: {
-							tracked_file.last_write_time = new_last_write_time;
-							logln("Error loading file: ", tracked_file.path);
+							tracked_file.last_update_time = new_update_time;
+							logln("Error loading file: ", name);
 						}
 						case .No_Handler: panic("load_proc should never return No_Handler");
-						case .Yield:      logln("Yielding file: ", tracked_file.path);
+						case .Yield:      logln("Yielding file: ", name);
 					}
 				}
 			}
@@ -369,6 +369,14 @@ check_for_file_updates :: proc() {
 	}
 }
 
+add_asset_dependency :: proc(tracked_file: ^Tracked_File, depends_on: string) {
+	for dependency in tracked_file.dependencies {
+		if dependency == depends_on {
+			return;
+		}
+	}
+	append(&tracked_file.dependencies, strings.clone(depends_on));
+}
 
 
 // todo(josh): we currently individually allocate each asset which is a little wasteful, could back these by an arena or something
@@ -482,13 +490,15 @@ parse_shader :: proc(text: string, ctx: Asset_Load_Context) -> (Shader_Asset, As
 				assert(len(rest_of_line) > 0);
 				lexer := laas.make_lexer(rest_of_line);
 				file_to_include := laas.expect_string(&lexer);
-				file_name, fnok := basic.get_file_name(file_to_include);
-				assert(fnok, file_name);
+				include_file_name, fnok := basic.get_file_name(file_to_include);
+				assert(fnok, include_file_name);
 
-				shader_asset, ok := try_get_asset(Shader_Asset, file_name);
+				shader_asset, ok := try_get_asset(Shader_Asset, include_file_name);
 				if !ok {
 					return .Yield;
 				}
+
+				add_asset_dependency(ctx.tracked_file, include_file_name);
 
 				result := process_includes(builder, shader_asset.text, ctx);
 				if result != .Ok {

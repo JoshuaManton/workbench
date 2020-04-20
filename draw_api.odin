@@ -371,9 +371,9 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		for shadow_map_camera, map_idx in shadow_maps {
 			assert(shadow_map_camera != nil);
 
-			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
-			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
-			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerous
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerous
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerous
 			frustum_corners := [8]Vec3 {
 				{-1,  1, -1},
 				{ 1,  1, -1},
@@ -494,6 +494,9 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
 			}
 
+			if visualize_shadow_cascades do gpu.uniform_int(shader, "visualize_shadow_cascades", 1);
+			else                         do gpu.uniform_int(shader, "visualize_shadow_cascades", 0);
+
 			if skybox_texture, ok := getval(&camera.skybox); ok {
 				add_texture_binding(cmd, "skybox_texture", skybox_texture^);
 			}
@@ -572,14 +575,17 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
 	}
 
+
+
+	if _pooled_draw_commands_taken_out != len(camera.render_queue) {
+		logf("LEAK!!! Somebody pulled a draw command out of the pool and didn't submit or return it!!! taken out: %, returned: %", _pooled_draw_commands_taken_out, len(camera.render_queue));
+	}
 	for cmd in camera.render_queue {
-		// put the texture and uniform bindings back in the pool
-		pooled_cmd: Draw_Command_3D;
-		pooled_cmd.texture_bindings = cmd.texture_bindings; clear(&pooled_cmd.texture_bindings);
-		pooled_cmd.uniform_bindings = cmd.uniform_bindings; clear(&pooled_cmd.uniform_bindings);
-		append(&_pooled_draw_commands, pooled_cmd);
+		return_draw_command_to_pool(cmd);
 	}
 	clear(&camera.render_queue);
+
+
 
 	// clear lights
 	camera.num_point_lights = 0;
@@ -1252,24 +1258,26 @@ Uniform_Binding :: struct {
 	},
 }
 
-add_texture_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, texture: Texture) {
-	append(&cmd.texture_bindings, Texture_Binding{name, texture});
+add_texture_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, texture: Texture, loc := #caller_location) {
+	append(&cmd.texture_bindings, Texture_Binding{name, texture}, loc);
 }
 
-add_uniform_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, value: $T) {
-	append(&cmd.uniform_bindings, Uniform_Binding{name, value});
+add_uniform_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, value: $T, loc := #caller_location) {
+	append(&cmd.uniform_bindings, Uniform_Binding{name, value}, loc);
 }
 
 _pooled_draw_commands: [dynamic]Draw_Command_3D;
+_pooled_draw_commands_taken_out: int;
 
 get_pooled_draw_command :: proc() -> Draw_Command_3D {
+	_pooled_draw_commands_taken_out += 1;
 	if len(_pooled_draw_commands) > 0 {
 		return pop(&_pooled_draw_commands);
 	}
 	return Draw_Command_3D{};
 }
 
-create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {1, 1, 1}) -> Draw_Command_3D {
+create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {1, 1, 1}, loc := #caller_location) -> Draw_Command_3D {
     cmd := get_pooled_draw_command();
     cmd.depth_test = true;
     cmd.model = model;
@@ -1285,6 +1293,16 @@ create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, 
 
 submit_draw_command :: proc(cmd: Draw_Command_3D) {
 	append(&main_camera.render_queue, cmd);
+}
+
+return_draw_command_to_pool :: proc(cmd: Draw_Command_3D) {
+	// put the texture and uniform bindings back in the pool
+	_pooled_draw_commands_taken_out -= 1;
+	assert(_pooled_draw_commands_taken_out >= 0);
+	pooled_cmd: Draw_Command_3D;
+	pooled_cmd.texture_bindings = cmd.texture_bindings; clear(&pooled_cmd.texture_bindings);
+	pooled_cmd.uniform_bindings = cmd.uniform_bindings; clear(&pooled_cmd.uniform_bindings);
+	append(&_pooled_draw_commands, pooled_cmd);
 }
 
 execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
