@@ -104,6 +104,8 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
+	TIMED_SECTION();
+
 	PUSH_GPU_ENABLED(.Cull_Face, true);
 
 	camera_render(main_camera, workspace.render);

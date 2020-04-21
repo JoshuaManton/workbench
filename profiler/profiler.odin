@@ -1,138 +1,177 @@
-package profiler
+package workbench
 
 import "core:fmt"
-import "core:hash"
-import rt "core:runtime"
+import "core:sort"
+import "core:time"
+import "core:mem"
+import "core:strings"
 
-import "../math"
+import "../external/imgui"
+import "../allocators"
+import "../platform"
+import "../logging"
 
-import "shared:workbench/external/imgui"
-
-Profiler :: struct {
-	is_recording: bool,
-
-	get_time_proc: proc() -> f64,
-	all_sections: map[u64]Section_Statistics,
+Frame_Info :: struct {
+	root_section: ^Section_Info,
 }
 
-Section_Statistics :: struct {
+Section_Info :: struct {
 	name: string,
-	total_time:   f64,
-	num_times:    i32,
-	average_time: f64,
-	max_time:     f64,
+	calls: int,
+	time_taken: time.Duration,
+	children: [dynamic]^Section_Info,
 }
 
-Timed_Section_Info :: struct {
-	id: u64,
-	profiler: ^Profiler,
-	start_time: f64,
+profiler_full_frame_times: []f32;
+profiler_arena: allocators.Arena;
+profiler_allocator: mem.Allocator;
+profiler_frame_data: []Frame_Info;
+current_profiler_frame: int;
+
+current_section: ^Section_Info;
+profiler_running: bool;
+
+init_profiler :: proc() {
+	profiler_frame_data = make([]Frame_Info, 2000);
+	profiler_full_frame_times = make([]f32, 2000);
+
+	allocators.init_arena(&profiler_arena, make([]byte, 10 * 1024 * 1024));
+	profiler_allocator = allocators.arena_allocator(&profiler_arena);
 }
 
-make_profiler :: proc(get_time_proc: proc() -> f64) -> Profiler {
-	return Profiler{false, get_time_proc, {}};
+deinit_profiler :: proc() {
+	delete(profiler_arena.memory);
 }
 
-profiler_imgui_window :: proc(profiler: ^Profiler) {
+profiler_new_frame :: proc() {
+	if platform.get_input(.F5) {
+		profiler_running = true;
+	}
+	if platform.get_input(.F6) {
+		profiler_running = false;
+	}
+	if platform.get_input(.F7) {
+		free_all(profiler_allocator);
+		current_profiler_frame = 0;
+	}
+
+	if profiler_running {
+		last_frame := profiler_frame_data[current_profiler_frame];
+		if last_frame.root_section != nil {
+			profiler_full_frame_times[current_profiler_frame] = cast(f32)time.duration_seconds(last_frame.root_section.time_taken);
+		}
+		current_profiler_frame = (current_profiler_frame + 1) % len(profiler_frame_data);
+	}
+}
+
+draw_profiler_window :: proc() {
+	TREE_FLAGS :: imgui.Tree_Node_Flags.OpenOnArrow | imgui.Tree_Node_Flags.OpenOnDoubleClick;
+
 	if imgui.begin("Profiler") {
-		if imgui.button((profiler.is_recording ? "Stop" : "Play")) {
-			profiler.is_recording = !profiler.is_recording;
+		imgui.label_text("Profiler memory", tprint(profiler_arena.cur_offset, " / ", len(profiler_arena.memory)));
+
+    	imgui.plot_lines("Frame times", &profiler_full_frame_times[0], cast(i32)len(profiler_full_frame_times), 0, nil, 0);
+
+    	@static selected_frame: i32;
+    	imgui.slider_int("frame", &selected_frame, 0, cast(i32)len(profiler_full_frame_times)-1);
+
+		frame := profiler_frame_data[selected_frame];
+		if frame.root_section != nil {
+			imgui.columns(3);
+			draw_section(frame.root_section);
+			imgui.columns(1);
 		}
-		imgui.same_line();
-		if imgui.button("Clear") {
-			clear_profiler(profiler);
-		}
 
-		for id, _ in profiler.all_sections {
-			imgui.push_id(tprint(id)); defer imgui.pop_id();
+		draw_section :: proc(info: ^Section_Info) {
+			flags := TREE_FLAGS;
 
-			section := profiler.all_sections[id];
-			defer profiler.all_sections[id] = section;
+			if len(info.children) == 0 {
+                flags |= imgui.Tree_Node_Flags.Leaf;
+            }
 
-			if imgui.collapsing_header(section.name) {
-				imgui.indent();
-				defer imgui.unindent();
+            is_open := imgui.tree_node_ext(info.name, flags);
+			imgui.next_column();
+			imgui.text(fmt.tprintf("time: %.8f", time.duration_seconds(info.time_taken)));
+			imgui.next_column();
+			imgui.text(fmt.tprint("calls: ", info.calls));
+			imgui.next_column();
 
-				// imgui.im_slider_int("num samples", &section.slice_size, 1, len(section.all_times), nil);
-				// imgui.plot_lines("time (ms)", &section.all_times[0], section.slice_size);
-				imgui.columns(2);
-				imgui.text("average");
-				imgui.next_column();
-				imgui.text(tprintf("%.8f", section.average_time));
-				imgui.next_column();
-				imgui.text("total");
-				imgui.next_column();
-				imgui.text(tprintf("%.8f", section.total_time));
-				imgui.next_column();
-				imgui.text("max");
-				imgui.next_column();
-				imgui.text(tprintf("%.8f", section.max_time));
-				imgui.columns(1);
-			}
+            if is_open {
+    			sort.quick_sort_proc(info.children[:], proc(x, y: ^Section_Info) -> int {
+    				if x.time_taken == y.time_taken {
+    					return strings.compare(x.name, y.name);
+    				}
+    				return x.time_taken - y.time_taken < 0 ? 1 : -1;
+    			});
+
+            	for child in info.children {
+					draw_section(child);
+				}
+                imgui.tree_pop();
+
+				// imgui.unindent();
+            }
 		}
 	}
 	imgui.end();
 }
 
-profiler_new_frame :: proc(profiler: ^Profiler) {
-}
+@(deferred_out=end_timed_section)
+TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (time.Time, ^Section_Info, ^Section_Info) {
+	if !profiler_running do return {}, nil, nil;
 
-clear_profiler :: proc(using profiler: ^Profiler) {
-	clear(&all_sections);
-}
+	context.allocator = profiler_allocator;
 
-destroy_profiler :: proc(using profiler: ^Profiler) {
-	delete(all_sections);
-}
+	section_name := name_override == "" ? loc.procedure : name_override;
 
-@(deferred_out=END_TIMED_SECTION)
-TIMED_SECTION :: proc(profiler: ^Profiler, name := "", loc := #caller_location) -> (Timed_Section_Info, bool) {
-	assert(profiler.get_time_proc != nil, "No `get_time_proc` was set before calling TIMED_SECTION().");
-
-	if !profiler.is_recording {
-		return {0, profiler, 0}, false;
+	info: ^Section_Info;
+	if current_section != nil {
+		for child in current_section.children {
+			if child.name == section_name {
+				info = child;
+				break;
+			}
+		}
 	}
 
-	if loc.hash notin profiler.all_sections {
-		profiler.all_sections[loc.hash] = Section_Statistics{
-			name          = (name == "" ? loc.procedure : name),
-			total_time    = 0,
-			num_times     = 0,
-			average_time  = 0,
-		};
+	if info == nil {
+		info = new(Section_Info);
+		if info == nil {
+			logln("Ran out of memory in profiler allocator.");
+			profiler_running = false;
+			return {}, nil, nil;
+		}
+
+		// init the info
+		info^ = {};
+		info.name = section_name;
+		info.calls = 0;
+		info.time_taken = {};
+		clear(&info.children);
+
+		if current_section != nil {
+			append(&current_section.children, info);
+		}
 	}
 
-	start_time := profiler.get_time_proc();
-	return {loc.hash, profiler, start_time}, true;
-}
-
-END_TIMED_SECTION :: proc(using info: Timed_Section_Info, _valid: bool) {
-	if !_valid do return;
-
-	assert(profiler.get_time_proc != nil, "No `get_time_proc` was set before calling END_TIMED_SECTION().");
-
-	end_time := profiler.get_time_proc();
-
-	section_info, ok := profiler.all_sections[id];
-	if ok {
-		using section_info;
-
-		time_taken := end_time - start_time;
-		total_time += time_taken;
-		num_times += 1;
-		average_time = total_time / cast(f64)num_times;
-		max_time = max(max_time, time_taken);
-
-		profiler.all_sections[id] = section_info;
+	if current_section == nil {
+		profiler_frame_data[current_profiler_frame].root_section = info;
 	}
+
+	old := current_section;
+	current_section = info;
+	return time.now(), info, old;
 }
 
-main :: proc() {
+end_timed_section :: proc(start: time.Time, info, old: ^Section_Info) {
+	if !profiler_running do return;
 
+	end := time.now();
+	info.time_taken += time.diff(start, end);
+	info.calls += 1;
+
+	current_section = old;
 }
 
-
-
-
+logln :: logging.logln;
 tprint :: fmt.tprint;
-tprintf :: fmt.tprintf;

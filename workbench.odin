@@ -11,6 +11,7 @@ import "core:runtime"
 import "math"
 import "gpu"
 import "platform"
+import "profiler"
 import "types"
 import "basic"
 
@@ -19,7 +20,6 @@ import "external/imgui"
 import "external/stb"
 import "external/glfw"
 
-import pf "profiler"
 import "allocators"
 
 DEVELOPER :: true;
@@ -30,13 +30,9 @@ DEVELOPER :: true;
 
 main_window: platform.Window;
 
-update_loop_ra: Rolling_Average(f32, 100);
-whole_frame_time_ra: Rolling_Average(f32, 100);
-
 do_log_frame_boundaries := false;
 
-wb_profiler: pf.Profiler;
-
+target_framerate: int;
 frame_count: u64;
 time: f32;
 precise_time: f64;
@@ -47,10 +43,13 @@ precise_lossy_delta_time: f64;
 frame_allocator: mem.Allocator;
 
 make_simple_window :: proc(window_width, window_height: int,
-                           target_framerate: f32,
+                           requested_framerate: int,
                            workspace: Workspace) {
 
 	startup_start_time := glfw.GetTime();
+
+	fixed_delta_time = cast(f32)1 / cast(f32)requested_framerate;
+	target_framerate = requested_framerate;
 
 	// init frame allocator
 	@static frame_allocator_raw: allocators.Arena;
@@ -66,8 +65,8 @@ make_simple_window :: proc(window_width, window_height: int,
     // context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
 
     // init profiler
-	wb_profiler = pf.make_profiler(proc() -> f64 { return glfw.GetTime(); } );
-	defer pf.destroy_profiler(&wb_profiler);
+    profiler.init_profiler();
+    defer profiler.deinit_profiler();
 
 	// init platform and graphics
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
@@ -90,12 +89,9 @@ make_simple_window :: proc(window_width, window_height: int,
 	logln("Startup time: ", startup_end_time - startup_start_time);
 
 	acc: f32;
-	fixed_delta_time = cast(f32)1 / target_framerate;
 	last_frame_start_time: f32;
 	game_loop:
 	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
-		pf.profiler_new_frame(&wb_profiler);
-		pf.TIMED_SECTION(&wb_profiler, "full engine frame");
 		frame_start_time := cast(f32)glfw.GetTime();
 		lossy_delta_time = frame_start_time - last_frame_start_time;
 		last_frame_start_time = frame_start_time;
@@ -105,12 +101,14 @@ make_simple_window :: proc(window_width, window_height: int,
 			acc = 0.1;
 		}
 
-
-		check_for_file_updates();
-
 		if acc >= fixed_delta_time {
+			profiler.profiler_new_frame();
+			TIMED_SECTION("full engine frame");
+
+			check_for_file_updates();
+
 			for {
-				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
+				TIMED_SECTION("update loop frame");
 
 				acc -= fixed_delta_time;
 
@@ -165,8 +163,6 @@ make_simple_window :: proc(window_width, window_height: int,
 			glfw.SwapBuffers(main_window);
 
 			gpu.log_errors("after SwapBuffers()");
-
-			rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 		}
 	}
 
@@ -196,6 +192,8 @@ init_workspace :: proc(workspace: Workspace) {
 }
 
 update_workspace :: proc(workspace: Workspace, dt: f32) {
+	TIMED_SECTION();
+
 	if workspace.update != nil {
 		workspace.update(dt);
 	}
@@ -219,7 +217,7 @@ init_builtin_assets :: proc() {
 	assert(ok);
 	resources_folder := fmt.aprint(wbfolder, "/resources");
 	defer delete(resources_folder);
-	track_asset_folder(resources_folder);
+	track_asset_folder(resources_folder, true);
 }
 
 

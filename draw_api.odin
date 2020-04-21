@@ -8,7 +8,6 @@ import rt "core:runtime"
 import "core:os"
 
 import "platform"
-import "profiler"
 import "gpu"
 
 import "external/stb"
@@ -345,7 +344,7 @@ construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
 }
 
 camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
-	profiler.TIMED_SECTION(&wb_profiler, "camera_render");
+	TIMED_SECTION();
 
 
 	// pre-render
@@ -366,7 +365,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	assert(NUM_SHADOW_MAPS == 4);
 	light_matrices: [NUM_SHADOW_MAPS]Mat4;
 	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
-		profiler.TIMED_SECTION(&wb_profiler, "camera_render.shadow_maps");
+		TIMED_SECTION("camera_render.shadow_maps");
 
 		for shadow_map_camera, map_idx in shadow_maps {
 			assert(shadow_map_camera != nil);
@@ -464,7 +463,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// draw scene for real
 	{
-		profiler.TIMED_SECTION(&wb_profiler, "camera_render.draw_for_real");
+		TIMED_SECTION("camera_render.draw_for_real");
 
 		if skybox_texture, ok := getval(&camera.skybox); ok {
 			PUSH_GPU_ENABLED(.Cull_Face, false);
@@ -515,7 +514,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// do bloom
 	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok {
-		profiler.TIMED_SECTION(&wb_profiler, "camera_render.bloom");
+		TIMED_SECTION("camera_render.bloom");
 
 		for fbo in bloom_fbos {
 			PUSH_FRAMEBUFFER(&fbo, true);

@@ -11,6 +11,10 @@ import "logging"
 logln :: logging.logln;
 logf :: logging.logf;
 
+import "profiler"
+
+TIMED_SECTION :: profiler.TIMED_SECTION;
+
 import "math"
 
 TAU :: math.TAU;

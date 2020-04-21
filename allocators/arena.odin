@@ -32,15 +32,26 @@ arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 
 	switch mode {
 		case .Alloc: {
-			offset := cast(int)mem.align_forward_uintptr(uintptr(arena.cur_offset), uintptr(alignment));
-			if offset+size > len(arena.memory) {
-				panic(fmt.aprint("frame_allocator ran out of memory. caller: ", loc));
-			}
+			// Don't allow allocations of zero size. This would likely return a
+		    // pointer to a different allocation, causing many problems.
+		    if size == 0 {
+		        return nil;
+		    }
 
-			ptr := &arena.memory[offset];
-			mem.zero(ptr, size);
-			arena.cur_offset = int(offset) + size;
-			return ptr;
+		    // todo(josh): The `align_forward()` call and the `new_offset + size` below
+		    // that could overflow if the `size` or `align` parameters are super huge
+
+		    new_offset := mem.align_forward_int(arena.cur_offset, alignment);
+
+		    // Don't allow allocations that would extend past the end of the arena.
+		    if (new_offset + size) > len(arena.memory) {
+		        return nil;
+		    }
+
+		    arena.cur_offset = new_offset + size;
+		    ptr := &arena.memory[new_offset];
+		    mem.zero(ptr, size);
+		    return ptr;
 		}
 		case .Free: {
 			return nil;

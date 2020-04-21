@@ -8,11 +8,12 @@ import "core:mem"
 import "core:fmt"
 import "gpu"
 import "wbml"
-import "profiler"
 import "laas"
 import "basic"
 
 // todo(josh): @Leak: we don't currently delete assets when their file is deleted, we just remove the Loaded_Asset which is just a path and timestamp :DeleteAssetWhenFileIsDeleted
+
+on_asset_hotloaded: proc(name: string, asset: any);
 
 @(private)
 initted := false;
@@ -29,7 +30,10 @@ Tracked_File :: struct {
 	dependencies: [dynamic]string, // note(josh): all these strings are allocated
 }
 
-Asset_Load_Proc   :: #type proc([]byte, Asset_Load_Context) -> (rawptr, Asset_Load_Result);
+// note(josh): IMPORTANT: we do some casting to Asset_Load_Proc and Asset_Delete_Proc so if you change the signature make sure you audit all usages
+// note(josh): IMPORTANT: we do some casting to Asset_Load_Proc and Asset_Delete_Proc so if you change the signature make sure you audit all usages
+// note(josh): IMPORTANT: we do some casting to Asset_Load_Proc and Asset_Delete_Proc so if you change the signature make sure you audit all usages
+Asset_Load_Proc   :: #type proc([]byte, Asset_Load_Context) -> (rawptr, Asset_Load_Result, bool);
 Asset_Delete_Proc :: #type proc(asset: rawptr);
 Asset_Handler :: struct {
 	extensions: []string,
@@ -48,14 +52,15 @@ init_asset_system :: proc() {
 	assert(!initted);
 	initted = true;
 
-	add_asset_handler(Texture,      {"png"},                       catalog_load_texture,  catalog_delete_texture);
-	add_asset_handler(Font,         {"ttf"},                       catalog_load_font,     catalog_delete_font);
-	add_asset_handler(Model,        {"fbx"},                       catalog_load_model,    catalog_delete_model);
-	add_asset_handler(Shader_Asset, {"shader", "compute", "glsl"}, catalog_load_shader,   catalog_delete_shader);
+	add_asset_handler(Texture,      {"png"},                       catalog_load_texture,    catalog_delete_texture);
+	add_asset_handler(Font,         {"ttf"},                       catalog_load_font,       catalog_delete_font);
+	add_asset_handler(Model,        {"fbx"},                       catalog_load_model,      catalog_delete_model);
+	add_asset_handler(Shader_Asset, {"shader", "compute", "glsl"}, catalog_load_shader,     catalog_delete_shader);
+	add_asset_handler(WBML_Asset,   {"wbml"},                      catalog_load_wbml_asset, catalog_delete_wbml_asset);
 	// add_asset_handler(Cubemap_Spec, {"wb_cubemap"},                catalog_load_cubemap,  catalog_delete_cubemap);
 }
 
-add_asset_handler :: proc($Type: typeid, extensions: []string, load_proc: proc([]byte, Asset_Load_Context) -> (^Type, Asset_Load_Result), delete_proc: proc(^Type)) {
+add_asset_handler :: proc($Type: typeid, extensions: []string, load_proc: proc([]byte, Asset_Load_Context) -> (^Type, Asset_Load_Result, bool), delete_proc: proc(^Type)) {
 	ti := type_info_of(Type);
 	for handler in asset_handlers {
 		if handler.type_info == ti {
@@ -98,45 +103,45 @@ delete_loaded_file :: proc(file: Loaded_File) {
 }
 */
 
-track_asset_folder :: proc(path: string, loc := #caller_location) {
+track_asset_folder :: proc(path: string, load_everything: bool, loc := #caller_location) {
 	files := basic.get_all_filepaths_recursively(path);
 	defer delete(files); // note(josh): dont delete the elements in `files` because they get stored in Asset_Catalog.loaded_files
 
-	filepath_loop:
 	for filepath in files {
-		name, nameok := basic.get_file_name(filepath);
-		assert(nameok, filepath);
-		ext, extok := basic.get_file_extension(filepath);
-		assert(extok, filepath);
-		name_and_ext, neok := basic.get_file_name_and_extension(filepath);
-		assert(neok, filepath);
+		try_add_tracked_filepath(filepath, load_everything);
+	}
 
-		// make sure there is a handler for this asset type. if there isn't, we don't care about it
-		handler_loop:
-		for handler in asset_handlers {
-			for handler_ext in handler.extensions {
-				if handler_ext == ext {
-					if name in tracked_files {
-						logln("Name collision: ", name);
-						continue filepath_loop; // @Leak the filepath
-					}
+	flush_reference_changes();
+}
 
-					// now that we know there's a handler for this asset type, add it to the list of tracked files
-					last_write_time, err := os.last_write_time_by_name(filepath);
-					assert(err == 0);
-					tracked_files[name] = Tracked_File{filepath, last_write_time, 0, nil, nil};
-					continue filepath_loop;
+try_add_tracked_filepath :: proc(filepath: string, load_by_default: bool) -> bool {
+	name, nameok := basic.get_file_name(filepath);
+	assert(nameok, filepath);
+	ext, extok := basic.get_file_extension(filepath);
+	assert(extok, filepath);
+	name_and_ext, neok := basic.get_file_name_and_extension(filepath);
+	assert(neok, filepath);
+
+	// make sure there is a handler for this asset type. if there isn't, we don't care about it
+	handler_loop:
+	for handler in asset_handlers {
+		for handler_ext in handler.extensions {
+			if handler_ext == ext {
+				if name in tracked_files {
+					panic(tprint("Name collision: ", name));
+					return false;
 				}
+
+				// now that we know there's a handler for this asset type, add it to the list of tracked files
+				last_write_time, err := os.last_write_time_by_name(filepath);
+				assert(err == 0);
+				tracked_files[name] = Tracked_File{filepath, last_write_time, load_by_default ? 1 : 0, nil, nil};
+				return true;
 			}
 		}
 	}
 
-	// todo(josh): replace this with proper reference counting, we are just loading everything by default
-	for name, tracked_file in tracked_files {
-		add_reference(name);
-	}
-
-	flush_reference_changes();
+	return false;
 }
 
 // note(josh): use this procedure sparingly, it doesn't work for hotloading, it is meant for manually jamming assets into the asset system
@@ -275,7 +280,6 @@ load_tracked_file :: proc(tracked_file: ^Tracked_File) -> Asset_Load_Result {
 
 	// load the file data
 	data, fileok := os.read_entire_file(tracked_file.path);
-	defer delete(data);
 	if !fileok {
 		logln("Error: os.read_entire_file() of ", tracked_file.path, " returned false. Yielding.");
 		return .Yield;
@@ -290,11 +294,15 @@ load_tracked_file :: proc(tracked_file: ^Tracked_File) -> Asset_Load_Result {
 	for handler in &asset_handlers {
 		for handler_extension in handler.extensions {
 			if handler_extension == ext {
-				asset, result := handler.load_proc(data, Asset_Load_Context{tracked_file, name, ext});
+				asset, result, delete_data := handler.load_proc(data, Asset_Load_Context{tracked_file, name, ext});
 				assert(result != .No_Handler);
 
 				if result == .Ok {
 					tracked_file.asset = any{asset, handler.type_info.id};
+				}
+
+				if delete_data {
+					delete(data);
 				}
 
 				return result;
@@ -324,7 +332,7 @@ unload_tracked_file :: proc(tracked_file: ^Tracked_File) {
 }
 
 check_for_file_updates :: proc() {
-	profiler.TIMED_SECTION(&wb_profiler);
+	TIMED_SECTION();
 	for name, tracked_file in &tracked_files {
 		if tracked_file.path != "" { // note(josh): some assets are put into the asset system manually and thus don't have a matching file on disk
 			new_last_write_time, err := os.last_write_time_by_name(tracked_file.path);
@@ -349,11 +357,15 @@ check_for_file_updates :: proc() {
 					if tracked_file.asset != nil {
 						unload_tracked_file(&tracked_file);
 					}
+
 					result := load_tracked_file(&tracked_file);
 					switch result {
 						case .Ok: {
 							assert(tracked_file.asset != nil);
 							tracked_file.last_update_time = new_update_time;
+							if on_asset_hotloaded != nil {
+								on_asset_hotloaded(name, tracked_file.asset);
+							}
 							// logln("File updated: ", name);
 						}
 						case .Error: {
@@ -381,9 +393,9 @@ add_asset_dependency :: proc(tracked_file: ^Tracked_File, depends_on: string) {
 
 // todo(josh): we currently individually allocate each asset which is a little wasteful, could back these by an arena or something
 
-catalog_load_texture :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Texture, Asset_Load_Result) {
+catalog_load_texture :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Texture, Asset_Load_Result, bool) {
 	texture := create_texture_from_png_data(data);
-	return new_clone(texture), .Ok;
+	return new_clone(texture), .Ok, true;
 }
 catalog_delete_texture :: proc(texture: ^Texture) {
 	delete_texture(texture^);
@@ -392,9 +404,9 @@ catalog_delete_texture :: proc(texture: ^Texture) {
 
 
 
-catalog_load_font :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Font, Asset_Load_Result) {
+catalog_load_font :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Font, Asset_Load_Result, bool) {
 	font := load_font(data, 128); // todo(josh): multiple sizes for fonts? probably would be good
-	return new_clone(font), .Ok;
+	return new_clone(font), .Ok, true;
 }
 catalog_delete_font :: proc(font: ^Font) {
 	delete_font(font^);
@@ -403,13 +415,28 @@ catalog_delete_font :: proc(font: ^Font) {
 
 
 
-catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, Asset_Load_Result) {
+catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, Asset_Load_Result, bool) {
 	model := load_model_from_memory(data, ctx.file_name);
-	return new_clone(model), .Ok;
+	return new_clone(model), .Ok, true;
 }
 catalog_delete_model :: proc(model: ^Model) {
 	delete_model(model^);
 	free(model);
+}
+
+
+
+WBML_Asset :: struct {
+	data: []byte,
+}
+
+catalog_load_wbml_asset :: proc(data: []byte, ctx: Asset_Load_Context) -> (^WBML_Asset, Asset_Load_Result, bool) {
+	asset := new_clone(WBML_Asset{data});
+	return asset, .Ok, false;
+}
+catalog_delete_wbml_asset :: proc(asset: ^WBML_Asset) {
+	delete(asset.data);
+	free(asset);
 }
 
 
@@ -443,32 +470,32 @@ Shader_Asset :: struct {
 	text: string,
 }
 
-catalog_load_shader :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Shader_Asset, Asset_Load_Result) {
+catalog_load_shader :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Shader_Asset, Asset_Load_Result, bool) {
 	switch ctx.extension {
 		case "shader": {
 			shader, result := parse_shader(cast(string)data, ctx);
 			if result != .Ok {
-				return nil, result;
+				return nil, result, true;
 			}
-			return new_clone(shader), .Ok;
+			return new_clone(shader), .Ok, true;
 		}
 		case "compute": {
 			shader, ok := gpu.load_shader_compute(cast(string)data);
 			if !ok {
-				return nil, .Error;
+				return nil, .Error, true;
 			}
-			return new_clone(Shader_Asset{shader, strings.clone(cast(string)data)}), .Ok; // todo(josh): this clone() is kinda lame but the asset system deletes file data by default. a way to override that might be nice?
+			return new_clone(Shader_Asset{shader, cast(string)data}), .Ok, false;
 		}
 		case "glsl": {
 			// .glsl is not meant to be a shader all on its own but rather purely for @include-ing
-			return new_clone(Shader_Asset{0, strings.clone(cast(string)data)}), .Ok; // todo(josh): this clone() is kinda lame but the asset system deletes file data by default. a way to override that might be nice?
+			return new_clone(Shader_Asset{0, cast(string)data}), .Ok, false;
 		}
 		case: {
 			panic(ctx.extension);
 		}
 	}
 	unreachable();
-	return {}, .Error;
+	return {}, .Error, true;
 }
 catalog_delete_shader :: proc(shader: ^Shader_Asset) {
 	// todo(josh): figure out why deleting shaders was causing errors

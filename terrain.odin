@@ -6,7 +6,6 @@ import "gpu"
 import log "logging"
 import "math"
 import "types"
-import "profiler"
 
 Terrain :: struct {
     model: Model,
@@ -116,7 +115,7 @@ get_height_at_position :: proc(terrain: Terrain, terrain_origin: Vec3, _x, _z: f
 
 MAX_DISTANCE : f32 : 1000;
 raycast_into_terrain :: proc(terrain: Terrain, terrain_origin, ray_origin, ray_direction: Vec3, max : f32 = MAX_DISTANCE, narrow_phase_min : f32 = 0.1) -> (Vec3, bool) {
-    profiler.TIMED_SECTION(&wb_profiler);
+    TIMED_SECTION();
     for dist : f32 = 0; dist < max; dist += terrain.step {
         current_pos := ray_origin + (ray_direction * dist);
 

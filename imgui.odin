@@ -429,17 +429,17 @@ columns_reset :: proc() {
 
 
 
-imgui_struct_window :: inline proc(value: ^$T) {
+imgui_struct_window :: proc(value: ^$T, window_name := "") {
     imgui.push_font(imgui_font_mono);
     defer imgui.pop_font();
 
-    imgui.begin(tprint(type_info_of(T)));
+    imgui.begin(window_name == "" ? tprint(type_info_of(T)) : window_name);
     defer imgui.end();
 
     imgui_struct_ti("", value, type_info_of(T));
 }
 
-imgui_struct :: inline proc(value: ^$T, name: string, do_header := true) {
+imgui_struct :: proc(value: ^$T, name: string, do_header := true) {
     imgui.push_font(imgui_font_mono);
     defer imgui.pop_font();
 

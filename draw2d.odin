@@ -16,8 +16,6 @@ import        "external/stb"
 import        "external/glfw"
 import        "external/imgui"
 
-import pf     "profiler"
-
 //
 // API
 //
@@ -259,7 +257,7 @@ current_scissor_rect: [4]int;
 current_render_layer: int;
 
 im_flush :: proc(camera: ^Camera) {
-	pf.TIMED_SECTION(&wb_profiler);
+	TIMED_SECTION();
 
 	if camera.im_draw_commands == nil do return;
 	if len(camera.im_draw_commands) == 0 do return;
