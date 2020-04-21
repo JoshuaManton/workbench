@@ -178,18 +178,18 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
 
             a := any{ptr, rt.type_info_base(ti_kind.base).id};
             switch v in a {
-            case rune:    val := get_val_for_name(value_string, ti_kind); (cast(^rune)   ptr)^ = val.(rune);
-            case i8:      val := get_val_for_name(value_string, ti_kind); (cast(^i8)     ptr)^ = val.(i8);
-            case i16:     val := get_val_for_name(value_string, ti_kind); (cast(^i16)    ptr)^ = val.(i16);
-            case i32:     val := get_val_for_name(value_string, ti_kind); (cast(^i32)    ptr)^ = val.(i32);
-            case i64:     val := get_val_for_name(value_string, ti_kind); (cast(^i64)    ptr)^ = val.(i64);
-            case int:     val := get_val_for_name(value_string, ti_kind); (cast(^int)    ptr)^ = val.(int);
-            case u8:      val := get_val_for_name(value_string, ti_kind); (cast(^u8)     ptr)^ = val.(u8);
-            case u16:     val := get_val_for_name(value_string, ti_kind); (cast(^u16)    ptr)^ = val.(u16);
-            case u32:     val := get_val_for_name(value_string, ti_kind); (cast(^u32)    ptr)^ = val.(u32);
-            case u64:     val := get_val_for_name(value_string, ti_kind); (cast(^u64)    ptr)^ = val.(u64);
-            case uint:    val := get_val_for_name(value_string, ti_kind); (cast(^uint)   ptr)^ = val.(uint);
-            case uintptr: val := get_val_for_name(value_string, ti_kind); (cast(^uintptr)ptr)^ = val.(uintptr);
+            case rune:    val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^rune)   ptr)^, ok = val.(rune);    assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i8:      val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i8)     ptr)^, ok = val.(i8);      assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i16:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i16)    ptr)^, ok = val.(i16);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i32:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i32)    ptr)^, ok = val.(i32);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i64:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i64)    ptr)^, ok = val.(i64);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case int:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^int)    ptr)^, ok = val.(int);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u8:      val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u8)     ptr)^, ok = val.(u8);      assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u16:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u16)    ptr)^, ok = val.(u16);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u32:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u32)    ptr)^, ok = val.(u32);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u64:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u64)    ptr)^, ok = val.(u64);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case uint:    val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^uint)   ptr)^, ok = val.(uint);    assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case uintptr: val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^uintptr)ptr)^, ok = val.(uintptr); assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
             }
         }
 
