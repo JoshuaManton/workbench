@@ -125,7 +125,7 @@ render_workspace :: proc(workspace: Workspace) {
 when shared.HEADLESS do return;
 else 
 {
-	check_for_file_updates(&wb_catalog);
+	check_for_file_updates();
 	TIMED_SECTION();
 
 	PUSH_GPU_ENABLED(.Cull_Face, true);
