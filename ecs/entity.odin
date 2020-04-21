@@ -528,9 +528,14 @@ make_entity :: proc(name := "Entity", requested_id: Entity = 0) -> Entity {
         eid = _last_entity_id;
     }
 
-    when DEVELOPER {
+    // when DEVELOPER 
+    {
         for e in scene.active_entities {
-            assert(e != eid, tprint("Duplicate entity ID!!!: ", e));
+            if e != eid do continue;
+            
+            _last_entity_id += 1;
+            eid = _last_entity_id;
+            break;
         }
         _, ok := scene.entity_datas[eid];
         assert(!ok, tprint("Duplicate entity ID that the previous check should have caught!!!: ", eid));
@@ -630,6 +635,11 @@ get_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> (^T, 
     return cast(^T)ptr, ok;
 }
 
+get_component_ptr :: proc(eid: Entity, tid: typeid, loc := #caller_location) -> (rawptr, bool) {
+    ptr, ok := _get_component_internal(eid, tid);
+    return ptr, ok;
+}
+
 has_component :: proc(eid: Entity, tid: typeid, loc := #caller_location) -> bool {
     if eid == 0 do return false;
 
@@ -660,7 +670,7 @@ get_component_storage :: proc($T: typeid) -> []T {
 load_entity_from_file :: proc(filepath: string) -> Entity {
     // load file
     data, ok := os.read_entire_file(filepath);
-    assert(ok);
+    assert(ok, filepath);
     defer delete(data);
 
     // eat entity id
@@ -679,7 +689,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
     }
 
     // make it
-    make_entity(entity_name, eid);
+    eid = make_entity(entity_name, eid);
 
     // load the component data
     for {

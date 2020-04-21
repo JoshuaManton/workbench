@@ -24,7 +24,7 @@ Loaded_Animation :: struct {
 }
 
 Anim_Channel :: struct {
-    name: string,
+    channel_idx: int,
 
     pos_frames: []Anim_Frame,
     scale_frames: []Anim_Frame,
@@ -53,7 +53,7 @@ Anim_Frame_Scale :: struct {
 
 loaded_animations: map[string]Loaded_Animation;
 
-load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
+load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string, bone_mapping: map[string]int) {
     ai_animations := mem.slice_ptr(scene.animations, cast(int) scene.num_animations);
     for _, anim_idx in ai_animations {
         ai_animation := ai_animations[anim_idx];
@@ -68,6 +68,7 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
         animation_channels := mem.slice_ptr(ai_animation.channels, cast(int) ai_animation.num_channels);
         for channel in animation_channels {
             node_name := strings.clone(strings.string_from_ptr(&channel.node_name.data[0], cast(int)channel.node_name.length));
+            defer delete(node_name);
 
             pos_frames := make([dynamic]Anim_Frame, 0, channel.num_position_keys);
             scale_frames := make([dynamic]Anim_Frame, 0, channel.num_scaling_keys);
@@ -98,7 +99,7 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
             }
 
             append(&animation.channels, Anim_Channel{
-                node_name,
+                bone_mapping[node_name],
                 pos_frames[:],
                 scale_frames[:],
                 rot_frames[:]
@@ -181,7 +182,7 @@ sample_animation :: proc(mesh: Mesh, animation_name: string, time: f32, current_
 }
 
 read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animation, node: ^Mesh_Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
-    channel, exists := get_animation_channel(animation, node.name);
+    channel, exists := get_animation_channel(animation, node.bone_idx);
     node_transform := node.local_transform;
 
     if exists {
@@ -292,22 +293,17 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
     }
 
     global_transform := mul(parent_transform, node_transform);
-
-    if node.name in mesh.skin.name_mapping {
-        bone_idx := mesh.skin.name_mapping[node.name];
-        bone := mesh.skin.bones[bone_idx];
-
-        current_state[bone_idx] = mul(mul(mesh.skin.global_inverse, global_transform), bone.offset);
-    }
+    bone := mesh.skin.bones[node.bone_idx];
+    current_state[node.bone_idx] = mul(mul(mesh.skin.global_inverse, global_transform), bone.offset);
 
     for _, i in node.children {
         read_animation_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
     }
 }
 
-get_animation_channel :: proc(using anim: Loaded_Animation, channel_id: string) -> (Anim_Channel, bool) {
+get_animation_channel :: proc(using anim: Loaded_Animation, channel_id: int) -> (Anim_Channel, bool) {
     for channel in channels {
-        if channel.name == channel_id {
+        if channel.channel_idx == channel_id {
             return channel, true;
         }
     }

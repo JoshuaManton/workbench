@@ -130,8 +130,6 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
 	base_vert := 0;
 
-	load_animations_from_ai_scene(scene, model_name);
-
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
 
@@ -251,33 +249,31 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 			skin = Skinned_Mesh{
 				bone_info[:],
 				make([dynamic]Mesh_Node, 0, 50),
-				bone_mapping,
 				inverse(ai_to_wb(scene.root_node.transformation)),
 				nil,
 			};
 
-		} // end bone if
-		// create mesh
-		idx := add_mesh_to_model(&model,
-                                 processed_verts[:],
-                                 indices[:],
-                                 skin
-                                 );
+			idx := add_mesh_to_model(&model,processed_verts[:],indices[:],skin);
+			read_node_hierarchy(&model.meshes[idx], scene.root_node, identity(Mat4), nil, bone_mapping);
+			load_animations_from_ai_scene(scene, model_name, bone_mapping);
 
-		read_node_hierarchy(&model.meshes[idx], scene.root_node, identity(Mat4), nil);
+		} else {
+			add_mesh_to_model(&model,processed_verts[:],indices[:],skin);
+		}
 	}
 
 	return model;
 }
 
-read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^Mesh_Node) {
+read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^Mesh_Node, bone_mapping: map[string]int) {
 	node_name := strings.clone(strings.string_from_ptr(&ai_node.name.data[0], cast(int)ai_node.name.length));
+	defer delete(node_name);
 
 	node_transform := ai_to_wb(ai_node.transformation);
 	global_transform := mul(parent_transform, node_transform);
 
 	node := Mesh_Node {
-        node_name,
+        bone_mapping[node_name],
         node_transform,
         parent_node,
         make([dynamic]^Mesh_Node, 0, cast(int)ai_node.num_children)
@@ -296,7 +292,7 @@ read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transf
 
 	children := mem.slice_ptr(ai_node.children, cast(int)ai_node.num_children);
 	for _, i in children {
-		read_node_hierarchy(mesh, children[i], global_transform, &skin.nodes[idx]);
+		read_node_hierarchy(mesh, children[i], global_transform, &skin.nodes[idx], bone_mapping);
 	}
 }
 

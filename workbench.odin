@@ -94,6 +94,14 @@ make_simple_window :: proc(window_width, window_height: int,
 	startup_end_time := core_time.now()._nsec;
 	logln("Startup time: ", startup_end_time - startup_start_time);
 
+	// init frame allocator
+	// @static frame_allocator_raw: allocators.Frame_Allocator;
+	// allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 8 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+ //    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
+
+	// frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
+ //    context.temp_allocator = frame_allocator;
+
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / cast(f32)target_framerate;
 	last_frame_start_time: f64;

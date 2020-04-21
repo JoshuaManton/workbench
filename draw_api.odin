@@ -983,7 +983,6 @@ Mesh :: struct {
 Skinned_Mesh :: struct {
 	bones: []Mesh_Bone,
     nodes: [dynamic]Mesh_Node, // todo(josh): pretty sure we @Leak these and any data inside them, pls fix!
-	name_mapping: map[string]int,
 	global_inverse: Mat4,
 
     parent_node: ^Mesh_Node, // points into array above
@@ -995,7 +994,7 @@ Mesh_Bone :: struct {
 }
 
 Mesh_Node :: struct {
-    name: string,
+    bone_idx: int,
     local_transform: Mat4,
 
     parent: ^Mesh_Node,
@@ -1116,10 +1115,6 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 		delete(b.name);
 	}
 	delete(mesh.skin.bones);
-	for name in mesh.skin.name_mapping {
-		delete(name);
-	}
-	delete(mesh.skin.name_mapping);
 }
 
 draw_model :: proc(model: Model,
