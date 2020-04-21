@@ -1,25 +1,64 @@
-package animation
+package workbench
 
-import "../math"
 import        "core:fmt"
-import        "../gpu"
-import        "../logging"
 import        "core:os"
 import        "core:sort"
 import rt     "core:runtime"
 import        "core:strings"
 import        "core:mem"
 
-import ai     "../external/assimp"
+import ai     "external/assimp"
+import "gpu"
 
-loaded_animations: map[string]Animation;
+//
+// Loading
+//
+
+Loaded_Animation :: struct {
+    name: string,
+    target_name: string,
+    channels: [dynamic]Anim_Channel,
+
+    duration: f32,
+    ticks_per_second: f32,
+}
+
+Anim_Channel :: struct {
+    name: string,
+
+    pos_frames: []Anim_Frame,
+    scale_frames: []Anim_Frame,
+    rot_frames: []Anim_Frame,
+}
+
+Anim_Frame :: struct {
+    time: f64,
+
+    kind: union {
+        Anim_Frame_Pos,
+        Anim_Frame_Rotation,
+        Anim_Frame_Scale
+    }
+}
+
+Anim_Frame_Pos :: struct {
+    position: Vec3,
+}
+Anim_Frame_Rotation :: struct {
+    rotation: Quat,
+}
+Anim_Frame_Scale :: struct {
+    scale: Vec3,
+}
+
+loaded_animations: map[string]Loaded_Animation;
 
 load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
     ai_animations := mem.slice_ptr(scene.animations, cast(int) scene.num_animations);
     for _, anim_idx in ai_animations {
         ai_animation := ai_animations[anim_idx];
 
-        animation := Animation{};
+        animation := Loaded_Animation{};
         animation.channels = make([dynamic]Anim_Channel, 0, int(ai_animation.num_channels));
         animation.name = strings.clone(strings.string_from_ptr(&ai_animation.name.data[0], cast(int)ai_animation.name.length));
         animation.duration = f32(ai_animation.duration);
@@ -70,15 +109,78 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string) {
     }
 }
 
-get_animation_data :: proc(mesh: gpu.Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
+//
+// Playing
+//
+
+Animation_Player :: struct {
+    current_animation: string,
+
+    animation_state: Model_Animation_State,
+    time: f32,
+    running_time: f32,
+}
+
+Model_Animation_State :: struct {
+    mesh_states: [dynamic]Mesh_State, // array of bones per mesh in the model
+}
+
+Mesh_State :: struct {
+    state: [dynamic]Mat4,
+}
+
+init_animation_player :: proc(player: ^Animation_Player, model: Model) {
+    model := model;
+    player.animation_state.mesh_states = make([dynamic]Mesh_State, 0, len(model.meshes));
+    for mesh in &model.meshes {
+        arr := make([dynamic]Mat4, 0, len(mesh.skin.bones));
+
+        for bone in mesh.skin.bones {
+            append(&arr, bone.offset);
+        }
+
+        append(&player.animation_state.mesh_states, Mesh_State { arr });
+    }
+}
+
+destroy_animation_player :: proc(player: ^Animation_Player) {
+    for mesh_state in player.animation_state.mesh_states {
+        delete(mesh_state.state);
+    }
+    delete(player.animation_state.mesh_states);
+    // note(josh): we don't delete `current_animation` here. that's the user's job
+}
+
+tick_animation :: proc(player: ^Animation_Player, model: Model, dt: f32) {
+    assert(model.has_bones);
+
+    if player.current_animation in loaded_animations {
+        animation := loaded_animations[player.current_animation];
+
+        player.running_time += dt;
+
+        tps : f32 = 25.0;
+        if animation.ticks_per_second != 0 {
+            tps = animation.ticks_per_second;
+        }
+        time_in_ticks := player.running_time * tps;
+        player.time = mod(time_in_ticks, animation.duration);
+    }
+
+    for mesh, i in model.meshes {
+        sample_animation(mesh, player.current_animation, player.time, &player.animation_state.mesh_states[i].state);
+    }
+}
+
+sample_animation :: proc(mesh: Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
     if !(animation_name in loaded_animations) do return;
     if len(current_state) < 1 do return;
 
     animation := loaded_animations[animation_name];
-    read_node_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
+    read_animation_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Animation, node: ^gpu.Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
+read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animation, node: ^Mesh_Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
     channel, exists := get_animation_channel(animation, node.name);
     node_transform := node.local_transform;
 
@@ -199,11 +301,11 @@ read_node_hierarchy :: proc(mesh: gpu.Mesh, time: f32, animation: Animation, nod
     }
 
     for _, i in node.children {
-        read_node_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
+        read_animation_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
     }
 }
 
-get_animation_channel :: proc(using anim: Animation, channel_id: string) -> (Anim_Channel, bool) {
+get_animation_channel :: proc(using anim: Loaded_Animation, channel_id: string) -> (Anim_Channel, bool) {
     for channel in channels {
         if channel.name == channel_id {
             return channel, true;
@@ -227,64 +329,3 @@ frame_sort_proc :: proc(f1, f2: Anim_Frame) -> int {
     if f1.time < f2.time do return -1;
     return 0;
 }
-
-ai_to_wb :: proc{ai_to_wb_vec3, ai_to_wb_quat};
-ai_to_wb_vec3 :: proc(vec_in: ai.Vector3D) -> Vec3 {
-    return Vec3{vec_in.x, vec_in.y, vec_in.z};
-}
-
-ai_to_wb_quat :: proc (quat_in: ai.Quaternion) -> Quat {
-    return Quat{quat_in.x, quat_in.y, quat_in.z, quat_in.w};
-}
-
-Animation :: struct {
-    name: string,
-    target_name: string,
-    channels: [dynamic]Anim_Channel,
-
-    duration: f32,
-    ticks_per_second: f32,
-}
-
-Anim_Channel :: struct {
-    name: string,
-
-    pos_frames: []Anim_Frame,
-    scale_frames: []Anim_Frame,
-    rot_frames: []Anim_Frame,
-}
-
-Anim_Frame :: struct {
-    time: f64,
-
-    kind: union {
-        Anim_Frame_Pos,
-        Anim_Frame_Rotation,
-        Anim_Frame_Scale
-    }
-}
-
-Anim_Frame_Pos :: struct {
-    position: Vec3,
-}
-Anim_Frame_Rotation :: struct {
-    rotation: Quat,
-}
-Anim_Frame_Scale :: struct {
-    scale: Vec3,
-}
-
-
-
-
-
-
-Vec3 :: math.Vec3;
-Vec4 :: math.Vec4;
-Quat :: math.Quat;
-Mat4 :: math.Mat4;
-mul :: math.mul;
-identity :: math.identity;
-quat_norm :: math.quat_norm;
-slerp :: math.slerp;
-quat_to_mat4 :: math.quat_to_mat4;

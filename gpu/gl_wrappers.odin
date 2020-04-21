@@ -377,6 +377,11 @@ when GPU_BACKEND == "OPENGL" {
         return cast(TextureId)texture;
     }
 
+    bind_texture :: inline proc(target: Texture_Target, texture: TextureId, loc := #caller_location) {
+        odingl.BindTexture(cast(u32)target, cast(u32)texture);
+        log_errors(#procedure, loc);
+    }
+
     bind_texture_1d :: inline proc(texture: TextureId, loc := #caller_location) {
         odingl.BindTexture(odingl.TEXTURE_1D, cast(u32)texture);
         log_errors(#procedure, loc);
@@ -410,7 +415,13 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
 
-    tex_image_2d :: proc(lod: i32,
+    depth_range :: proc(min, max: f32, loc := #caller_location) {
+        odingl.DepthRangef(min, max);
+        log_errors(#procedure, loc);
+    }
+
+    tex_image_2d :: proc(target: Texture_Target,
+                         lod: i32,
                          internal_format: Internal_Color_Format,
                          width: i32, height: i32,
                          border: i32,
@@ -419,11 +430,12 @@ when GPU_BACKEND == "OPENGL" {
                          data: rawptr,
                          loc := #caller_location) {
 
-        odingl.TexImage2D(cast(u32)Texture_Target.Texture2D, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
+        odingl.TexImage2D(cast(u32)target, lod, cast(i32)internal_format, width, height, border, cast(u32)format, cast(u32)type, data);
         log_errors(#procedure, loc);
     }
 
-    tex_image_3d :: proc(lod: i32,
+    tex_image_3d :: proc(target: Texture_Target,
+                         lod: i32,
                          internal_format: Internal_Color_Format,
                          width, height, depth: i32,
                          border: i32,
@@ -432,7 +444,7 @@ when GPU_BACKEND == "OPENGL" {
                          data: rawptr,
                          loc := #caller_location) {
 
-        odingl.TexImage3D(cast(u32)Texture_Target.Texture3D, lod, cast(i32)internal_format, width, height, depth, border, cast(u32)format, cast(u32)type, data);
+        odingl.TexImage3D(cast(u32)target, lod, cast(i32)internal_format, width, height, depth, border, cast(u32)format, cast(u32)type, data);
         log_errors(#procedure, loc);
     }
 
@@ -473,7 +485,7 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
     draw_buffers :: proc(bufs: []Framebuffer_Attachment, loc := #caller_location) {
-#assert(size_of(Framebuffer_Attachment) == size_of(u32));
+        #assert(size_of(Framebuffer_Attachment) == size_of(u32));
         bufs_u32 := transmute([]u32)bufs;
         odingl.DrawBuffers(cast(i32)len(bufs), &bufs_u32[0]);
         log_errors(#procedure, loc);
@@ -484,24 +496,32 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
 
-    framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId) {
+    framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId, loc := #caller_location) {
         odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
+        log_errors(#procedure, loc);
     }
 
-    framebuffer_renderbuffer :: proc(attachment: Framebuffer_Attachment, rbo: RBO) {
+    framebuffer_renderbuffer :: proc(attachment: Framebuffer_Attachment, rbo: RBO, loc := #caller_location) {
         odingl.FramebufferRenderbuffer(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.RENDERBUFFER, cast(u32)rbo);
+        log_errors(#procedure, loc);
     }
 
-    assert_framebuffer_complete :: proc() {
+    assert_framebuffer_complete :: proc(loc := #caller_location) {
         if odingl.CheckFramebufferStatus(odingl.FRAMEBUFFER) != odingl.FRAMEBUFFER_COMPLETE {
             panic("Failed to setup frame buffer");
         }
+        log_errors(#procedure, loc);
     }
 
-    renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: i32) {
+    renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: i32, loc := #caller_location) {
         odingl.RenderbufferStorage(odingl.RENDERBUFFER, cast(u32)storage, width, height);
+        log_errors(#procedure, loc);
     }
 
+    read_pixels :: proc(x, y: i32, w, h: i32 /* sizei */, data_format: Pixel_Data_Format, data_type: Texture2D_Data_Type, out_data: []byte, loc := #caller_location) {
+        odingl.ReadPixels(x, y, w, h, cast(u32)data_format, cast(u32)data_type, &out_data[0]);
+        log_errors(#procedure, loc);
+    }
 
     // ActiveTexture() is guaranteed to go from 0-47 on all implementations of OpenGL, but can go higher on some
     active_texture :: inline proc(texture_idx: u32, loc := #caller_location) {
@@ -632,17 +652,29 @@ when GPU_BACKEND == "OPENGL" {
                     type_of_elements = odingl.UNSIGNED_BYTE;
                     is_int = true;
                 }
-                case [BONES_PER_VERTEX]u32: {
-                    num_elements = BONES_PER_VERTEX;
-                    type_of_elements = odingl.UNSIGNED_INT;
-                    is_int = true;
-                }
-                case [BONES_PER_VERTEX]f32: {
-                    num_elements = BONES_PER_VERTEX;
-                    type_of_elements = odingl.FLOAT;
-                }
                 case: {
-                    panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
+                    // fallback to using typeinfo
+                    #partial
+                    switch variant in ti.types[i].variant {
+                        case rt.Type_Info_Array: {
+                            num_elements = cast(i32)variant.count;
+                            switch variant.elem {
+                                case type_info_of(u32): {
+                                    type_of_elements = odingl.UNSIGNED_INT;
+                                    is_int = true;
+                                }
+                                case type_info_of(f32): {
+                                    type_of_elements = odingl.FLOAT;
+                                }
+                                case: {
+                                    panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
+                                }
+                            }
+                        }
+                        case: {
+                            panic(fmt.tprintf("UNSUPPORTED TYPE IN VERTEX FORMAT - %s: %s\n", name, ti.types[i].id));
+                        }
+                    }
                 }
             }
 
@@ -687,6 +719,10 @@ when GPU_BACKEND == "OPENGL" {
     }
     uniform_int_array :: inline proc(program: Shader_Program, name: cstring, p: []i32, loc := #caller_location) {
         uniform1iv(program, name, cast(i32)len(p), &p[0], loc);
+    }
+
+    uniform_uint :: inline proc(program: Shader_Program, name: cstring, p: u32, loc := #caller_location) {
+        uniform1ui(program, name, p, loc);
     }
 
     uniform_float :: inline proc(program: Shader_Program, name: cstring, p: f32, loc := #caller_location) {
@@ -762,6 +798,26 @@ when GPU_BACKEND == "OPENGL" {
     uniform4i :: inline proc(program: Shader_Program, name: cstring, v0: i32, v1: i32, v2: i32, v3: i32, loc := #caller_location) {
         location := get_uniform_location(program, name, loc);
         odingl.Uniform4i(cast(i32)location, v0, v1, v2, v3);
+        log_errors(#procedure, loc);
+    }
+    uniform1ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform1ui(cast(i32)location, v0);
+        log_errors(#procedure, loc);
+    }
+    uniform2ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, v1: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform2ui(cast(i32)location, v0, v1);
+        log_errors(#procedure, loc);
+    }
+    uniform3ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, v1: u32, v2: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform3ui(cast(i32)location, v0, v1, v2);
+        log_errors(#procedure, loc);
+    }
+    uniform4ui :: inline proc(program: Shader_Program, name: cstring, v0: u32, v1: u32, v2: u32, v3: u32, loc := #caller_location) {
+        location := get_uniform_location(program, name, loc);
+        odingl.Uniform4ui(cast(i32)location, v0, v1, v2, v3);
         log_errors(#procedure, loc);
     }
 

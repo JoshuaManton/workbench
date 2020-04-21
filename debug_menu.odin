@@ -2,8 +2,8 @@ package workbench
 
 import "platform"
 import "external/imgui"
-import pf "profiler"
 import "gpu"
+import "profiler"
 
 //
 // API
@@ -85,7 +85,6 @@ wb_info_program :: proc(_: rawptr) {
 	WB_Debug_Data :: struct {
 		camera_position: Vec3,
 		camera_rotation: Quat,
-		precise_lossy_delta_time_ms: f32,
 		dt: f32,
 	};
 
@@ -93,14 +92,13 @@ wb_info_program :: proc(_: rawptr) {
 		data := WB_Debug_Data{
 			main_camera.position,
 			main_camera.rotation,
-			rolling_average_get_value(&whole_frame_time_ra) * 1000,
 			fixed_delta_time,
 		};
 
 		imgui_struct(&data, "wb_debug_data");
 		imgui.checkbox("Debug UI", &debugging_ui);
 		imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
-		imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do pf.profiler_imgui_window(&wb_profiler);
+		imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do profiler.draw_profiler_window();
 		imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 	}
 	imgui.end();

@@ -6,10 +6,9 @@ import "gpu"
 import log "logging"
 import "math"
 import "types"
-import "profiler"
 
 Terrain :: struct {
-    model: gpu.Model,
+    model: Model,
 
     color0: Colorf,
     color1: Colorf,
@@ -27,10 +26,10 @@ create_terrain :: proc(size: int, height_map: [][]f32, step : f32 = 0.25) -> Ter
     assert(size <= len(height_map), "Height map too smalle for terrain");
 
     terrain := Terrain {
-        gpu.Model {
+        Model {
             "terrain",
             make([dynamic]Mesh, 0, 1),
-            {}, {},
+            {}, {}, false,
         },
         {36.0/255.0, 191.0/255.0, 70.0/255.0, 1},
         {150.0/255.0, 130.0/255.0, 65.0/255.0, 1},
@@ -116,7 +115,7 @@ get_height_at_position :: proc(terrain: Terrain, terrain_origin: Vec3, _x, _z: f
 
 MAX_DISTANCE : f32 : 1000;
 raycast_into_terrain :: proc(terrain: Terrain, terrain_origin, ray_origin, ray_direction: Vec3, max : f32 = MAX_DISTANCE, narrow_phase_min : f32 = 0.1) -> (Vec3, bool) {
-    profiler.TIMED_SECTION(&wb_profiler);
+    TIMED_SECTION();
     for dist : f32 = 0; dist < max; dist += terrain.step {
         current_pos := ray_origin + (ray_direction * dist);
 

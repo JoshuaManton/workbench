@@ -9,71 +9,6 @@ import "../logging"
 
 import odingl "../external/gl"
 
-//
-// Models and Meshes
-//
-
-Model :: struct {
-    name: string,
-    meshes: [dynamic]Mesh,
-    center: Vec3,
-    size: Vec3,
-}
-
-Mesh :: struct {
-    vao: VAO,
-    vbo: VBO,
-    ibo: EBO,
-    vertex_type: ^rt.Type_Info,
-
-    index_count:  int,
-    vertex_count: int,
-
-    center: Vec3,
-    vmin: Vec3,
-    vmax: Vec3,
-
-	skin: Skinned_Mesh,
-}
-
-Skinned_Mesh :: struct {
-	bones: []Bone,
-    nodes: [dynamic]Node,
-	name_mapping: map[string]int,
-	global_inverse: Mat4,
-
-    parent_node: ^Node, // points into array above
-}
-
-Node :: struct {
-    name: string,
-    local_transform: Mat4,
-
-    parent: ^Node,
-    children: [dynamic]^Node,
-}
-
-Vertex2D :: struct {
-	position: Vec2,
-	tex_coord: Vec2,
-	color: Colorf,
-}
-
-Vertex3D :: struct {
-	position: Vec3,
-	tex_coord: Vec3, // todo(josh): should this be a Vec2?
-	color: Colorf,
-	normal: Vec3,
-
-	bone_indicies: [BONES_PER_VERTEX]u32,
-	bone_weights: [BONES_PER_VERTEX]f32,
-}
-
-Bone :: struct {
-	offset: Mat4,
-	name: string,
-}
-
 Draw_Mode :: enum u32 {
 	Points       = odingl.POINTS,
     Lines        = odingl.LINES,
@@ -228,10 +163,17 @@ Texture_Target :: enum i32 {
     Texture_Cube_Map_Array      = odingl.TEXTURE_CUBE_MAP_ARRAY,
     Texture2D_Multisample_Array = odingl.TEXTURE_2D_MULTISAMPLE_ARRAY,
 
-    Texture_Rectangle     = odingl.TEXTURE_RECTANGLE,
-    Texture_CubeMap       = odingl.TEXTURE_CUBE_MAP,
-    Texture2D_Multisample = odingl.TEXTURE_2D_MULTISAMPLE,
-    Texture_Buffer        = odingl.TEXTURE_BUFFER,
+    Texture_Rectangle      = odingl.TEXTURE_RECTANGLE,
+    Texture_Cube_Map       = odingl.TEXTURE_CUBE_MAP,
+    Texture2D_Multisample  = odingl.TEXTURE_2D_MULTISAMPLE,
+    Texture_Buffer         = odingl.TEXTURE_BUFFER,
+
+    Cube_Map_Positive_X = odingl.TEXTURE_CUBE_MAP_POSITIVE_X,
+    Cube_Map_Negative_X = odingl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+    Cube_Map_Positive_Y = odingl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+    Cube_Map_Negative_Y = odingl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+    Cube_Map_Positive_Z = odingl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+    Cube_Map_Negative_Z = odingl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
 }
 
 Internal_Color_Format :: enum i32 {

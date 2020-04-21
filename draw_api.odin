@@ -8,7 +8,6 @@ import rt "core:runtime"
 import "core:os"
 
 import "platform"
-import "profiler"
 import "gpu"
 
 import "external/stb"
@@ -93,14 +92,6 @@ current_framebuffer: Framebuffer;
 // Camera
 //
 
-// todo(josh): why are these defined in gpu? move them here if possible
-Model :: gpu.Model;
-Mesh :: gpu.Mesh;
-Skinned_Mesh :: gpu.Skinned_Mesh;
-Vertex2D :: gpu.Vertex2D;
-Vertex3D :: gpu.Vertex3D;
-Bone :: gpu.Bone;
-
 Camera :: struct {
     is_perspective: bool,
 
@@ -132,10 +123,9 @@ Camera :: struct {
 	render_queue: [dynamic]Draw_Command_3D,
 	im_draw_commands: [dynamic]Draw_Command_2D,
 
-	// todo(josh): maybe these should be pointers. this is blowing up the size of the camera struct a LOT
-	point_light_positions:   [MAX_LIGHTS]Vec3,
-	point_light_colors:      [MAX_LIGHTS]Vec4,
-	point_light_intensities: [MAX_LIGHTS]f32,
+	point_light_positions:   []Vec3,
+	point_light_colors:      []Vec4,
+	point_light_intensities: []f32,
 	num_point_lights: i32,
 
 	sun_direction: Vec3,
@@ -145,36 +135,24 @@ Camera :: struct {
 	shadow_map_cameras: Maybe([NUM_SHADOW_MAPS]^Camera),
 
 	auto_resize_framebuffer: bool,
+
+	skybox: Maybe(Texture),
 }
+
+Render_Settings :: struct {
+	gamma: f32,
+	exposure: f32,
+	bloom_threshhold: f32,
+	bloom_blur_passes: i32,
+	bloom_range: i32,
+	bloom_weight: f32,
+}
+
+render_settings: Render_Settings;
 
 MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
 SHADOW_MAP_DIM :: 2048;
-
-Model_Draw_Info :: struct {
-	model: Model,
-	shader: gpu.Shader_Program,
-	texture: Texture,
-	material: Material,
-	position: Vec3,
-	scale: Vec3,
-	rotation: Quat,
-	color: Colorf,
-	animation_state: Model_Animation_State,
-
-	userdata: rawptr,
-}
-
-Model_Animation_State :: struct {
-	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
-	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
-	// todo(josh): free mesh_states. we probably shouldn't be storing dynamic memory on Model_Draw_Info because we churn through a _lot_ of these per frame, array of bones could probably be capped at 4 or 8 or something
-	mesh_states: [dynamic]Mesh_State // array of bones per mesh in the model
-}
-
-Mesh_State :: struct {
-	state : [dynamic]Mat4
-}
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
 	framebuffer := framebuffer;
@@ -199,6 +177,10 @@ init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_widt
     }
     assert(camera.framebuffer.fbo == 0);
     camera.framebuffer = framebuffer;
+
+    camera.point_light_positions   = make([]Vec3, MAX_LIGHTS);
+	camera.point_light_colors      = make([]Vec4, MAX_LIGHTS);
+	camera.point_light_intensities = make([]f32,  MAX_LIGHTS);
 }
 
 delete_camera :: proc(camera: ^Camera) { // note(josh): does NOT free the camera you pass in
@@ -259,11 +241,10 @@ push_camera_non_deferred :: proc(camera: ^Camera) -> ^Camera {
 	old_camera := main_camera;
 	main_camera = camera;
 
-	if camera.auto_resize_framebuffer {
-		update_camera_pixel_size(camera, platform.current_window_width, platform.current_window_height);
-	}
-
-	push_framebuffer_non_deferred(camera.framebuffer);
+	push_framebuffer_non_deferred(&camera.framebuffer, camera.auto_resize_framebuffer);
+	camera.pixel_width  = cast(f32)camera.framebuffer.width;
+    camera.pixel_height = cast(f32)camera.framebuffer.height;
+    camera.aspect = camera.pixel_width / camera.pixel_height;
 
 	gpu.enable(gpu.Capabilities.Blend);
 	gpu.blend_func(.Src_Alpha, .One_Minus_Src_Alpha);
@@ -288,33 +269,26 @@ pop_camera :: proc(old_camera: ^Camera) {
 	}
 }
 
-update_camera_pixel_size :: proc(using camera: ^Camera, new_width: f32, new_height: f32) {
-    pixel_width = new_width;
-    pixel_height = new_height;
-    aspect = new_width / new_height;
-
-    if framebuffer.width != cast(int)new_width || framebuffer.height != cast(int)new_height {
-        logln("Rebuilding framebuffer...");
-
-	    if framebuffer.fbo != 0 {
-			num_color_buffers := len(framebuffer.attachments);
-	        delete_framebuffer(framebuffer);
-	        framebuffer = create_framebuffer(cast(int)new_width, cast(int)new_height, num_color_buffers);
-	    }
-	    else {
-    	    framebuffer.width  = cast(int)new_width;
-	        framebuffer.height = cast(int)new_height;
-	    }
-    }
-}
-
 // todo(josh): it's probably slow that we dont cache matrices at all :grimacing:
 construct_rendermode_view_matrix :: proc(camera: ^Camera) -> Mat4 {
-	if camera.current_rendermode != .World {
-		return identity(Mat4);
+	#partial
+	switch camera.current_rendermode {
+		case .World: {
+			return construct_view_matrix(camera);
+		}
+		case .Viewport_World: {
+			view_matrix := identity(Mat4);
+		    rotation_matrix := quat_to_mat4(inverse(camera.rotation));
+		    view_matrix = mul(rotation_matrix, view_matrix);
+		    return view_matrix;
+		}
+		case: {
+			return identity(Mat4);
+		}
 	}
 
-	return construct_view_matrix(camera);
+	unreachable();
+	return {};
 }
 
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
@@ -345,6 +319,9 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
         	aspect := mat4_scale(identity(Mat4), Vec3{1/camera.aspect, 1, 0});
             return aspect;
         }
+        case .Viewport_World: {
+            return construct_projection_matrix(camera);
+        }
         case: panic(tprint(camera.current_rendermode));
     }
 
@@ -366,12 +343,14 @@ construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
 }
 
 camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
-	profiler.TIMED_SECTION(&wb_profiler, "camera_render");
+	TIMED_SECTION();
 
 
 	// pre-render
 	gpu.log_errors(#procedure);
 	PUSH_CAMERA(camera);
+
+	set_sun_data(Quat{0, 0, 0, 1}, Colorf{0, 0, 0, 0}, 0);
 
 	if user_render_proc != nil {
 		user_render_proc(lossy_delta_time);
@@ -385,14 +364,14 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	assert(NUM_SHADOW_MAPS == 4);
 	light_matrices: [NUM_SHADOW_MAPS]Mat4;
 	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
-		profiler.TIMED_SECTION(&wb_profiler, "camera_render.shadow_maps");
+		TIMED_SECTION("camera_render.shadow_maps");
 
 		for shadow_map_camera, map_idx in shadow_maps {
 			assert(shadow_map_camera != nil);
 
-			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
-			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
-			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerouns
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerous
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerous
+			// todo(josh): I think I am depending on undefined behaviour here since I modify frustum corners but I don't think Bill has decided if array literals on the stack will live in the data segment and then do a copy or actually construct the array with instructions. If he chooses to make it live in the data segment then modifying it is dangerous
 			frustum_corners := [8]Vec3 {
 				{-1,  1, -1},
 				{ 1,  1, -1},
@@ -467,7 +446,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			// render scene from perspective of sun
 			PUSH_CAMERA(shadow_map_camera);
 
-			depth_shader := get_shader(&wb_catalog, "shadow");
+			depth_shader := get_shader("shadow");
 			gpu.use_program(depth_shader);
 
 			PUSH_RENDERMODE(.World);
@@ -483,7 +462,16 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// draw scene for real
 	{
-		profiler.TIMED_SECTION(&wb_profiler, "camera_render.draw_for_real");
+		TIMED_SECTION("camera_render.draw_for_real");
+
+		if skybox_texture, ok := getval(&camera.skybox); ok {
+			PUSH_GPU_ENABLED(.Cull_Face, false);
+			skybox_shader := get_shader("skybox");
+			gpu.use_program(skybox_shader);
+			PUSH_RENDERMODE(.Viewport_World);
+			draw_model(wb_skybox_model, {}, {1, 1, 1}, {0, 0, 0, 1}, skybox_texture^, {1, 1, 1, 1}, true);
+			gpu.clear_screen(.Depth_Buffer);
+		}
 
 		PUSH_RENDERMODE(.World);
 
@@ -504,6 +492,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 				gpu.uniform_mat4_array(shader, "cascade_light_space_matrices", light_matrices[:]);
 			}
 
+			if visualize_shadow_cascades do gpu.uniform_int(shader, "visualize_shadow_cascades", 1);
+			else                         do gpu.uniform_int(shader, "visualize_shadow_cascades", 0);
+
+			if skybox_texture, ok := getval(&camera.skybox); ok {
+				add_texture_binding(cmd, "skybox_texture", skybox_texture^);
+			}
+
 			// issue draw call
 			if on_render_object != nil do on_render_object(cmd.userdata);
 			execute_draw_command(cmd^);
@@ -518,21 +513,23 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 	// do bloom
 	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok {
-		profiler.TIMED_SECTION(&wb_profiler, "camera_render.bloom");
+		TIMED_SECTION("camera_render.bloom");
 
 		for fbo in bloom_fbos {
-			PUSH_FRAMEBUFFER(fbo);
+			PUSH_FRAMEBUFFER(&fbo, true);
 			gpu.clear_screen(.Color_Buffer | .Depth_Buffer);
 		}
 
 		horizontal := true;
 		first := true;
-		amount := 5;
 		last_bloom_fbo: Maybe(Framebuffer);
-		shader_blur := get_shader(&wb_catalog, "blur");
+		shader_blur := get_shader("blur");
 		gpu.use_program(shader_blur);
-		for i in 0..<amount {
-			PUSH_FRAMEBUFFER(bloom_fbos[cast(int)horizontal]);
+		gpu.uniform_int  (shader_blur, "bloom_range",  render_settings.bloom_range);
+		gpu.uniform_float(shader_blur, "bloom_weight", render_settings.bloom_weight);
+
+		for i in 0..<render_settings.bloom_blur_passes {
+			PUSH_FRAMEBUFFER(&bloom_fbos[cast(int)horizontal], true);
 			gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 			if first {
 				draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
@@ -547,13 +544,13 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
 
 		if last_bloom_fbo, ok := getval(&last_bloom_fbo); ok {
-			shader_bloom := get_shader(&wb_catalog, "bloom");
+			shader_bloom := get_shader("bloom");
 			gpu.use_program(shader_bloom);
-			bind_texture("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
+			bind_texture_to_shader("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
 			draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
-			if render_settings.visualize_bloom_texture {
-				gpu.use_program(get_shader(&wb_catalog, "default"));
+			if visualize_bloom_texture {
+				gpu.use_program(get_shader("default"));
 				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
 			}
 		}
@@ -565,10 +562,10 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	debug_geo_flush();
 
 	// visualize depth buffer
-	if render_settings.visualize_shadow_texture {
+	if visualize_shadow_texture {
 		if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
 			if length(camera.sun_direction) > 0 {
-				gpu.use_program(get_shader(&wb_catalog, "depth"));
+				gpu.use_program(get_shader("depth"));
 				for shadow_map, map_idx in shadow_maps {
 					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
 				}
@@ -576,14 +573,17 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 		}
 	}
 
+
+
+	if _pooled_draw_commands_taken_out != len(camera.render_queue) {
+		logf("LEAK!!! Somebody pulled a draw command out of the pool and didn't submit or return it!!! taken out: %, returned: %", _pooled_draw_commands_taken_out, len(camera.render_queue));
+	}
 	for cmd in camera.render_queue {
-		// put the texture and uniform bindings back in the pool
-		pooled_cmd: Draw_Command_3D;
-		pooled_cmd.texture_bindings = cmd.texture_bindings; clear(&pooled_cmd.texture_bindings);
-		pooled_cmd.uniform_bindings = cmd.uniform_bindings; clear(&pooled_cmd.uniform_bindings);
-		append(&_pooled_draw_commands, pooled_cmd);
+		return_draw_command_to_pool(cmd);
 	}
 	clear(&camera.render_queue);
+
+
 
 	// clear lights
 	camera.num_point_lights = 0;
@@ -687,17 +687,15 @@ pop_gpu_enabled :: proc(old: gpu.Capabilities, enable: bool) {
 
 
 Material :: struct {
-	ambient:  Colorf,
-	diffuse:  Colorf,
-	specular: Colorf,
-	shine:    f32,
+	metallic:  f32 `imgui_range="0":"1"`,
+	roughness: f32 `imgui_range="0":"1"`,
+	ao:        f32 `imgui_range="0":"1"`,
 }
 
-flush_material :: proc(using material: Material, shader: gpu.Shader_Program) {
-	gpu.uniform_vec4 (shader, "material.ambient",  transmute(Vec4)material.ambient);
-	gpu.uniform_vec4 (shader, "material.diffuse",  transmute(Vec4)material.diffuse);
-	gpu.uniform_vec4 (shader, "material.specular", transmute(Vec4)material.specular);
-	gpu.uniform_float(shader, "material.shine",    material.shine);
+flush_material :: proc(material: Material, shader: gpu.Shader_Program) {
+	gpu.uniform_float(shader, "material.metallic",  material.metallic);
+	gpu.uniform_float(shader, "material.roughness", material.roughness);
+	gpu.uniform_float(shader, "material.ao",        material.ao);
 }
 
 push_point_light :: proc(position: Vec3, color: Colorf, intensity: f32) {
@@ -739,7 +737,7 @@ create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, in
 	texture := gpu.gen_texture();
 	gpu.bind_texture_2d(texture);
 
-	gpu.tex_image_2d(0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
+	gpu.tex_image_2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 
@@ -749,14 +747,36 @@ create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, in
 create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_3d(texture);
-	gpu.tex_image_3d(0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
+	gpu.tex_image_3d(.Texture3D, 0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture3D, .Wrap_S, .Repeat);
 	gpu.tex_parameteri(.Texture3D, .Wrap_T, .Repeat);
 	gpu.tex_parameteri(.Texture3D, .Wrap_R, .Repeat);
-
 	return Texture{texture, ww, hh, dd, .Texture3D, initial_data_format, initial_data_element_type};
+}
+
+create_cubemap :: proc() -> Texture {
+	texture := gpu.gen_texture();
+	gpu.bind_texture(.Texture_Cube_Map, texture);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Mag_Filter, .Linear);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Min_Filter, .Linear);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_S, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_T, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_R, .Clamp_To_Edge);
+	return Texture{texture, 0, 0, 1, .Texture_Cube_Map, {}, {}};
+}
+
+set_cubemap_textures :: proc(cubemap: ^Texture, ww, hh: int, right, left, top, bottom, back, front: ^byte, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte) {
+	assert(cubemap.target == .Texture_Cube_Map);
+	faces := [6]^byte{right, left, top, bottom, back, front};
+	for face, i in faces {
+		gpu.tex_image_2d(.Cube_Map_Positive_X + gpu.Texture_Target(i), 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, face);
+	}
+	cubemap.width = ww;
+	cubemap.height = hh;
+	cubemap.format = initial_data_format;
+	cubemap.element_type = initial_data_element_type;
 }
 
 delete_texture :: proc(texture: Texture) {
@@ -770,13 +790,14 @@ draw_texture :: proc(texture: Texture, unit0: Vec2, unit1: Vec2, color := Colorf
 	draw_model(wb_quad_model, center, size, {0, 0, 0, 1}, texture, color, false);
 }
 
-bind_texture :: proc(name: cstring, texture: Texture, texture_unit: int, shader: gpu.Shader_Program) {
+bind_texture_to_shader :: proc(name: cstring, texture: Texture, texture_unit: int, shader: gpu.Shader_Program) {
 	gpu.active_texture(u32(texture_unit));
 	gpu.uniform_int(shader, name, i32(texture_unit));
 	#partial
 	switch texture.target {
-		case .Texture2D: gpu.bind_texture_2d(texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
-		case .Texture3D: gpu.bind_texture_3d(texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture2D:        gpu.bind_texture(.Texture2D,        texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture3D:        gpu.bind_texture(.Texture3D,        texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
+		case .Texture_Cube_Map: gpu.bind_texture(.Texture_Cube_Map, texture.gpu_id); gpu.uniform_int(shader, tprint_cstring("has_", name), 1); // todo(josh): handle multiple textures per model
 		case cast(gpu.Texture_Target)0: gpu.uniform_int(shader, tprint_cstring("has_", name), 0); // todo(josh): should this be an error/warning?
 		case: panic(tprint(texture.target));
 	}
@@ -814,9 +835,13 @@ Framebuffer :: struct {
 
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
+
+    texture_format: gpu.Internal_Color_Format,
+    data_format: gpu.Pixel_Data_Format,
+    data_element_format: gpu.Texture2D_Data_Type,
 }
 
-create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #caller_location) -> Framebuffer {
+create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_format := gpu.Internal_Color_Format.RGBA16F, data_format := gpu.Pixel_Data_Format.RGBA, data_element_format := gpu.Texture2D_Data_Type.Unsigned_Byte, loc := #caller_location) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
 	gpu.bind_fbo(fbo);
 
@@ -825,11 +850,11 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #c
 	assert(num_color_buffers <= 32, tprint(num_color_buffers, " is more than ", gpu.Framebuffer_Attachment.Color31));
 	for buf_idx in 0..<num_color_buffers {
 		texture := gpu.gen_texture();
-		append(&textures, Texture{texture, width, height, 1, .Texture2D, .RGBA, .Unsigned_Byte});
+		append(&textures, Texture{texture, width, height, 1, .Texture2D, data_format, data_element_format});
 		gpu.bind_texture_2d(texture);
 
 		// todo(josh): is 16-bit float enough?
-		gpu.tex_image_2d(0, .RGBA16F, cast(i32)width, cast(i32)height, 0, .RGBA, .Unsigned_Byte, nil);
+		gpu.tex_image_2d(.Texture2D, 0, texture_format, cast(i32)width, cast(i32)height, 0, data_format, data_element_format, nil);
 		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -845,7 +870,7 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #c
 	gpu.bind_texture_2d(depth_texture_id);
 	depth_texture := Texture{depth_texture_id, width, height, 1, .Texture2D, .Depth_Component, .Float};
 
-	gpu.tex_image_2d(0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
+	gpu.tex_image_2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
@@ -870,7 +895,7 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, loc := #c
 	gpu.bind_rbo(0);
 	gpu.bind_fbo(0);
 
-	framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:]};
+	framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:], texture_format, data_format, data_element_format};
 	return framebuffer;
 }
 
@@ -885,14 +910,33 @@ delete_framebuffer :: proc(framebuffer: Framebuffer) {
 }
 
 @(deferred_out=pop_framebuffer)
-PUSH_FRAMEBUFFER :: proc(framebuffer: Framebuffer) -> Framebuffer {
-	return push_framebuffer_non_deferred(framebuffer);
+PUSH_FRAMEBUFFER :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: bool) -> Framebuffer {
+	return push_framebuffer_non_deferred(framebuffer, auto_resize_framebuffer);
 }
 
-push_framebuffer_non_deferred :: proc(framebuffer: Framebuffer) -> Framebuffer {
+push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: bool) -> Framebuffer {
+	if auto_resize_framebuffer {
+	    if framebuffer.width != cast(int)platform.current_window_width || framebuffer.height != cast(int)platform.current_window_height {
+	        logln("Rebuilding framebuffer...");
+
+		    if framebuffer.fbo != 0 {
+		    	texture_format := framebuffer.texture_format;
+				data_format := framebuffer.data_format;
+				data_element_format := framebuffer.data_element_format;
+				num_color_buffers := len(framebuffer.attachments);
+		        delete_framebuffer(framebuffer^);
+		        framebuffer^ = create_framebuffer(cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
+		    }
+		    else {
+	    	    framebuffer.width  = cast(int)(platform.current_window_width+0.5);
+		        framebuffer.height = cast(int)(platform.current_window_height+0.5);
+		    }
+	    }
+	}
+
 	old := current_framebuffer;
 	gpu.bind_fbo(framebuffer.fbo); // note(josh): can be 0
-	current_framebuffer = framebuffer;
+	current_framebuffer = framebuffer^;
 	gpu.viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
 
 	return old;
@@ -905,6 +949,74 @@ pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
 }
 
 
+
+//
+// Models and Meshes
+//
+
+BONES_PER_VERTEX :: 4;
+
+Model :: struct {
+    name: string,
+    meshes: [dynamic]Mesh,
+    center: Vec3,
+    size: Vec3,
+    has_bones: bool,
+}
+
+Mesh :: struct {
+    vao: gpu.VAO,
+    vbo: gpu.VBO,
+    ibo: gpu.EBO,
+    vertex_type: ^rt.Type_Info,
+
+    index_count:  int,
+    vertex_count: int,
+
+    center: Vec3,
+    vmin: Vec3,
+    vmax: Vec3,
+
+	skin: Skinned_Mesh,
+}
+
+Skinned_Mesh :: struct {
+	bones: []Mesh_Bone,
+    nodes: [dynamic]Mesh_Node, // todo(josh): pretty sure we @Leak these and any data inside them, pls fix!
+	name_mapping: map[string]int,
+	global_inverse: Mat4,
+
+    parent_node: ^Mesh_Node, // points into array above
+}
+
+Mesh_Bone :: struct {
+	offset: Mat4,
+	name: string,
+}
+
+Mesh_Node :: struct {
+    name: string,
+    local_transform: Mat4,
+
+    parent: ^Mesh_Node,
+    children: [dynamic]^Mesh_Node,
+}
+
+Vertex2D :: struct {
+	position: Vec2,
+	tex_coord: Vec2,
+	color: Colorf,
+}
+
+Vertex3D :: struct {
+	position: Vec3,
+	tex_coord: Vec3, // todo(josh): should this be a Vec2?
+	color: Colorf,
+	normal: Vec3,
+
+	bone_indicies: [BONES_PER_VERTEX]u32,
+	bone_weights: [BONES_PER_VERTEX]f32,
+}
 
 add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32 = {}, skin: Skinned_Mesh = {}, loc := #caller_location) -> int {
 	vao := gpu.gen_vao();
@@ -1000,11 +1112,14 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	gpu.delete_buffer(mesh.ibo);
 	gpu.log_errors(#procedure, loc);
 
+	for b in mesh.skin.bones {
+		delete(b.name);
+	}
+	delete(mesh.skin.bones);
 	for name in mesh.skin.name_mapping {
 		delete(name);
 	}
 	delete(mesh.skin.name_mapping);
-	delete(mesh.skin.bones);
 }
 
 draw_model :: proc(model: Model,
@@ -1062,8 +1177,9 @@ draw_model :: proc(model: Model,
 		// todo(josh): handle multiple textures per model
 		#partial
 		switch texture.target {
-			case .Texture2D: gpu.bind_texture_2d(texture.gpu_id);
-			case .Texture3D: gpu.bind_texture_3d(texture.gpu_id);
+			case .Texture2D:        gpu.bind_texture(.Texture2D,        texture.gpu_id);
+			case .Texture3D:        gpu.bind_texture(.Texture3D,        texture.gpu_id);
+			case .Texture_Cube_Map: gpu.bind_texture(.Texture_Cube_Map, texture.gpu_id);
 			case cast(gpu.Texture_Target)0:
 			case: panic(tprint(texture.target));
 		}
@@ -1140,24 +1256,26 @@ Uniform_Binding :: struct {
 	},
 }
 
-add_texture_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, texture: Texture) {
-	append(&cmd.texture_bindings, Texture_Binding{name, texture});
+add_texture_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, texture: Texture, loc := #caller_location) {
+	append(&cmd.texture_bindings, Texture_Binding{name, texture}, loc);
 }
 
-add_uniform_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, value: $T) {
-	append(&cmd.uniform_bindings, Uniform_Binding{name, value});
+add_uniform_binding :: proc(cmd: ^Draw_Command_3D, name: cstring, value: $T, loc := #caller_location) {
+	append(&cmd.uniform_bindings, Uniform_Binding{name, value}, loc);
 }
 
 _pooled_draw_commands: [dynamic]Draw_Command_3D;
+_pooled_draw_commands_taken_out: int;
 
 get_pooled_draw_command :: proc() -> Draw_Command_3D {
+	_pooled_draw_commands_taken_out += 1;
 	if len(_pooled_draw_commands) > 0 {
 		return pop(&_pooled_draw_commands);
 	}
 	return Draw_Command_3D{};
 }
 
-create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, 1}) -> Draw_Command_3D {
+create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {1, 1, 1}, loc := #caller_location) -> Draw_Command_3D {
     cmd := get_pooled_draw_command();
     cmd.depth_test = true;
     cmd.model = model;
@@ -1175,6 +1293,16 @@ submit_draw_command :: proc(cmd: Draw_Command_3D) {
 	append(&main_camera.render_queue, cmd);
 }
 
+return_draw_command_to_pool :: proc(cmd: Draw_Command_3D) {
+	// put the texture and uniform bindings back in the pool
+	_pooled_draw_commands_taken_out -= 1;
+	assert(_pooled_draw_commands_taken_out >= 0);
+	pooled_cmd: Draw_Command_3D;
+	pooled_cmd.texture_bindings = cmd.texture_bindings; clear(&pooled_cmd.texture_bindings);
+	pooled_cmd.uniform_bindings = cmd.uniform_bindings; clear(&pooled_cmd.uniform_bindings);
+	append(&_pooled_draw_commands, pooled_cmd);
+}
+
 execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
@@ -1183,7 +1311,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 	bound_shader := gpu.get_current_shader();
 
 	for binding, idx in texture_bindings {
-		bind_texture(binding.name, binding.texture, idx, bound_shader);
+		bind_texture_to_shader(binding.name, binding.texture, idx, bound_shader);
 	}
 	for _, bidx in uniform_bindings {
 		binding := &uniform_bindings[bidx];
@@ -1242,13 +1370,16 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 		gpu.log_errors(#procedure);
 
 		if len(anim_state.mesh_states) > i {
-
+			gpu.uniform_int(bound_shader, "do_animation", 1);
 			mesh_state := anim_state.mesh_states[i];
 			for _, i in mesh_state.state {
 				s := mesh_state.state[i];
 				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
 				gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
 			}
+		}
+		else {
+			gpu.uniform_int(bound_shader, "do_animation", 0);
 		}
 
 		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
@@ -1278,6 +1409,7 @@ Rendermode :: enum {
     Unit,
     Pixel,
     Aspect,
+    Viewport_World,
 }
 
 @(deferred_out=pop_rendermode)
@@ -1288,6 +1420,58 @@ PUSH_RENDERMODE :: proc(r: Rendermode) -> Rendermode {
 }
 pop_rendermode :: proc(r: Rendermode) {
 	main_camera.current_rendermode = r;
+}
+
+
+
+//
+// Debug
+//
+
+Debug_Line :: struct {
+	a, b: Vec3,
+	color: Colorf,
+	rotation: Quat,
+	rendermode: Rendermode,
+	depth_test: bool,
+}
+Debug_Cube :: struct {
+	position: Vec3,
+	scale: Vec3,
+	rotation: Quat,
+	color: Colorf,
+	rendermode: Rendermode,
+	depth_test: bool,
+}
+
+// todo(josh): test all rendermodes for debug lines/boxes
+draw_debug_line :: proc(a, b: Vec3, color: Colorf, rendermode := Rendermode.World, depth_test := true) {
+	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}, rendermode, depth_test});
+}
+
+draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}, rendermode := Rendermode.World, depth_test := true) {
+	append(&debug_cubes, Debug_Cube{position, scale, rotation, color, rendermode, depth_test});
+}
+
+debug_geo_flush :: proc() {
+	PUSH_POLYGON_MODE(.Line);
+	PUSH_GPU_ENABLED(.Cull_Face, false);
+
+	gpu.use_program(get_shader("default"));
+	for line in debug_lines {
+		PUSH_RENDERMODE(line.rendermode);
+		verts: [3]Vertex3D;
+		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
+		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
+		verts[2] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
+		update_mesh(&debug_line_model, 0, verts[:], []u32{});
+		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, line.depth_test);
+	}
+
+	for cube in debug_cubes {
+		PUSH_RENDERMODE(cube.rendermode);
+		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, cube.depth_test);
+	}
 }
 
 

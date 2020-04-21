@@ -10,21 +10,18 @@ import core_time "core:time"
 
 import "math"
 import "gpu"
+import "platform"
+import "profiler"
 import "types"
 import "basic"
 
 import "external/imgui"
 import "external/stb"
 
-import pf "profiler"
 import "allocators"
 import "shared"
 
 import "external/glfw"
-import "platform"
-
-	main_window: platform.Window;
-
 
 DEVELOPER :: true;
 
@@ -32,13 +29,14 @@ DEVELOPER :: true;
 // Game loop stuff
 //
 
+main_window: platform.Window;
+
 update_loop_ra: Rolling_Average(f32, 100);
 whole_frame_time_ra: Rolling_Average(f32, 100);
 
 do_log_frame_boundaries := false;
 
-wb_profiler: pf.Profiler;
-
+target_framerate: int;
 frame_count: u64;
 time: f32;
 precise_time: f64;
@@ -46,12 +44,10 @@ fixed_delta_time: f32;
 lossy_delta_time: f32;
 precise_lossy_delta_time: f64;
 
-wb_catalog: Asset_Catalog;
-
 frame_allocator: mem.Allocator;
 
 make_simple_window :: proc(window_width, window_height: int,
-                           target_framerate: f32,
+                           requested_framerate: int,
                            workspace: Workspace) {
 	startup_start_time := core_time.now()._nsec;
 
@@ -63,9 +59,14 @@ make_simple_window :: proc(window_width, window_height: int,
 	// frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
  //    context.temp_allocator = frame_allocator;
 
+    // init allocation tracker
+    @static allocation_tracker: allocators.Allocation_Tracker;
+    defer allocators.destroy_allocation_tracker(&allocation_tracker);
+    // context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+
     // init profiler
-	wb_profiler = pf.make_profiler(proc() -> f64 { return cast(f64) core_time.now()._nsec / cast(f64) core_time.Millisecond; } );
-	defer pf.destroy_profiler(&wb_profiler);
+    profiler.init_profiler();
+    defer profiler.deinit_profiler();
 
 	init_random(u64(core_time.now()._nsec));
 
@@ -78,11 +79,11 @@ make_simple_window :: proc(window_width, window_height: int,
 		
 		init_dear_imgui();
 	}
-
+	
 	when !shared.HEADLESS {
 		// init catalog
-		add_default_handlers(&wb_catalog);
-		defer delete_asset_catalog(wb_catalog);
+		init_asset_system();
+		init_builtin_assets();
 		init_builtin_assets();
 		init_gizmo();
 		init_builtin_debug_programs();
@@ -94,7 +95,7 @@ make_simple_window :: proc(window_width, window_height: int,
 	logln("Startup time: ", startup_end_time - startup_start_time);
 
 	acc: f32;
-	fixed_delta_time = cast(f32)1 / target_framerate;
+	fixed_delta_time = cast(f32)1 / cast(f32)target_framerate;
 	last_frame_start_time: f64;
 	should_window_close := false;
 	game_loop:
@@ -103,8 +104,8 @@ make_simple_window :: proc(window_width, window_height: int,
 			should_window_close = glfw.WindowShouldClose(main_window);
 		}
 
-		pf.profiler_new_frame(&wb_profiler);
-		pf.TIMED_SECTION(&wb_profiler, "full engine frame");
+		profiler.profiler_new_frame();
+		profiler.TIMED_SECTION("full engine frame");
 		frame_start_time := f64(core_time.now()._nsec) / f64(core_time.Second);
 		lossy_delta_time = f32(frame_start_time - last_frame_start_time);
 		last_frame_start_time = frame_start_time;
@@ -114,12 +115,14 @@ make_simple_window :: proc(window_width, window_height: int,
 			acc = 0.1;
 		}
 
-
-		check_for_file_updates(&wb_catalog);
-
 		if acc >= fixed_delta_time {
+			profiler.profiler_new_frame();
+			TIMED_SECTION("full engine frame");
+
+			check_for_file_updates();
+
 			for {
-				pf.TIMED_SECTION(&wb_profiler, "update loop frame");
+				TIMED_SECTION("update loop frame");
 
 				acc -= fixed_delta_time;
 
@@ -206,6 +209,8 @@ init_workspace :: proc(workspace: Workspace) {
 }
 
 update_workspace :: proc(workspace: Workspace, dt: f32) {
+	TIMED_SECTION();
+
 	if workspace.update != nil {
 		workspace.update(dt);
 	}
@@ -219,47 +224,17 @@ end_workspace :: proc(workspace: Workspace) {
 
 
 
-
-
 // wba = wb asset
-wba_font_default_data              := #load("resources/fonts/Roboto-Regular.ttf");
-wba_font_mono_data                 := #load("resources/fonts/RobotoMono-Regular.ttf");
-wba_font_fredoka_data              := #load("resources/fonts/FredokaOne-Regular.ttf");
-wba_bloom_shader_data              := #load("resources/shaders/bloom.shader");
-wba_blur_shader_data               := #load("resources/shaders/blur.shader");
-wba_default_shader_data            := #load("resources/shaders/default.shader");
-wba_default_3d_texture_shader_data := #load("resources/shaders/default_3d_texture.shader");
-wba_default_vert_glsl_data         := #load("resources/shaders/default_vert.glsl");
-wba_depth_shader_data              := #load("resources/shaders/depth.shader");
-wba_error_shader_data              := #load("resources/shaders/error.shader");
-wba_gamma_shader_data              := #load("resources/shaders/gamma.shader");
-wba_lit_shader_data                := #load("resources/shaders/lit.shader");
-wba_outline_shader_data            := #load("resources/shaders/outline.shader");
-wba_particle_shader_data           := #load("resources/shaders/particle.shader");
-wba_shadow_shader_data             := #load("resources/shaders/shadow.shader");
-wba_skinning_shader_data           := #load("resources/shaders/skinning.shader");
-wba_text_shader_data               := #load("resources/shaders/text.shader");
-wba_terrain_shader_data            := #load("resources/shaders/terrain.shader");
+wba_font_default_data              := #load("resources/fonts/roboto.ttf");
+wba_font_mono_data                 := #load("resources/fonts/roboto_mono.ttf");
 
 init_builtin_assets :: proc() {
-	load_asset(&wb_catalog, "default",            "ttf",    wba_font_default_data);
-	load_asset(&wb_catalog, "mono",               "ttf",    wba_font_mono_data);
-	load_asset(&wb_catalog, "fredoka",            "ttf",    wba_font_fredoka_data);
-	load_asset(&wb_catalog, "default_vert",       "glsl",   wba_default_vert_glsl_data);
-	load_asset(&wb_catalog, "default_3d_texture", "shader", wba_default_3d_texture_shader_data);
-	load_asset(&wb_catalog, "default",            "shader", wba_default_shader_data);
-	load_asset(&wb_catalog, "bloom",              "shader", wba_bloom_shader_data);
-	load_asset(&wb_catalog, "blur",               "shader", wba_blur_shader_data);
-	load_asset(&wb_catalog, "depth",              "shader", wba_depth_shader_data);
-	load_asset(&wb_catalog, "error",              "shader", wba_error_shader_data);
-	load_asset(&wb_catalog, "gamma",              "shader", wba_gamma_shader_data);
-	load_asset(&wb_catalog, "lit",                "shader", wba_lit_shader_data);
-	load_asset(&wb_catalog, "outline",            "shader", wba_outline_shader_data);
-	load_asset(&wb_catalog, "particle",           "shader", wba_particle_shader_data);
-	load_asset(&wb_catalog, "shadow",             "shader", wba_shadow_shader_data);
-	load_asset(&wb_catalog, "skinning",           "shader", wba_skinning_shader_data);
-	load_asset(&wb_catalog, "text",               "shader", wba_text_shader_data);
-	load_asset(&wb_catalog, "terrain",            "shader", wba_terrain_shader_data);
+	fileloc := #location().file_path;
+	wbfolder, ok := basic.get_file_directory(fileloc);
+	assert(ok);
+	resources_folder := fmt.aprint(wbfolder, "/resources");
+	defer delete(resources_folder);
+	track_asset_folder(resources_folder, true);
 }
 
 

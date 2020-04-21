@@ -27,20 +27,15 @@ main_camera: ^Camera;
 wb_cube_model: Model;
 wb_quad_model: Model;
 
+wb_skybox_model: Model;
+
 debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
 
-render_settings: Render_Settings;
-
-Render_Settings :: struct {
-	gamma: f32,
-	exposure: f32,
-	bloom_threshhold: f32,
-
-	visualize_bloom_texture: bool,
-	visualize_shadow_texture: bool,
-}
+visualize_bloom_texture: bool;
+visualize_shadow_texture: bool;
+visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
 when shared.HEADLESS do return;
@@ -65,12 +60,16 @@ else
 
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
+	wb_skybox_model = create_cube_model(2);
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{}, {});
 
 	render_settings = Render_Settings{
 		gamma = 2.2,
 		exposure = 1,
 		bloom_threshhold = 5.0,
+		bloom_blur_passes = 5,
+		bloom_range = 10,
+		bloom_weight = 0.25,
 	};
 
 	register_debug_program("Rendering", rendering_debug_program, nil);
@@ -85,6 +84,9 @@ else
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
 		imgui_struct(&render_settings, "Render Settings");
+		imgui.checkbox("visualize_bloom_texture",  &visualize_bloom_texture);
+		imgui.checkbox("visualize_shadow_texture", &visualize_shadow_texture);
+		imgui.checkbox("visualize_shadow_cascades", &visualize_shadow_cascades);
 	}
 	imgui.end();
 }
@@ -124,6 +126,7 @@ when shared.HEADLESS do return;
 else 
 {
 	check_for_file_updates(&wb_catalog);
+	TIMED_SECTION();
 
 	PUSH_GPU_ENABLED(.Cull_Face, true);
 
@@ -135,7 +138,7 @@ else
 	PUSH_POLYGON_MODE(.Fill);
 
 	// do gamma correction and draw to screen!
-	shader_gamma := get_shader(&wb_catalog, "gamma");
+	shader_gamma := get_shader("gamma");
 	gpu.use_program(shader_gamma);
 	gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
 	gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);

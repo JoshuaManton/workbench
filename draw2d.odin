@@ -15,8 +15,6 @@ import        "logging"
 import        "external/stb"
 import        "external/imgui"
 
-import pf     "profiler"
-
 //
 // API
 //
@@ -178,7 +176,7 @@ im_text :: proc(
 			}
 
 			if !is_space && actually_draw {
-				im_sprite_minmax(rendermode, get_shader(&wb_catalog, "text"), min, max, sprite.uvs, sprite.id, color, layer);
+				im_sprite_minmax(rendermode, get_shader("text"), min, max, sprite.uvs, sprite.id, color, layer);
 			}
 
 			width := max.x - min.x;
@@ -258,7 +256,7 @@ current_scissor_rect: [4]int;
 current_render_layer: int;
 
 im_flush :: proc(camera: ^Camera) {
-	pf.TIMED_SECTION(&wb_profiler);
+	TIMED_SECTION();
 
 	if camera.im_draw_commands == nil do return;
 	if len(camera.im_draw_commands) == 0 do return;
@@ -391,57 +389,4 @@ Draw_Sprite_Command :: struct {
 	min, max: Vec2,
 	color: Colorf,
 	uvs: [4]Vec2,
-}
-
-
-
-// Debug
-
-// todo(josh): support all rendermodes for debug lines, right now we force rendermode_world
-draw_debug_line :: proc(a, b: Vec3, color: Colorf, rendermode := Rendermode.World, depth_test := true) {
-	append(&debug_lines, Debug_Line{a, b, color, {0, 0, 0, 1}, rendermode, depth_test});
-}
-
-draw_debug_box :: proc(position, scale: Vec3, color: Colorf, rotation := Quat{0, 0, 0, 1}, rendermode := Rendermode.World, depth_test := true) {
-	append(&debug_cubes, Debug_Cube{position, scale, rotation, color, rendermode, depth_test});
-}
-
-debug_geo_flush :: proc() {
-	PUSH_POLYGON_MODE(.Line);
-	PUSH_GPU_ENABLED(.Cull_Face, false);
-
-
-	gpu.use_program(get_shader(&wb_catalog, "default"));
-	for line in debug_lines {
-		PUSH_RENDERMODE(line.rendermode);
-		verts: [3]Vertex3D;
-		verts[0] = Vertex3D{line.a, {}, line.color, {}, {}, {}};
-		verts[1] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
-		verts[2] = Vertex3D{line.b, {}, line.color, {}, {}, {}};
-		update_mesh(&debug_line_model, 0, verts[:], []u32{});
-		draw_model(debug_line_model, {}, {1, 1, 1}, {0, 0, 0, 1}, {}, {1, 1, 1, 1}, line.depth_test);
-	}
-
-	for cube in debug_cubes {
-		PUSH_RENDERMODE(cube.rendermode);
-		draw_model(wb_cube_model, cube.position, cube.scale, cube.rotation, {}, cube.color, cube.depth_test);
-	}
-}
-
-
-
-Debug_Line :: struct {
-	a, b: Vec3,
-	color: Colorf,
-	rotation: Quat,
-	rendermode: Rendermode,
-	depth_test: bool,
-}
-Debug_Cube :: struct {
-	position: Vec3,
-	scale: Vec3,
-	rotation: Quat,
-	color: Colorf,
-	rendermode: Rendermode,
-	depth_test: bool,
 }

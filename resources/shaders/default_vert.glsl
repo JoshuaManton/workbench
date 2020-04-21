@@ -16,9 +16,7 @@ out vec4 vert_color;
 out vec3 vert_normal;
 
 void main() {
-    vec4 result = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
-
-    gl_Position = result;
+    gl_Position = projection_matrix * view_matrix * model_matrix * vec4(vbo_vertex_position, 1);
     tex_coord = vbo_tex_coord;
     vert_normal = mat3(transpose(inverse(model_matrix))) * vbo_normal;
     frag_position = vec3(model_matrix * vec4(vbo_vertex_position, 1.0));

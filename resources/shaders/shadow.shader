@@ -1,6 +1,6 @@
 @vert
 
-@include "default_vert.glsl"
+@include "skinning_vert.glsl"
 
 
 

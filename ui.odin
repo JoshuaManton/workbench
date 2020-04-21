@@ -110,7 +110,7 @@ ui_draw_colored_quad_current :: inline proc(color: Colorf) {
 	rect := ui_current_rect_pixels;
 	min := Vec2{cast(f32)rect.x1, cast(f32)rect.y1};
 	max := Vec2{cast(f32)rect.x2, cast(f32)rect.y2};
-	im_quad(.Pixel, get_shader(&wb_catalog, "default"), min, max, color, Texture{});
+	im_quad(.Pixel, get_shader("default"), min, max, color, Texture{});
 }
 ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Colored_Quad, loc);
@@ -120,7 +120,7 @@ ui_draw_colored_quad_push :: inline proc(color: Colorf, x1, y1, x2, y2: f32, top
 
 ui_draw_sprite :: proc{ui_draw_sprite_current, ui_draw_sprite_push, ui_draw_sprite_default};
 ui_draw_sprite_default :: proc(sprite: Sprite, loc := #caller_location) {
-	ui_draw_sprite_current(sprite, get_shader(&wb_catalog, "default"), loc);
+	ui_draw_sprite_current(sprite, get_shader("default"), loc);
 }
 ui_draw_sprite_current :: proc(sprite: Sprite, shader: gpu.Shader_Program, loc := #caller_location) {
 	rect := ui_current_rect_pixels;
@@ -141,7 +141,7 @@ ui_draw_sprite_push :: inline proc(sprite: Sprite, x1, y1, x2, y2: f32, top := 0
 }
 ui_draw_sprite_push_decomp :: inline proc(uvs: [4]Vec2, id: Texture, x1, y1, x2, y2: f32, top := 0, right := 0, bottom := 0, left := 0, loc := #caller_location) {
 	ui_push_rect(x1, y1, x2, y2, top, right, bottom, left, IMGUI_Rect_Kind.Draw_Sprite, loc);
-	ui_draw_sprite_current_decomp(uvs, id, get_shader(&wb_catalog, "default"), loc);
+	ui_draw_sprite_current_decomp(uvs, id, get_shader("default"), loc);
 	ui_pop_rect(loc);
 }
 

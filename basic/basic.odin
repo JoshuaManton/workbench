@@ -109,7 +109,9 @@ get_file_directory :: proc(filepath: string) -> (string, bool) {
 
 pretty_location :: inline proc(location: rt.Source_Code_Location) -> string {
 	file, ok := get_file_name(location.file_path);
-	assert(ok);
+	if !ok {
+		panic(fmt.tprint(location));
+	}
 	return fmt.tprintf("<%s.%s():%d>", file, location.procedure, location.line);
 }
 

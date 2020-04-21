@@ -30,3 +30,8 @@ clear :: proc(using list: $T/^Static_List($Type, $Cap)) {
 	count = 0;
 	data = {};
 }
+
+unordered_remove :: proc(using list: $T/^Static_List($Type, $Cap), index: int) {
+	data[index] = data[len(data)-1];
+	pop(list);
+}

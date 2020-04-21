@@ -6,6 +6,7 @@ import la "core:math/linalg"
 import "core:reflect"
 
 import "../reflection"
+import "../profiler"
 import "../logging"
 
 import "core:strings"
@@ -31,25 +32,35 @@ _set_type_info_table :: proc(old_table: map[string]^rt.Type_Info) {
 }
 
 serialize :: proc(value: ^$Type) -> string {
+	profiler.TIMED_SECTION();
+
 	return serialize_ti(value, type_info_of(Type));
 }
 
 serialize_ti :: proc(ptr: rawptr, ti: ^rt.Type_Info) -> string {
+	profiler.TIMED_SECTION();
+
 	sb: strings.Builder;
 	serialize_string_builder_ti(ptr, ti, &sb);
 	return strings.to_string(sb);
 }
 
 serialize_string_builder :: proc(value: ^$Type, sb: ^strings.Builder) {
+	profiler.TIMED_SECTION();
+
 	ti := type_info_of(Type);
 	serialize_with_type_info("", value, ti, sb, 0);
 }
 
 serialize_string_builder_ti :: proc(value: rawptr, ti: ^rt.Type_Info, sb: ^strings.Builder) {
+	profiler.TIMED_SECTION();
+
 	serialize_with_type_info("", value, ti, sb, 0);
 }
 
 serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info, sb: ^strings.Builder, indent_level: int, loc := #caller_location) {
+	profiler.TIMED_SECTION(#procedure);
+
 	assert(ti != nil);
 	indent_level := indent_level;
 
@@ -306,12 +317,16 @@ deserialize :: proc{
 };
 
 deserialize_to_value :: inline proc($Type: typeid, data: []u8) -> Type {
+	profiler.TIMED_SECTION();
+
 	t: Type;
 	deserialize_into_pointer(data, &t);
 	return t;
 }
 
 deserialize_into_pointer :: proc(data: []u8, ptr: ^$Type) {
+	profiler.TIMED_SECTION();
+
 	ti := type_info_of(Type);
 
 	_lexer := laas.make_lexer(cast(string)data);
@@ -323,6 +338,8 @@ deserialize_into_pointer :: proc(data: []u8, ptr: ^$Type) {
 }
 
 deserialize_into_pointer_with_type_info :: proc(data: []u8, ptr: rawptr, ti: ^rt.Type_Info) {
+	profiler.TIMED_SECTION();
+
 	_lexer := laas.make_lexer(cast(string)data);
 	lexer := &_lexer;
 
@@ -332,6 +349,8 @@ deserialize_into_pointer_with_type_info :: proc(data: []u8, ptr: rawptr, ti: ^rt
 }
 
 parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
+	profiler.TIMED_SECTION();
+
 	eat_newlines(lexer);
 	root_token: laas.Token;
 	ok := laas.get_next_token(lexer, &root_token);
@@ -453,11 +472,15 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 write_value :: proc{write_value_poly, write_value_ti};
 
 write_value_poly :: proc(node: ^Node, ptr: ^$Type) {
+	profiler.TIMED_SECTION();
+
 	ti := type_info_of(Type);
 	write_value(node, ptr, ti);
 }
 
 write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
+	profiler.TIMED_SECTION(#procedure);
+
 	// :HandleAllWriteValues
 	#partial
 	switch variant in ti.variant {
@@ -467,7 +490,8 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 
 		case rt.Type_Info_Struct: {
 			object := &node.kind.(Node_Object);
-			field_loop: for field in object.fields {
+			field_loop:
+			for field in object.fields {
 				for _, idx in variant.names {
 					tag  := variant.tags [idx];
 					name := variant.names[idx];
@@ -487,8 +511,8 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 							field_ptr := mem.ptr_offset(cast(^byte)ptr, cast(int)variant.offsets[idx]);
 							field_ti  := variant.types[idx];
 							write_value(field.value, field_ptr, field_ti);
-							continue field_loop;
 						}
+						continue field_loop;
 					}
 				}
 				logln("Couldn't find ", field.name);

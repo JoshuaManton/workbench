@@ -11,7 +11,6 @@ import "gpu"
 
 import "external/stb"
 import ai "external/assimp"
-import anim "animation"
 
 //
 // Textures
@@ -65,7 +64,7 @@ update_texture_from_png_data :: proc(texture: Texture, png_data: []byte) {
 	defer delete_png_data(pixel_data);
 
 	gpu.bind_texture_2d(texture.gpu_id);
-	gpu.tex_image_2d(0, gpu_format, width, height, 0, data_format, .Unsigned_Byte, pixel_data);
+	gpu.tex_image_2d(.Texture2D, 0, gpu_format, width, height, 0, data_format, .Unsigned_Byte, pixel_data);
 }
 
 
@@ -131,7 +130,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
 	base_vert := 0;
 
-	anim.load_animations_from_ai_scene(scene, model_name);
+	load_animations_from_ai_scene(scene, model_name);
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
 	for _, i in meshes {
@@ -207,10 +206,11 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 
 		skin : Skinned_Mesh;
 		if mesh.num_bones > 0 {
+			model.has_bones = true;
 
-			// @alloc needs to be freed when the mesh is destroyed
+			// note(josh): freed in _internal_delete_mesh
 			bone_mapping := make(map[string]int, cast(int)mesh.num_bones);
-			bone_info := make([dynamic]Bone, 0, cast(int)mesh.num_bones);
+			bone_info := make([dynamic]Mesh_Bone, 0, cast(int)mesh.num_bones);
 
 			num_bones := 0;
 			bones := mem.slice_ptr(mesh.bones, cast(int)mesh.num_bones);
@@ -226,8 +226,8 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 					num_bones += 1;
 				}
 
-				offset := ai_to_wb(bone.offset_matrix);
-				append(&bone_info, Bone{ offset, bone_name });
+				offset := ai_to_wb_mat4(bone.offset_matrix);
+				append(&bone_info, Mesh_Bone{ offset, bone_name });
 
 				if bone.num_weights == 0 do continue;
 
@@ -236,7 +236,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 					vertex_id := base_vert + int(weight.vertex_id);
 					if len(processed_verts) <= vertex_id do continue;
 					vert := processed_verts[vertex_id];
-					for j := 0; j < gpu.BONES_PER_VERTEX; j += 1 {
+					for j := 0; j < BONES_PER_VERTEX; j += 1 {
 						if vert.bone_weights[j] == 0 {
 							vert.bone_weights[j] = weight.weight;
 							vert.bone_indicies[j] = u32(bone_index);
@@ -250,7 +250,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 
 			skin = Skinned_Mesh{
 				bone_info[:],
-				make([dynamic]gpu.Node, 0, 50),
+				make([dynamic]Mesh_Node, 0, 50),
 				bone_mapping,
 				inverse(ai_to_wb(scene.root_node.transformation)),
 				nil,
@@ -270,26 +270,17 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 	return model;
 }
 
-ai_to_wb :: proc (m : ai.Matrix4x4) -> Mat4 {
-	return Mat4{
-		{m.a1, m.b1, m.c1, m.d1},
-		{m.a2, m.b2, m.c2, m.d2},
-		{m.a3, m.b3, m.c3, m.d3},
-		{m.a4, m.b4, m.c4, m.d4},
-	};
-}
-
-read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^gpu.Node) {
+read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transform: Mat4, parent_node: ^Mesh_Node) {
 	node_name := strings.clone(strings.string_from_ptr(&ai_node.name.data[0], cast(int)ai_node.name.length));
 
 	node_transform := ai_to_wb(ai_node.transformation);
 	global_transform := mul(parent_transform, node_transform);
 
-	node := gpu.Node {
+	node := Mesh_Node {
         node_name,
         node_transform,
         parent_node,
-        make([dynamic]^gpu.Node, 0, cast(int)ai_node.num_children)
+        make([dynamic]^Mesh_Node, 0, cast(int)ai_node.num_children)
     };
 
 	append(&skin.nodes, node);
@@ -326,6 +317,24 @@ get_mesh_transform :: proc(node: ^ai.Node, mesh_name: string) -> Mat4 {
 	}
 
 	return ret;
+}
+
+ai_to_wb :: proc{ai_to_wb_vec3, ai_to_wb_quat, ai_to_wb_mat4};
+ai_to_wb_vec3 :: proc(vec_in: ai.Vector3D) -> Vec3 {
+    return Vec3{vec_in.x, vec_in.y, vec_in.z};
+}
+
+ai_to_wb_quat :: proc (quat_in: ai.Quaternion) -> Quat {
+    return Quat{quat_in.x, quat_in.y, quat_in.z, quat_in.w};
+}
+
+ai_to_wb_mat4 :: proc (m : ai.Matrix4x4) -> Mat4 {
+    return Mat4{
+        {m.a1, m.b1, m.c1, m.d1},
+        {m.a2, m.b2, m.c2, m.d2},
+        {m.a3, m.b3, m.c3, m.d3},
+        {m.a4, m.b4, m.c4, m.d4},
+    };
 }
 
 
