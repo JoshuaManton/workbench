@@ -7,7 +7,7 @@ import "core:os"
 
 Allocation_Tracker :: struct {
 	backing: mem.Allocator,
-	infos: [dynamic]Allocation_Info,
+	allocations: map[rawptr]Allocation_Info,
 }
 
 Allocation_Info :: struct {
@@ -21,7 +21,7 @@ init_allocation_tracker :: proc(tracker: ^Allocation_Tracker) -> mem.Allocator {
 }
 
 destroy_allocation_tracker :: proc(tracker: ^Allocation_Tracker) {
-	delete(tracker.infos);
+	delete(tracker.allocations);
 	tracker^ = {};
 }
 
@@ -37,19 +37,27 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
 
 	switch mode {
 		case .Alloc: {
-   			os.write_string(os.stdout, fmt.tprint("allocation: ", size, " at ", loc, "\n"));
 			ptr := tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
+			assert(ptr notin tracker.allocations);
+			tracker.allocations[ptr] = Allocation_Info{loc, size};
 			return ptr;
 		}
 		case .Free: {
+			assert(old_memory in tracker.allocations);
+			delete_key(&tracker.allocations, old_memory);
 			return tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
 		}
 		case .Free_All: {
 			return tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
 		}
 		case .Resize: {
-   			os.write_string(os.stdout, fmt.tprint("resize allocation: ", size, " at ", loc, "\n"));
+			if old_memory != nil {
+				assert(old_memory in tracker.allocations);
+				delete_key(&tracker.allocations, old_memory);
+			}
+
 			ptr := tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
+			tracker.allocations[ptr] = Allocation_Info{loc, size};
 			return ptr;
 		}
 	}

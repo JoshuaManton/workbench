@@ -61,8 +61,8 @@ make_simple_window :: proc(window_width, window_height: int,
  //    context.temp_allocator = frame_allocator;
 
     // init allocation tracker
-    @static allocation_tracker: allocators.Allocation_Tracker;
-    defer allocators.destroy_allocation_tracker(&allocation_tracker);
+    // @static allocation_tracker: allocators.Allocation_Tracker;
+    // defer allocators.destroy_allocation_tracker(&allocation_tracker);
     // context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
 
     // init profiler
