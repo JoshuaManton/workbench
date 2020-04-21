@@ -50,6 +50,7 @@ make_simple_window :: proc(window_width, window_height: int,
                            requested_framerate: int,
                            workspace: Workspace) {
 	startup_start_time := core_time.now()._nsec;
+	target_framerate = requested_framerate;
 
 	// init frame allocator
 	// @static frame_allocator_raw: allocators.Frame_Allocator;
@@ -83,7 +84,6 @@ make_simple_window :: proc(window_width, window_height: int,
 	when !shared.HEADLESS {
 		// init catalog
 		init_asset_system();
-		init_builtin_assets();
 		init_builtin_assets();
 		init_gizmo();
 		init_builtin_debug_programs();
