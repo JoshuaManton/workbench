@@ -38,6 +38,8 @@ TRANSLATE_PLANE_OFFSET :: 0.5;
 TRANSLATE_PLANE_SIZE :: 0.25;
 
 init_gizmo :: proc() {
+    TIMED_SECTION();
+
     add_mesh_to_model(&gizmo_mesh, []Vertex3D{}, []u32{}, {}, {});
 }
 

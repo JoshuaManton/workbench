@@ -8,6 +8,7 @@ import "core:os"
 
 import "platform"
 import "gpu"
+import "profiler"
 import "logging"
 
 import "external/stb"
@@ -36,6 +37,8 @@ visualize_shadow_texture: bool;
 visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
+	profiler.TIMED_SECTION();
+
 	gpu.init(proc(p: rawptr, name: cstring) {
 			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
 		});

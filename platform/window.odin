@@ -38,6 +38,8 @@ _new_mouse_screen_position: Vec2;
 _new_window_is_focused := true;
 
 init_platform :: proc(out_window: ^Window, window_name: string, _window_width, _window_height: int) -> bool {
+	// profiler.TIMED_SECTION();
+
 	window_width := cast(i32)_window_width;
 	window_height := cast(i32)_window_height;
 

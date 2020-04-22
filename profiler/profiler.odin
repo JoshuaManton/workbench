@@ -1,4 +1,4 @@
-package workbench
+package profiler
 
 import "core:fmt"
 import "core:sort"
@@ -19,6 +19,8 @@ Section_Info :: struct {
 	name: string,
 	calls: int,
 	time_taken: time.Duration,
+	parent: ^Section_Info,
+	unaccounted_for: time.Duration,
 	children: [dynamic]^Section_Info,
 }
 
@@ -96,7 +98,7 @@ draw_profiler_window :: proc() {
 
 		frame := profiler_frame_data[selected_frame];
 		if frame.root_section != nil {
-			imgui.columns(3);
+			imgui.columns(5);
 			draw_section(frame.root_section);
 			imgui.columns(1);
 		}
@@ -110,9 +112,15 @@ draw_profiler_window :: proc() {
 
             is_open := imgui.tree_node_ext(info.name, flags);
 			imgui.next_column();
-			imgui.text(fmt.tprintf("time: %.8f", time.duration_seconds(info.time_taken)));
-			imgui.next_column();
 			imgui.text(fmt.tprint("calls: ", info.calls));
+			imgui.next_column();
+			imgui.text(fmt.tprintf("time: %.8fs", time.duration_seconds(info.time_taken)));
+			imgui.next_column();
+			if info.parent != nil {
+				imgui.text(fmt.tprintf("percent: %.2f", time.duration_seconds(info.time_taken) / time.duration_seconds(info.parent.time_taken) * 100));
+			}
+			imgui.next_column();
+			imgui.text(fmt.tprintf("unaccounted: %.8fs", time.duration_seconds(info.unaccounted_for)));
 			imgui.next_column();
 
             if is_open {
@@ -135,9 +143,19 @@ draw_profiler_window :: proc() {
 	imgui.end();
 }
 
+Timed_Section :: struct {
+	start: time.Time,
+	info: ^Section_Info,
+	old_info: ^Section_Info,
+}
+
 @(deferred_out=end_timed_section)
-TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (time.Time, ^Section_Info, ^Section_Info) {
-	if !profiler_running do return {}, nil, nil;
+TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> Timed_Section {
+	return start_timed_section(name_override, loc);
+}
+
+start_timed_section :: proc(name_override: string = "", loc := #caller_location) -> Timed_Section {
+	if !profiler_running do return {};
 
 	context.allocator = profiler_allocator;
 
@@ -158,7 +176,7 @@ TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (t
 		if info == nil {
 			logln("Ran out of memory in profiler allocator.");
 			profiler_running = false;
-			return {}, nil, nil;
+			return {};
 		}
 
 		// init the info
@@ -166,6 +184,7 @@ TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (t
 		info.name = section_name;
 		info.calls = 0;
 		info.time_taken = {};
+		info.parent = current_section;
 		clear(&info.children);
 
 		if current_section != nil {
@@ -179,17 +198,24 @@ TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (t
 
 	old := current_section;
 	current_section = info;
-	return time.now(), info, old;
+	return Timed_Section{time.now(), info, old};
 }
 
-end_timed_section :: proc(start: time.Time, info, old: ^Section_Info) {
+end_timed_section :: proc(using timed_section: Timed_Section) {
 	if !profiler_running do return;
 
 	end := time.now();
 	info.time_taken += time.diff(start, end);
 	info.calls += 1;
 
-	current_section = old;
+	current_section = old_info;
+
+	time_of_children: time.Duration;
+	for child in info.children {
+		time_of_children += child.time_taken;
+	}
+
+	info.unaccounted_for += info.time_taken - time_of_children;
 }
 
 logln :: logging.logln;
