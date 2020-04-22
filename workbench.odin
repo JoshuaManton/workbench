@@ -56,19 +56,25 @@ make_simple_window :: proc(window_width, window_height: int,
 	allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
     defer allocators.destroy_arena(&frame_allocator_raw);
 
-    default_text_allocator := context.temp_allocator;
+    default_temp_allocator := context.temp_allocator;
 	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
     context.temp_allocator = frame_allocator;
+    defer context.temp_allocator = default_temp_allocator;
 
     // init allocation tracker
     default_allocator := context.allocator;
     @static allocation_tracker: allocators.Allocation_Tracker;
     defer allocators.destroy_allocation_tracker(&allocation_tracker);
     context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+    defer context.allocator = default_allocator;
 
     // init profiler
     profiler.init_profiler();
     defer profiler.deinit_profiler();
+
+    register_debug_program("Profiler", proc(_: rawptr) {
+    		profiler.draw_profiler_window();
+    	}, nil);
 
 	// init platform and graphics
 	platform.init_platform(&main_window, workspace.name, window_width, window_height);
@@ -143,7 +149,7 @@ make_simple_window :: proc(window_width, window_height: int,
 				update_workspace(workspace, fixed_delta_time); // calls client updates
 
 				if platform.get_input_down(.F8, true) {
-					context.temp_allocator = default_text_allocator;
+					context.temp_allocator = default_temp_allocator;
 					for ptr, info in allocation_tracker.allocations {
 						fmt.println(ptr, info.size, info.location.file_path == "" ? tprint("BROKEN FILE PATH: proc = ", info.location.procedure) : basic.pretty_location(info.location));
 					}

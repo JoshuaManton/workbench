@@ -35,15 +35,21 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
 	context.allocator = tracker.backing;
 	context.temp_allocator = {};
 
+	@static num_allocs: int;
+
 	switch mode {
 		case .Alloc: {
+			num_allocs += 1;
+			// os.write(os.stdout, transmute([]byte)fmt.tprintf("alloc #%d: %s:%d\n", num_allocs, loc.file_path, loc.line));
 			ptr := tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
 			assert(ptr notin tracker.allocations);
 			tracker.allocations[ptr] = Allocation_Info{loc, size};
 			return ptr;
 		}
 		case .Free: {
-			assert(old_memory in tracker.allocations);
+			if old_memory notin tracker.allocations {
+				panic(fmt.tprint(loc));
+			}
 			delete_key(&tracker.allocations, old_memory);
 			return tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
 		}
@@ -52,7 +58,9 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
 		}
 		case .Resize: {
 			if old_memory != nil {
-				assert(old_memory in tracker.allocations);
+				if old_memory notin tracker.allocations && old_memory != nil {
+					panic(fmt.tprint(loc));
+				}
 				delete_key(&tracker.allocations, old_memory);
 			}
 

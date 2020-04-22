@@ -98,7 +98,6 @@ wb_info_program :: proc(_: rawptr) {
 		imgui_struct(&data, "wb_debug_data");
 		imgui.checkbox("Debug UI", &debugging_ui);
 		imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
-		imgui.checkbox("Show Profiler", &show_profiler_window); if show_profiler_window do profiler.draw_profiler_window();
 		imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 	}
 	imgui.end();

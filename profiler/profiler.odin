@@ -28,6 +28,10 @@ profiler_allocator: mem.Allocator;
 profiler_frame_data: []Frame_Info;
 current_profiler_frame: int;
 
+turn_profiler_on:  bool;
+turn_profiler_off: bool;
+clear_profiler: bool;
+
 current_section: ^Section_Info;
 profiler_running: bool;
 
@@ -35,7 +39,7 @@ init_profiler :: proc() {
 	profiler_frame_data = make([]Frame_Info, 2000);
 	profiler_full_frame_times = make([]f32, 2000);
 
-	allocators.init_arena(&profiler_arena, make([]byte, 10 * 1024 * 1024));
+	allocators.init_arena(&profiler_arena, make([]byte, mem.megabytes(10)));
 	profiler_allocator = allocators.arena_allocator(&profiler_arena);
 }
 
@@ -44,13 +48,16 @@ deinit_profiler :: proc() {
 }
 
 profiler_new_frame :: proc() {
-	if platform.get_input(.F5) {
+	if platform.get_input(.F5) || turn_profiler_on {
+		turn_profiler_on = false;
 		profiler_running = true;
 	}
-	if platform.get_input(.F6) {
+	if platform.get_input(.F6) || turn_profiler_off {
+		turn_profiler_off = false;
 		profiler_running = false;
 	}
-	if platform.get_input(.F7) {
+	if platform.get_input(.F7) || clear_profiler {
+		clear_profiler = false;
 		free_all(profiler_allocator);
 		current_profiler_frame = 0;
 	}
@@ -68,7 +75,11 @@ draw_profiler_window :: proc() {
 	TREE_FLAGS :: imgui.Tree_Node_Flags.OpenOnArrow | imgui.Tree_Node_Flags.OpenOnDoubleClick;
 
 	if imgui.begin("Profiler") {
-		imgui.label_text("Profiler memory", tprint(profiler_arena.cur_offset, " / ", len(profiler_arena.memory)));
+		if imgui.button("Start") do turn_profiler_on  = true; imgui.same_line();
+		if imgui.button("Stop")  do turn_profiler_off = true; imgui.same_line();
+		if imgui.button("Clear") do clear_profiler    = true; imgui.same_line();
+
+		imgui.text(tprintf("Memory Usage: %.1f / %.1fMB", cast(f32)profiler_arena.cur_offset / 1024 / 1024, cast(f32)len(profiler_arena.memory) / 1024 / 1024));
 
     	@static selected_frame: i32;
 		frame_select_delta: i32;
@@ -183,3 +194,4 @@ end_timed_section :: proc(start: time.Time, info, old: ^Section_Info) {
 
 logln :: logging.logln;
 tprint :: fmt.tprint;
+tprintf :: fmt.tprintf;
