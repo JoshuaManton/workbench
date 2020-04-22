@@ -70,10 +70,18 @@ draw_profiler_window :: proc() {
 	if imgui.begin("Profiler") {
 		imgui.label_text("Profiler memory", tprint(profiler_arena.cur_offset, " / ", len(profiler_arena.memory)));
 
-    	imgui.plot_lines("Frame times", &profiler_full_frame_times[0], cast(i32)len(profiler_full_frame_times), 0, nil, 0);
-
     	@static selected_frame: i32;
+		frame_select_delta: i32;
+		if imgui.button("<") do frame_select_delta = -1; imgui.same_line();
+		if imgui.button(">") do frame_select_delta =  1; imgui.same_line();
+		selected_frame = clamp(selected_frame + frame_select_delta, 0, cast(i32)len(profiler_full_frame_times)-1);
+
+		pos := imgui.get_cursor_pos();
+    	imgui.plot_lines("##Frame times", &profiler_full_frame_times[0], cast(i32)len(profiler_full_frame_times), 0, nil, 0);
+		imgui.set_cursor_pos(pos);
     	imgui.slider_int("frame", &selected_frame, 0, cast(i32)len(profiler_full_frame_times)-1);
+    	imgui.same_line();
+    	imgui.text(tprint(selected_frame));
 
 		frame := profiler_frame_data[selected_frame];
 		if frame.root_section != nil {
