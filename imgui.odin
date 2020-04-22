@@ -41,6 +41,8 @@ imgui_font_default: ^imgui.Font;
 imgui_font_mono:    ^imgui.Font;
 
 init_dear_imgui :: proc() {
+    TIMED_SECTION();
+
     // imgui.create_context();
     io := imgui.get_io();
 

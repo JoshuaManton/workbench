@@ -8,6 +8,7 @@ import "core:reflect"
 import "../reflection"
 import "../profiler"
 import "../logging"
+import "../allocators"
 
 import "core:strings"
 import "core:fmt"
@@ -31,16 +32,42 @@ _set_type_info_table :: proc(old_table: map[string]^rt.Type_Info) {
 	_type_info_table = old_table;
 }
 
-serialize :: proc(value: ^$Type) -> string {
-	profiler.TIMED_SECTION();
+_node_allocator:       mem.Allocator;
+_persistent_allocator: mem.Allocator;
 
-	return serialize_ti(value, type_info_of(Type));
+@(deferred_out=_set_node_allocator)
+PUSH_NODE_ALLOCATOR :: proc(allocator: mem.Allocator) -> mem.Allocator {
+	old := _node_allocator;
+	_node_allocator = allocator;
+	return old;
 }
 
-serialize_ti :: proc(ptr: rawptr, ti: ^rt.Type_Info) -> string {
+_set_node_allocator :: proc(old: mem.Allocator) {
+	_node_allocator = old;
+}
+
+@(deferred_out=_set_persistent_allocator)
+PUSH_PERSISTENT_ALLOCATOR :: proc(allocator: mem.Allocator) -> mem.Allocator {
+	old := _persistent_allocator;
+	_persistent_allocator = allocator;
+	return old;
+}
+
+_set_persistent_allocator :: proc(old: mem.Allocator) {
+	_persistent_allocator = old;
+}
+
+serialize :: proc(value: ^$Type, allocator := context.allocator) -> string {
+	profiler.TIMED_SECTION();
+
+	return serialize_ti(value, type_info_of(Type), allocator);
+}
+
+serialize_ti :: proc(ptr: rawptr, ti: ^rt.Type_Info, allocator := context.allocator) -> string {
 	profiler.TIMED_SECTION();
 
 	sb: strings.Builder;
+	sb.buf.allocator = allocator;
 	serialize_string_builder_ti(ptr, ti, &sb);
 	return strings.to_string(sb);
 }
@@ -316,15 +343,15 @@ deserialize :: proc{
 	deserialize_into_pointer_with_type_info,
 };
 
-deserialize_to_value :: inline proc($Type: typeid, data: []u8) -> Type {
+deserialize_to_value :: inline proc($Type: typeid, data: []u8, loc := #caller_location) -> Type {
 	profiler.TIMED_SECTION();
 
 	t: Type;
-	deserialize_into_pointer(data, &t);
+	deserialize_into_pointer(data, &t, loc);
 	return t;
 }
 
-deserialize_into_pointer :: proc(data: []u8, ptr: ^$Type) {
+deserialize_into_pointer :: proc(data: []u8, ptr: ^$Type, loc := #caller_location) {
 	profiler.TIMED_SECTION();
 
 	ti := type_info_of(Type);
@@ -332,24 +359,30 @@ deserialize_into_pointer :: proc(data: []u8, ptr: ^$Type) {
 	_lexer := laas.make_lexer(cast(string)data);
 	lexer := &_lexer;
 
-	root := parse_value(lexer);
+	root := parse_value(lexer, false, loc);
 	defer delete_node(root);
 	write_value(root, ptr, ti);
 }
 
-deserialize_into_pointer_with_type_info :: proc(data: []u8, ptr: rawptr, ti: ^rt.Type_Info) {
+deserialize_into_pointer_with_type_info :: proc(data: []u8, ptr: rawptr, ti: ^rt.Type_Info, loc := #caller_location) {
 	profiler.TIMED_SECTION();
 
 	_lexer := laas.make_lexer(cast(string)data);
 	lexer := &_lexer;
 
-	root := parse_value(lexer);
+	root := parse_value(lexer, false, loc);
 	defer delete_node(root);
 	write_value(root, ptr, ti);
 }
 
-parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
+parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #caller_location) -> ^Node {
 	profiler.TIMED_SECTION();
+
+	if _node_allocator.procedure == nil {
+		_node_allocator = context.allocator;
+	}
+
+	context.allocator = allocators.panic_allocator();
 
 	eat_newlines(lexer);
 	root_token: laas.Token;
@@ -369,6 +402,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 			switch value_kind.value {
 				case '{': {
 					fields: [dynamic]Object_Field;
+					fields.allocator = _node_allocator;
 					for {
 						eat_newlines(lexer);
 
@@ -393,11 +427,12 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 						value := parse_value(lexer);
 						append(&fields, Object_Field{variable_name.value, value});
 					}
-					return new_clone(Node{Node_Object{fields[:]}});
+					return new_clone(Node{Node_Object{fields[:]}}, _node_allocator);
 				}
 
 				case '[': {
 					elements: [dynamic]^Node;
+					elements.allocator = _node_allocator;
 					for {
 						eat_newlines(lexer);
 
@@ -415,7 +450,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 						element := parse_value(lexer);
 						append(&elements, element);
 					}
-					return new_clone(Node{Node_Array{elements[:]}});
+					return new_clone(Node{Node_Array{elements[:]}}, _node_allocator);
 				}
 
 				case '.': { // :HashDirectives
@@ -426,7 +461,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 					assert(ok2, "Only single identifier types are currently supported for tagged unions");
 
 					value := parse_value(lexer);
-					return new_clone(Node{Node_Union{ident.value, value}});
+					return new_clone(Node{Node_Union{ident.value, value}}, _node_allocator);
 				}
 
 				case: {
@@ -437,28 +472,29 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false) -> ^Node {
 
 		// primitives
 		case laas.String: {
-			return new_clone(Node{Node_String{strings.clone(value_kind.value)}});
+			str := strings.clone(value_kind.value, _node_allocator);
+			return new_clone(Node{Node_String{str}}, _node_allocator);
 		}
 
 		case laas.Identifier: {
 			switch value_kind.value {
-				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}});
-				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}});
-				case "nil":                     return new_clone(Node{Node_Nil{}});
+				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}}, _node_allocator);
+				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}}, _node_allocator);
+				case "nil":                     return new_clone(Node{Node_Nil{}}, _node_allocator);
 				case "quat": { // :HashDirectives
 					w := parse_value(lexer); _, wok := w.kind.(Node_Number); assert(wok);
 					x := parse_value(lexer); _, xok := x.kind.(Node_Number); assert(xok);
 					y := parse_value(lexer); _, yok := y.kind.(Node_Number); assert(yok);
 					z := parse_value(lexer); _, zok := z.kind.(Node_Number); assert(zok);
-					return new_clone(Node{Node_Quat{w, x, y, z}});
+					return new_clone(Node{Node_Quat{w, x, y, z}}, _node_allocator);
 				}
-				case: return new_clone(Node{Node_Enum_Value{value_kind.value}});
+				case: return new_clone(Node{Node_Enum_Value{value_kind.value}}, _node_allocator);
 			}
 		}
 
 		case laas.Number: {
 			sign : i64 = is_negative_number ? -1 : 1;
-			return new_clone(Node{Node_Number{value_kind.int_value * sign, value_kind.unsigned_int_value, value_kind.float_value * cast(f64)sign}});
+			return new_clone(Node{Node_Number{value_kind.int_value * sign, value_kind.unsigned_int_value, value_kind.float_value * cast(f64)sign}}, _node_allocator);
 		}
 
 		case: {
@@ -480,6 +516,12 @@ write_value_poly :: proc(node: ^Node, ptr: ^$Type) {
 
 write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 	profiler.TIMED_SECTION(#procedure);
+
+	if _persistent_allocator.procedure == nil {
+		_persistent_allocator = context.allocator;
+	}
+
+	context.allocator = allocators.panic_allocator();
 
 	// :HandleAllWriteValues
 	#partial
@@ -532,7 +574,7 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 			array := &node.kind.(Node_Array);
 			size_needed := len(array.elements) * variant.elem_size;
 			if size_needed > 0 {
-				memory := make([]byte, size_needed);
+				memory := make([]byte, size_needed, _persistent_allocator);
 				byte_index: int;
 				for element, idx in array.elements {
 					assert(byte_index + variant.elem_size <= len(memory));
@@ -548,7 +590,7 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 			array := &node.kind.(Node_Array);
 			size_needed := len(array.elements) * variant.elem_size;
 			if size_needed > 0 {
-				memory := make([]byte, size_needed);
+				memory := make([]byte, size_needed, _persistent_allocator);
 				byte_index: int;
 				for element, idx in array.elements {
 					assert(byte_index + variant.elem_size <= len(memory));
@@ -634,10 +676,10 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 		case rt.Type_Info_String: {
 			str := &node.kind.(Node_String);
 			if variant.is_cstring {
-				(cast(^cstring)ptr)^ = strings.clone_to_cstring(str.value);
+				(cast(^cstring)ptr)^ = strings.clone_to_cstring(str.value, _persistent_allocator);
 			}
 			else {
-				(cast(^string)ptr)^ = strings.clone(str.value);
+				(cast(^string)ptr)^ = strings.clone(str.value, _persistent_allocator);
 			}
 		}
 

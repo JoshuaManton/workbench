@@ -57,16 +57,21 @@ make_simple_window :: proc(window_width, window_height: int,
 	// allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
  //    defer allocators.destroy_arena(&frame_allocator_raw);
 
- //    default_text_allocator := context.temp_allocator;
-	// frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
- //    context.temp_allocator = frame_allocator;
+    default_temp_allocator := context.temp_allocator;
+	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
+    context.temp_allocator = frame_allocator;
+    defer context.temp_allocator = default_temp_allocator;
 
- //    // init allocation tracker
- //    default_allocator := context.allocator;
- //    @static allocation_tracker: allocators.Allocation_Tracker;
- //    defer allocators.destroy_allocation_tracker(&allocation_tracker);
- //    context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+    // init allocation tracker
+    default_allocator := context.allocator;
+    @static allocation_tracker: allocators.Allocation_Tracker;
+    defer allocators.destroy_allocation_tracker(&allocation_tracker);
+    context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+    defer context.allocator = default_allocator;
 
+    register_debug_program("Profiler", proc(_: rawptr) {
+    		profiler.draw_profiler_window();
+    	}, nil);
 
     // init profiler
     profiler.init_profiler();
@@ -90,10 +95,14 @@ make_simple_window :: proc(window_width, window_height: int,
 		init_builtin_debug_programs();
 	}
 
+	register_debug_program("WB Info", wb_info_program, nil);
+
 	init_workspace(workspace);
 
 	startup_end_time := core_time.now()._nsec;
 	logln("Startup time: ", startup_end_time - startup_start_time);
+
+	profiler.end_timed_section(init_section);
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / cast(f32)target_framerate;
@@ -230,12 +239,39 @@ wba_font_default_data              := #load("resources/fonts/roboto.ttf");
 wba_font_mono_data                 := #load("resources/fonts/roboto_mono.ttf");
 
 init_builtin_assets :: proc() {
+    TIMED_SECTION();
+
 	fileloc := #location().file_path;
 	wbfolder, ok := basic.get_file_directory(fileloc);
 	assert(ok);
 	resources_folder := fmt.aprint(wbfolder, "/resources");
 	defer delete(resources_folder);
 	track_asset_folder(resources_folder, true);
+}
+
+wb_info_program :: proc(_: rawptr) {
+	@static show_imgui_demo_window := false;
+	@static show_profiler_window := false;
+
+	WB_Debug_Data :: struct {
+		camera_position: Vec3,
+		camera_rotation: Quat,
+		dt: f32,
+	};
+
+	if imgui.begin("WB Info") {
+		data := WB_Debug_Data{
+			main_camera.position,
+			main_camera.rotation,
+			fixed_delta_time,
+		};
+
+		imgui_struct(&data, "wb_debug_data");
+		imgui.checkbox("Debug UI", &debugging_ui);
+		imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
+		imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
+	}
+	imgui.end();
 }
 
 

@@ -48,6 +48,8 @@ Asset_Load_Context :: struct {
 }
 
 init_asset_system :: proc() {
+    TIMED_SECTION();
+
 	assert(!initted);
 	initted = true;
 

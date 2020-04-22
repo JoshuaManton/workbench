@@ -1,4 +1,4 @@
-package workbench
+package profiler
 
 import "core:fmt"
 import "core:sort"
@@ -19,6 +19,8 @@ Section_Info :: struct {
 	name: string,
 	calls: int,
 	time_taken: time.Duration,
+	parent: ^Section_Info,
+	unaccounted_for: time.Duration,
 	children: [dynamic]^Section_Info,
 }
 
@@ -28,6 +30,10 @@ profiler_allocator: mem.Allocator;
 profiler_frame_data: []Frame_Info;
 current_profiler_frame: int;
 
+turn_profiler_on:  bool;
+turn_profiler_off: bool;
+clear_profiler: bool;
+
 current_section: ^Section_Info;
 profiler_running: bool;
 
@@ -35,7 +41,7 @@ init_profiler :: proc() {
 	profiler_frame_data = make([]Frame_Info, 2000);
 	profiler_full_frame_times = make([]f32, 2000);
 
-	allocators.init_arena(&profiler_arena, make([]byte, 10 * 1024 * 1024));
+	allocators.init_arena(&profiler_arena, make([]byte, mem.megabytes(10)));
 	profiler_allocator = allocators.arena_allocator(&profiler_arena);
 }
 
@@ -44,13 +50,16 @@ deinit_profiler :: proc() {
 }
 
 profiler_new_frame :: proc() {
-	if platform.get_input(.F5) {
+	if platform.get_input(.F5) || turn_profiler_on {
+		turn_profiler_on = false;
 		profiler_running = true;
 	}
-	if platform.get_input(.F6) {
+	if platform.get_input(.F6) || turn_profiler_off {
+		turn_profiler_off = false;
 		profiler_running = false;
 	}
-	if platform.get_input(.F7) {
+	if platform.get_input(.F7) || clear_profiler {
+		clear_profiler = false;
 		free_all(profiler_allocator);
 		current_profiler_frame = 0;
 	}
@@ -68,16 +77,28 @@ draw_profiler_window :: proc() {
 	TREE_FLAGS :: imgui.Tree_Node_Flags.OpenOnArrow | imgui.Tree_Node_Flags.OpenOnDoubleClick;
 
 	if imgui.begin("Profiler") {
-		imgui.label_text("Profiler memory", tprint(profiler_arena.cur_offset, " / ", len(profiler_arena.memory)));
+		if imgui.button("Start") do turn_profiler_on  = true; imgui.same_line();
+		if imgui.button("Stop")  do turn_profiler_off = true; imgui.same_line();
+		if imgui.button("Clear") do clear_profiler    = true; imgui.same_line();
 
-    	imgui.plot_lines("Frame times", &profiler_full_frame_times[0], cast(i32)len(profiler_full_frame_times), 0, nil, 0);
+		imgui.text(tprintf("Memory Usage: %.1f / %.1fMB", cast(f32)profiler_arena.cur_offset / 1024 / 1024, cast(f32)len(profiler_arena.memory) / 1024 / 1024));
 
     	@static selected_frame: i32;
+		frame_select_delta: i32;
+		if imgui.button("<") do frame_select_delta = -1; imgui.same_line();
+		if imgui.button(">") do frame_select_delta =  1; imgui.same_line();
+		selected_frame = clamp(selected_frame + frame_select_delta, 0, cast(i32)len(profiler_full_frame_times)-1);
+
+		pos := imgui.get_cursor_pos();
+    	imgui.plot_lines("##Frame times", &profiler_full_frame_times[0], cast(i32)len(profiler_full_frame_times), 0, nil, 0);
+		imgui.set_cursor_pos(pos);
     	imgui.slider_int("frame", &selected_frame, 0, cast(i32)len(profiler_full_frame_times)-1);
+    	imgui.same_line();
+    	imgui.text(tprint(selected_frame));
 
 		frame := profiler_frame_data[selected_frame];
 		if frame.root_section != nil {
-			imgui.columns(3);
+			imgui.columns(5);
 			draw_section(frame.root_section);
 			imgui.columns(1);
 		}
@@ -91,9 +112,15 @@ draw_profiler_window :: proc() {
 
             is_open := imgui.tree_node_ext(info.name, flags);
 			imgui.next_column();
-			imgui.text(fmt.tprintf("time: %.8f", time.duration_seconds(info.time_taken)));
-			imgui.next_column();
 			imgui.text(fmt.tprint("calls: ", info.calls));
+			imgui.next_column();
+			imgui.text(fmt.tprintf("time: %.8fs", time.duration_seconds(info.time_taken)));
+			imgui.next_column();
+			if info.parent != nil {
+				imgui.text(fmt.tprintf("percent: %.2f", time.duration_seconds(info.time_taken) / time.duration_seconds(info.parent.time_taken) * 100));
+			}
+			imgui.next_column();
+			imgui.text(fmt.tprintf("unaccounted: %.8fs", time.duration_seconds(info.unaccounted_for)));
 			imgui.next_column();
 
             if is_open {
@@ -116,9 +143,19 @@ draw_profiler_window :: proc() {
 	imgui.end();
 }
 
+Timed_Section :: struct {
+	start: time.Time,
+	info: ^Section_Info,
+	old_info: ^Section_Info,
+}
+
 @(deferred_out=end_timed_section)
-TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (time.Time, ^Section_Info, ^Section_Info) {
-	if !profiler_running do return {}, nil, nil;
+TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> Timed_Section {
+	return start_timed_section(name_override, loc);
+}
+
+start_timed_section :: proc(name_override: string = "", loc := #caller_location) -> Timed_Section {
+	if !profiler_running do return {};
 
 	context.allocator = profiler_allocator;
 
@@ -139,7 +176,7 @@ TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (t
 		if info == nil {
 			logln("Ran out of memory in profiler allocator.");
 			profiler_running = false;
-			return {}, nil, nil;
+			return {};
 		}
 
 		// init the info
@@ -147,6 +184,7 @@ TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (t
 		info.name = section_name;
 		info.calls = 0;
 		info.time_taken = {};
+		info.parent = current_section;
 		clear(&info.children);
 
 		if current_section != nil {
@@ -160,18 +198,26 @@ TIMED_SECTION :: proc(name_override: string = "", loc := #caller_location) -> (t
 
 	old := current_section;
 	current_section = info;
-	return time.now(), info, old;
+	return Timed_Section{time.now(), info, old};
 }
 
-end_timed_section :: proc(start: time.Time, info, old: ^Section_Info) {
+end_timed_section :: proc(using timed_section: Timed_Section) {
 	if !profiler_running do return;
 
 	end := time.now();
 	info.time_taken += time.diff(start, end);
 	info.calls += 1;
 
-	current_section = old;
+	current_section = old_info;
+
+	time_of_children: time.Duration;
+	for child in info.children {
+		time_of_children += child.time_taken;
+	}
+
+	info.unaccounted_for += info.time_taken - time_of_children;
 }
 
 logln :: logging.logln;
 tprint :: fmt.tprint;
+tprintf :: fmt.tprintf;
