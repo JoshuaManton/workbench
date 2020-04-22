@@ -49,8 +49,8 @@ make_simple_window :: proc(window_width, window_height: int,
     // init profiler
     profiler.init_profiler();
     defer profiler.deinit_profiler();
-    profiler.profiler_running = true;
-	profiler.profiler_new_frame();
+ //    profiler.profiler_running = true;
+	// profiler.profiler_new_frame();
 
 	init_section := profiler.start_timed_section("engine init");
 
