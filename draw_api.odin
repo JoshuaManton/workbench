@@ -964,6 +964,10 @@ Model :: struct {
     has_bones: bool,
 }
 
+log_model :: proc(using model: Model) {
+	logln(model.name, ": ", len(meshes), " ", center, " ", size, " ", has_bones);
+}
+
 Mesh :: struct {
     vao: gpu.VAO,
     vbo: gpu.VBO,
@@ -981,22 +985,17 @@ Mesh :: struct {
 }
 
 Skinned_Mesh :: struct {
-	bones: []Mesh_Bone,
+    offsets: []Mat4,
     nodes: [dynamic]Mesh_Node, // todo(josh): pretty sure we @Leak these and any data inside them, pls fix!
+	name_mapping: map[string]int,
 	global_inverse: Mat4,
 
     parent_node: ^Mesh_Node, // points into array above
 }
 
-Mesh_Bone :: struct {
-	offset: Mat4,
-	name: string,
-}
-
 Mesh_Node :: struct {
-    bone_idx: int,
+    index: int,
     local_transform: Mat4,
-
     parent: ^Mesh_Node,
     children: [dynamic]^Mesh_Node,
 }
@@ -1111,10 +1110,10 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	gpu.delete_buffer(mesh.ibo);
 	gpu.log_errors(#procedure, loc);
 
-	for b in mesh.skin.bones {
-		delete(b.name);
+	for name in mesh.skin.name_mapping {
+		delete(name);
 	}
-	delete(mesh.skin.bones);
+	delete(mesh.skin.name_mapping);
 }
 
 draw_model :: proc(model: Model,

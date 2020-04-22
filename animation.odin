@@ -21,14 +21,21 @@ Loaded_Animation :: struct {
 
     duration: f32,
     ticks_per_second: f32,
+
+    bone_mapping: map[string]int,
 }
 
 Anim_Channel :: struct {
-    channel_idx: int,
+    name: string,
+    channel_id: int,
 
     pos_frames: []Anim_Frame,
     scale_frames: []Anim_Frame,
     rot_frames: []Anim_Frame,
+}
+
+log_channel :: proc(using c: Anim_Channel) {
+    logln(name, ": ", channel_id);
 }
 
 Anim_Frame :: struct {
@@ -64,11 +71,11 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string, bone
         animation.duration = f32(ai_animation.duration);
         animation.ticks_per_second = f32(ai_animation.ticks_per_second);
         animation.target_name = model_name;
+        // animation.bone_mapping = bone_mapping;
 
         animation_channels := mem.slice_ptr(ai_animation.channels, cast(int) ai_animation.num_channels);
         for channel in animation_channels {
             node_name := strings.clone(strings.string_from_ptr(&channel.node_name.data[0], cast(int)channel.node_name.length));
-            defer delete(node_name);
 
             pos_frames := make([dynamic]Anim_Frame, 0, channel.num_position_keys);
             scale_frames := make([dynamic]Anim_Frame, 0, channel.num_scaling_keys);
@@ -99,7 +106,8 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string, bone
             }
 
             append(&animation.channels, Anim_Channel{
-                bone_mapping[node_name],
+                node_name, 
+                node_name in bone_mapping ? bone_mapping[node_name] : -1,
                 pos_frames[:],
                 scale_frames[:],
                 rot_frames[:]
@@ -123,24 +131,24 @@ Animation_Player :: struct {
 }
 
 Model_Animation_State :: struct {
-    mesh_states: [dynamic]Mesh_State, // array of bones per mesh in the model
+    mesh_states: []Mesh_State, // array of bones per mesh in the model
 }
 
 Mesh_State :: struct {
-    state: [dynamic]Mat4,
+    state: []Mat4,
 }
 
 init_animation_player :: proc(player: ^Animation_Player, model: Model) {
     model := model;
-    player.animation_state.mesh_states = make([dynamic]Mesh_State, 0, len(model.meshes));
-    for mesh in &model.meshes {
-        arr := make([dynamic]Mat4, 0, len(mesh.skin.bones));
+    player.animation_state.mesh_states = make([]Mesh_State, len(model.meshes));
+    for mesh, i in &model.meshes {
+        arr := make([]Mat4, len(mesh.skin.offsets));
 
-        for bone in mesh.skin.bones {
-            append(&arr, bone.offset);
+        for bone, j in mesh.skin.offsets {
+            arr[j] = bone;
         }
 
-        append(&player.animation_state.mesh_states, Mesh_State { arr });
+        player.animation_state.mesh_states[i] = Mesh_State { arr };
     }
 }
 
@@ -173,19 +181,19 @@ tick_animation :: proc(player: ^Animation_Player, model: Model, dt: f32) {
     }
 }
 
-sample_animation :: proc(mesh: Mesh, animation_name: string, time: f32, current_state: ^[dynamic]Mat4) {
+sample_animation :: proc(mesh: Mesh, animation_name: string, time: f32, current_state: ^[]Mat4) {
     if !(animation_name in loaded_animations) do return;
-    if len(current_state) < 1 do return;
+    if len(current_state^) < 1 do return;
 
     animation := loaded_animations[animation_name];
     read_animation_hierarchy(mesh, time, animation, mesh.skin.parent_node, identity(Mat4), current_state);
 }
 
-read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animation, node: ^Mesh_Node, parent_transform: Mat4, current_state: ^[dynamic]Mat4) {
-    channel, exists := get_animation_channel(animation, node.bone_idx);
+read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animation, node: ^Mesh_Node, parent_transform: Mat4, current_state: ^[]Mat4) {
+    channel, exists := get_animation_channel(animation, node.index);
     node_transform := node.local_transform;
 
-    if exists {
+    if exists && node.index >= 0 {
 
         translation_transform := identity(Mat4);
         scale_transform := identity(Mat4);
@@ -293,8 +301,10 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
     }
 
     global_transform := mul(parent_transform, node_transform);
-    bone := mesh.skin.bones[node.bone_idx];
-    current_state[node.bone_idx] = mul(mul(mesh.skin.global_inverse, global_transform), bone.offset);
+    if node.index >= 0 {
+        bone := mesh.skin.offsets[node.index];
+        current_state[node.index] = mul(mul(mesh.skin.global_inverse, global_transform), bone);
+    }
 
     for _, i in node.children {
         read_animation_hierarchy(mesh, time, animation, node.children[i], global_transform, current_state);
@@ -303,7 +313,7 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
 
 get_animation_channel :: proc(using anim: Loaded_Animation, channel_id: int) -> (Anim_Channel, bool) {
     for channel in channels {
-        if channel.channel_idx == channel_id {
+        if channel.channel_id == channel_id {
             return channel, true;
         }
     }

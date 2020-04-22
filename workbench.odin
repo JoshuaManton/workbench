@@ -53,17 +53,20 @@ make_simple_window :: proc(window_width, window_height: int,
 	target_framerate = requested_framerate;
 
 	// init frame allocator
-	// @static frame_allocator_raw: allocators.Frame_Allocator;
-	// allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 8 * 1024 * 1024)); // todo(josh): destroy the frame allocator
- //    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
+	// @static frame_allocator_raw: allocators.Arena;
+	// allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+ //    defer allocators.destroy_arena(&frame_allocator_raw);
 
-	// frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
+ //    default_text_allocator := context.temp_allocator;
+	// frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
  //    context.temp_allocator = frame_allocator;
 
-    // init allocation tracker
-    // @static allocation_tracker: allocators.Allocation_Tracker;
-    // defer allocators.destroy_allocation_tracker(&allocation_tracker);
-    // context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+ //    // init allocation tracker
+ //    default_allocator := context.allocator;
+ //    @static allocation_tracker: allocators.Allocation_Tracker;
+ //    defer allocators.destroy_allocation_tracker(&allocation_tracker);
+ //    context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+
 
     // init profiler
     profiler.init_profiler();
@@ -79,9 +82,7 @@ make_simple_window :: proc(window_width, window_height: int,
 		defer deinit_draw();
 		
 		init_dear_imgui();
-	}
-	
-	when !shared.HEADLESS {
+
 		// init catalog
 		init_asset_system();
 		init_builtin_assets();
@@ -93,14 +94,6 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	startup_end_time := core_time.now()._nsec;
 	logln("Startup time: ", startup_end_time - startup_start_time);
-
-	// init frame allocator
-	// @static frame_allocator_raw: allocators.Frame_Allocator;
-	// allocators.init_frame_allocator(&frame_allocator_raw, make([]byte, 8 * 1024 * 1024)); // todo(josh): destroy the frame allocator
- //    defer allocators.destroy_frame_allocator(&frame_allocator_raw);
-
-	// frame_allocator = allocators.frame_allocator(&frame_allocator_raw);
- //    context.temp_allocator = frame_allocator;
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / cast(f32)target_framerate;

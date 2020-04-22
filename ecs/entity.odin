@@ -207,7 +207,6 @@ update :: proc(dt: f32) {
                     entity, ok := scene.entity_datas[comp.e];
                     assert(ok);
                     if !entity.enabled do continue;
-
                     data.update_proc(ptr, dt);
                 }
             }

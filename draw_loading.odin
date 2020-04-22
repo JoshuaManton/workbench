@@ -126,14 +126,18 @@ load_model_from_memory :: proc(data: []byte, name: string, _hint: string, loc :=
 
 _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #caller_location) -> Model {
 	mesh_count := cast(int) scene.num_meshes;
-	model: Model;
+	model := Model{};
 	model.meshes = make([dynamic]Mesh, 0, mesh_count, context.allocator, loc);
+	model.name = model_name;
 	base_vert := 0;
 
 	meshes := mem.slice_ptr(scene^.meshes, cast(int) scene.num_meshes);
-	for _, i in meshes {
+	num_bones := 0;
+	bone_index := 0;
+	bone_mapping := make(map[string]int, 20);
+	for _, mesh_idx in meshes {
 
-		mesh := meshes[i];
+		mesh := meshes[mesh_idx];
 		mesh_name := strings.string_from_ptr(&mesh.name.data[0], cast(int)mesh.name.length);
 		verts := mem.slice_ptr(mesh.vertices, cast(int) mesh.num_vertices);
 
@@ -207,15 +211,13 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 			model.has_bones = true;
 
 			// note(josh): freed in _internal_delete_mesh
-			bone_mapping := make(map[string]int, cast(int)mesh.num_bones);
-			bone_info := make([dynamic]Mesh_Bone, 0, cast(int)mesh.num_bones);
+			bone_info := make([]Mat4, cast(int)mesh.num_bones);
 
-			num_bones := 0;
 			bones := mem.slice_ptr(mesh.bones, cast(int)mesh.num_bones);
-			for bone in bones {
+			for bone, i in bones {
 				bone_name := strings.clone(strings.string_from_ptr(&bone.name.data[0], cast(int)bone.name.length));
+				// defer delete(bone_name);
 
-				bone_index := 0;
 				if bone_name in bone_mapping {
 					bone_index = bone_mapping[bone_name];
 				} else {
@@ -224,8 +226,7 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 					num_bones += 1;
 				}
 
-				offset := ai_to_wb_mat4(bone.offset_matrix);
-				append(&bone_info, Mesh_Bone{ offset, bone_name });
+				bone_info[i] = ai_to_wb_mat4(bone.offset_matrix);
 
 				if bone.num_weights == 0 do continue;
 
@@ -247,20 +248,22 @@ _load_model_internal :: proc(scene: ^ai.Scene, model_name: string, loc := #calle
 			} // end bones loop
 
 			skin = Skinned_Mesh{
-				bone_info[:],
-				make([dynamic]Mesh_Node, 0, 50),
+				bone_info,
+				make([dynamic]Mesh_Node, 0, 100),
+				bone_mapping,
 				inverse(ai_to_wb(scene.root_node.transformation)),
 				nil,
 			};
 
 			idx := add_mesh_to_model(&model,processed_verts[:],indices[:],skin);
 			read_node_hierarchy(&model.meshes[idx], scene.root_node, identity(Mat4), nil, bone_mapping);
-			load_animations_from_ai_scene(scene, model_name, bone_mapping);
 
 		} else {
 			add_mesh_to_model(&model,processed_verts[:],indices[:],skin);
 		}
 	}
+
+	load_animations_from_ai_scene(scene, model_name, bone_mapping);
 
 	return model;
 }
@@ -273,8 +276,9 @@ read_node_hierarchy :: proc(using mesh: ^Mesh, ai_node : ^ai.Node, parent_transf
 	global_transform := mul(parent_transform, node_transform);
 
 	node := Mesh_Node {
-        bone_mapping[node_name],
+        node_name in bone_mapping ? bone_mapping[node_name] : -1,
         node_transform,
+
         parent_node,
         make([dynamic]^Mesh_Node, 0, cast(int)ai_node.num_children)
     };
