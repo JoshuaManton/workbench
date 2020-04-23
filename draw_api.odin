@@ -152,7 +152,7 @@ render_settings: Render_Settings;
 
 MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
-SHADOW_MAP_DIM :: 2048;
+SHADOW_MAP_DIM :: 4096;
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
 	framebuffer := framebuffer;
@@ -964,9 +964,6 @@ Model :: struct {
     has_bones: bool,
 }
 
-log_model :: proc(using model: Model) {
-	logln(model.name, ": ", len(meshes), " ", center, " ", size, " ", has_bones);
-}
 
 Mesh :: struct {
     vao: gpu.VAO,

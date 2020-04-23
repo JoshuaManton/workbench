@@ -210,10 +210,11 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
                 }
             }
 
-            next_pos_frame := (pos_frame + 1) % len(channel.pos_frames);
+            prev_pos_frame := pos_frame-1;
+            if prev_pos_frame < 0 do prev_pos_frame = len(channel.pos_frames)-1;
 
-            current_frame := channel.pos_frames[pos_frame];
-            next_frame := channel.pos_frames[next_pos_frame];
+            current_frame := channel.pos_frames[prev_pos_frame];
+            next_frame := channel.pos_frames[pos_frame];
 
             delta_time := next_frame.time - current_frame.time;
             if delta_time == 0 do delta_time = 1;
@@ -221,9 +222,8 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
 
             start := current_frame.kind.(Anim_Frame_Pos).position;
             end := next_frame.kind.(Anim_Frame_Pos).position;
-            delta := end - start;
 
-            final_pos := start + (delta * f32(factor));
+            final_pos := lerp(start, end, f32(factor));
 
             translation_transform[3][0] = final_pos.x;
             translation_transform[3][1] = final_pos.y;
@@ -244,10 +244,11 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
                     break;
                 }
             }
-            next_scale_frame := (scale_frame + 1)  % len(channel.scale_frames);
+            prev_scale_frame := scale_frame-1;
+            if prev_scale_frame < 0 do prev_scale_frame = len(channel.scale_frames)-1;
 
-            current_frame := channel.scale_frames[scale_frame];
-            next_frame := channel.scale_frames[next_scale_frame];
+            current_frame := channel.scale_frames[prev_scale_frame];
+            next_frame := channel.scale_frames[scale_frame];
 
             delta_time := next_frame.time - current_frame.time;
             if delta_time == 0 do delta_time = 1;
@@ -255,9 +256,9 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
 
             start := current_frame.kind.(Anim_Frame_Scale).scale;
             end := next_frame.kind.(Anim_Frame_Scale).scale;
-            delta := end - start;
 
-            final_scale := start + (delta * f32(factor));
+            final_scale := lerp(start, end, f32(factor));
+
             scale_transform[0][0] = final_scale.x;
             scale_transform[1][1] = final_scale.y;
             scale_transform[2][2] = final_scale.z;
@@ -277,10 +278,11 @@ read_animation_hierarchy :: proc(mesh: Mesh, time: f32, animation: Loaded_Animat
                     break;
                 }
             }
-            next_rot_frame := (rot_frame + 1)  % len(channel.rot_frames);
+            prev_rot_frame := rot_frame-1;
+            if prev_rot_frame < 0 do prev_rot_frame = len(channel.rot_frames)-1;
 
-            current_frame := channel.rot_frames[rot_frame];
-            next_frame := channel.rot_frames[next_rot_frame];
+            current_frame := channel.rot_frames[prev_rot_frame];
+            next_frame := channel.rot_frames[rot_frame];
 
             delta_time := next_frame.time - current_frame.time;
             if delta_time == 0 do delta_time = 1;

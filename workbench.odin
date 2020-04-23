@@ -30,6 +30,7 @@ DEVELOPER :: true;
 //
 
 main_window: platform.Window;
+default_temp_allocator: mem.Allocator;
 
 update_loop_ra: Rolling_Average(f32, 100);
 whole_frame_time_ra: Rolling_Average(f32, 100);
@@ -53,14 +54,15 @@ make_simple_window :: proc(window_width, window_height: int,
 	target_framerate = requested_framerate;
 
 	// init frame allocator
-	// @static frame_allocator_raw: allocators.Arena;
-	// allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
- //    defer allocators.destroy_arena(&frame_allocator_raw);
+	@static frame_allocator_raw: allocators.Arena;
+	allocators.init_arena(&frame_allocator_raw, make([]byte, 10 * 1024 * 1024)); // todo(josh): destroy the frame allocator
+    defer allocators.destroy_arena(&frame_allocator_raw);
 
-    default_temp_allocator := context.temp_allocator;
+    default_temp_allocator = context.temp_allocator;
 	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
-    context.temp_allocator = frame_allocator;
-    defer context.temp_allocator = default_temp_allocator;
+    frame_allocator_raw.panic_on_oom = true;
+    // context.temp_allocator = frame_allocator;
+    // defer context.temp_allocator = default_temp_allocator;
 
     // init allocation tracker
     default_allocator := context.allocator;
@@ -92,17 +94,18 @@ make_simple_window :: proc(window_width, window_height: int,
 		init_asset_system();
 		init_builtin_assets();
 		init_gizmo();
-		init_builtin_debug_programs();
 	}
 
 	register_debug_program("WB Info", wb_info_program, nil);
+	register_debug_program("Allocation Profiler", proc(ptr: rawptr) {
+		context.temp_allocator = default_temp_allocator;
+		profiler.draw_allocation_profiler(ptr);
+	}, &allocation_tracker);
 
 	init_workspace(workspace);
 
 	startup_end_time := core_time.now()._nsec;
 	logln("Startup time: ", startup_end_time - startup_start_time);
-
-	profiler.end_timed_section(init_section);
 
 	acc: f32;
 	fixed_delta_time = cast(f32)1 / cast(f32)target_framerate;

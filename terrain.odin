@@ -23,7 +23,7 @@ Terrain_Vertex :: struct {
 }
 
 create_terrain :: proc(size: int, height_map: [][]f32, step : f32 = 0.25) -> Terrain {
-    assert(size <= len(height_map), "Height map too smalle for terrain");
+    assert(size <= len(height_map), "Height map too small for terrain");
 
     terrain := Terrain {
         Model {

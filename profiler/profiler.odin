@@ -10,6 +10,7 @@ import "../external/imgui"
 import "../allocators"
 import "../platform"
 import "../logging"
+import "../basic"
 
 Frame_Info :: struct {
 	root_section: ^Section_Info,
@@ -217,6 +218,69 @@ end_timed_section :: proc(using timed_section: Timed_Section) {
 
 	info.unaccounted_for += info.time_taken - time_of_children;
 }
+
+// Allocation profiler
+Allocation_Profiler :: struct {
+	enabled: bool,
+	snapshot: [dynamic]Allocation_Info,
+}
+
+Allocation_Info :: struct {
+	path: string,
+	// sizes: []int,
+	total_count: int,
+	total_size: int,
+}
+
+alloc_profiler: Allocation_Profiler;
+
+draw_allocation_profiler :: proc(_tracker: rawptr) {
+	allocation_tracker := cast(^allocators.Allocation_Tracker)_tracker;
+
+	if imgui.begin("Allocation Profiler", nil) {
+		if imgui.button("Take Snapshot") {
+			for ai in alloc_profiler.snapshot do delete(ai.path);
+			clear(&alloc_profiler.snapshot);
+
+			outer: for ptr, info in allocation_tracker.allocations {
+				path := info.location.file_path == "" ? tprint("BROKEN_FILE_PATH: proc(", info.location.procedure, ")") : basic.pretty_location(info.location);
+
+				for alloc_info in &alloc_profiler.snapshot {
+					if alloc_info.path == path {
+						alloc_info.total_count += 1;
+						alloc_info.total_size += info.size;
+						continue outer;
+					}
+				}
+
+				append(&alloc_profiler.snapshot, Allocation_Info { strings.clone(path), 1, info.size });
+			}
+
+			sort.quick_sort_proc(alloc_profiler.snapshot[:], proc(a,b: Allocation_Info) -> int {
+				return a.total_size <= b.total_size ? 1 : -1;
+				
+			});
+		}
+
+		for info in alloc_profiler.snapshot {
+			if imgui.collapsing_header(info.path) {
+				imgui.indent();
+				defer imgui.unindent();
+
+				imgui.text(tprint("Total Count: ", info.total_count));
+				imgui.text(tprint("Total Size: ", info.total_size));
+			}
+		}
+
+	} imgui.end();
+}
+
+// if platform.get_input_down(.F8, true) {
+// 	context.temp_allocator = default_temp_allocator;
+// 	for ptr, info in allocation_tracker.allocations {
+// 		fmt.println(ptr, info.size, info.location.file_path == "" ? tprint("BROKEN FILE PATH: proc = ", info.location.procedure) : basic.pretty_location(info.location));
+// 	}
+// }
 
 logln :: logging.logln;
 tprint :: fmt.tprint;

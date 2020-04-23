@@ -476,7 +476,7 @@ draw_scene_window :: proc(userdata: rawptr) {
 Entity :: int;
 
 Component_Base :: struct {
-    e: Entity "wbml_noserialize",
+    e: Entity "wbml_noserialize,imgui_allow64bit",
     enabled: bool,
 }
 
@@ -666,10 +666,22 @@ get_component_storage :: proc($T: typeid) -> []T {
     return da[:];
 }
 
+get_active_component_storage :: proc($T: typeid, out: ^[dynamic]T) {
+    data, ok := component_types[typeid_of(T)];
+    assert(ok, tprint("Couldn't find component type: ", type_info_of(T)));
+
+    outer: for c, i in transmute([dynamic]T)data.storage {
+        for ind in data.reusable_indices {
+            if ind == i do continue outer;
+        }
+        append(out, c);
+    }
+}
+
 load_entity_from_file :: proc(filepath: string) -> Entity {
     // load file
     data, ok := os.read_entire_file(filepath);
-    assert(ok, filepath);
+    assert(ok, fmt.tprint("Couldn't find file: ", filepath));
     defer delete(data);
 
     // eat entity id
