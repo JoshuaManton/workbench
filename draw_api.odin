@@ -1011,7 +1011,7 @@ Vertex2D :: struct {
 
 Vertex3D :: struct {
 	position: Vec3,
-	tex_coord: Vec3, // todo(josh): should this be a Vec2?
+	tex_coord: Vec3,
 	color: Colorf,
 	normal: Vec3,
 
