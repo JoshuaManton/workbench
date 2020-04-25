@@ -1514,9 +1514,9 @@ world_to_viewport :: proc(position: Vec3, camera: ^Camera) -> Vec3 {
 	if result.w > 0 do result /= result.w;
 	return Vec3{result.x, result.y, result.z};
 }
-world_to_pixel :: proc(a: Vec3, camera: ^Camera, pixel_width: f32, pixel_height: f32) -> Vec3 {
+world_to_pixel :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
 	result := world_to_viewport(a, camera);
-	result = viewport_to_pixel(result, pixel_width, pixel_height);
+	result = viewport_to_pixel(result, camera.pixel_width, camera.pixel_height);
 	return result;
 }
 world_to_unit :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
