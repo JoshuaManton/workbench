@@ -702,8 +702,12 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 				case Node_String: {
 					// :HashDirectives
 					ti, ok := _type_info_table[node_kind.value];
-					assert(ok, fmt.tprint(node_kind.value));
-					(cast(^typeid)ptr)^ = ti.id;
+					if !ok {
+						logf("Missing type in WBML type info table for type '%'", node_kind.value);
+					}
+					else {
+						(cast(^typeid)ptr)^ = ti.id;
+					}
 				}
 				case: panic(tprint(node_kind));
 			}
@@ -723,6 +727,8 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 							write_value(node_kind.value, ptr, v);
 							break;
 						}
+
+						logf("Missing union variant '%' in union '%'", node_kind.variant_name, variant);
 					}
 				}
 				case: panic(tprint(node_kind));
