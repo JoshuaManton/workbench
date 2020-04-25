@@ -720,14 +720,18 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 					// note(josh): Do nothing!
 				}
 				case Node_Union: {
+					found := false;
 					for v in variant.variants {
 						name := tprint(v);
 						if node_kind.variant_name == name {
+							found = true;
 							reflection.set_union_type_info(any{ptr, ti.id}, v);
 							write_value(node_kind.value, ptr, v);
 							break;
 						}
+					}
 
+					if !found {
 						logf("Missing union variant '%' in union '%'", node_kind.variant_name, variant);
 					}
 				}
