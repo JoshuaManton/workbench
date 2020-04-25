@@ -1005,7 +1005,7 @@ Vertex2D :: struct {
 
 Vertex3D :: struct {
 	position: Vec3,
-	tex_coord: Vec3, // todo(josh): should this be a Vec2?
+	tex_coord: Vec3,
 	color: Colorf,
 	normal: Vec3,
 
@@ -1266,7 +1266,7 @@ get_pooled_draw_command :: proc() -> Draw_Command_3D {
 	return Draw_Command_3D{};
 }
 
-create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, texture: Texture = {}, material: Material = {1, 1, 1}, loc := #caller_location) -> Draw_Command_3D {
+create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, scale: Vec3, rotation: Quat, color: Colorf, material: Material, texture: Texture = {}, loc := #caller_location) -> Draw_Command_3D {
     cmd := get_pooled_draw_command();
     cmd.depth_test = true;
     cmd.model = model;
@@ -1504,9 +1504,9 @@ world_to_viewport :: proc(position: Vec3, camera: ^Camera) -> Vec3 {
 	if result.w > 0 do result /= result.w;
 	return Vec3{result.x, result.y, result.z};
 }
-world_to_pixel :: proc(a: Vec3, camera: ^Camera, pixel_width: f32, pixel_height: f32) -> Vec3 {
+world_to_pixel :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
 	result := world_to_viewport(a, camera);
-	result = viewport_to_pixel(result, pixel_width, pixel_height);
+	result = viewport_to_pixel(result, camera.pixel_width, camera.pixel_height);
 	return result;
 }
 world_to_unit :: proc(a: Vec3, camera: ^Camera) -> Vec3 {

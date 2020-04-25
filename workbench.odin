@@ -124,7 +124,7 @@ make_simple_window :: proc(window_width, window_height: int,
 		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
 
-		if acc > 0.1 { // note(josh): stop spiral of death ensuring a minimum render framerate
+		if acc > 0.1 { // note(josh): stop spiral of death ensuring a minimum framerate
 			acc = 0.1;
 		}
 
