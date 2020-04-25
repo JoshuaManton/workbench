@@ -125,7 +125,7 @@ im_text :: proc(
 
 		position := position;
 
-		assert(rendermode == .Unit);
+		assert(rendermode == .Unit || rendermode == .Pixel);
 
 		start := position;
 		for _, i in str {
@@ -148,8 +148,16 @@ im_text :: proc(
 				hh := cast(f32)platform.current_window_height;
 				// min = position + (Vec2{quad.x0, -quad.y1} * size);
 				// max = position + (Vec2{quad.x1, -quad.y0} * size);
-				min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
-				max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+				if rendermode == .Unit {
+					min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
+					max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+				}
+				else {
+					assert(rendermode == .Pixel);
+					min = position + (Vec2{quad.x0, -quad.y1} * size);
+					max = position + (Vec2{quad.x1, -quad.y0} * size);
+				}
+
 				// Padding
 				{
 					// todo(josh): @DrawStringSpaces: Currently dont handle spaces properly :/
