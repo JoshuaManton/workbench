@@ -2,6 +2,7 @@ package wbml
 
 import rt "core:runtime"
 import "core:mem"
+import "core:strconv"
 import la "core:math/linalg"
 import "core:reflect"
 
@@ -388,18 +389,18 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 	ok := laas.get_next_token(lexer, &root_token);
 	if !ok do return nil;
 
-	if symbol, ok := root_token.kind.(laas.Symbol); ok {
-		if symbol.value == '-' {
+	if root_token.kind == .Symbol {
+		if root_token.text == "-" {
 			return parse_value(lexer, !is_negative_number);
 		}
 	}
 
 	// todo(josh): remove this #partial and handle all cases!
 	#partial
-	switch value_kind in root_token.kind {
-		case laas.Symbol: {
-			switch value_kind.value {
-				case '{': {
+	switch root_token.kind {
+		case .Symbol: {
+			switch root_token.text {
+				case "{": {
 					fields: [dynamic]Object_Field;
 					fields.allocator = _node_allocator;
 					for {
@@ -410,7 +411,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 							next_token: laas.Token;
 							ok := laas.peek(lexer, &next_token);
 							assert(ok, "end of text from within object");
-							if right_curly, ok2 := next_token.kind.(laas.Symbol); ok2 && right_curly.value == '}' {
+							if next_token.text == "}" {
 								laas.eat(lexer);
 								break;
 							}
@@ -419,17 +420,15 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 						var_name_token: laas.Token;
 						ok := laas.get_next_token(lexer, &var_name_token);
 						assert(ok, "end of text from within object");
-
-						variable_name, ok2 := var_name_token.kind.(laas.Identifier);
-						assert(ok2, tprint(var_name_token));
+						assert(var_name_token.kind == .Identifier);
 
 						value := parse_value(lexer);
-						append(&fields, Object_Field{variable_name.value, value});
+						append(&fields, Object_Field{var_name_token.text, value});
 					}
 					return new_clone(Node{Node_Object{fields[:]}}, _node_allocator);
 				}
 
-				case '[': {
+				case "[": {
 					elements: [dynamic]^Node;
 					elements.allocator = _node_allocator;
 					for {
@@ -440,7 +439,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 							next_token: laas.Token;
 							ok := laas.peek(lexer, &next_token);
 							assert(ok, "end of text from within array");
-							if right_square, ok2 := next_token.kind.(laas.Symbol); ok2 && right_square.value == ']' {
+							if next_token.text == "]" {
 								laas.eat(lexer);
 								break;
 							}
@@ -452,31 +451,31 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 					return new_clone(Node{Node_Array{elements[:]}}, _node_allocator);
 				}
 
-				case '.': { // :HashDirectives
+				case ".": { // :HashDirectives
 					type_token: laas.Token;
 					ok := laas.get_next_token(lexer, &type_token);
 					assert(ok);
-					ident, ok2 := type_token.kind.(laas.Identifier);
-					assert(ok2, "Only single identifier types are currently supported for tagged unions");
+					assert(type_token.kind == .Identifier);
 
 					value := parse_value(lexer);
-					return new_clone(Node{Node_Union{ident.value, value}}, _node_allocator);
+					return new_clone(Node{Node_Union{type_token.text, value}}, _node_allocator);
 				}
 
 				case: {
-					panic(tprint("Unhandled case: ", value_kind.value));
+					panic(tprint("Unhandled case: ", root_token.text));
 				}
 			}
 		}
 
 		// primitives
-		case laas.String: {
-			str := strings.clone(value_kind.value, _node_allocator);
+		case .String: {
+			// todo(josh): escape the string
+			str, length := unescape_string(root_token.text, _node_allocator);
 			return new_clone(Node{Node_String{str}}, _node_allocator);
 		}
 
-		case laas.Identifier: {
-			switch value_kind.value {
+		case .Identifier: {
+			switch root_token.text {
 				case "true", "True", "TRUE":    return new_clone(Node{Node_Bool{true}}, _node_allocator);
 				case "false", "False", "FALSE": return new_clone(Node{Node_Bool{false}}, _node_allocator);
 				case "nil":                     return new_clone(Node{Node_Nil{}}, _node_allocator);
@@ -487,22 +486,61 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 					z := parse_value(lexer); _, zok := z.kind.(Node_Number); assert(zok);
 					return new_clone(Node{Node_Quat{w, x, y, z}}, _node_allocator);
 				}
-				case: return new_clone(Node{Node_Enum_Value{value_kind.value}}, _node_allocator);
+				case: return new_clone(Node{Node_Enum_Value{root_token.text}}, _node_allocator);
 			}
 		}
 
-		case laas.Number: {
+		case .Number: {
 			sign : i64 = is_negative_number ? -1 : 1;
-			return new_clone(Node{Node_Number{value_kind.int_value * sign, value_kind.unsigned_int_value, value_kind.float_value * cast(f64)sign}}, _node_allocator);
+			i64_value := strconv.parse_i64(root_token.text);
+			u64_value := strconv.parse_u64(root_token.text);
+			f64_value := strconv.parse_f64(root_token.text);
+			return new_clone(Node{Node_Number{i64_value * sign, u64_value, f64_value * cast(f64)sign}}, _node_allocator);
 		}
 
 		case: {
-			panic(tprint(value_kind));
+			panic(tprint(root_token));
 		}
 	}
 	unreachable();
 	return nil;
 }
+
+unescape_string :: proc(str: string, allocator := context.allocator) -> (string, int) {
+    length := len(str);
+
+    escape := false;
+    sb: strings.Builder;
+    sb.buf.allocator = allocator;
+    text_loop: for c in str {
+        if !escape {
+            switch c {
+                case '\\': escape = true; length -= 1;
+                case: fmt.sbprint(&sb, cast(rune)c);
+            }
+        }
+        else {
+            escape = false;
+            switch c {
+                case '"':  fmt.sbprint(&sb, "\\\"");
+                case '\\': fmt.sbprint(&sb, "\\\\");
+                case 'b':  fmt.sbprint(&sb, "\\b");
+                case 'f':  fmt.sbprint(&sb, "\\f");
+                case 'n':  fmt.sbprint(&sb, "\\n");
+                case 'r':  fmt.sbprint(&sb, "\\r");
+                case 't':  fmt.sbprint(&sb, "\\t");
+                // case 'u':  fmt.sbprint(&sb, '\u'); // todo(josh): unicode
+                case: panic(fmt.tprint("Unexpected escape character: ", c));
+            }
+        }
+    }
+    assert(escape == false, "end of string from within escape sequence");
+
+    escaped := strings.to_string(sb);
+    return escaped, length;
+}
+
+
 
 write_value :: proc{write_value_poly, write_value_ti};
 
@@ -538,13 +576,13 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 					name := variant.names[idx];
 					if oldname_idx := strings.index(tag, "wbml_oldname"); oldname_idx != -1 {
 						lexer := laas.make_lexer(tag[oldname_idx:]);
-						root, ok := laas.expect(&lexer, laas.Identifier);
+						root, ok := laas.expect(&lexer, .Identifier);
 						assert(ok);
-						assert(root.value == "wbml_oldname");
-						laas.expect_symbol(&lexer, '=');
-						old_name, ok2 := laas.expect(&lexer, laas.Identifier);
+						assert(root.text == "wbml_oldname");
+						laas.expect_symbol(&lexer, "=");
+						old_name, ok2 := laas.expect(&lexer, .Identifier);
 						assert(ok2);
-						name = old_name.value;
+						name = old_name.text;
 					}
 
 					if name == field.name {
@@ -823,7 +861,7 @@ eat_newlines :: proc(lexer: ^laas.Lexer, loc := #caller_location) {
 		ok := laas.peek(lexer, &token);
 		if !ok do return;
 
-		if _, is_newline := token.kind.(laas.New_Line); is_newline {
+		if token.kind == .New_Line {
 			laas.eat(lexer);
 		}
 		else {

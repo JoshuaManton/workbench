@@ -500,9 +500,9 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         range_str := tags[range_idx:];
         range_lexer := laas.make_lexer(range_str);
         laas.get_next_token(&range_lexer, nil);
-        laas.expect_symbol(&range_lexer, '=');
+        laas.expect_symbol(&range_lexer, "=");
         range_min_str := laas.expect_string(&range_lexer);
-        laas.expect_symbol(&range_lexer, ':');
+        laas.expect_symbol(&range_lexer, ":");
         range_max_str := laas.expect_string(&range_lexer);
 
         range_min = strconv.parse_f32(range_min_str);
