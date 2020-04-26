@@ -733,13 +733,16 @@ Texture :: struct {
     element_type: gpu.Texture2D_Data_Type,
 }
 
-create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil) -> Texture {
+create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil, loc := #caller_location) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_2d(texture);
 
 	gpu.tex_image_2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+	// gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Edge);
+	// gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Edge);
+	// gpu.tex_parameteri(.Texture2D, .Wrap_R, .Clamp_To_Edge);
 
 	return Texture{texture, ww, hh, 1, .Texture2D, initial_data_format, initial_data_element_type};
 }
@@ -749,10 +752,10 @@ create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format
 	gpu.bind_texture_3d(texture);
 	gpu.tex_image_3d(.Texture3D, 0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
-	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
-	gpu.tex_parameteri(.Texture3D, .Wrap_S, .Repeat);
-	gpu.tex_parameteri(.Texture3D, .Wrap_T, .Repeat);
-	gpu.tex_parameteri(.Texture3D, .Wrap_R, .Repeat);
+	gpu.tex_parameteri(.Texture3D, .Mag_Filter, .Linear);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_S, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_T, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_R, .Clamp_To_Edge);
 	return Texture{texture, ww, hh, dd, .Texture3D, initial_data_format, initial_data_element_type};
 }
 
@@ -1220,6 +1223,8 @@ Draw_Command_3D :: struct {
 	uniform_bindings: [dynamic]Uniform_Binding,
 	anim_state: Model_Animation_State,
 
+	draw_mode: gpu.Draw_Mode,
+
 	userdata: rawptr,
 }
 Texture_Binding :: struct {
@@ -1277,6 +1282,7 @@ create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, 
     cmd.scale = scale;
     cmd.rotation = rotation;
     cmd.color = color;
+    cmd.draw_mode = main_camera.draw_mode;
     return cmd;
 }
 
@@ -1378,10 +1384,10 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 		gpu.log_errors(#procedure);
 
 		if mesh.index_count > 0 {
-			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
+			gpu.draw_elephants(cmd.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 		}
 		else {
-			gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
+			gpu.draw_arrays(cmd.draw_mode, 0, mesh.vertex_count);
 		}
 	}
 }
