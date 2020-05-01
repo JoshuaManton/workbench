@@ -253,7 +253,10 @@ try_get_shader :: proc(name: string) -> (gpu.Shader_Program, bool) {
 	return {}, false;
 }
 get_shader :: inline proc(name: string) -> gpu.Shader_Program {
-	return get_asset(Shader_Asset, name).id;
+	if s, ok := try_get_asset(Shader_Asset, name); ok {
+		return s.id;
+	}
+	return get_asset(Shader_Asset, "error").id;
 }
 
 
