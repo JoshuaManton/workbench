@@ -123,7 +123,7 @@ vec3 calculate_light(vec3 albedo, float metallic, float roughness, vec3 N, vec3 
     // cook-torrance brdf
     float NDF = distribution_ggx(N, H, roughness);
     float G   = geometry_smith(N, V, L, roughness);
-    vec3  F   = fresnel_schlick(max(dot(H, V), 0.0), F0);
+    vec3  F   = fresnel_schlick(clamp(dot(H, V), 0.0, 1.0), F0);
 
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
