@@ -11,7 +11,6 @@ import "platform"
 import "gpu"
 
 import "external/stb"
-import "external/glfw"
 import "external/imgui"
 
 /*
@@ -316,6 +315,13 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
             pixel = translate(pixel, Vec3{-1, -1, 0});
             return pixel;
         }
+        case .UI: {
+            pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
+            pixel = mat4_scale(pixel, Vec3{2, -2, 2});
+            pixel = translate(pixel, Vec3{-1, -1, 0});
+            pixel = translate(pixel, Vec3{0, 2, 0});
+            return pixel;
+        }
         case .Aspect: {
         	aspect := mat4_scale(identity(Mat4), Vec3{1/camera.aspect, 1, 0});
             return aspect;
@@ -503,6 +509,14 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			// issue draw call
 			if on_render_object != nil do on_render_object(cmd.userdata);
 			execute_draw_command(cmd^);
+
+            if render_wireframes {
+                PUSH_POLYGON_MODE(.Line);
+                cmd := cmd^;
+                cmd.depth_test = false;
+                cmd.color = {0, 1, 0, 1};
+                execute_draw_command(cmd);
+            }
 		}
 	}
 
@@ -1305,93 +1319,109 @@ return_draw_command_to_pool :: proc(cmd: Draw_Command_3D) {
 }
 
 execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
+	TIMED_SECTION();
+
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 
 	bound_shader := gpu.get_current_shader();
 
-	for binding, idx in texture_bindings {
-		bind_texture_to_shader(binding.name, binding.texture, idx, bound_shader);
-	}
-	for _, bidx in uniform_bindings {
-		binding := &uniform_bindings[bidx];
-		switch value in &binding.value {
-			case f32:      gpu.uniform_float(bound_shader, binding.name, value);
-			case i32:      gpu.uniform_int  (bound_shader, binding.name, value);
-			case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value);
-			case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value);
-			case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value);
-			case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, &value);
-			case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value);
-
-			case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value);
-			case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value);
-			case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value);
-			case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value);
-			case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value);
-			case []Mat4:   gpu.uniform_mat4_array (bound_shader, binding.name, value[:]);
-			case []Colorf: gpu.uniform_vec4_array (bound_shader, binding.name, transmute([]Vec4)value[:]);
-			case: panic(tprint(binding.value));
+	{
+		TIMED_SECTION("texture bindings");
+		for binding, idx in texture_bindings {
+			bind_texture_to_shader(binding.name, binding.texture, idx, bound_shader);
 		}
 	}
 
-	flush_material(cmd.material, bound_shader);
+	{
+		TIMED_SECTION("uniform bindings");
+		for _, bidx in uniform_bindings {
+			binding := &uniform_bindings[bidx];
+			switch value in &binding.value {
+				case f32:      gpu.uniform_float(bound_shader, binding.name, value);
+				case i32:      gpu.uniform_int  (bound_shader, binding.name, value);
+				case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value);
+				case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value);
+				case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value);
+				case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, &value);
+				case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value);
 
-	// model_matrix
-	model_p := translate(identity(Mat4), position);
-	model_s := mat4_scale(identity(Mat4), scale);
-	model_r := quat_to_mat4(rotation);
-	model_matrix := mul(mul(model_p, model_r), model_s);
+				case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value);
+				case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value);
+				case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value);
+				case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value);
+				case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value);
+				case []Mat4:   gpu.uniform_mat4_array (bound_shader, binding.name, value[:]);
+				case []Colorf: gpu.uniform_vec4_array (bound_shader, binding.name, transmute([]Vec4)value[:]);
+				case: panic(tprint(binding.value));
+			}
+		}
 
-	gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
+		flush_material(cmd.material, bound_shader);
+	}
 
-	gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
+	{
+		TIMED_SECTION("matrices");
+		// model_matrix
+		model_p := translate(identity(Mat4), position);
+		model_s := mat4_scale(identity(Mat4), scale);
+		model_r := quat_to_mat4(rotation);
+		model_matrix := mul(mul(model_p, model_r), model_s);
 
-	gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
-	gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
+		gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
 
-	rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
-	gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
+		gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
 
-	gpu.uniform_vec3(bound_shader, "position", position);
-	gpu.uniform_vec3(bound_shader, "scale", scale);
-	gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
+		gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
+		gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
 
-	gpu.uniform_float(bound_shader, "time", time);
+		rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
+		gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
+
+		gpu.uniform_vec3(bound_shader, "position", position);
+		gpu.uniform_vec3(bound_shader, "scale", scale);
+		gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
+
+		gpu.uniform_float(bound_shader, "time", time);
+	}
 
 	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
 	gpu.polygon_mode(.Front_And_Back, main_camera.polygon_mode);
 	gpu.log_errors(#procedure);
 
-	for mesh, i in model.meshes {
-		gpu.bind_vao(mesh.vao);
-		gpu.bind_vbo(mesh.vbo);
-		gpu.bind_ibo(mesh.ibo);
-		gpu.log_errors(#procedure);
+	{
+		TIMED_SECTION("draw meshes");
 
-		if len(anim_state.mesh_states) > i {
-			gpu.uniform_int(bound_shader, "do_animation", 1);
-			mesh_state := anim_state.mesh_states[i];
-			for _, i in mesh_state.state {
-				s := mesh_state.state[i];
-				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
-				gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
+		for mesh, i in model.meshes {
+			gpu.bind_vao(mesh.vao);
+			gpu.bind_vbo(mesh.vbo);
+			gpu.bind_ibo(mesh.ibo);
+			gpu.log_errors(#procedure);
+
+			if len(anim_state.mesh_states) > i {
+				gpu.uniform_int(bound_shader, "do_animation", 1);
+				mesh_state := anim_state.mesh_states[i];
+				for _, i in mesh_state.state {
+					s := mesh_state.state[i];
+					bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
+					gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
+				}
 			}
-		}
-		else {
-			gpu.uniform_int(bound_shader, "do_animation", 0);
-		}
+			else {
+				gpu.uniform_int(bound_shader, "do_animation", 0);
+			}
 
-		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
-		gpu.set_vertex_format(mesh.vertex_type);
-		gpu.log_errors(#procedure);
+			// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
+			gpu.set_vertex_format(mesh.vertex_type);
+			gpu.log_errors(#procedure);
 
-		if mesh.index_count > 0 {
-			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
-		}
-		else {
-			gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
+			if mesh.index_count > 0 {
+				gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
+			}
+			else {
+				gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
+			}
 		}
 	}
 }
@@ -1409,6 +1439,7 @@ Rendermode :: enum {
     World,
     Unit,
     Pixel,
+    UI,
     Aspect,
     Viewport_World,
 }

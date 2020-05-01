@@ -125,7 +125,7 @@ im_text :: proc(
 
 		position := position;
 
-		assert(rendermode == .Unit || rendermode == .Pixel);
+		assert(rendermode == .Unit || rendermode == .Pixel || rendermode == .UI);
 
 		start := position;
 		for _, i in str {
@@ -151,6 +151,10 @@ im_text :: proc(
 				if rendermode == .Unit {
 					min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
 					max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+				}
+				else if rendermode == .UI {
+					min = position + (Vec2{quad.x0, quad.y1} * size);
+					max = position + (Vec2{quad.x1, quad.y0} * size);
 				}
 				else {
 					assert(rendermode == .Pixel);
@@ -272,7 +276,7 @@ im_flush :: proc(camera: ^Camera) {
 
 	defer clear(&camera.im_draw_commands);
 
-
+	PUSH_GPU_ENABLED(.Cull_Face, false);
 
 	sort.quick_sort_proc(camera.im_draw_commands[:], proc(a, b: Draw_Command_2D) -> int {
 			diff := a.render_order - b.render_order;

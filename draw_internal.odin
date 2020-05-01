@@ -32,6 +32,7 @@ debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
 
+render_wireframes: bool;
 visualize_bloom_texture: bool;
 visualize_shadow_texture: bool;
 visualize_shadow_cascades: bool;
@@ -78,6 +79,7 @@ rendering_debug_program :: proc(_: rawptr) {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
 		imgui_struct(&render_settings, "Render Settings");
+		imgui.checkbox("render_wireframes",  &render_wireframes);
 		imgui.checkbox("visualize_bloom_texture",  &visualize_bloom_texture);
 		imgui.checkbox("visualize_shadow_texture", &visualize_shadow_texture);
 		imgui.checkbox("visualize_shadow_cascades", &visualize_shadow_cascades);
