@@ -153,10 +153,6 @@ void main() {
         frag_alpha *= texture_sample.a; // todo(josh): should alpha be gamma corrected? I suspect not
     }
 
-    // float metallic = 0.1;
-    // float roughness = 0.9;
-    // float ao = 0.2;
-
     // point lights
     vec3 Lo = vec3(0.0);
     for (int i = 0; i < num_point_lights; i++) {
