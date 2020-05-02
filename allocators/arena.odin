@@ -15,11 +15,6 @@ init_arena :: proc(arena: ^Arena, backing: []byte) {
 	arena.memory = backing;
 }
 
-destroy_arena :: proc(arena: ^Arena) {
-	delete(arena.memory);
-	arena^ = {};
-}
-
 arena_allocator :: proc(arena: ^Arena) -> mem.Allocator {
 	return mem.Allocator{arena_allocator_proc, arena};
 }

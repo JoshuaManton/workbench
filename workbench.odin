@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:sort"
 import "core:strings"
 import "core:mem"
+import "core:time"
 import "core:os"
 import "core:sys/win32"
 import "core:runtime"
@@ -18,7 +19,6 @@ import "basic"
 import "external/imgui"
 
 import "external/stb"
-import "external/glfw"
 
 import "allocators"
 
@@ -28,13 +28,11 @@ DEVELOPER :: true;
 // Game loop stuff
 //
 
-main_window: platform.Window;
-
 do_log_frame_boundaries := false;
 
 target_framerate: int;
 frame_count: u64;
-time: f32;
+time_since_startup: f32;
 precise_time: f64;
 fixed_delta_time: f32;
 lossy_delta_time: f32;
@@ -49,20 +47,18 @@ make_simple_window :: proc(window_width, window_height: int,
     // init profiler
     profiler.init_profiler();
     defer profiler.deinit_profiler();
- //    profiler.profiler_running = true;
-	// profiler.profiler_new_frame();
 
 	init_section := profiler.start_timed_section("engine init");
 
-	startup_start_time := glfw.GetTime();
+	startup_start_time := time.now();
 
 	fixed_delta_time = cast(f32)1 / cast(f32)requested_framerate;
 	target_framerate = requested_framerate;
 
 	// init frame allocator
 	@static frame_allocator_raw: allocators.Arena;
-	allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024)); // todo(josh): destroy the frame allocator
-    defer allocators.destroy_arena(&frame_allocator_raw);
+	allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024));
+    defer delete(frame_allocator_raw.memory);
 
     default_temp_allocator := context.temp_allocator;
 	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
@@ -81,11 +77,12 @@ make_simple_window :: proc(window_width, window_height: int,
     	}, nil);
 
 	// init platform and graphics
-	platform.init_platform(&main_window, workspace.name, window_width, window_height);
+	platformok := platform.init_platform(workspace.name, window_width, window_height);
+	assert(platformok);
 	init_draw(window_width, window_height);
 	defer deinit_draw();
 
-	init_random(cast(u64)glfw.GetTime());
+	init_random(cast(u64)time.now()._nsec);
 	init_dear_imgui();
 
 	init_asset_system();
@@ -97,17 +94,22 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	init_workspace(workspace);
 
-	startup_end_time := glfw.GetTime();
-	logln("Startup time: ", startup_end_time - startup_start_time);
+	startup_end_time := time.now();
+	logln("Startup time: ", time.duration_seconds(time.diff(startup_start_time, startup_end_time)));
 
 	profiler.end_timed_section(init_section);
 
 	acc: f32;
-	last_frame_start_time: f32;
+	last_frame_start_time: time.Time;
 	game_loop:
-	for !glfw.WindowShouldClose(main_window) && !wb_should_close {
-		frame_start_time := cast(f32)glfw.GetTime();
-		lossy_delta_time = frame_start_time - last_frame_start_time;
+	for !platform.main_window.should_close && !wb_should_close {
+		frame_start_time := time.now();
+		delta_time_seconds := time.duration_seconds(time.diff(last_frame_start_time, frame_start_time));
+		if last_frame_start_time._nsec == 0 {
+			delta_time_seconds = 0;
+		}
+
+		lossy_delta_time = cast(f32)delta_time_seconds;
 		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
 
@@ -136,8 +138,7 @@ make_simple_window :: proc(window_width, window_height: int,
 				}
 
 				//
-				precise_time = glfw.GetTime();
-				time = cast(f32)precise_time;
+				time_since_startup = cast(f32)time.duration_seconds(time.diff(startup_start_time, time.now()));
 				frame_count += 1;
 
 				//
@@ -149,7 +150,7 @@ make_simple_window :: proc(window_width, window_height: int,
 	    		gizmo_new_frame();
 	    		update_draw();
 				update_tween(fixed_delta_time);
-				update_ui();
+				update_ui(fixed_delta_time);
 				update_debug_menu(fixed_delta_time);
 
 				update_workspace(workspace, fixed_delta_time); // calls client updates
@@ -161,7 +162,7 @@ make_simple_window :: proc(window_width, window_height: int,
 					}
 				}
 
-				late_update_ui();
+				// late_update_ui(); @Cleanup
 
 	    		imgui.pop_font();
 
@@ -176,7 +177,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 			render_workspace(workspace);
 
-			glfw.SwapBuffers(main_window);
+			platform.platform_render();
 
 			gpu.log_errors("after SwapBuffers()");
 		}
@@ -256,7 +257,9 @@ wb_info_program :: proc(_: rawptr) {
 		};
 
 		imgui_struct(&data, "wb_debug_data");
-		imgui.checkbox("Debug UI", &debugging_ui);
+
+		// @Cleanup
+		// imgui.checkbox("Debug UI", &debugging_ui);
 		imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
 		imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 	}

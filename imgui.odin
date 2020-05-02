@@ -15,7 +15,6 @@ import "math";
 import "platform"
 import "logging"
 
-import    "external/glfw"
 import    "external/stb"
 import    "external/imgui"
 import gl "external/gl"
@@ -270,29 +269,27 @@ init_dear_imgui :: proc() {
 
 imgui_begin_new_frame :: proc(dt: f32) {
     io := imgui.get_io();
-    io.display_size.x = platform.current_window_width;
-    io.display_size.y = platform.current_window_height;
+    io.display_size.x = platform.main_window.width;
+    io.display_size.y = platform.main_window.height;
 
-    if platform.window_is_focused {
-    	posx, posy := glfw.GetCursorPos(main_window);
-        io.mouse_pos.x = cast(f32)posx;
-        io.mouse_pos.y = cast(f32)posy;
-        io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Left) == glfw.Action.Press;
-        io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Right) == glfw.Action.Press;
-        io.mouse_wheel   = platform.mouse_scroll;
+    if platform.main_window.is_focused {
+        io.mouse_pos = transmute(imgui.Vec2)platform.main_window.mouse_position_pixel;
+        io.mouse_down[0] = platform._get_global_input(.Mouse_Left);
+        io.mouse_down[1] = platform._get_global_input(.Mouse_Right);
+        io.mouse_wheel   = platform.main_window.mouse_scroll;
         if io.want_capture_mouse {
-            platform.mouse_scroll = 0;
+            platform.main_window.mouse_scroll = 0;
         }
 
-        io.key_ctrl  = win32.is_key_down(win32.Key_Code.Lcontrol) || win32.is_key_down(win32.Key_Code.Rcontrol);
-        io.key_shift = win32.is_key_down(win32.Key_Code.Lshift)   || win32.is_key_down(win32.Key_Code.Rshift);
-        io.key_alt   = win32.is_key_down(win32.Key_Code.Lmenu)    || win32.is_key_down(win32.Key_Code.Rmenu);
-        io.key_super = win32.is_key_down(win32.Key_Code.Lwin)     || win32.is_key_down(win32.Key_Code.Rwin);
+        io.key_ctrl  = platform._get_global_input(.Control);
+        io.key_shift = platform._get_global_input(.Shift);
+        io.key_alt   = platform._get_global_input(.Alt);
+        io.key_super = platform._get_global_input(.Left_Windows) || platform._get_global_input(.Right_Windows);
 
-        for i in 0..511 {
-            io.keys_down[i] = platform.get_input_imgui(cast(platform.Input)i);
+        // todo(josh): do we care about this?
+        for input, idx in platform.Input {
+            io.keys_down[idx] = platform.inputs_held[input];
         }
-
     } else {
         io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
 

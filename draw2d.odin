@@ -13,7 +13,6 @@ import        "types"
 import        "logging"
 
 import        "external/stb"
-import        "external/glfw"
 import        "external/imgui"
 
 //
@@ -144,8 +143,8 @@ im_text :: proc(
 				size_pixels.y = abs(quad.y1 - quad.y0);
 				size_pixels *= size;
 
-				ww := cast(f32)platform.current_window_width;
-				hh := cast(f32)platform.current_window_height;
+				ww := cast(f32)platform.main_window.width;
+				hh := cast(f32)platform.main_window.height;
 				// min = position + (Vec2{quad.x0, -quad.y1} * size);
 				// max = position + (Vec2{quad.x1, -quad.y0} * size);
 				if rendermode == .Unit {
@@ -252,7 +251,7 @@ im_scissor :: proc(x1, y1, ww, hh: int) {
 im_scissor_end :: proc() {
 	assert(do_scissor);
 	do_scissor = false;
-	current_scissor_rect = {0, 0, cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5)};
+	current_scissor_rect = {0, 0, cast(int)(platform.main_window.width+0.5), cast(int)(platform.main_window.height+0.5)};
 }
 
 
@@ -318,7 +317,7 @@ im_flush :: proc(camera: ^Camera) {
 				gpu.scissor(cmd.scissor_rect);
 			}
 			else {
-				gpu.unscissor(platform.current_window_width, platform.current_window_height);
+				gpu.unscissor(platform.main_window.width, platform.main_window.height);
 			}
 		}
 

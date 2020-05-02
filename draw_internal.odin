@@ -12,7 +12,6 @@ import "profiler"
 import "logging"
 
 import "external/stb"
-import "external/glfw"
 import "external/imgui"
 
 //
@@ -39,10 +38,6 @@ visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
 	profiler.TIMED_SECTION();
-
-	gpu.init(proc(p: rawptr, name: cstring) {
-			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
-		});
 
 	init_camera(&_screen_camera, false, 10, screen_width, screen_height);
 	_screen_camera.clear_color = {1, 0, 1, 1};
@@ -149,7 +144,7 @@ deinit_draw :: proc() {
 	// gpu.delete_shader(shader_framebuffer_gamma_corrected);
 
 	delete_model(debug_line_model);
-	gpu.deinit();
+	// gpu.deinit();
 
 	delete(debug_lines);
 	delete(debug_cubes);

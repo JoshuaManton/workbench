@@ -566,7 +566,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 			if visualize_bloom_texture {
 				gpu.use_program(get_shader("default"));
-				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
+				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.main_window.size, {512, 256} / platform.main_window.size);
 			}
 		}
 	}
@@ -582,7 +582,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader("depth"));
 				for shadow_map, map_idx in shadow_maps {
-					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
+					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.main_window.size, {256 * (cast(f32)map_idx+1), 256} / platform.main_window.size);
 				}
 			}
 		}
@@ -626,10 +626,10 @@ flush_lights :: proc(camera: ^Camera, shader: gpu.Shader_Program) {
 do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
 	speed := normal_speed;
 
-	if platform.get_input(.Left_Shift) {
+	if platform.get_input(.Shift) {
 		speed = fast_speed;
 	}
-	else if platform.get_input(.Left_Alt) {
+	else if platform.get_input(.Alt) {
 		speed = slow_speed;
 	}
 
@@ -651,11 +651,11 @@ do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_spe
 	rotate_vector: Vec3;
 	if platform.get_input(.Mouse_Right) {
 		MOUSE_ROTATE_SENSITIVITY :: 0.1;
-		delta := platform.mouse_screen_position_delta;
+		delta := platform.main_window.mouse_position_pixel_delta;
 		delta *= MOUSE_ROTATE_SENSITIVITY;
-		rotate_vector = Vec3{delta.y, -delta.x, 0};
+		rotate_vector = Vec3{-delta.y, -delta.x, 0};
 
-		camera.size -= platform.mouse_scroll * camera.size * 0.05;
+		camera.size -= platform.main_window.mouse_scroll * camera.size * 0.05;
 	}
 	else {
 		KEY_ROTATE_SENSITIVITY :: 1;
@@ -931,7 +931,7 @@ PUSH_FRAMEBUFFER :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: boo
 
 push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: bool) -> Framebuffer {
 	if auto_resize_framebuffer {
-	    if framebuffer.width != cast(int)platform.current_window_width || framebuffer.height != cast(int)platform.current_window_height {
+	    if framebuffer.width != cast(int)platform.main_window.width || framebuffer.height != cast(int)platform.main_window.height {
 	        logln("Rebuilding framebuffer...");
 
 		    if framebuffer.fbo != 0 {
@@ -940,11 +940,11 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 				data_element_format := framebuffer.data_element_format;
 				num_color_buffers := len(framebuffer.attachments);
 		        delete_framebuffer(framebuffer^);
-		        framebuffer^ = create_framebuffer(cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
+		        framebuffer^ = create_framebuffer(cast(int)(platform.main_window.width+0.5), cast(int)(platform.main_window.height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
 		    }
 		    else {
-	    	    framebuffer.width  = cast(int)(platform.current_window_width+0.5);
-		        framebuffer.height = cast(int)(platform.current_window_height+0.5);
+	    	    framebuffer.width  = cast(int)(platform.main_window.width+0.5);
+		        framebuffer.height = cast(int)(platform.main_window.height+0.5);
 		    }
 	    }
 	}
@@ -1179,7 +1179,7 @@ draw_model :: proc(model: Model,
 	gpu.uniform_vec3(program, "position", position);
 	gpu.uniform_vec3(program, "scale", scale);
 
-	gpu.uniform_float(program, "time", time);
+	gpu.uniform_float(program, "time", time_since_startup);
 
 	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
 	gpu.log_errors(#procedure);
@@ -1383,7 +1383,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 		gpu.uniform_vec3(bound_shader, "scale", scale);
 		gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
 
-		gpu.uniform_float(bound_shader, "time", time);
+		gpu.uniform_float(bound_shader, "time", time_since_startup);
 	}
 
 	PUSH_GPU_ENABLED(.Depth_Test, depth_test);

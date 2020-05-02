@@ -1,6 +1,5 @@
 package platform
 
-import "../external/glfw"
 import "../external/imgui"
 
 import "../basic"
@@ -13,132 +12,321 @@ get_input      :: proc(input: Input) -> bool
 get_input_down :: proc(input: Input) -> bool
 get_input_up   :: proc(input: Input) -> bool
 
-get_button      :: proc(controller_index: int, button: Button) -> bool
-get_button_down :: proc(controller_index: int, button: Button) -> bool
-get_button_up   :: proc(controller_index: int, button: Button) -> bool
-
-get_axis :: proc(controller_index: int, axis: Axis) -> f32
-
 */
 
-get_input :: inline proc(input: Input, consume := false) -> bool {
-	for held, idx in _held {
-		if held == input {
-			if consume do unordered_remove(&_held, idx);
-			return true;
-		}
-	}
-	return false;
+inputs_held: [Input]bool;
+inputs_down: [Input]bool;
+inputs_up:   [Input]bool;
+
+get_input :: proc(input: Input, consume := false) -> bool {
+    // man this is gross. it's so that if you have an imgui text field highlighted inputs don't get sent to the game
+    io := imgui.get_io();
+    is_mouse := is_mouse_input(input);
+    if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+        return false;
+    }
+
+    res := inputs_held[input];
+    if consume do inputs_held[input] = false;
+    return res;
 }
 
-get_input_imgui :: inline proc(input: Input) -> bool {
-	for held in _held_imgui {
-		if held == input {
-			return true;
-		}
-	}
-	return false;
+get_input_down :: proc(input: Input, consume := false) -> bool {
+    // man this is gross. it's so that if you have an imgui text field highlighted inputs don't get sent to the game
+    io := imgui.get_io();
+    is_mouse := is_mouse_input(input);
+    if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+        return false;
+    }
+
+    res := inputs_down[input];
+    if consume do inputs_down[input] = false;
+    return res;
 }
 
-get_input_down :: inline proc(input: Input, consume := false) -> bool {
-	for down, idx in _down {
-		if down == input {
-			if consume {
-				unordered_remove(&_down, idx);
-				for held, idx2 in _held {
-					if held == input {
-						unordered_remove(&_held, idx2);
-						break;
-					}
-				}
-				for held, idx2 in _held_mid_frame {
-					if held == input {
-						unordered_remove(&_held_mid_frame, idx2);
-						break;
-					}
-				}
+get_input_up :: proc(input: Input, consume := false) -> bool {
+    // man this is gross. it's so that if you have an imgui text field highlighted inputs don't get sent to the game
+    io := imgui.get_io();
+    is_mouse := is_mouse_input(input);
+    if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+        return false;
+    }
+
+    res := inputs_up[input];
+    if consume do inputs_up[input] = false;
+    return res;
+}
+
+_get_global_input :: proc(input: Input, consume := false) -> bool {
+    res := inputs_held[input];
+    if consume do inputs_held[input] = false;
+    return res;
+}
+
+_get_global_input_down :: proc(input: Input, consume := false) -> bool {
+    res := inputs_down[input];
+    if consume do inputs_down[input] = false;
+    return res;
+}
+
+_get_global_input_up :: proc(input: Input, consume := false) -> bool {
+    res := inputs_up[input];
+    if consume do inputs_up[input] = false;
+    return res;
+}
+
+is_mouse_input :: proc(input: Input) -> bool {
+    #partial
+    switch input {
+        case .Mouse_Left, .Mouse_Right, .Mouse_Middle: return true;
+    }
+    return false;
+}
+
+Input :: enum {
+    None,
+
+    Mouse_Left,
+    Mouse_Right,
+    Mouse_Middle,
+
+    Backspace,
+    Tab,
+
+    Clear, // ?
+    Enter,
+
+    Shift,
+    Control,
+    Alt,
+    Pause,
+    Caps_Lock,
+
+    Escape,
+    Space,
+    Page_Up,
+    Page_Down,
+    End,
+    Home,
+
+    Up,
+    Down,
+    Left,
+    Right,
+
+    Select, // ?
+    Print, // ? it's not Print_Screen, so what is it?
+    Execute, // ?
+    Print_Screen,
+    Insert,
+    Delete,
+    Help, // ?
+
+    NR_1, NR_2, NR_3, NR_4, NR_5, NR_6, NR_7, NR_8, NR_9, NR_0,
+    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+
+    Left_Windows,
+    Right_Windows,
+    Apps, // ?
+
+    Sleep,
+
+    NP_0, NP_1, NP_2, NP_3, NP_4, NP_5, NP_6, NP_7, NP_8, NP_9,
+
+    Multiply,
+    Add,
+    Separator, // Comma?
+    Subtract,
+    Decimal, // Period?
+    Divide, // Forward_Slash?
+
+    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+
+    Num_Lock,
+    Scroll_Lock,
+
+    Semicolon,
+    Plus,
+    Comma,
+    Minus,
+    Period,
+    Forward_Slash,
+    Tilde,
+    Left_Square,
+    Back_Slash,
+    Right_Square,
+    Apostrophe,
+
+// todo(josh): check these out
+// #define VK_OEM_1          0xBA   // ';:' for US
+// #define VK_OEM_PLUS       0xBB   // '+' any country
+// #define VK_OEM_COMMA      0xBC   // ',' any country
+// #define VK_OEM_MINUS      0xBD   // '-' any country
+// #define VK_OEM_PERIOD     0xBE   // '.' any country
+// #define VK_OEM_2          0xBF   // '/?' for US
+// #define VK_OEM_3          0xC0   // '`~' for US
+// #define VK_OEM_4          0xDB  //  '[{' for US
+// #define VK_OEM_5          0xDC  //  '\|' for US
+// #define VK_OEM_6          0xDD  //  ']}' for US
+// #define VK_OEM_7          0xDE  //  ''"' for US
+// #define VK_OEM_8          0xDF
+
+// todo(josh): gamepad
+// #define VK_GAMEPAD_A                         0xC3
+// #define VK_GAMEPAD_B                         0xC4
+// #define VK_GAMEPAD_X                         0xC5
+// #define VK_GAMEPAD_Y                         0xC6
+// #define VK_GAMEPAD_RIGHT_SHOULDER            0xC7
+// #define VK_GAMEPAD_LEFT_SHOULDER             0xC8
+// #define VK_GAMEPAD_LEFT_TRIGGER              0xC9
+// #define VK_GAMEPAD_RIGHT_TRIGGER             0xCA
+// #define VK_GAMEPAD_DPAD_UP                   0xCB
+// #define VK_GAMEPAD_DPAD_DOWN                 0xCC
+// #define VK_GAMEPAD_DPAD_LEFT                 0xCD
+// #define VK_GAMEPAD_DPAD_RIGHT                0xCE
+// #define VK_GAMEPAD_MENU                      0xCF
+// #define VK_GAMEPAD_VIEW                      0xD0
+// #define VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON    0xD1
+// #define VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON   0xD2
+// #define VK_GAMEPAD_LEFT_THUMBSTICK_UP        0xD3
+// #define VK_GAMEPAD_LEFT_THUMBSTICK_DOWN      0xD4
+// #define VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT     0xD5
+// #define VK_GAMEPAD_LEFT_THUMBSTICK_LEFT      0xD6
+// #define VK_GAMEPAD_RIGHT_THUMBSTICK_UP       0xD7
+// #define VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN     0xD8
+// #define VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT    0xD9
+// #define VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT     0xDA
+}
+
+
+
+
+
+// todo(josh): do we need any of this?!?!
+
+/*
+
+//
+// Internal
+//
+
+_held := make([dynamic]Input, 0, 5);
+_down := make([dynamic]Input, 0, 5);
+_up   := make([dynamic]Input, 0, 5);
+
+_held_imgui := make([dynamic]Input, 0, 5);
+_down_imgui := make([dynamic]Input, 0, 5);
+_up_imgui   := make([dynamic]Input, 0, 5);
+
+_held_mid_frame := make([dynamic]Input, 0, 5);
+_down_mid_frame := make([dynamic]Input, 0, 5);
+_up_mid_frame   := make([dynamic]Input, 0, 5);
+
+@private
+update_input :: proc() {
+	// Clear old inputs
+	{
+		clear(&_held);
+		clear(&_down);
+		clear(&_up);
+
+		clear(&_held_imgui);
+		clear(&_down_imgui);
+		clear(&_up_imgui);
+	}
+
+	// Flush new inputs into the buffers for this frame
+	{
+		io := imgui.get_io();
+
+		for held in _held_mid_frame {
+			is_mouse := is_mouse_input(held);
+
+			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+				append(&_held_imgui, held);
 			}
-			return true;
+			else {
+				append(&_held, held);
+			}
+		}
+		for down in _down_mid_frame {
+			is_mouse := is_mouse_input(down);
+
+			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+				append(&_down_imgui, down);
+			}
+			else {
+				append(&_down, down);
+			}
+		}
+		for up in _up_mid_frame {
+			is_mouse := is_mouse_input(up);
+
+			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
+				append(&_up_imgui, up);
+			}
+			else {
+				append(&_up, up);
+			}
+
 		}
 	}
-	return false;
+
+	// Clear intermediary buffers. We don't clear `_held_mid_frame` because that is handled in the key callback when we get a `release` event
+	clear(&_down_mid_frame);
+	clear(&_up_mid_frame);
 }
 
-get_input_up :: inline proc(input: Input, consume := false) -> bool {
-	for up, idx in _up {
-		if up == input {
-			if consume do unordered_remove(&_up, idx);
-			return true;
+wb_button_press :: proc(button: $Input_Type) {
+	append(&_held_mid_frame, cast(Input)button);
+	append(&_down_mid_frame, cast(Input)button);
+}
+wb_button_release :: proc(button: $Input_Type) {
+	// we sometimes get a release with no press/hold
+	for held, idx in _held_mid_frame {
+		if held == cast(Input)button {
+			unordered_remove(&_held_mid_frame, idx);
+			break;
 		}
 	}
-	return false;
+	append(&_up_mid_frame, cast(Input)button);
+}
+*/
+
+
+/*
+// this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
+// so we need to save presses in a separate buffer and copy them over to have consistent behaviour
+_glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
+	#partial
+	switch action {
+		case glfw.Action.Press: {
+			wb_button_press(cast(Input)key);
+		}
+		case glfw.Action.Release: {
+			wb_button_release(cast(Input)key);
+		}
+	}
 }
 
-get_button :: inline proc(controller_index: int, button: Button) -> bool {
-	controller := controllers[controller_index];
-	if !controller.connected do return false;
-
-	return controller.held[cast(int)button] == 1;
+_glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.Mouse, action: glfw.Action, mods: i32) {
+	#partial
+	switch action {
+		case glfw.Action.Press: {
+			wb_button_press(button);
+		}
+		case glfw.Action.Release: {
+			wb_button_release(button);
+		}
+	}
 }
+*/
 
-get_button_down :: inline proc(controller_index: int, button: Button) -> bool {
-	controller := controllers[controller_index];
-	if !controller.connected do return false;
 
-	return controller.down[cast(int)button] == 1;
-}
 
-get_button_up :: inline proc(controller_index: int, button: Button) -> bool {
-	controller := controllers[controller_index];
-	if !controller.connected do return false;
-
-	return controller.up[cast(int)button] == 1;
-}
-
-get_axis :: inline proc(controller_index: int, axis: Axis) -> f32 {
-	controller := controllers[controller_index];
-	if !controller.connected do return 0;
-
-	return controller.axes[cast(int)axis];
-}
-
-Button :: enum {
-	A = 0,
-	B,
-	X,
-	Y,
-	L1,
-	R1,
-	Select,
-	Start,
-	L3,
-	R3,
-	Dpad_Up,
-	Dpad_Right,
-	Dpad_Down,
-	Dpad_Left,
-}
-
-Axis :: enum {
-	L3X = 0,
-	L3Y,
-	R3X,
-	R3Y,
-	L2,
-	R2,
-}
-
-is_mouse_input :: inline proc(input: Input) -> bool {
-	return input >= Input.Mouse_Button_1 && input <= Input.Mouse_Button_8;
-}
-
+/*
 // copypasted from glfw, Key and Mouse combined
 Input :: enum i32 {
-
-    /* The unknown key */
-    Unknown = -1,
-
-    /* Mouse buttons */
     Mouse_Button_1 = 0,
     Mouse_Button_2 = 1,
     Mouse_Button_3 = 2,
@@ -148,7 +336,6 @@ Input :: enum i32 {
     Mouse_Button_7 = 6,
     Mouse_Button_8 = 7,
 
-    /* Mousebutton aliases */
     Mouse_Last   = Mouse_Button_8,
     Mouse_Left   = Mouse_Button_1,
     Mouse_Right  = Mouse_Button_2,
@@ -296,224 +483,4 @@ Input :: enum i32 {
 
     Last = Key_Menu,
 }
-
-//
-// Internal
-//
-
-Controller_ID :: int;
-
-Axis_State :: struct {
-	axis: Axis,
-	value: f32,
-}
-
-Controller_State :: struct {
-	connected: bool,
-
-	held: []u8,
-	down: []u8,
-	up:   []u8,
-	axes: []f32,
-}
-
-_held := make([dynamic]Input, 0, 5);
-_down := make([dynamic]Input, 0, 5);
-_up   := make([dynamic]Input, 0, 5);
-
-_held_imgui := make([dynamic]Input, 0, 5);
-_down_imgui := make([dynamic]Input, 0, 5);
-_up_imgui   := make([dynamic]Input, 0, 5);
-
-_held_mid_frame := make([dynamic]Input, 0, 5);
-_down_mid_frame := make([dynamic]Input, 0, 5);
-_up_mid_frame   := make([dynamic]Input, 0, 5);
-
-controllers: [glfw.JOYSTICK_LAST+1]Controller_State;
-
-@private
-update_input :: proc() {
-	glfw.PollEvents();
-
-	// Clear old inputs
-	{
-		clear(&_held);
-		clear(&_down);
-		clear(&_up);
-
-		clear(&_held_imgui);
-		clear(&_down_imgui);
-		clear(&_up_imgui);
-	}
-
-	// Add joystick inputs
-	{
-		// Buttons
-		{
-			for _, _controller_idx in controllers {
-				controller_idx := cast(i32)_controller_idx;
-				controller := &controllers[controller_idx];
-
-				was_connected := controller.connected;
-				controller.connected = glfw.JoystickPresent(controller_idx);
-				if !controller.connected {
-					continue;
-				}
-
-				buttons        := glfw.GetJoystickButtons(controller_idx);
-				controller.axes = glfw.GetJoystickAxes(controller_idx);
-
-				if !was_connected {
-					// TODO: could speed this up such that it doesn't allocate if you unplug then plug back in, as long as the number of buttons stays the same
-					controller.held = make([]u8, len(buttons));
-					controller.down = make([]u8, len(buttons));
-					controller.up   = make([]u8, len(buttons));
-				}
-
-				for _, button_idx in buttons {
-					value := buttons[button_idx];
-					button := cast(Button)button_idx;
-
-					is_held_now := value == 1;
-					was_held_last_frame := get_button(_controller_idx, button);
-
-					// Important that this is after the `get_button()` call above because us adding
-					// it to `held` would affect the call to `get_button()`
-					controller.held[button_idx] = value;
-					controller.down[button_idx] = 0;
-					controller.up[button_idx]   = 0;
-
-					if is_held_now && !was_held_last_frame {
-						controller.down[button_idx] = 1;
-					}
-					else if !is_held_now && was_held_last_frame {
-						controller.up[button_idx] = 1;
-					}
-				}
-			}
-		}
-	}
-
-	// Flush new inputs into the buffers for this frame
-	{
-		// todo: @InputCleanup: Just request the data every frame, what we do now
-		// with the callbacks and stuff is gross
-		// if glfw.GetMouseButton(main_window, glfw.Mouse.Left) == glfw.Action.Press {
-		// 	append(&_held, Key_Press{Mouse.Left});
-		// }
-		// if glfw.GetMouseButton(main_window, glfw.Mouse.Right) == glfw.Action.Press {
-		// 	append(&_held, Key_Press{Mouse.Right});
-		// }
-		// if glfw.GetMouseButton(main_window, glfw.Mouse.Middle) == glfw.Action.Press {
-		// 	append(&_held, Key_Press{Mouse.Middle});
-		// }
-
-		io := imgui.get_io();
-
-		for held in _held_mid_frame {
-			is_mouse := is_mouse_input(held);
-
-			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
-				append(&_held_imgui, held);
-			}
-			else {
-				append(&_held, held);
-			}
-		}
-		for down in _down_mid_frame {
-			is_mouse := is_mouse_input(down);
-
-			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
-				append(&_down_imgui, down);
-			}
-			else {
-				append(&_down, down);
-			}
-		}
-		for up in _up_mid_frame {
-			is_mouse := is_mouse_input(up);
-
-			if (is_mouse && io.want_capture_mouse) || (!is_mouse && io.want_capture_keyboard) {
-				append(&_up_imgui, up);
-			}
-			else {
-				append(&_up, up);
-			}
-
-		}
-	}
-
-	// Clear intermediary buffers. We don't clear `_held_mid_frame` because that is handled in the key callback when we get a `release` event
-	clear(&_down_mid_frame);
-	clear(&_up_mid_frame);
-}
-
-// :GlfwJoystickPollEventsCrash in wb.odin
-// _glfw_joystick_callback :: proc"c"(id: i32, event: i32)  {
-// 	if event == glfw.CONNECTED {
-// 		// Make sure that controller doesn't already exist
-// 		for _, controller_idx in controllers {
-// 			controller := &controllers[controller_idx];
-// 			if controller.id == id {
-// 				assert(false);
-// 			}
-// 		}
-
-// 		controller: Connected_Controller;
-// 		controller.id = id;
-// 		controller.axes = glfw.GetJoystickAxes(id);
-// 		append(&controllers, controller);
-// 	}
-
-// 	if event == glfw.DISCONNECTED {
-// 		for _, controller_idx in controllers {
-// 			controller := &controllers[controller_idx];
-// 			if controller.id == id {
-// 				remove_at(&controllers, controller_idx);
-// 				return;
-// 			}
-// 		}
-// 	}
-// }
-
-wb_button_press :: proc(button: $Input_Type) {
-	append(&_held_mid_frame, cast(Input)button);
-	append(&_down_mid_frame, cast(Input)button);
-}
-wb_button_release :: proc(button: $Input_Type) {
-	// we sometimes get a release with no press/hold
-	for held, idx in _held_mid_frame {
-		if held == cast(Input)button {
-			unordered_remove(&_held_mid_frame, idx);
-			break;
-		}
-	}
-	append(&_up_mid_frame, cast(Input)button);
-}
-
-// this callback CAN be called during a frame, outside of the glfw.PollEvents() call, on some platforms
-// so we need to save presses in a separate buffer and copy them over to have consistent behaviour
-_glfw_key_callback :: proc"c"(window: glfw.Window_Handle, key: glfw.Key, scancode: i32, action: glfw.Action, mods: i32) {
-	#partial
-	switch action {
-		case glfw.Action.Press: {
-			wb_button_press(cast(Input)key);
-		}
-		case glfw.Action.Release: {
-			wb_button_release(cast(Input)key);
-		}
-	}
-}
-
-_glfw_mouse_button_callback :: proc"c"(window: glfw.Window_Handle, button: glfw.Mouse, action: glfw.Action, mods: i32) {
-	#partial
-	switch action {
-		case glfw.Action.Press: {
-			wb_button_press(button);
-		}
-		case glfw.Action.Release: {
-			wb_button_release(button);
-		}
-	}
-}
-
+*/
