@@ -150,7 +150,7 @@ make_simple_window :: proc(window_width, window_height: int,
 	    		gizmo_new_frame();
 	    		update_draw();
 				update_tween(fixed_delta_time);
-				update_ui(fixed_delta_time);
+				update_ui();
 				update_debug_menu(fixed_delta_time);
 
 				update_workspace(workspace, fixed_delta_time); // calls client updates

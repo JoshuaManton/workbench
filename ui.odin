@@ -68,8 +68,8 @@ ui_push_rect :: proc(x1, y1, x2, y2: f32, _top := 0, _right := 0, _bottom := 0, 
 	cur_w := current_rect.x2 - current_rect.x1;
 	cur_h := current_rect.y2 - current_rect.y1;
 
-	cww := cast(f32)platform.current_window_width;
-	cwh := cast(f32)platform.current_window_height;
+	cww := cast(f32)platform.main_window.width;
+	cwh := cast(f32)platform.main_window.height;
 
 	new_x1 := current_rect.x1 + (cur_w * x1) + ((cast(f32)left   / cww));
 	new_y1 := current_rect.y1 + (cur_h * y1) + ((cast(f32)bottom / cwh));
@@ -211,14 +211,14 @@ ui_text_data :: proc(str: string, font: Font, visuals: Text_Visuals, loc := #cal
 	// defer if push_new_rect do ui_pop_rect(loc);
 
 	position := Vec2{ui_current_rect_unit.x1, ui_current_rect_unit.y1};
-	current_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.current_window_height / font.pixel_height * visuals.size;
+	current_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * platform.main_window.height / font.pixel_height * visuals.size;
 
 	text_height := current_height;
 
 	if visuals.fit_to_rect {
 		text_width := im_text(.Unit, font, str, position, visuals.color, text_height, current_render_layer, false);
 		current_width  := f32(ui_current_rect_pixels.x2 - ui_current_rect_pixels.x1);
-		text_height = min(current_height, (current_width / text_width / platform.current_window_width) * current_height);
+		text_height = min(current_height, (current_width / text_width / platform.main_window.width) * current_height);
 	}
 
 	if visuals.center {
@@ -226,7 +226,7 @@ ui_text_data :: proc(str: string, font: Font, visuals: Text_Visuals, loc := #cal
 		rect_width  := (ui_current_rect_unit.x2 - ui_current_rect_unit.x1);
 		rect_height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
-		// text_size_to_rect := (font.pixel_height * size / (rect_height * current_window_height));
+		// text_size_to_rect := (font.pixel_height * size / (rect_height * main_window.height));
 		// logln(text_size_to_rect);
 
 		position = Vec2{ui_current_rect_unit.x1 + (rect_width  / 2) - ww/2,
@@ -235,7 +235,7 @@ ui_text_data :: proc(str: string, font: Font, visuals: Text_Visuals, loc := #cal
 	}
 
 	if visuals.shadow != 0 {
-		im_text(.Unit, font, str, position+Vec2{cast(f32)visuals.shadow/platform.current_window_width, cast(f32)-visuals.shadow/platform.current_window_width}, visuals.shadow_color, text_height); // todo(josh): @TextRenderOrder: proper render order on text
+		im_text(.Unit, font, str, position+Vec2{cast(f32)visuals.shadow/platform.main_window.width, cast(f32)-visuals.shadow/platform.main_window.width}, visuals.shadow_color, text_height); // todo(josh): @TextRenderOrder: proper render order on text
 	}
 
 	im_text(.Unit, font, str, position, visuals.color, text_height); // todo(josh): @TextRenderOrder: proper render order on text
@@ -245,7 +245,7 @@ ui_text_args :: proc(font: Font, str: string, size: f32, color: Colorf, x1 := ca
 	defer ui_pop_rect(loc);
 
 	position := Vec2{cast(f32)ui_current_rect_unit.x1, cast(f32)ui_current_rect_unit.y1};
-	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)platform.current_window_height / font.pixel_height;
+	height := (ui_current_rect_unit.y2 - ui_current_rect_unit.y1) * cast(f32)platform.main_window.height / font.pixel_height;
 
 	im_text(.Unit, font, str, position, color, height * size); // todo(josh): @TextRenderOrder: proper render order on text
 }
@@ -324,7 +324,7 @@ ui_aspect_ratio_fitter :: proc(ww, hh: f32, fit_type: Aspect_Ratio_Fit_Kind = .C
 	current_rect_height_unit : f32 = (ui_current_rect_unit.y2 - ui_current_rect_unit.y1);
 
 	assert(current_rect_height_unit != 0);
-	current_rect_aspect : f32 = (current_rect_height_unit * platform.current_window_height) / (current_rect_width_unit * platform.current_window_width);
+	current_rect_aspect : f32 = (current_rect_height_unit * platform.main_window.height) / (current_rect_width_unit * platform.main_window.width);
 
 	aspect : f32 = hh / ww;
 	width:   f32;
@@ -352,8 +352,8 @@ ui_aspect_ratio_fitter :: proc(ww, hh: f32, fit_type: Aspect_Ratio_Fit_Kind = .C
 		}
 	}
 
-	h_width  := cast(int)round(platform.current_window_height * width  / 2);
-	h_height := cast(int)round(platform.current_window_height * height / 2);
+	h_width  := cast(int)round(platform.main_window.height * width  / 2);
+	h_height := cast(int)round(platform.main_window.height * height / 2);
 
 	ui_push_rect(0.5, 0.5, 0.5, 0.5, -h_height, -h_width, -h_height, -h_width, IMGUI_Rect_Kind.Fit_To_Aspect, loc);
 }
@@ -397,12 +397,12 @@ ui_start_scroll_view :: proc(scroll_speed: f32, kind := Scroll_View_Kind.Vertica
 		}
 
 		// if get_mouse(Mouse.Left) {
-		// 	if abs(mouse_screen_position.y - cursor_pixel_position_on_clicked.y) > 0.005 {
+		// 	if abs(mouse_position_pixel.y - cursor_pixel_position_on_clicked.y) > 0.005 {
 		// 		hot = id;
 		// 	}
 		// }
 
-		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.mouse_screen_position);
+		offset := sv.scroll_at_pressed_position - (cursor_pixel_position_on_clicked - platform.main_window.mouse_position_pixel);
 		switch kind {
 			case .Vertical:   sv.scroll_offset_target.y = offset.y;
 			case .Horizontal: sv.scroll_offset_target.x = offset.x;
@@ -419,7 +419,7 @@ ui_start_scroll_view :: proc(scroll_speed: f32, kind := Scroll_View_Kind.Vertica
 	}
 
 	if warm == rect.imgui_id {
-		sv.scroll_offset_target.y -= platform.mouse_scroll * 50;
+		sv.scroll_offset_target.y -= platform.main_window.mouse_scroll * 50;
 	}
 
 	sv.scroll_offset = lerp(sv.scroll_offset, sv.scroll_offset_target, scroll_speed);
@@ -489,10 +489,10 @@ ui_grid_layout_end :: proc(grid: ^Grid_Layout) {
 ui_current_contains_mouse :: proc() -> bool {
 	if len(ui_rect_stack) == 0 do return false;
 
-	return platform.mouse_screen_position.x >= f32(ui_current_rect_pixels.x1) &&
-		   platform.mouse_screen_position.y >= f32(ui_current_rect_pixels.y1) &&
-		   platform.mouse_screen_position.x <= f32(ui_current_rect_pixels.x2) &&
-		   platform.mouse_screen_position.y <= f32(ui_current_rect_pixels.y2);
+	return platform.main_window.mouse_position_pixel.x >= f32(ui_current_rect_pixels.x1) &&
+		   platform.main_window.mouse_position_pixel.y >= f32(ui_current_rect_pixels.y1) &&
+		   platform.main_window.mouse_position_pixel.x <= f32(ui_current_rect_pixels.x2) &&
+		   platform.main_window.mouse_position_pixel.y <= f32(ui_current_rect_pixels.y2);
 }
 
 // Directional Layout Groups
@@ -606,10 +606,10 @@ all_ui_debug_file_lines: [dynamic]UI_Debug_File_Line;
 
 update_ui :: proc() {
 	mouse_in_rect :: inline proc(unit_rect: Rect(f32)) -> bool {
-		cursor_in_rect := platform.mouse_unit_position.y < unit_rect.y2 &&
-		                  platform.mouse_unit_position.y > unit_rect.y1 &&
-		                  platform.mouse_unit_position.x < unit_rect.x2 &&
-		                  platform.mouse_unit_position.x > unit_rect.x1;
+		cursor_in_rect := platform.main_window.mouse_position_unit.y < unit_rect.y2 &&
+		                  platform.main_window.mouse_position_unit.y > unit_rect.y1 &&
+		                  platform.main_window.mouse_position_unit.x < unit_rect.x2 &&
+		                  platform.main_window.mouse_position_unit.x > unit_rect.x1;
 		return cursor_in_rect;
 	}
 
@@ -649,7 +649,7 @@ update_ui :: proc() {
 			if warm == rect.imgui_id {
 				if platform.get_input_down(.Mouse_Left) {
 					hot = rect.imgui_id;
-					cursor_pixel_position_on_clicked = platform.mouse_screen_position;
+					cursor_pixel_position_on_clicked = platform.main_window.mouse_position_pixel;
 				}
 			}
 		}
