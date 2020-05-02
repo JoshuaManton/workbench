@@ -47,16 +47,19 @@ create_cube_model :: proc(scale : f32 = 1) -> Model {
     return model;
 }
 
+// note(josh): this quad is generated with the assumption that +Y is DOWN
+// note(josh): this quad is generated with the assumption that +Y is DOWN
+// note(josh): this quad is generated with the assumption that +Y is DOWN
 create_quad_model :: proc() -> Model {
     verts := []Vertex3D {
-        {{-0.5, -0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-        {{-0.5,  0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-        {{ 0.5,  0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
-        {{ 0.5, -0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{-0.5, -0.5, 0}, {0, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{-0.5,  0.5, 0}, {0, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{ 0.5,  0.5, 0}, {1, 0, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
+        {{ 0.5, -0.5, 0}, {1, 1, 0}, Colorf{1, 1, 1, 1}, Vec3{0, 0, 1}, {}, {}},
     };
 
     indices := []u32 {
-    	0, 2, 1, 0, 3, 2
+    	0, 2, 3, 0, 1, 2
     };
 
     model: Model;

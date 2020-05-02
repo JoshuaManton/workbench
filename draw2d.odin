@@ -148,8 +148,8 @@ im_text :: proc(
 				// min = position + (Vec2{quad.x0, -quad.y1} * size);
 				// max = position + (Vec2{quad.x1, -quad.y0} * size);
 				if rendermode == .Unit {
-					min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
-					max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
+					min = position + (Vec2{quad.x0, quad.y1} * size / Vec2{ww, hh});
+					max = position + (Vec2{quad.x1, quad.y0} * size / Vec2{ww, hh});
 				}
 				else {
 					assert(rendermode == .Pixel);

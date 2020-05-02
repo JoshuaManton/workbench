@@ -305,8 +305,8 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
             return construct_projection_matrix(camera);
         }
         case .Unit: {
-            unit := mat4_scale(identity(Mat4), Vec3{2, 2, 0});
-            unit = translate(unit, Vec3{-1, -1, 0});
+            unit := mat4_scale(identity(Mat4), Vec3{2, -2, 0});
+            unit = translate(unit, Vec3{-1, 1, 0});
             return unit;
         }
         case .Pixel: {
@@ -1507,7 +1507,7 @@ debug_geo_flush :: proc() {
 //
 
 get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
-	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
+    cursor_viewport_position := to_vec4(unit_to_viewport(to_vec3(cursor_unit_position)));
 	cursor_viewport_position.w = 1;
 
 	cursor_viewport_position.z = 0.1; // just some way down the frustum, will behave differently for opengl and directx
@@ -1556,16 +1556,18 @@ world_to_aspect :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
 
 unit_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	result := a * Vec3{pixel_width, pixel_height, 1};
-    result.y = pixel_height - result.y; // y is down for pixels
 	return result;
 }
 unit_to_viewport :: proc(a: Vec3) -> Vec3 {
-	result := (a * 2) - Vec3{1, 1, 0};
+	result := (a * 2);
+    result.y = 2 - result.y;
+    result -= Vec3{1, 1, 0};
 	return result;
 }
 unit_to_aspect :: proc(a: Vec3, aspect: f32) -> Vec3 {
 	result := (a * 2) - Vec3{1, 1, 0};
 	result.x *= aspect;
+    result.y = 1 - result.y;
 	return result;
 }
 
@@ -1581,7 +1583,6 @@ pixel_to_viewport :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 
 pixel_to_unit :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	a := a;
 	a /= Vec3{pixel_width, pixel_height, 1};
-    a.y = 1 - a.y; // y is down for pixels
 	return a;
 }
 
@@ -1608,6 +1609,7 @@ viewport_to_unit :: proc(a: Vec3) -> Vec3 {
 	a := a;
 	a += Vec3{1, 1, 0};
 	a /= 2;
+    a.y = 1 - a.y;
 	a.z = 0;
 	return a;
 }
