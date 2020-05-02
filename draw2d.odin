@@ -124,7 +124,7 @@ im_text :: proc(
 
 		position := position;
 
-		assert(rendermode == .Unit || rendermode == .Pixel || rendermode == .UI);
+		assert(rendermode == .Unit || rendermode == .Pixel);
 
 		start := position;
 		for _, i in str {
@@ -151,14 +151,10 @@ im_text :: proc(
 					min = position + (Vec2{quad.x0, -quad.y1} * size / Vec2{ww, hh});
 					max = position + (Vec2{quad.x1, -quad.y0} * size / Vec2{ww, hh});
 				}
-				else if rendermode == .UI {
-					min = position + (Vec2{quad.x0, quad.y1} * size);
-					max = position + (Vec2{quad.x1, quad.y0} * size);
-				}
 				else {
 					assert(rendermode == .Pixel);
-					min = position + (Vec2{quad.x0, -quad.y1} * size);
-					max = position + (Vec2{quad.x1, -quad.y0} * size);
+					min = position + (Vec2{quad.x0, quad.y1} * size);
+					max = position + (Vec2{quad.x1, quad.y0} * size);
 				}
 
 				// Padding

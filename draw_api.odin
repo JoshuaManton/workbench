@@ -311,12 +311,6 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
         }
         case .Pixel: {
             pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-            pixel = mat4_scale(pixel, 2);
-            pixel = translate(pixel, Vec3{-1, -1, 0});
-            return pixel;
-        }
-        case .UI: {
-            pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
             pixel = mat4_scale(pixel, Vec3{2, -2, 2});
             pixel = translate(pixel, Vec3{-1, -1, 0});
             pixel = translate(pixel, Vec3{0, 2, 0});
@@ -1439,7 +1433,6 @@ Rendermode :: enum {
     World,
     Unit,
     Pixel,
-    UI,
     Aspect,
     Viewport_World,
 }
@@ -1563,32 +1556,37 @@ world_to_aspect :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
 
 unit_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	result := a * Vec3{pixel_width, pixel_height, 1};
+    result.y = pixel_height - result.y; // y is down for pixels
 	return result;
 }
 unit_to_viewport :: proc(a: Vec3) -> Vec3 {
 	result := (a * 2) - Vec3{1, 1, 0};
 	return result;
 }
-unit_to_aspect :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
+unit_to_aspect :: proc(a: Vec3, aspect: f32) -> Vec3 {
 	result := (a * 2) - Vec3{1, 1, 0};
-	result.x *= camera.aspect;
+	result.x *= aspect;
 	return result;
 }
 
 pixel_to_viewport :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	a := a;
-	a /= Vec3{pixel_width/2, pixel_height/2, 1};
+	a /= Vec3{pixel_width, pixel_height, 1};
+    a *= 2;
+    a.y = 2 - a.y; // y is down for pixels
 	a -= Vec3{1, 1, 0};
+
 	return a;
 }
 pixel_to_unit :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	a := a;
 	a /= Vec3{pixel_width, pixel_height, 1};
+    a.y = 1 - a.y; // y is down for pixels
 	return a;
 }
 
-viewport_to_world :: proc(camera: ^Camera, viewport_position: Vec3) -> Vec3 {
-	viewport_position4 := to_vec4(viewport_position);
+viewport_to_world :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
+	viewport_position4 := to_vec4(a);
 
 	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
 
@@ -1602,6 +1600,7 @@ viewport_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 
 	a := a;
 	a += Vec3{1, 1, 0};
 	a *= Vec3{pixel_width/2, pixel_height/2, 0};
+    a.y = main_camera.pixel_height - a.y; // y is down for pixels
 	a.z = 0;
 	return a;
 }
