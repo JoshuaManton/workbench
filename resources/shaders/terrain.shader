@@ -50,45 +50,35 @@ uniform int has_dataFieldTex;
 uniform int has_edgeTableTex;
 uniform int has_triTableTex;
 
+uniform float step;
 uniform float isolevel; 
 uniform vec3 vertDecals[8];
 
-// vec4 cubePos(int i){ 
-//     return gl_in[0].gl_Position + vec4(vertDecals[i], 1); 
-// } 
-
-// float cubeVal(int i){ 
-//     vec3 tpos = vertex_pos[0]+vertDecals[i];
-//     return texelFetch(dataFieldTex, ivec3(int(tpos.x), int(tpos.y), int(tpos.z)), 0).r; 
-// } 
-
-// int triTableValue(int i, int j){ 
-//     return texelFetch(triTableTex, ivec2(j, i), 0).r; 
-// } 
-
-// int edgeTableValue(int i){
-//     return texelFetch(edgeTableTex, ivec2(i, 0), 0).a;
-// }
-
-// vec4 vertexInterp(float isolevel, vec4 v0, float l0, vec4 v1, float l1){
-
-//     if (abs(isolevel-l0) < 0.00001)
-//         return(v0);
-//     if (abs(isolevel-l1) < 0.00001)
-//         return(v1);
-//     if (abs(l0-l1) < 0.00001)
-//         return(v0);
-
-//     return mix(v0, v1, (isolevel-l0)/(l1-l0));
-// }
-
 float cubeVal(int i) {
     vec4 corner = gl_in[0].gl_Position + vec4(vertDecals[i], 0);
-    return texelFetch(dataFieldTex, ivec3(int(corner.x), int(corner.y), int(corner.z)), 0).r;
+    // The data texture is streamed in y > z > x
+    return texelFetch(dataFieldTex, ivec3(int(corner.y), int(corner.z), int(corner.x)), 0).r;
+}
+
+float lerp(float iso, float p1, float p2, float v1, float v2) {
+    if (abs(v1 - v2) > 0.00001) 
+        return p1 + (p2 - p1)/(v2 - v1)*(iso - v1);
+    else return p1;
+}
+
+vec3 cubeNormal(int i) {
+    vec4 corner = gl_in[0].gl_Position + vec4(vertDecals[i], 0);
+
+    float y = texelFetch(dataFieldTex, ivec3(int(corner.y+1), int(corner.z), int(corner.x)), 0).r - texelFetch(dataFieldTex, ivec3(int(corner.y-1), int(corner.z), int(corner.x)), 0).r;
+    float z = texelFetch(dataFieldTex, ivec3(int(corner.y), int(corner.z+1), int(corner.x)), 0).r - texelFetch(dataFieldTex, ivec3(int(corner.y), int(corner.z-1), int(corner.x)), 0).r;
+    float x = texelFetch(dataFieldTex, ivec3(int(corner.y), int(corner.z), int(corner.x+1)), 0).r - texelFetch(dataFieldTex, ivec3(int(corner.y), int(corner.z), int(corner.x-1)), 0).r;
+
+    return -normalize(vec3(x,y,z));
 }
 
 vec4 cubePos(int i){ 
-    return gl_in[0].gl_Position + vec4(vertDecals[i], 1); 
+    vec4 pos = gl_in[0].gl_Position;
+    return vec4(step*pos.x,step*pos.y,step*pos.z,pos.w) + vec4(vertDecals[i]*step, 0); 
 } 
 
 int edgeVal(int i) {
@@ -99,16 +89,14 @@ int triTableValue(int i, int j){
     return texelFetch(triTableTex, ivec2(j, i), 0).r; 
 }
 
-vec4 vertexInterp(float iso, vec4 p1, float v1, vec4 p2, float v2) {
-    if ((p2.x != p1.x && p2.x < p1.x) || 
-        (p2.y != p1.y && p2.y < p1.y) || 
-        (p2.z != p1.z && p2.z < p1.z))
-    {
-        vec4 temp = p1;
-        p2 = p1;
-        p1 = temp;
-    }
+vec3 calcTriangleNormal(vec4 p1, vec4 p2, vec4 p3){
+    vec3 tangent1 = p2.xyz - p1.xyz;
+    vec3 tangent2 = p3.xyz - p1.xyz;
+    vec3 normal = cross(tangent1, tangent2);
+    return -normalize(normal);
+}
 
+vec4 vertexInterp(float iso, vec4 p1, float v1, vec4 p2, float v2) {
     if (abs(v1 - v2) > 0.00001) 
         return p1 + (p2 - p1)/(v2 - v1)*(iso - v1);
     else return p1;
@@ -133,141 +121,85 @@ void main() {
     if (edge_val == 0) return;
 
     vec4 vert_list[12];
-    if ((edge_val & 1) != 0) 
-        vert_list[0] = vertexInterp(isolevel, cubePos(0), cubeVal(0), cubePos(1), cubeVal(1));
-    if ((edge_val & 2) != 0) 
-        vert_list[1] = vertexInterp(isolevel, cubePos(1), cubeVal(1), cubePos(2), cubeVal(2));
-    if ((edge_val & 4) != 0) 
-        vert_list[2] = vertexInterp(isolevel, cubePos(2), cubeVal(2), cubePos(3), cubeVal(3));
-    if ((edge_val & 8) != 0) 
-        vert_list[3] = vertexInterp(isolevel, cubePos(3), cubeVal(3), cubePos(0), cubeVal(0));
-    if ((edge_val & 16) != 0) 
-        vert_list[4] = vertexInterp(isolevel, cubePos(4), cubeVal(4), cubePos(5), cubeVal(5));
-    if ((edge_val & 32) != 0) 
-        vert_list[5] = vertexInterp(isolevel, cubePos(5), cubeVal(5), cubePos(6), cubeVal(6));
-    if ((edge_val & 64) != 0) 
-        vert_list[6] = vertexInterp(isolevel, cubePos(6), cubeVal(6), cubePos(7), cubeVal(7));
-    if ((edge_val & 128) != 0) 
-        vert_list[7] = vertexInterp(isolevel, cubePos(7), cubeVal(7), cubePos(4), cubeVal(4));
-    if ((edge_val & 256) != 0) 
-        vert_list[8] = vertexInterp(isolevel, cubePos(0), cubeVal(0), cubePos(4), cubeVal(4));
-    if ((edge_val & 512) != 0) 
-        vert_list[9] = vertexInterp(isolevel, cubePos(1), cubeVal(1), cubePos(5), cubeVal(5));
-    if ((edge_val & 1024) != 0) 
-        vert_list[10] = vertexInterp(isolevel, cubePos(2), cubeVal(2), cubePos(6), cubeVal(6));
-    if ((edge_val & 2048) != 0) 
-        vert_list[11] = vertexInterp(isolevel, cubePos(3), cubeVal(3), cubePos(7), cubeVal(7));
+    vec3 vert_norms[12];
+
+    vert_list[0] = vertexInterp(isolevel, cubePos(0), cubeVal(0), cubePos(1), cubeVal(1));
+    vert_norms[0] = cubeNormal(0);
+
+    vert_list[1] = vertexInterp(isolevel, cubePos(1), cubeVal(1), cubePos(2), cubeVal(2));
+    vert_norms[1] = cubeNormal(1);
+
+    vert_list[2] = vertexInterp(isolevel, cubePos(2), cubeVal(2), cubePos(3), cubeVal(3));
+    vert_norms[2] = cubeNormal(2);
+
+    vert_list[3] = vertexInterp(isolevel, cubePos(3), cubeVal(3), cubePos(0), cubeVal(0));
+    vert_norms[3] = cubeNormal(3);
+
+    vert_list[4] = vertexInterp(isolevel, cubePos(4), cubeVal(4), cubePos(5), cubeVal(5));
+    vert_norms[4] = cubeNormal(4);
+
+    vert_list[5] = vertexInterp(isolevel, cubePos(5), cubeVal(5), cubePos(6), cubeVal(6));
+    vert_norms[5] = cubeNormal(5);
+
+    vert_list[6] = vertexInterp(isolevel, cubePos(6), cubeVal(6), cubePos(7), cubeVal(7));
+    vert_norms[6] = cubeNormal(6);
+
+    vert_list[7] = vertexInterp(isolevel, cubePos(7), cubeVal(7), cubePos(4), cubeVal(4));
+    vert_norms[7] = cubeNormal(7);
+
+    vert_list[8] = vertexInterp(isolevel, cubePos(0), cubeVal(0), cubePos(4), cubeVal(4));
+    vert_norms[8] = cubeNormal(0);
+
+    vert_list[9] = vertexInterp(isolevel, cubePos(1), cubeVal(1), cubePos(5), cubeVal(5));
+    vert_norms[9] = cubeNormal(1);
+
+    vert_list[10] = vertexInterp(isolevel, cubePos(2), cubeVal(2), cubePos(6), cubeVal(6));
+    vert_norms[10] = cubeNormal(2);
+
+    vert_list[11] = vertexInterp(isolevel, cubePos(3), cubeVal(3), cubePos(7), cubeVal(7));
+    vert_norms[11] = cubeNormal(3);
+
+
+    vert_color = vec4(0.3,0.8,0.2,1);
 
     for (int i=0;triTableValue(cube_index, i) != -1; i += 3){
-        gl_Position = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+0)];
-        // frag_position = vec3(triTableValue(cube_index, i+0), cube_index, i);//(model_matrix * vert_list[triTableValue(cube_index, i+0)]).xyz;
+        vec4 pos1 = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+0)];
+        vec4 pos2 = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+1)];
+        vec4 pos3 = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+2)];
+
+        // poly shading
+        vert_normal = calcTriangleNormal(pos1, pos2, pos3);
+
+        vert_normal = vert_norms[triTableValue(cube_index, i+0)];
+        gl_Position = pos1;
+        frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+0)]).xyz;
         EmitVertex();
-        gl_Position = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+1)];
-        // frag_position = vec3(triTableValue(cube_index, i+1), cube_index, i);//(model_matrix * vert_list[triTableValue(cube_index, i+1)]).xyz;
+
+        vert_normal = vert_norms[triTableValue(cube_index, i+1)];
+        gl_Position = pos2;
+        frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+1)]).xyz;
         EmitVertex();
-        gl_Position = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+2)];
-        // frag_position = vec3(triTableValue(cube_index, i+2), cube_index, i);//(model_matrix * vert_list[triTableValue(cube_index, i+2)]).xyz;
+
+        vert_normal = vert_norms[triTableValue(cube_index, i+2)];
+        gl_Position = pos3;
+        frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+2)]).xyz;
         EmitVertex();
+        
         EndPrimitive();
 
-        gl_Position = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+0)];
-        // frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+0)]).xyz;
+        gl_Position = pos1;
+        frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+0)]).xyz;
         EmitVertex();
-        gl_Position = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+2)];
-        // frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+2)]).xyz;
+
+        gl_Position = pos3;
+        frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+2)]).xyz;
         EmitVertex();
-        gl_Position = projection_matrix * view_matrix * model_matrix * vert_list[triTableValue(cube_index, i+1)];
-        // frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+1)]).xyz;
+
+        gl_Position = pos2;
+        frag_position = (model_matrix * vert_list[triTableValue(cube_index, i+1)]).xyz;
         EmitVertex();
         EndPrimitive();
     }
-
-    // vert_normal = vec3(0,-1,0);
-    // vert_color = vec4(1,0,0,1);
-
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(0);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(4);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(1);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(5);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(1);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(4);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // vert_color = vec4(0,1,0,1);
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(3);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(7);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(2);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(6);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(2);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(7);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // vert_color = vec4(0,0,1,1);
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(0);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(4);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(3);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(7);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(3);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(4);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // vert_color = vec4(0,1,1,1);
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(4);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(5);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(7);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(5);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(6);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(7);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // vert_color = vec4(1,0,1,1);
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(2);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(0);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(3);
-    // EmitVertex();
-    // EndPrimitive();
-
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(1);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(0);
-    // EmitVertex();
-    // gl_Position = projection_matrix * view_matrix * model_matrix * cubePos(2);
-    // EmitVertex();
-    // EndPrimitive();
 }
 
 

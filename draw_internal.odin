@@ -27,6 +27,7 @@ main_camera: ^Camera;
 
 wb_cube_model: Model;
 wb_quad_model: Model;
+wb_sphere_model: Model;
 
 wb_skybox_model: Model;
 
@@ -61,6 +62,7 @@ else
 
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
+	wb_sphere_model = create_sphere_model();
 	wb_skybox_model = create_cube_model(2);
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{}, {});
 
