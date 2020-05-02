@@ -1209,6 +1209,7 @@ draw_model :: proc(model: Model,
 		gpu.set_vertex_format(mesh.vertex_type);
 		gpu.log_errors(#procedure);
 
+        TIMED_SECTION("draw call");
 		if mesh.index_count > 0 {
 			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 		}
@@ -1410,6 +1411,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 			gpu.set_vertex_format(mesh.vertex_type);
 			gpu.log_errors(#procedure);
 
+            TIMED_SECTION("draw call");
 			if mesh.index_count > 0 {
 				gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 			}

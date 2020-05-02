@@ -144,7 +144,7 @@ make_simple_window :: proc(window_width, window_height: int,
 				//
 				platform.update_platform();
 				imgui_begin_new_frame(fixed_delta_time);
-	    		imgui.push_font(imgui_font_default); // todo(josh): pop this?
+	    		imgui.push_font(imgui_font_default); // :ImguiPopFont
 
 	    		//
 	    		gizmo_new_frame();
@@ -155,6 +155,8 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				update_workspace(workspace, fixed_delta_time); // calls client updates
 
+				update_message_popups(fixed_delta_time);
+
 				if platform.get_input_down(.F8, true) {
 					context.temp_allocator = default_temp_allocator;
 					for ptr, info in allocation_tracker.allocations {
@@ -164,7 +166,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				// late_update_ui(); @Cleanup
 
-	    		imgui.pop_font();
+	    		imgui.pop_font(); // :ImguiPopFont
 
 				if acc >= fixed_delta_time {
 					imgui_render(false);
