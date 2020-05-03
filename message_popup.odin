@@ -25,8 +25,8 @@ update_message_popups :: proc(dt: f32) {
         m.t += dt * SPEED;
 
         if m.t > 1 {
-            unordered_remove(&messages, idx);
             delete(m.message);
+            unordered_remove(&messages, idx);
             continue;
         }
 
