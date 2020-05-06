@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:mem"
 import "core:strings"
 import "core:os"
+import "core:sort"
 
 import "logging"
 import "basic"
@@ -15,6 +16,263 @@ import "wbml"
 import "gpu"
 
 import "external/imgui"
+
+UIID :: u64;
+
+UI_Rect :: struct {
+	id: UIID,
+	layer: int,
+	serial: int,
+	x1, y1: f32, // top left pixel
+	x2, y2: f32, // bottom right pixel
+}
+
+uiid :: proc(loc: rt.Source_Code_Location, extra := "") -> UIID {
+	id := loc.hash;
+	return combine_id(id, extra);
+}
+
+combine_id :: proc(id: u64, extra: string) -> UIID {
+	id := id;
+	for b in extra {
+		id = (id * 0x100000001b3) ~ u64(id);
+	}
+	return id;
+}
+
+UI_Manager :: struct {
+	hovered: UIID,
+	active: UIID,
+
+	current_rect: UI_Rect,
+	current_serial: int,
+
+	current_layer: int,
+
+	rects_last_frame: [dynamic]UI_Rect,
+	rects_this_frame: [dynamic]UI_Rect,
+}
+
+ui_manager: UI_Manager;
+
+update_ui :: proc(dt: f32) {
+	using ui_manager;
+
+	rects_last_frame, rects_this_frame = rects_this_frame, rects_last_frame;
+
+	sort.quick_sort_proc(rects_last_frame[:], proc(a, b: UI_Rect) -> int {
+		if a.layer != b.layer {
+			return a.layer - b.layer;
+		}
+		return a.serial - b.serial;
+	});
+
+	hovered = 0;
+	for i := len(rects_last_frame)-1; i >= 0; i -= 1 {
+		rect := rects_last_frame[i];
+		if mouse_in_rect(rect) {
+			hovered = rect.id;
+			break;
+		}
+	}
+
+	clear(&rects_this_frame);
+
+	current_serial = 0;
+	current_rect = UI_Rect{uiid(#location(), "hjakshfjkasf"), 0, current_serial, 0, 0, platform.main_window.width, platform.main_window.height};
+	current_serial = 1;
+}
+
+@(deferred_out=pop_rect)
+PUSH_RECT :: proc(x1, y1, x2, y2: f32, top : f32 = 0, right : f32 = 0, bottom : f32 = 0, left : f32 = 0, layer := 0, id := "", loc := #caller_location) -> UI_Rect {
+	return push_rect_non_deferred(x1, y1, x2, y2, top, right, bottom, left, layer, id, loc);
+}
+
+push_rect_non_deferred :: proc(unitx1, unity1, unitx2, unity2: f32, top : f32 = 0, right : f32 = 0, bottom : f32 = 0, left : f32 = 0, layer := 0, id := "", loc := #caller_location) -> UI_Rect {
+	using ui_manager;
+
+	old := current_rect;
+	current_serial += 1;
+	id := uiid(loc, id);
+
+	cw := current_rect.x2 - current_rect.x1;
+	ch := current_rect.y2 - current_rect.y1;
+	x1 := current_rect.x1 + cw * unitx1 + left;
+	y1 := current_rect.y1 + ch * unity1 + top;
+	x2 := current_rect.x1 + cw * unitx2 - right;
+	y2 := current_rect.y1 + ch * unity2 - bottom;
+
+	current_rect = UI_Rect{id, layer, current_serial, x1, y1, x2, y2};
+	append(&rects_this_frame, current_rect);
+	return old;
+}
+
+pop_rect :: proc(old: UI_Rect) {
+	ui_manager.current_rect = old;
+}
+
+Button_State :: enum {
+	None,     // mouse is not interacting with the button at all
+	Hovered,  // mouse is over button
+	Pressed,  // mouse is currently pressed down
+	Clicked,  // mouse was just released while the cursor was in the bounds of the button
+	Released, // mouse was just released while the cursor was outside the bounds of the button
+}
+
+button_behaviour :: proc() -> Button_State {
+	using ui_manager;
+
+	id := current_rect.id;
+
+	if platform.get_input_up(.Mouse_Left) {
+		if active == id {
+			if hovered == id {
+				active = 0;
+				return .Clicked;
+			}
+			else {
+				active = 0;
+				return .Released;
+			}
+		}
+	}
+	else if platform.get_input_down(.Mouse_Left) {
+		if hovered == id {
+			active = id;
+			return .Pressed;
+		}
+	}
+	else if platform.get_input(.Mouse_Left) {
+		if active == id {
+			return .Pressed;
+		}
+	}
+	else {
+		if hovered == id {
+			return .Hovered;
+		}
+	}
+
+	return .None;
+}
+
+mouse_in_rect :: proc(rect: UI_Rect) -> bool {
+	x, y := expand_to_tuple(platform.main_window.mouse_position_pixel);
+	y = platform.main_window.height - y;
+	return x >= rect.x1 && x <= rect.x2 && y >= rect.y1 && y <= rect.y2;
+}
+
+colored_rect :: proc(color: Colorf) {
+	using ui_manager;
+
+	im_quad(.Pixel, get_shader("default"), Vec2{current_rect.x1, current_rect.y1}, Vec2{current_rect.x2, current_rect.y2}, color, {});
+}
+
+button :: proc(str: string, font: Font, loc := #caller_location) -> bool {
+	using ui_manager;
+
+	PUSH_RECT(0, 0, 1, 1, 0, 0, 0, 0, current_layer, str, loc);
+
+	state := button_behaviour();
+    switch state {
+        case .None:     colored_rect(Colorf{.2, .2, .2, 1});
+        case .Released: colored_rect(Colorf{.2, .2, .2, 1});
+
+        case .Clicked:  colored_rect(Colorf{.3, .3, .3, 1});
+        case .Hovered:  colored_rect(Colorf{.3, .3, .3, 1});
+
+        case .Pressed:  colored_rect(Colorf{.4, .4, .4, 1});
+
+        case: panic(tprint(state));
+    }
+
+    textpos := Vec2{lerp(cast(f32)current_rect.x1, cast(f32)current_rect.x2, f32(0.5)), current_rect.y2};
+
+	height_of_rect : f32 = current_rect.y2 - current_rect.y1;
+    sz := height_of_rect / font.pixel_height;
+
+    str_width := get_string_width(.Pixel, font, str, sz);
+    textpos.x -= str_width * 0.5; // center on X
+    textpos.y -= height_of_rect * 0.2; // @Hack center on Y. fonts seem to have a lot of headroom in font.pixel_height, so we just nudge it up by some amount
+
+    im_text(.Pixel, font, str, textpos, Colorf{1, 1, 1, 1}, sz);
+
+    return state == .Clicked;
+}
+
+ui_text_edit_buffer: [1024]byte;
+
+text_input :: proc(str: ^string, id: string = "", loc := #caller_location) -> bool {
+	using ui_manager;
+
+	// id := uiid(loc, id);
+	// if active != id {
+
+	// }
+
+	// // button part
+	// PUSH_RECT(0, 0, 1, 1, 0, 0, 0, 0, current_layer, id, loc);
+	// // current_rect.id = combine_id(current_rect.id, "joasfhjklasuhfjaklf");
+	// state := button_behaviour();
+	// logln(state);
+	// colored_rect(Colorf{0, 1, 0, 1});
+
+	// text part
+	// PUSH_RECT(0, 0, 1, 1, 0, 0, 0, 0, current_layer, id, loc);
+	// current_rect.id = combine_id(current_rect.id, "uioyuiywiehwjkk");
+	// if state == .Clicked {
+	// 	logln("clicked!");
+	// 	active = current_rect.id;
+	// }
+
+	// if active == current_rect.id {
+	// 	logln("active");
+	// 	if platform.get_input_down(.Enter) {
+	// 		active = 0;
+	// 		return true;
+	// 	}
+	// }
+
+	return false;
+}
+
+Vertical_Layout :: struct {
+	old: UI_Rect,
+	element_pixel_height: f32,
+	num_things: int,
+}
+
+vl_begin :: proc(element_pixel_height: f32) -> Vertical_Layout {
+	old := push_rect_non_deferred(0, 0, 1, 0, 0, 0, -element_pixel_height, 0);
+	vl := Vertical_Layout{old, element_pixel_height, 0};
+	return vl;
+}
+
+vl_next :: proc(vl: ^Vertical_Layout) {
+	using vl;
+	pop_rect(old);
+	vl.num_things += 1;
+	push_rect_non_deferred(0, 0, 1, 0, element_pixel_height*cast(f32)vl.num_things, 0, -element_pixel_height*(cast(f32)vl.num_things+1), 0);
+}
+
+vl_end :: proc(vl: ^Vertical_Layout) {
+	pop_rect(vl.old);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+when false {
 
 //
 // API
@@ -777,4 +1035,6 @@ ui_debug_get_file_line :: proc(file_path: string, line: int) -> (string, bool) {
 		}
 	}
 	return "", false;
+}
+
 }
