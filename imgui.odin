@@ -288,7 +288,7 @@ imgui_begin_new_frame :: proc(dt: f32) {
 
         // todo(josh): do we care about this?
         for input, idx in platform.Input {
-            io.keys_down[idx] = platform.inputs_held[input];
+            io.keys_down[idx] = platform._get_global_input(input);
         }
     } else {
         io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};

@@ -34,12 +34,64 @@ platform_render :: proc() {
     win32.swap_buffers(main_window.platform_data.device_context);
 }
 
+create_window :: proc(name: string, width, height: int) -> (Window, bool) {
+    defer LOG_WINDOWS_ERROR();
+
+    //
+    instance := cast(win32.Hinstance)win32.get_module_handle_a(nil);
+    if instance == nil {
+        logln("Error getting instance handle: ", get_and_clear_last_win32_error());
+        return {}, false;
+    }
+
+    //
+    window_class: win32.Wnd_Class_Ex_A;
+    window_class.size = size_of(win32.Wnd_Class_Ex_A);
+    window_class.style = win32.CS_OWNDC | win32.CS_HREDRAW | win32.CS_VREDRAW;
+    window_class.wnd_proc = wnd_proc;
+    window_class.instance = instance;
+    window_class.cursor = win32.load_cursor_a(nil, win32.IDC_ARROW);
+    window_class.class_name = cstring("HenloWindowClass");
+    class := win32.register_class_ex_a(&window_class);
+    if class == 0 {
+        logln("Error in register_class_ex_a(): ", get_and_clear_last_win32_error());
+        return {}, false;
+    }
+
+    //
+    window: Window;
+    old_window := currently_updating_window;
+    currently_updating_window = &window;
+    defer currently_updating_window = old_window;
+
+    rect := win32.Rect{0, 0, cast(i32)width, cast(i32)height};
+    win32.adjust_window_rect(&rect, win32.WS_OVERLAPPEDWINDOW, false);
+    win32.create_window_ex_a(0,
+                             window_class.class_name,
+                             strings.clone_to_cstring(name, context.temp_allocator),
+                             win32.WS_OVERLAPPEDWINDOW | win32.WS_VISIBLE,
+                             200, // todo(josh): get the resolution of the monitor and put the window in the center
+                             100, // todo(josh): get the resolution of the monitor and put the window in the center
+                             rect.right - rect.left,
+                             rect.bottom - rect.top,
+                             nil,
+                             nil,
+                             window_class.instance,
+                             nil);
+
+    assert(window.platform_data.window_handle != nil);
+
+    return window, true;
+}
+
 opengl_module: win32.Hmodule; // amazing
 
 wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> win32.Lresult {
     assert(currently_updating_window != nil);
 
     result: win32.Lresult;
+
+    @static mouse_capture_sum: int;
 
     switch (message) {
         case win32.WM_CREATE: {
@@ -69,6 +121,9 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
                 win32.free_library(opengl_module);
                 opengl_module = nil;
             }
+
+            create_context_attribs_arb := cast(win32.Create_Context_Attribs_ARB_Type)win32.get_gl_proc_address("wglChoosePixelFormatARB");
+            logln(create_context_attribs_arb);
 
             gpu.init(proc(p: rawptr, name: cstring) {
                 LOG_WINDOWS_ERROR();
@@ -111,8 +166,8 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
                 case 4 /* SIZE_MAXHIDE   */:
             }
 
-            width  := transmute(u64)lparam & 0x0000FFFF;
-            height := (transmute(u64)lparam & 0xFFFF0000) >> 16;
+            width  := win32.LOWORD_L(lparam);
+            height := win32.HIWORD_L(lparam);
 
             logln("New window size: ", width, height);
             currently_updating_window.width  = cast(f32)width;
@@ -121,8 +176,8 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
             currently_updating_window.size   = Vec2{currently_updating_window.width,  currently_updating_window.height};
         }
         case win32.WM_MOUSEMOVE: {
-            x := lparam & 0xFFFF;
-            y := lparam & 0xFFFF0000 >> 16;
+            x := transmute(i16)win32.LOWORD_L(lparam);
+            y := transmute(i16)win32.HIWORD_L(lparam);
             old_pos := currently_updating_window.mouse_position_pixel;
             currently_updating_window.mouse_position_pixel = Vec2{cast(f32)x, cast(f32)y};
             currently_updating_window.mouse_position_unit  = currently_updating_window.mouse_position_pixel / currently_updating_window.size;
@@ -131,65 +186,76 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
         case win32.WM_KEYDOWN, win32.WM_SYSKEYDOWN: { // todo(josh): should we process these separately? the code is the same currently
             defer LOG_WINDOWS_ERROR();
             input := windows_key_mapping[wparam];
-            if !inputs_held[input] {
-                inputs_down[input] = true;
+            if !g_inputs.inputs_held[input] {
+                g_inputs.inputs_down[input] = true;
             }
-            inputs_held[input] = true;
+            g_inputs.inputs_held[input] = true;
         }
         case win32.WM_KEYUP, win32.WM_SYSKEYUP: { // todo(josh): should we process these separately? the code is the same currently
             defer LOG_WINDOWS_ERROR();
             input := windows_key_mapping[wparam];
-            inputs_up[input] = true;
-            inputs_held[input] = false;
+            g_inputs.inputs_up[input] = true;
+            g_inputs.inputs_held[input] = false;
         }
         case win32.WM_CHAR: {
             defer LOG_WINDOWS_ERROR();
             imgui.gui_io_add_input_character(u16(wparam));
         }
         case win32.WM_MOUSEWHEEL: {
-            scroll := cast(i16)(wparam & 0xFFFF0000 >> 16) / 120; // note(josh): 120 is WHEEL_DELTA in windows
+            scroll := transmute(i16)win32.HIWORD_W(wparam) / 120; // note(josh): 120 is WHEEL_DELTA in windows
             currently_updating_window.mouse_scroll = cast(f32)scroll;
         }
         case win32.WM_LBUTTONDOWN: {
-            if !inputs_held[.Mouse_Left] {
-                inputs_down[.Mouse_Left] = true;
+            if mouse_capture_sum == 0 do win32.set_capture(currently_updating_window.platform_data.window_handle);
+            mouse_capture_sum += 1;
+
+            if !g_inputs.inputs_held[.Mouse_Left] {
+                g_inputs.inputs_down[.Mouse_Left] = true;
             }
-            inputs_held[.Mouse_Left] = true;
+            g_inputs.inputs_held[.Mouse_Left] = true;
         }
         case win32.WM_LBUTTONUP: {
-            inputs_up[.Mouse_Left]   = true;
-            inputs_held[.Mouse_Left] = false;
+            mouse_capture_sum -= 1;
+            if mouse_capture_sum == 0 do win32.release_capture();
+
+            g_inputs.inputs_up[.Mouse_Left]   = true;
+            g_inputs.inputs_held[.Mouse_Left] = false;
         }
         case win32.WM_MBUTTONDOWN: {
-            if !inputs_held[.Mouse_Middle] {
-                inputs_down[.Mouse_Middle] = true;
+            if mouse_capture_sum == 0 do win32.set_capture(currently_updating_window.platform_data.window_handle);
+            mouse_capture_sum += 1;
+
+            if !g_inputs.inputs_held[.Mouse_Middle] {
+                g_inputs.inputs_down[.Mouse_Middle] = true;
             }
-            inputs_held[.Mouse_Middle] = true;
+            g_inputs.inputs_held[.Mouse_Middle] = true;
         }
         case win32.WM_MBUTTONUP: {
-            inputs_up[.Mouse_Middle]   = true;
-            inputs_held[.Mouse_Middle] = false;
+            mouse_capture_sum -= 1;
+            if mouse_capture_sum == 0 do win32.release_capture();
+
+            g_inputs.inputs_up[.Mouse_Middle]   = true;
+            g_inputs.inputs_held[.Mouse_Middle] = false;
         }
         case win32.WM_RBUTTONDOWN: {
-            if !inputs_held[.Mouse_Right] {
-                inputs_down[.Mouse_Right] = true;
+            if mouse_capture_sum == 0 do win32.set_capture(currently_updating_window.platform_data.window_handle);
+            mouse_capture_sum += 1;
+
+            if !g_inputs.inputs_held[.Mouse_Right] {
+                g_inputs.inputs_down[.Mouse_Right] = true;
             }
-            inputs_held[.Mouse_Right] = true;
+            g_inputs.inputs_held[.Mouse_Right] = true;
         }
         case win32.WM_RBUTTONUP: {
-            inputs_up[.Mouse_Right]   = true;
-            inputs_held[.Mouse_Right] = false;
+            mouse_capture_sum -= 1;
+            if mouse_capture_sum == 0 do win32.release_capture();
+
+            g_inputs.inputs_up[.Mouse_Right]   = true;
+            g_inputs.inputs_held[.Mouse_Right] = false;
         }
         case win32.WM_ACTIVATEAPP: {
             defer LOG_WINDOWS_ERROR();
             currently_updating_window.is_focused = cast(bool)wparam;
-        }
-        case win32.WM_PAINT: {
-            defer LOG_WINDOWS_ERROR();
-            // todo(josh): is this needed?
-            ps: win32.Paint_Struct;
-            win32.begin_paint(window_handle, &ps);
-            win32.end_paint(window_handle, &ps);
         }
         case win32.WM_CLOSE: {
             defer LOG_WINDOWS_ERROR();
@@ -239,56 +305,6 @@ setup_pixel_format :: proc(device_context: win32.Hdc) -> bool {
     }
 
     return true;
-}
-
-create_window :: proc(name: string, width, height: int) -> (Window, bool) {
-    defer LOG_WINDOWS_ERROR();
-
-    //
-    instance := cast(win32.Hinstance)win32.get_module_handle_a(nil);
-    if instance == nil {
-        logln("Error getting instance handle: ", get_and_clear_last_win32_error());
-        return {}, false;
-    }
-
-    //
-    window_class: win32.Wnd_Class_Ex_A;
-    window_class.size = size_of(win32.Wnd_Class_Ex_A);
-    window_class.style = win32.CS_OWNDC | win32.CS_HREDRAW | win32.CS_VREDRAW;
-    window_class.wnd_proc = wnd_proc;
-    window_class.instance = instance;
-    window_class.cursor = win32.load_cursor_a(nil, win32.IDC_ARROW);
-    window_class.class_name = cstring("HenloWindowClass");
-    class := win32.register_class_ex_a(&window_class);
-    if class == 0 {
-        logln("Error in register_class_ex_a(): ", get_and_clear_last_win32_error());
-        return {}, false;
-    }
-
-    //
-    window: Window;
-    old_window := currently_updating_window;
-    currently_updating_window = &window;
-    defer currently_updating_window = old_window;
-
-    rect := win32.Rect{0, 0, cast(i32)width, cast(i32)height};
-    win32.adjust_window_rect(&rect, win32.WS_OVERLAPPEDWINDOW, false);
-    win32.create_window_ex_a(0,
-                             window_class.class_name,
-                             strings.clone_to_cstring(name, context.temp_allocator),
-                             win32.WS_OVERLAPPEDWINDOW | win32.WS_VISIBLE,
-                             200, // todo(josh): get the resolution of the monitor and put the window in the center
-                             100, // todo(josh): get the resolution of the monitor and put the window in the center
-                             rect.right - rect.left,
-                             rect.bottom - rect.top,
-                             nil,
-                             nil,
-                             window_class.instance,
-                             nil);
-
-    assert(window.platform_data.window_handle != nil);
-
-    return window, true;
 }
 
 get_and_clear_last_win32_error :: proc() -> i32 {

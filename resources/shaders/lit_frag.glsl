@@ -84,19 +84,30 @@ vec3 fresnel_schlick(float cosTheta, vec3 F0) {
 }
 float distribution_ggx(vec3 N, vec3 H, float roughness) {
     float a      = roughness*roughness;
-    float a2     = a*a;
     float NdotH  = max(dot(N, H), 0.0);
     float NdotH2 = NdotH*NdotH;
 
-    float num   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    float num   = a;
+    float denom = (NdotH2 * (a - 1.0) + 1.0);
     denom = PI * denom * denom;
 
     return num / denom;
 }
 
 float geometry_schlick_ggx(float NdotV, float roughness) {
+    // todo(josh): (roughness + 1) should only be used for analytic light sources, not IBL
+    // "if applied to image-based lighting, the results at glancing angles will be much too dark"
+    // page 3
+    // https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+
+#if 1
     float r = (roughness + 1.0);
+#else
+    float r = roughness;
+#endif
+
+    r *= r;
+
     float k = (r*r) / 8.0;
 
     float num   = NdotV;
@@ -149,8 +160,13 @@ void main() {
     // texture color
     if (has_texture_handle == 1) {
         vec4 texture_sample = texture(texture_handle, tex_coord.xy);
-        albedo *= pow(texture_sample.rgb, vec3(2.2)); // todo(josh): dont hardcode this. not sure if it needs to change per texture?
-        frag_alpha *= texture_sample.a; // todo(josh): should alpha be gamma corrected? I suspect not
+        albedo *= texture_sample.rgb;
+
+        // todo(josh): do we need to gamma correct when sampling textures? I assume it depends on how the texture is authored. that sucks.
+        // albedo *= pow(texture_sample.rgb, vec3(2.2));
+
+        // todo(josh): handle alpha properly. having a multiply here was giving me weird artifacts
+        frag_alpha = texture_sample.a;
     }
 
     // point lights
@@ -215,7 +231,7 @@ void main() {
     }
 
     // bloom color
-    float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
+    float brightness = dot(out_color.rgb, vec3(1, 1, 1)); // todo(josh): make configurable?
     if (brightness > bloom_threshhold) {
         bloom_color = vec4(out_color.rgb * ((brightness / bloom_threshhold) - 1), 1.0);
     }

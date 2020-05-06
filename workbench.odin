@@ -146,11 +146,15 @@ make_simple_window :: proc(window_width, window_height: int,
 				imgui_begin_new_frame(fixed_delta_time);
 	    		imgui.push_font(imgui_font_default); // :ImguiPopFont
 
+	    		io := imgui.get_io();
+	    		platform.block_keys = io.want_capture_keyboard;
+	    		platform.block_mouse = io.want_capture_mouse;
+
 	    		//
 	    		gizmo_new_frame();
 	    		update_draw();
 				update_tween(fixed_delta_time);
-				update_ui();
+				update_ui(fixed_delta_time);
 				update_debug_menu(fixed_delta_time);
 
 				update_workspace(workspace, fixed_delta_time); // calls client updates
