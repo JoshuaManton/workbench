@@ -13,6 +13,17 @@ import "../math"
 import "../external/imgui"
 import "../external/stb"
 
+foreign import "system:kernel32.lib"
+foreign kernel32 {
+    @(link_name="SetLastError") set_last_error :: proc(error: i32) ---;
+}
+
+foreign import "system:user32.lib"
+foreign user32 {
+    @(link_name="SetCapture")     set_capture     :: proc(h: win32.Hwnd) -> win32.Hwnd ---;
+    @(link_name="ReleaseCapture") release_capture :: proc() -> win32.Bool ---;
+}
+
 Window_Platform_Data :: struct {
     window_handle:  win32.Hwnd,
     device_context: win32.Hdc,
@@ -206,7 +217,7 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
             currently_updating_window.mouse_scroll = cast(f32)scroll;
         }
         case win32.WM_LBUTTONDOWN: {
-            if mouse_capture_sum == 0 do win32.set_capture(currently_updating_window.platform_data.window_handle);
+            if mouse_capture_sum == 0 do set_capture(currently_updating_window.platform_data.window_handle);
             mouse_capture_sum += 1;
 
             if !g_inputs.inputs_held[.Mouse_Left] {
@@ -216,13 +227,13 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
         }
         case win32.WM_LBUTTONUP: {
             mouse_capture_sum -= 1;
-            if mouse_capture_sum == 0 do win32.release_capture();
+            if mouse_capture_sum == 0 do release_capture();
 
             g_inputs.inputs_up[.Mouse_Left]   = true;
             g_inputs.inputs_held[.Mouse_Left] = false;
         }
         case win32.WM_MBUTTONDOWN: {
-            if mouse_capture_sum == 0 do win32.set_capture(currently_updating_window.platform_data.window_handle);
+            if mouse_capture_sum == 0 do set_capture(currently_updating_window.platform_data.window_handle);
             mouse_capture_sum += 1;
 
             if !g_inputs.inputs_held[.Mouse_Middle] {
@@ -232,13 +243,13 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
         }
         case win32.WM_MBUTTONUP: {
             mouse_capture_sum -= 1;
-            if mouse_capture_sum == 0 do win32.release_capture();
+            if mouse_capture_sum == 0 do release_capture();
 
             g_inputs.inputs_up[.Mouse_Middle]   = true;
             g_inputs.inputs_held[.Mouse_Middle] = false;
         }
         case win32.WM_RBUTTONDOWN: {
-            if mouse_capture_sum == 0 do win32.set_capture(currently_updating_window.platform_data.window_handle);
+            if mouse_capture_sum == 0 do set_capture(currently_updating_window.platform_data.window_handle);
             mouse_capture_sum += 1;
 
             if !g_inputs.inputs_held[.Mouse_Right] {
@@ -248,7 +259,7 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
         }
         case win32.WM_RBUTTONUP: {
             mouse_capture_sum -= 1;
-            if mouse_capture_sum == 0 do win32.release_capture();
+            if mouse_capture_sum == 0 do release_capture();
 
             g_inputs.inputs_up[.Mouse_Right]   = true;
             g_inputs.inputs_held[.Mouse_Right] = false;
@@ -309,7 +320,7 @@ setup_pixel_format :: proc(device_context: win32.Hdc) -> bool {
 
 get_and_clear_last_win32_error :: proc() -> i32 {
     err := win32.get_last_error();
-    win32.set_last_error(0);
+    set_last_error(0);
     return err;
 }
 

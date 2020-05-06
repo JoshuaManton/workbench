@@ -111,7 +111,7 @@ track_asset_folder :: proc(path: string, load_everything: bool, loc := #caller_l
         name, nameok := basic.get_file_name(filepath);
         assert(nameok, filepath);
 
-        if basic.string_starts_with(name, "wbcubemap") { logln("skipping: ", filepath); delete(filepath); continue; }
+        if basic.string_starts_with(name, "wbcubemap") { delete(filepath); continue; }
 
         try_add_tracked_filepath(filepath, load_everything);
     }
