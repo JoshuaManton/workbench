@@ -36,7 +36,6 @@ time_since_startup: f32;
 precise_time: f64;
 fixed_delta_time: f32;
 lossy_delta_time: f32;
-precise_lossy_delta_time: f64;
 
 frame_allocator: mem.Allocator;
 
@@ -240,7 +239,7 @@ init_builtin_assets :: proc() {
 	fileloc := #location().file_path;
 	wbfolder, ok := basic.get_file_directory(fileloc);
 	assert(ok);
-	resources_folder := fmt.aprint(wbfolder, "/resources");
+	resources_folder := fmt.aprint(wbfolder, "resources");
 	defer delete(resources_folder);
 	track_asset_folder(resources_folder, true);
 }

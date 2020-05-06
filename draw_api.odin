@@ -352,6 +352,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	PUSH_CAMERA(camera);
 
 	set_sun_data(Quat{0, 0, 0, 1}, Colorf{0, 0, 0, 0}, 0);
+    camera.skybox = {};
 
 	if user_render_proc != nil {
 		user_render_proc(lossy_delta_time);
@@ -499,6 +500,9 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			if skybox_texture, ok := getval(&camera.skybox); ok {
 				add_texture_binding(cmd, "skybox_texture", skybox_texture^);
 			}
+            else {
+                add_texture_binding(cmd, "skybox_texture", {});
+            }
 
 			// issue draw call
 			if on_render_object != nil do on_render_object(cmd.userdata);
