@@ -578,13 +578,13 @@ parse_shader :: proc(text: string, ctx: Asset_Load_Context) -> (Shader_Asset, As
 
 	vert_source := strings.to_string(vertex_builder);
 	frag_source := strings.to_string(fragment_builder);
-	geo_source := strings.to_string(geometry_builder);
+	geom_source := strings.to_string(geometry_builder);
 
 	assert(vert_source != "");
 	assert(frag_source != "");
 
-	if geo_source != "" {
-		shader, compileok := gpu.load_shader_vert_geo_frag(vert_source, geo_source, frag_source);
+	if geom_source != "" {
+		shader, compileok := gpu.load_shader_vert_geo_frag(vert_source, geom_source, frag_source);
 		if compileok {
 			return Shader_Asset{shader, strings.to_string(all_text_builder)}, .Ok;
 		}

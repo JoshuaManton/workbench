@@ -11,14 +11,14 @@ import "external/imgui"
 
 Terrain :: struct {
     model: Model,
+    chunks: [dynamic]Terrain_Chunk,
 
-    density_map: [][][]f32,
     material: Material,
 
-    size: Vec3,
+    chunk_size: Vec3,
     step: f32,
     iso_level: f32,
-    edge_tex, tri_tex, data_tex: Texture,
+    edge_tex, tri_tex: Texture,
 
     // editing
     editing_active: bool,
@@ -27,72 +27,97 @@ Terrain :: struct {
     brush_strength: f32,
 }
 
-Terrain_Vertex :: struct {
-    position: Vec3,
+Terrain_Chunk :: struct {
+    chunk_idx: int, // indexes into model meshes
+    density_map: [][][]f32,
+    data_tex: Texture,
+
+    // compute shader
+    vertex_count: u32,
+    ssbo_vert: gpu.SSBO,
+    ssbo_count: gpu.SSBO,
 }
 
-create_terrain :: proc(density_map: [][][]f32, step : f32 = 1) -> Terrain {
+Terrain_Vertex :: struct {
+    position: Vec3,
+    tex_coord: Vec3,
+    color: Colorf,
+    normal: Vec3,
+}
+
+create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
+
+    density_map := make([][][]f32, int(chunk_size.x));
+    for x in 0..<int(chunk_size.x) {
+        hm1 := make([][]f32, int(chunk_size.z));
+        for z in 0..<int(chunk_size.z) {
+            hm2 := make([]f32, int(chunk_size.y));
+            for y in 0..<int(chunk_size.y) {
+                hm2[y] = -(f32(y-2));
+            }
+            hm1[z] = hm2;
+        }
+    
+        density_map[x] = hm1;
+    }
 
     terrain := Terrain {
         Model { "terrain", make([dynamic]Mesh, 0, 1), {}, {}, false, }, 
+        make([dynamic]Terrain_Chunk, 0, 1),
         {},
-        {},
-        {},
+        chunk_size,
         step,
         0,
-        {}, {}, {},
+        create_texture_2d(256, 1, .R32I, .Red_Integer, .Int, transmute(^u8)&edgeTable[0]), 
+        create_texture_2d(16, 256, .R32I, .Red_Integer, .Int, transmute(^u8)&triTable[0]),
         false, -1, 1, 0.25,
     };
 
-    add_mesh_to_model(&terrain.model, []Terrain_Vertex{}, {}, {});
-
-    refresh_terrain(&terrain, density_map);
+    add_terrain_chunk(&terrain, density_map, 0);
 
     return terrain;
 }
 
-refresh_terrain_density :: proc(using terrain: ^Terrain, _density_map: [][][]f32) {
-    x := len(_density_map);
-    y := len(_density_map[0]);
-    z := len(_density_map[0][0]);
-    dm := make([]f32, x * y * z);
-    defer delete(dm);
-
-    i := 0;
-    for ix in 0..<x { for iz in 0..<z { for iy in 0..<y { 
-        dm[i] = _density_map[ix][iz][iy];
-        i += 1;
-    } } }
-
-    // TODO refresh texture
-    delete_texture(data_tex);
-    data_tex = create_texture_3d(x, y, z, .R32F, .Red, .Float, transmute(^u8)&dm[0]);
-}
-
-refresh_terrain :: proc(using terrain: ^Terrain, _density_map: [][][]f32) {
+add_terrain_chunk :: proc(using terrain: ^Terrain, _density_map: [][][]f32, index: int) {
     x := len(_density_map);
     z := len(_density_map[0]);
     y := len(_density_map[0][0]);
+    chunk_size = {f32(x),f32(y),f32(z)};
 
-    size = {f32(x),f32(y),f32(z)};
+    chunk := Terrain_Chunk {
+        index,
+        _density_map,
+        {},
+        0, 
+        gpu.gen_shaderbuffer_storage(),
+        gpu.gen_shaderbuffer_storage(),
+    };
 
-    dm := make([]f32, x * y * z);
-    verts := make([]Terrain_Vertex, x * y * z);
-    defer delete(verts);
+    mesh_idx := add_mesh_to_model(&terrain.model, []Terrain_Vertex{}, {}, {});
+    mesh := &model.meshes[mesh_idx];
+    mesh.ssbo = chunk.ssbo_vert;
+
+    gpu.bind_shaderbuffer(chunk.ssbo_vert);
+    gpu.buffer_shader_storage(u32(15 * x * y * z * size_of(Terrain_Vertex)));
+    gpu.bind_shader_storage_buffer_base(0, chunk.ssbo_vert);
+
+    gpu.bind_shaderbuffer(chunk.ssbo_count);
+    gpu.buffer_shader_storage(32, false);
+    gpu.bind_shader_storage_buffer_base(1, chunk.ssbo_count);
+
+    append(&chunks, chunk);
+    update_mesh(&model, index, []Terrain_Vertex{}, {});
+    refresh_terrain_chunk_density(terrain, _density_map, index);
+}
+
+refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][][]f32, index: int) {
+    x := len(_density_map);
+    y := len(_density_map[0]);
+    z := len(_density_map[0][0]);
+    dm := make([]f32, (x+2) * (y+2) * (z+2));
     defer delete(dm);
 
-    j := 0;
-    for ix in 0..<x { for iz in 0..<z { for iy in 0..<y {
-        if  ix > 1 && 
-            iz > 1 && 
-            iy > 1 && 
-            ix < x-1 && 
-            iy < y-1 && 
-            iz < z-1 {
-                verts[j] = Terrain_Vertex { Vec3 { f32(ix), f32(iy), f32(iz) }, };
-                j += 1;
-            }
-    } } }
+    chunk := chunks[index];
 
     i := 0;
     for ix in 0..<x { for iz in 0..<z { for iy in 0..<y { 
@@ -100,15 +125,35 @@ refresh_terrain :: proc(using terrain: ^Terrain, _density_map: [][][]f32) {
         i += 1;
     } } }
 
-    delete_texture(edge_tex);
-    edge_tex = create_texture_2d(256, 1, .R32I, .Red_Integer, .Int, transmute(^u8)&edgeTable[0]);
-    delete_texture(tri_tex);
-    tri_tex = create_texture_2d(16, 256, .R32I, .Red_Integer, .Int, transmute(^u8)&triTable[0]);
-    delete_texture(data_tex);
-    data_tex = create_texture_3d(y, z, x, .R32F, .Red, .Float, transmute(^u8)&dm[0]);
+    chunk.density_map = _density_map;
+    chunk.vertex_count = 0;
+    delete_texture(chunk.data_tex);
+    chunk.data_tex = create_texture_3d(x, y, z, .R32F, .Red, .Float, transmute(^u8)&dm[0]);
 
-    density_map = _density_map;
-    update_mesh(&model, 0, verts, {});
+    mesh := &model.meshes[chunk.chunk_idx];
+
+    gpu.bind_vao(mesh.vao);
+
+    // uniforms and textures
+    shader := get_shader("cterrain");
+    gpu.use_program(shader);
+    bind_texture_to_shader("dataFieldTex", chunk.data_tex, 0, shader);
+    bind_texture_to_shader("edgeTableTex", edge_tex, 1, shader);
+    bind_texture_to_shader("triTableTex", tri_tex, 2, shader);
+    gpu.uniform_float(shader, "iso_level", iso_level);
+    gpu.uniform_float(shader, "step", step);
+    gpu.uniform_vec3(shader, "chunk_size", chunk_size);
+
+    gpu.bind_shaderbuffer(chunk.ssbo_count);
+    gpu.buffer_shader_storage_sub_data(4, &chunk.vertex_count);
+
+    gpu.dispatch_compute(cast(u32)chunk_size.x, cast(u32)chunk_size.y, cast(u32)chunk_size.z); 
+    gpu.memory_barrier();
+
+    gpu.get_shader_storage_sub_data(4, &chunk.vertex_count);
+    mesh.vertex_count = int(chunk.vertex_count);
+
+    chunks[index] = chunk;
 }
 
 render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
@@ -117,17 +162,18 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
     if editing_active {
         mouse_world := get_mouse_world_position(main_camera, plat.mouse_unit_position);
         mouse_direction := get_mouse_direction_from_camera(main_camera, plat.mouse_unit_position);
-        hit_pos, hit := raycast_into_terrain(terrain^, terrain_offset, mouse_world, mouse_direction);
+        hit_pos, chunk_index, hit := raycast_into_terrain(terrain^, terrain_offset, mouse_world, mouse_direction);
+
         if hit {
+            chunk := chunks[chunk_index];
+            
+            // TODO(jake): add chunks to the terrain as the user edits near the edge
 
             if plat.get_input(.Mouse_Left) {
-
                 for xo:=-brush_size; xo<=brush_size; xo+=1 {
                     for yo:=-brush_size; yo<=brush_size; yo+=1 {
                         for zo:=-brush_size; zo<=brush_size; zo+=1 {
 
-                            // TODO(jake): a step size of not one fucks things up
-                            
                             // grid_pos := Vec3{x,y,z} + brush_grid_center;
                             brush_pos := hit_pos + Vec3{xo,yo,zo}*step;
                             x := int((brush_pos.x-terrain_offset.x)/step);
@@ -135,7 +181,7 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
                             z := int((brush_pos.z-terrain_offset.z)/step);
 
                             if x<0 || y<0 || z<0 do continue;
-                            if x>=len(density_map) || z>=len(density_map[x]) || y>=len(density_map[x][z]) do continue;
+                            if x>=len(chunk.density_map) || z>=len(chunk.density_map[x]) || y>=len(chunk.density_map[x][z]) do continue;
 
                             distance_to_center :f32= math.magnitude(hit_pos - brush_pos);
                             distance_strength :=  1 - (math.maxv(distance_to_center, 0.000001)/brush_size);
@@ -143,18 +189,18 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
 
                             switch selected_brush {
                                 case 0: { // raise
-                                    current_val := density_map[x][z][y];
-                                    density_map[x][z][y] = current_val + (distance_strength*brush_strength);
+                                    current_val := chunk.density_map[x][z][y];
+                                    chunk.density_map[x][z][y] = current_val + (distance_strength*brush_strength);
                                 }
                                 case 1: { // lower
-                                    current_val := density_map[x][z][y];
-                                    density_map[x][z][y] = current_val - (distance_strength*brush_strength);
+                                    current_val := chunk.density_map[x][z][y];
+                                    chunk.density_map[x][z][y] = current_val - (distance_strength*brush_strength);
                                 }
                                 case 2: { // place
-                                    density_map[x][z][y] = iso_level+1;
+                                    chunk.density_map[x][z][y] = iso_level+1;
                                 }
                                 case 3: { // delete
-                                    density_map[x][z][y] = iso_level-1;
+                                    chunk.density_map[x][z][y] = iso_level-1;
                                 }
                                 case: break;
                             }
@@ -162,7 +208,7 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
                     }
                 }
 
-                refresh_terrain_density(terrain, density_map);
+                refresh_terrain_chunk_density(terrain, chunk.density_map, chunk_index);
             }
 
             // Draw the brush
@@ -170,29 +216,14 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
             submit_draw_command(cmd);
         }
     }
+
     // actual terrain rendering
-    cmd := create_draw_command(model, get_shader("terrain"), terrain_offset, scale, {0,0,0,1}, {1,1,1,1}, material, {});
 
-    add_texture_binding(&cmd, "dataFieldTex", data_tex);
-    add_texture_binding(&cmd, "edgeTableTex", edge_tex);
-    add_texture_binding(&cmd, "triTableTex", tri_tex);
-
-    add_uniform_binding(&cmd, "isolevel", iso_level);
-    add_uniform_binding(&cmd, "step", step);
-    add_uniform_binding(&cmd, "vertDecals", []Vec3{ 
-            {    0,    0,    -1, }, 
-            {    1,    0,    -1, }, 
-            {    1,    0,     0, }, 
-            {    0,    0,     0, },
-            {    0,    1,    -1, },
-            {    1,    1,    -1, }, 
-            {    1,    1,     0, }, 
-            {    0,    1,     0, }, 
-        });
-
-    cmd.draw_mode = .Points;
-
-    submit_draw_command(cmd);
+    // TODO (jake): cull far away terrain
+    for chunk in chunks {
+        cmd := create_draw_command(model, get_shader("lit"), terrain_offset, scale, {0,0,0,1}, {1,1,1,1}, material, {});
+        submit_draw_command(cmd);
+    }
 }
 
 render_terrain_editor :: proc(using terrain: ^Terrain) {
@@ -200,13 +231,21 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
         imgui.indent();
         defer imgui.unindent();
 
+        dirty := false;
+        dirty |= imgui.slider_float("iso", &iso_level, -50, 50);
+        dirty |= imgui.slider_float("Step", &step, 0.1, 2);
+        imgui_struct(&material, "Material", false);
+
+        imgui.spacing();imgui.spacing();imgui.spacing();
+        imgui.text("Brush"); 
+        imgui.same_line();
         if imgui.button(editing_active ? "Disable Editing" : "Enable Editing") {
             editing_active = !editing_active;
         }
-        imgui.same_line();
-
+        
         @static brush_names : []string = { "Raise", "Lower", "Paint", "Delete" };
 
+        imgui.same_line();
         if imgui.button("Tool") {
             imgui.open_popup("select_popup");
         }
@@ -224,48 +263,52 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
             imgui.end_popup();
         }
 
-        imgui.slider_float("iso", &iso_level, -50, 50);
-        imgui.slider_float("Step", &step, 0.1, 2);
         imgui.slider_float("Brush Strength", &brush_strength, 0, 1);
-        imgui_struct(&material, "Material", false);
+
+        if dirty {
+            for chunk, i in chunks {
+                refresh_terrain_chunk_density(terrain, chunk.density_map, i);
+            }
+        }
 
         // size
-        {
-            imgui.text("Size");
-            imgui.push_item_width(100);
-            imgui.input_float(tprint("x", "##non_range"), &size.x);imgui.same_line();
-            imgui.input_float(tprint("y", "##non_range"), &size.y);imgui.same_line();
-            imgui.input_float(tprint("z", "##non_range"), &size.z);
-            imgui.pop_item_width();
-        }
-        if imgui.button("Regenerate") {
+        // {
+        //     imgui.text("Size");
+        //     imgui.push_item_width(100);
+        //     imgui.input_float(tprint("x", "##non_range"), &chunk_size.x);imgui.same_line();
+        //     imgui.input_float(tprint("y", "##non_range"), &chunk_size.y);imgui.same_line();
+        //     imgui.input_float(tprint("z", "##non_range"), &chunk_size.z);
+        //     imgui.pop_item_width();
+        // }
 
-            new_density_map := make([][][]f32, int(size.x));
-            for x in 0..<int(size.x) {
-                hm1 := make([][]f32, int(size.z));
-                for z in 0..<int(size.z) {
-                    hm2 := make([]f32, int(size.y));
-                    for y in 0..<int(size.y) {
-                        hm2[y] = -f32(y-2);
-                    }
-                    hm1[z] = hm2;
-                }
+        // if imgui.button("Regenerate") {
+
+        //     new_density_map := make([][][]f32, int(chunk_size.x));
+        //     for x in 0..<int(chunk_size.x) {
+        //         hm1 := make([][]f32, int(chunk_size.z));
+        //         for z in 0..<int(chunk_size.z) {
+        //             hm2 := make([]f32, int(chunk_size.y));
+        //             for y in 0..<int(chunk_size.y) {
+        //                 hm2[y] = -f32(y-2);
+        //             }
+        //             hm1[z] = hm2;
+        //         }
             
-                new_density_map[x] = hm1;
-            }
+        //         new_density_map[x] = hm1;
+        //     }
 
-            // TODO(jake) something better for resizing
-            // for yz in density_map {
-            //     for z in density_map {
-            //         delete(z);
-            //     }
-            //     delete(yz);
-            // }
-            // delete(density_map);
+        //     // TODO(jake) something better for resizing
+        //     // for yz in density_map {
+        //     //     for z in density_map {
+        //     //         delete(z);
+        //     //     }
+        //     //     delete(yz);
+        //     // }
+        //     // delete(density_map);
 
-            density_map = new_density_map;
-            refresh_terrain(terrain, new_density_map);
-        }
+        //     // density_map = new_density_map;
+        //     // refresh_terrain(terrain, new_density_map);
+        // }
     }
 }
 
@@ -283,60 +326,76 @@ get_height_at_position :: proc(terrain: Terrain, terrain_origin: Vec3, _x, _z, y
     if x < 0 || z < 0 do return 0, false;
     if terrain.step <= 0 do return 0, false;
 
-    if len(terrain.density_map)-1 <= int(x/terrain.step) do return 0, false;
-    if len(terrain.density_map[int(x/terrain.step)])-1 <= int(z/terrain.step) do return 0, false;
+    // TODO(jake): broadphase terrain
+    for chunk in terrain.chunks {
+        if len(chunk.density_map)-1 <= int(x/terrain.step) do return 0, false;
+        if len(chunk.density_map[int(x/terrain.step)])-1 <= int(z/terrain.step) do return 0, false;
 
-    for val, y in terrain.density_map[int(x/terrain.step)][int(z/terrain.step)] {
+        for val, y in chunk.density_map[int(x/terrain.step)][int(z/terrain.step)] {
 
-        if terrain_origin.y + f32(y) < y_min do continue;
+            if terrain_origin.y + f32(y) < y_min do continue;
 
-        next_val : f32 = -10000000000000;
-        if y+1 < len(terrain.density_map[int(x/terrain.step)][int(z/terrain.step)]) {
-            next_val = terrain.density_map[int(x/terrain.step)][int(z/terrain.step)][y+1];
+            next_val : f32 = -10000000000000;
+            if y+1 < len(chunk.density_map[int(x/terrain.step)][int(z/terrain.step)]) {
+                next_val = chunk.density_map[int(x/terrain.step)][int(z/terrain.step)][y+1];
+            }
+
+            if next_val < terrain.iso_level && val >= terrain.iso_level {
+                if abs(next_val - val) > 0.00001 {
+                    ypos := lerp_y_pos(terrain.iso_level, f32(y), f32(y+1), val, next_val);
+                    return ypos+terrain_origin.y, true;
+                }
+                else {
+                    return terrain_origin.y+f32(y), true;
+                }
+            } 
         }
-
-        if next_val < terrain.iso_level && val >= terrain.iso_level {
-            if abs(next_val - val) > 0.00001 {
-                ypos := lerp_y_pos(terrain.iso_level, f32(y), f32(y+1), val, next_val);
-                return ypos+terrain_origin.y, true;
-            }
-            else {
-                return terrain_origin.y+f32(y), true;
-            }
-        } 
     }
     return 0, false;
 }
 
 MAX_DISTANCE : f32 : 1000;
-raycast_into_terrain :: proc(using terrain: Terrain, terrain_origin, ray_origin, ray_direction: Vec3, max : f32 = MAX_DISTANCE, narrow_phase_min : f32 = 0.5) -> (Vec3, bool) {
+raycast_into_terrain :: proc(using terrain: Terrain, terrain_origin, ray_origin, ray_direction: Vec3, max : f32 = MAX_DISTANCE, narrow_phase_min : f32 = 0.5) -> (Vec3, int, bool) {
 
-    for dist : f32 = 0; dist < max; dist += step {
-        current_pos := ray_origin + (ray_direction * dist);
-        next_pos := ray_origin + (ray_direction * (dist + step));
+    // TODO(jake): broadphase terrain physics
+    for chunk, i in chunks {
+        for dist : f32 = 0; dist < max; dist += step {
+            current_pos := ray_origin + (ray_direction * dist);
+            next_pos := ray_origin + (ray_direction * (dist + step));
 
-        current_grid_pos := (current_pos - terrain_origin)/step;
-        next_grid_pos := (next_pos - terrain_origin)/step;
+            current_grid_pos := (current_pos - terrain_origin)/step;
+            next_grid_pos := (next_pos - terrain_origin)/step;
 
-        if current_grid_pos.x < 0 || current_grid_pos.z < 0 || current_grid_pos.y < 0 || next_grid_pos.x < 0 || next_grid_pos.z < 0 || next_grid_pos.y < 0{
-            continue;
+            if  current_grid_pos.x < 0 || 
+                current_grid_pos.z < 0 || 
+                current_grid_pos.y < 0 || 
+                next_grid_pos.x < 0 || 
+                next_grid_pos.z < 0 || 
+                next_grid_pos.y < 0 {
+                continue;
+            }
+            if  current_grid_pos.x >= chunk_size.x || 
+                current_grid_pos.z >= chunk_size.z || 
+                current_grid_pos.y >= chunk_size.y || 
+                next_grid_pos.x >= chunk_size.x || 
+                next_grid_pos.z >= chunk_size.z || 
+                next_grid_pos.y >= chunk_size.y {
+                continue;
+            }
+
+            v1 := chunk.density_map[int(current_grid_pos.x)][int(current_grid_pos.z)][int(current_grid_pos.y)];
+            v2 := chunk.density_map[int(next_grid_pos.x)][int(next_grid_pos.z)][int(next_grid_pos.y)];
+
+            if (v1 > iso_level && v2 > iso_level) || (v1 < iso_level && v2 < iso_level) do continue;
+
+            // draw_debug_box(Vec3{current_pos.x, y + terrain_origin.y, current_pos.z}, {0.1,0.1,0.1}, {0,1,0,1});
+
+            // logln(lerp_y_pos(iso_level, current_pos, next_pos, v1, v2));
+            return lerp_y_pos(iso_level, current_pos, next_pos, v1, v2), i, true;
         }
-        if current_grid_pos.x >= size.x || current_grid_pos.z >= size.z || current_grid_pos.y >= size.y || next_grid_pos.x >= size.x || next_grid_pos.z >= size.z || next_grid_pos.y >= size.y {
-            continue;
-        }
-
-        v1 := density_map[int(current_grid_pos.x)][int(current_grid_pos.z)][int(current_grid_pos.y)];
-        v2 := density_map[int(next_grid_pos.x)][int(next_grid_pos.z)][int(next_grid_pos.y)];
-
-        if (v1 > iso_level && v2 > iso_level) || (v1 < iso_level && v2 < iso_level) do continue;
-
-        // draw_debug_box(Vec3{current_pos.x, y + terrain_origin.y, current_pos.z}, {0.1,0.1,0.1}, {0,1,0,1});
-
-        // logln(lerp_y_pos(iso_level, current_pos, next_pos, v1, v2));
-        return lerp_y_pos(iso_level, current_pos, next_pos, v1, v2), true;
     }
 
-    return Vec3{}, false;
+    return Vec3{}, -1, false;
 }
 
 

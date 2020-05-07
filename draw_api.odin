@@ -972,6 +972,7 @@ Mesh :: struct {
     vao: gpu.VAO,
     vbo: gpu.VBO,
     ibo: gpu.EBO,
+    ssbo: gpu.SSBO,
     vertex_type: ^rt.Type_Info,
 
     index_count:  int,
@@ -1041,7 +1042,7 @@ add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u3
 	}
 
 	idx := len(model.meshes);
-	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin};
+	mesh := Mesh{vao, vbo, ibo, 0, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin};
 	append(&model.meshes, mesh, loc);
 
 	update_mesh(model, idx, vertices, indices);
@@ -1075,6 +1076,8 @@ update_mesh :: proc(model: ^Model, idx: int, vertices: []$Vertex_Type, indices: 
 	mesh.vertex_type  = type_info_of(Vertex_Type);
 	mesh.index_count  = len(indices);
 	mesh.vertex_count = len(vertices);
+
+	update_model(model);
 }
 
 update_model :: proc(model: ^Model) {
@@ -1364,6 +1367,11 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 		gpu.bind_vao(mesh.vao);
 		gpu.bind_vbo(mesh.vbo);
 		gpu.bind_ibo(mesh.ibo);
+
+		if mesh.ssbo != 0 {
+			gpu.bind_ssbo(mesh.ssbo);
+		}
+
 		gpu.log_errors(#procedure);
 
 		if len(anim_state.mesh_states) > i {

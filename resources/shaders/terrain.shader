@@ -46,10 +46,6 @@ uniform sampler3D dataFieldTex;
 uniform isampler2D edgeTableTex; 
 uniform isampler2D triTableTex; 
 
-uniform int has_dataFieldTex;
-uniform int has_edgeTableTex;
-uniform int has_triTableTex;
-
 uniform float step;
 uniform float isolevel; 
 uniform vec3 vertDecals[8];
