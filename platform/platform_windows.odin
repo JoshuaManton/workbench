@@ -133,8 +133,9 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
                 opengl_module = nil;
             }
 
-            create_context_attribs_arb := cast(win32.Create_Context_Attribs_ARB_Type)win32.get_gl_proc_address("wglChoosePixelFormatARB");
-            logln(create_context_attribs_arb);
+            // todo(josh): fancier context
+            // create_context_attribs_arb := cast(win32.Create_Context_Attribs_ARB_Type)win32.get_gl_proc_address("wglChoosePixelFormatARB");
+            // logln(create_context_attribs_arb);
 
             gpu.init(proc(p: rawptr, name: cstring) {
                 LOG_WINDOWS_ERROR();
