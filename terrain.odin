@@ -145,7 +145,7 @@ refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][
     gpu.bind_vao(mesh.vao);
 
     // uniforms and textures
-    shader := get_shader("cterrain");
+    shader := get_shader("terrain");
     gpu.use_program(shader);
     bind_texture_to_shader("dataFieldTex", chunk.data_tex, 0, shader);
     bind_texture_to_shader("edgeTableTex", edge_tex, 1, shader);
