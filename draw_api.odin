@@ -93,59 +93,74 @@ current_framebuffer: Framebuffer;
 //
 
 Camera :: struct {
+	//
+	// render view
+	//
     is_perspective: bool,
-
     // orthographic -> size in world units from center of screen to top of screen
     // perspective  -> fov
     size: f32,
-
     near_plane: f32,
     far_plane:  f32,
-
-    clear_color: Colorf,
 
     position: Vec3,
     rotation: Quat,
 	view_matrix: Mat4, // note(josh): do not move or rotate the camera during rendering since we cache the view matrix at the start of rendering
 
+
+
+    //
+    // framebuffer
+    //
+    clear_color: Colorf,
+    framebuffer: Framebuffer,
+	auto_resize_framebuffer: bool,
     pixel_width: f32,
     pixel_height: f32,
     aspect: f32,
 
-    framebuffer: Framebuffer,
-    bloom_ping_pong_framebuffers: Maybe([2]Framebuffer),
+
+
+    //
+    // render group
+    //
+	render_queue: [dynamic]Draw_Command_3D,
+	im_draw_commands: [dynamic]Draw_Command_2D,
 
     current_rendermode: Rendermode,
     draw_mode: gpu.Draw_Mode,
     polygon_mode: gpu.Polygon_Mode,
 
-    // render data for this frame
-	render_queue: [dynamic]Draw_Command_3D,
-	im_draw_commands: [dynamic]Draw_Command_2D,
-
 	point_light_positions:   []Vec3,
 	point_light_colors:      []Vec4,
 	point_light_intensities: []f32,
 	num_point_lights: i32,
-
 	sun_direction: Vec3,
 	sun_color:     Vec4,
 	sun_intensity: f32,
 	sun_rotation:  Quat,
+
+
+
+	//
+	// effects
+	//
+    bloom_ping_pong_framebuffers: Maybe([2]Framebuffer),
 	shadow_map_cameras: Maybe([NUM_SHADOW_MAPS]^Camera),
-
-	auto_resize_framebuffer: bool,
-
 	skybox: Maybe(Texture),
 }
 
 Render_Settings :: struct {
 	gamma: f32,
 	exposure: f32,
+	
+	do_bloom: bool,
 	bloom_threshhold: f32,
 	bloom_blur_passes: i32,
 	bloom_range: i32,
 	bloom_weight: f32,
+	
+	do_shadows: bool,
 }
 
 render_settings: Render_Settings;
@@ -365,7 +380,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	shadow_cascade_positions := [NUM_SHADOW_MAPS+1]f32{0, 20, 40, 150, 1000};
 	assert(NUM_SHADOW_MAPS == 4);
 	light_matrices: [NUM_SHADOW_MAPS]Mat4;
-	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok {
+	if shadow_maps, ok := getval(&camera.shadow_map_cameras); ok && render_settings.do_shadows {
 		TIMED_SECTION("camera_render.shadow_maps");
 
 		for shadow_map_camera, map_idx in shadow_maps {
@@ -525,7 +540,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	}
 
 	// do bloom
-	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok {
+	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok && render_settings.do_bloom {
 		TIMED_SECTION("camera_render.bloom");
 
 		for fbo in bloom_fbos {

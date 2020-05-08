@@ -66,10 +66,14 @@ else
 	render_settings = Render_Settings{
 		gamma = 2.2,
 		exposure = 1,
+
+		do_bloom = true,
 		bloom_threshhold = 5.0,
 		bloom_blur_passes = 5,
 		bloom_range = 10,
 		bloom_weight = 0.25,
+	
+		do_shadows = true,
 	};
 
 	register_debug_program("Rendering", rendering_debug_program, nil);

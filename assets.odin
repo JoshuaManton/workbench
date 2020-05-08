@@ -51,12 +51,13 @@ init_asset_system :: proc() {
     assert(!initted);
     initted = true;
 
-    add_asset_handler(Texture,       {"png"},                       catalog_load_texture,    catalog_delete_texture);
-    add_asset_handler(Font,          {"ttf"},                       catalog_load_font,       catalog_delete_font);
-    add_asset_handler(Model,         {"fbx"},                       catalog_load_model,      catalog_delete_model);
-    add_asset_handler(Shader_Asset,  {"shader", "compute", "glsl"}, catalog_load_shader,     catalog_delete_shader);
-    add_asset_handler(WBML_Asset,    {"wbml"},                      catalog_load_wbml_asset, catalog_delete_wbml_asset);
-    add_asset_handler(Cubemap_Asset, {"wbcubemap"},                 catalog_load_cubemap,    catalog_delete_cubemap);
+    add_asset_handler(Texture,        {"png"},                       catalog_load_texture,    catalog_delete_texture);
+    add_asset_handler(Font,           {"ttf"},                       catalog_load_font,       catalog_delete_font);
+    add_asset_handler(Model,          {"fbx"},                       catalog_load_model,      catalog_delete_model);
+    add_asset_handler(Shader_Asset,   {"shader", "compute", "glsl"}, catalog_load_shader,     catalog_delete_shader);
+    add_asset_handler(WBML_Asset,     {"wbml"},                      catalog_load_wbml_asset, catalog_delete_wbml_asset);
+    add_asset_handler(Cubemap_Asset,  {"wbcubemap"},                 catalog_load_cubemap,    catalog_delete_cubemap);
+    add_asset_handler(Material_Asset, {"wbmaterial"},                catalog_load_material,   catalog_delete_material);
 }
 
 add_asset_handler :: proc($Type: typeid, extensions: []string, load_proc: proc([]byte, Asset_Load_Context) -> (^Type, Asset_Load_Result, bool), delete_proc: proc(^Type)) {
@@ -249,6 +250,15 @@ get_font :: inline proc(name: string) -> Font {
     return get_asset(Font, name);
 }
 
+try_get_material :: proc(name: string) -> (Material, bool) {
+    asset, ok := try_get_asset(Material_Asset, name);
+    if ok do return asset.material, ok;
+    return {}, false;
+}
+get_material :: inline proc(name: string) -> Material {
+    return get_asset(Material_Asset, name).material;
+}
+
 try_get_cubemap :: proc(name: string) -> (Texture, bool) {
     c, ok := try_get_asset(Cubemap_Asset, name);
     if ok do return c.texture, true;
@@ -438,6 +448,20 @@ catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, As
 catalog_delete_model :: proc(model: ^Model) {
     delete_model(model^);
     free(model);
+}
+
+
+
+Material_Asset :: struct {
+    material: Material,
+}
+
+catalog_load_material :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Material_Asset, Asset_Load_Result, bool) {
+    material := wbml.deserialize(Material, data);
+    return new_clone(Material_Asset{material}), .Ok, true;
+}
+catalog_delete_material :: proc(material: ^Material_Asset) {
+    free(material);
 }
 
 
