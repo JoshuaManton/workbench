@@ -21,6 +21,7 @@ uniform sampler2D texture_handle;
 uniform int has_texture_handle;
 
 uniform samplerCube skybox_texture;
+uniform int has_skybox_texture;
 
 #define NUM_SHADOW_MAPS 4
 uniform sampler2D shadow_maps[NUM_SHADOW_MAPS];
@@ -84,19 +85,30 @@ vec3 fresnel_schlick(float cosTheta, vec3 F0) {
 }
 float distribution_ggx(vec3 N, vec3 H, float roughness) {
     float a      = roughness*roughness;
-    float a2     = a*a;
     float NdotH  = max(dot(N, H), 0.0);
     float NdotH2 = NdotH*NdotH;
 
-    float num   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    float num   = a;
+    float denom = (NdotH2 * (a - 1.0) + 1.0);
     denom = PI * denom * denom;
 
     return num / denom;
 }
 
 float geometry_schlick_ggx(float NdotV, float roughness) {
+    // todo(josh): (roughness + 1) should only be used for analytic light sources, not IBL
+    // "if applied to image-based lighting, the results at glancing angles will be much too dark"
+    // page 3
+    // https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf
+
+#if 1
     float r = (roughness + 1.0);
+#else
+    float r = roughness;
+#endif
+
+    r *= r;
+
     float k = (r*r) / 8.0;
 
     float num   = NdotV;
@@ -123,7 +135,7 @@ vec3 calculate_light(vec3 albedo, float metallic, float roughness, vec3 N, vec3 
     // cook-torrance brdf
     float NDF = distribution_ggx(N, H, roughness);
     float G   = geometry_smith(N, V, L, roughness);
-    vec3  F   = fresnel_schlick(max(dot(H, V), 0.0), F0);
+    vec3  F   = fresnel_schlick(clamp(dot(H, V), 0.0, 1.0), F0);
 
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
@@ -149,13 +161,14 @@ void main() {
     // texture color
     if (has_texture_handle == 1) {
         vec4 texture_sample = texture(texture_handle, tex_coord.xy);
-        albedo *= pow(texture_sample.rgb, vec3(2.2)); // todo(josh): dont hardcode this. not sure if it needs to change per texture?
-        frag_alpha *= texture_sample.a; // todo(josh): should alpha be gamma corrected? I suspect not
-    }
+        albedo *= texture_sample.rgb;
 
-    // float metallic = 0.1;
-    // float roughness = 0.9;
-    // float ao = 0.2;
+        // todo(josh): do we need to gamma correct when sampling textures? I assume it depends on how the texture is authored. that sucks.
+        // albedo *= pow(texture_sample.rgb, vec3(2.2));
+
+        // todo(josh): handle alpha properly. having a multiply here was giving me weird artifacts
+        frag_alpha = texture_sample.a;
+    }
 
     // point lights
     vec3 Lo = vec3(0.0);
@@ -192,9 +205,11 @@ void main() {
 
     // skybox light
     // todo(josh): real IBL
-    vec3 reflected_direction = normalize(reflect(-V, N));
-    vec3 skybox_color = pow(texture(skybox_texture, reflected_direction).rgb, vec3(2.2)); // todo(josh): should we normalize tex_coord here?
-    Lo += calculate_light(albedo, material.metallic, material.roughness, N, V, reflected_direction, skybox_color);
+    if (has_skybox_texture == 1) {
+        vec3 reflected_direction = normalize(reflect(-V, N));
+        vec3 skybox_color = pow(texture(skybox_texture, reflected_direction).rgb, vec3(2.2)); // todo(josh): should we normalize tex_coord here?
+        Lo += calculate_light(albedo, material.metallic, material.roughness, N, V, reflected_direction, skybox_color);
+    }
 
 
 
@@ -219,7 +234,7 @@ void main() {
     }
 
     // bloom color
-    float brightness = dot(out_color.rgb, vec3(0.2126, 0.7152, 0.0722)); // todo(josh): make configurable
+    float brightness = dot(out_color.rgb, vec3(1, 1, 1)); // todo(josh): make configurable?
     if (brightness > bloom_threshhold) {
         bloom_color = vec4(out_color.rgb * ((brightness / bloom_threshhold) - 1), 1.0);
     }

@@ -11,6 +11,7 @@ import "../allocators"
 import "../platform"
 import "../logging"
 import "../basic"
+import "../shared"
 
 Frame_Info :: struct {
 	root_section: ^Section_Info,
@@ -39,11 +40,14 @@ current_section: ^Section_Info;
 profiler_running: bool;
 
 init_profiler :: proc() {
-	profiler_frame_data = make([]Frame_Info, 2000);
-	profiler_full_frame_times = make([]f32, 2000);
+	NUM_FRAMES :: 600;
+	profiler_frame_data = make([]Frame_Info, NUM_FRAMES);
+	profiler_full_frame_times = make([]f32, NUM_FRAMES);
 
 	allocators.init_arena(&profiler_arena, make([]byte, mem.megabytes(10)));
 	profiler_allocator = allocators.arena_allocator(&profiler_arena);
+
+	// profiler_running = true;
 }
 
 deinit_profiler :: proc() {
@@ -51,18 +55,21 @@ deinit_profiler :: proc() {
 }
 
 profiler_new_frame :: proc() {
-	if platform.get_input(.F5) || turn_profiler_on {
-		turn_profiler_on = false;
-		profiler_running = true;
-	}
-	if platform.get_input(.F6) || turn_profiler_off {
-		turn_profiler_off = false;
-		profiler_running = false;
-	}
-	if platform.get_input(.F7) || clear_profiler {
-		clear_profiler = false;
-		free_all(profiler_allocator);
-		current_profiler_frame = 0;
+
+	when !shared.HEADLESS { // TODO(jake): support keyboard input for servers?
+		if platform.get_input(.F5) || turn_profiler_on {
+			turn_profiler_on = false;
+			profiler_running = true;
+		}
+		if platform.get_input(.F6) || turn_profiler_off {
+			turn_profiler_off = false;
+			profiler_running = false;
+		}
+		if platform.get_input(.F7) || clear_profiler {
+			clear_profiler = false;
+			free_all(profiler_allocator);
+			current_profiler_frame = 0;
+		}
 	}
 
 	if profiler_running {

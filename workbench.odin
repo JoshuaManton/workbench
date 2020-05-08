@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:sort"
 import "core:strings"
 import "core:mem"
+import "core:time"
 import "core:os"
 import "core:runtime"
 import core_time "core:time"
@@ -21,48 +22,45 @@ import "external/stb"
 import "allocators"
 import "shared"
 
-import "external/glfw"
-
 DEVELOPER :: true;
 
 //
 // Game loop stuff
 //
 
-main_window: platform.Window;
-default_temp_allocator: mem.Allocator;
-
-update_loop_ra: Rolling_Average(f32, 100);
-whole_frame_time_ra: Rolling_Average(f32, 100);
-
 do_log_frame_boundaries := false;
 
 target_framerate: int;
 frame_count: u64;
-time: f32;
+time_since_startup: f32;
 precise_time: f64;
 fixed_delta_time: f32;
 lossy_delta_time: f32;
-precise_lossy_delta_time: f64;
 
 frame_allocator: mem.Allocator;
 
 make_simple_window :: proc(window_width, window_height: int,
                            requested_framerate: int,
                            workspace: Workspace) {
-	startup_start_time := core_time.now()._nsec;
+
+    // init profiler
+    profiler.init_profiler();
+    defer profiler.deinit_profiler();
+
+	init_section := profiler.start_timed_section("engine init");
+
+	startup_start_time := time.now();
+
+	fixed_delta_time = cast(f32)1 / cast(f32)requested_framerate;
 	target_framerate = requested_framerate;
 
 	// init frame allocator
 	@static frame_allocator_raw: allocators.Arena;
-	allocators.init_arena(&frame_allocator_raw, make([]byte, 10 * 1024 * 1024)); // todo(josh): destroy the frame allocator
-    defer allocators.destroy_arena(&frame_allocator_raw);
+	allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024));
+    defer delete(frame_allocator_raw.memory);
 
-    default_temp_allocator = context.temp_allocator;
 	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
     frame_allocator_raw.panic_on_oom = true;
-    // context.temp_allocator = frame_allocator;
-    // defer context.temp_allocator = default_temp_allocator;
 
     // init allocation tracker
     default_allocator := context.allocator;
@@ -72,18 +70,16 @@ make_simple_window :: proc(window_width, window_height: int,
     defer context.allocator = default_allocator;
 
     register_debug_program("Profiler", proc(_: rawptr) {
-    		profiler.draw_profiler_window();
-    	}, nil);
+		profiler.draw_profiler_window();
+	}, nil);
 
-    // init profiler
-    profiler.init_profiler();
-    defer profiler.deinit_profiler();
-
-	init_random(u64(core_time.now()._nsec));
+	
+	init_random(cast(u64)time.now()._nsec);
 
 	when !shared.HEADLESS { 
 		// init platform and graphics
-		platform.init_platform(&main_window, workspace.name, window_width, window_height);
+		platformok := platform.init_platform(workspace.name, window_width, window_height);
+		assert(platformok);
 
 		init_draw(window_width, window_height);
 		defer deinit_draw();
@@ -98,29 +94,32 @@ make_simple_window :: proc(window_width, window_height: int,
 
 	register_debug_program("WB Info", wb_info_program, nil);
 	register_debug_program("Allocation Profiler", proc(ptr: rawptr) {
-		context.temp_allocator = default_temp_allocator;
+		// context.temp_allocator = default_temp_allocator;
 		profiler.draw_allocation_profiler(ptr);
 	}, &allocation_tracker);
 
 	init_workspace(workspace);
 
-	startup_end_time := core_time.now()._nsec;
-	logln("Startup time: ", startup_end_time - startup_start_time);
+	startup_end_time := time.now();
+	logln("Startup time: ", time.duration_seconds(time.diff(startup_start_time, startup_end_time)));
 
 	acc: f32;
-	fixed_delta_time = cast(f32)1 / cast(f32)target_framerate;
-	last_frame_start_time: f64;
-	should_window_close := false;
+	last_frame_start_time: time.Time;
+	window_should_close := false;
 	game_loop:
-	for !should_window_close && !wb_should_close {
+	for !wb_should_close && !window_should_close {
+
 		when !shared.HEADLESS {
-			should_window_close = glfw.WindowShouldClose(main_window);
+			window_should_close = platform.main_window.should_close;
 		}
 
-		profiler.profiler_new_frame();
-		profiler.TIMED_SECTION("full engine frame");
-		frame_start_time := f64(core_time.now()._nsec) / f64(core_time.Second);
-		lossy_delta_time = f32(frame_start_time - last_frame_start_time);
+		frame_start_time := time.now();
+		delta_time_seconds := time.duration_seconds(time.diff(last_frame_start_time, frame_start_time));
+		if last_frame_start_time._nsec == 0 {
+			delta_time_seconds = 0;
+		}
+
+		lossy_delta_time = cast(f32)delta_time_seconds;
 		last_frame_start_time = frame_start_time;
 		acc += lossy_delta_time;
 
@@ -149,34 +148,41 @@ make_simple_window :: proc(window_width, window_height: int,
 				}
 
 				//
-				precise_time = f64(core_time.now()._nsec);
-				time = cast(f32)precise_time;
+				time_since_startup = cast(f32)time.duration_seconds(time.diff(startup_start_time, time.now()));
 				frame_count += 1;
 
+				//
 				when !shared.HEADLESS {
-					//
 					platform.update_platform();
 					imgui_begin_new_frame(fixed_delta_time);
-		    		imgui.push_font(imgui_font_default); // todo(josh): pop this?
+		    		imgui.push_font(imgui_font_default); // :ImguiPopFont
+
+		    		io := imgui.get_io();
+		    		platform.block_keys = io.want_capture_keyboard;
+		    		platform.block_mouse = io.want_capture_mouse;
 
 		    		//
 		    		gizmo_new_frame();
 		    		update_draw();
-		    		update_ui();
-					update_debug_menu(fixed_delta_time);
-	    		}
-				
+		    	}
+
 				update_tween(fixed_delta_time);
+
+				when !shared.HEADLESS {
+					update_ui(fixed_delta_time);
+					update_debug_menu(fixed_delta_time);
+				}
+
 				update_workspace(workspace, fixed_delta_time); // calls client updates
 
-	    		when !shared.HEADLESS {
-					late_update_ui();
-	    			imgui.pop_font();
-
-					if acc >= fixed_delta_time {
+				when !shared.HEADLESS {
+					update_message_popups(fixed_delta_time);
+					// late_update_ui(); @Cleanup
+		    		imgui.pop_font(); // :ImguiPopFont
+		    		if acc >= fixed_delta_time {
 						imgui_render(false);
 					}
-				}
+		    	}
 
 				if acc >= fixed_delta_time {
 					continue;
@@ -188,11 +194,8 @@ make_simple_window :: proc(window_width, window_height: int,
 
 			when !shared.HEADLESS {
 				render_workspace(workspace);
-				glfw.SwapBuffers(main_window);
-				gpu.log_errors("after SwapBuffers()");
+				platform.platform_render();
 			}
-
-			rolling_average_push_sample(&whole_frame_time_ra, lossy_delta_time);
 		}
 	}
 
@@ -247,7 +250,7 @@ init_builtin_assets :: proc() {
 	fileloc := #location().file_path;
 	wbfolder, ok := basic.get_file_directory(fileloc);
 	assert(ok);
-	resources_folder := fmt.aprint(wbfolder, "/resources");
+	resources_folder := fmt.aprint(wbfolder, "resources");
 	defer delete(resources_folder);
 	track_asset_folder(resources_folder, true);
 }
@@ -270,7 +273,9 @@ wb_info_program :: proc(_: rawptr) {
 		};
 
 		imgui_struct(&data, "wb_debug_data");
-		imgui.checkbox("Debug UI", &debugging_ui);
+
+		// @Cleanup
+		// imgui.checkbox("Debug UI", &debugging_ui);
 		imgui.checkbox("Log Frame Boundaries", &do_log_frame_boundaries);
 		imgui.checkbox("Show dear-imgui Demo Window", &show_imgui_demo_window); if show_imgui_demo_window do imgui.show_demo_window(&show_imgui_demo_window);
 	}

@@ -10,6 +10,7 @@ import "logging"
 
 logln :: logging.logln;
 logf :: logging.logf;
+pretty_print :: logging.pretty_print;
 
 import "profiler"
 

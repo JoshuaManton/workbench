@@ -3,11 +3,14 @@ package workbench
 import "core:fmt"
 
 import "gpu"
-import log "logging"
 import "math"
 import "types"
+import "shared"
+import log "logging"
 import plat "platform"
 import "external/imgui"
+
+edge_tex, tri_tex: Texture;
 
 Terrain :: struct {
     model: Model,
@@ -18,7 +21,7 @@ Terrain :: struct {
     chunk_size: Vec3,
     step: f32,
     iso_level: f32,
-    edge_tex, tri_tex: Texture,
+    poly_shaded: bool,
 
     // editing
     editing_active: bool,
@@ -45,6 +48,11 @@ Terrain_Vertex :: struct {
     normal: Vec3,
 }
 
+init_terrain :: proc() {
+    edge_tex = create_texture_2d(256, 1, .R32I, .Red_Integer, .Int, transmute(^u8)&edgeTable[0]);
+    tri_tex = create_texture_2d(16, 256, .R32I, .Red_Integer, .Int, transmute(^u8)&triTable[0]);
+}
+
 create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
 
     density_map := make([][][]f32, int(chunk_size.x));
@@ -68,9 +76,7 @@ create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
         chunk_size,
         step,
         0,
-        create_texture_2d(256, 1, .R32I, .Red_Integer, .Int, transmute(^u8)&edgeTable[0]), 
-        create_texture_2d(16, 256, .R32I, .Red_Integer, .Int, transmute(^u8)&triTable[0]),
-        false, -1, 1, 0.25,
+        false, false, -1, 1, 0.25,
     };
 
     add_terrain_chunk(&terrain, density_map, 0);
@@ -84,40 +90,44 @@ add_terrain_chunk :: proc(using terrain: ^Terrain, _density_map: [][][]f32, inde
     y := len(_density_map[0][0]);
     chunk_size = {f32(x),f32(y),f32(z)};
 
-    chunk := Terrain_Chunk {
-        index,
-        _density_map,
-        {},
-        0, 
-        gpu.gen_shaderbuffer_storage(),
-        gpu.gen_shaderbuffer_storage(),
-    };
+    chunk := Terrain_Chunk {};
+    chunk.chunk_idx = index;
+    chunk.density_map = _density_map;
 
-    mesh_idx := add_mesh_to_model(&terrain.model, []Terrain_Vertex{}, {}, {});
-    mesh := &model.meshes[mesh_idx];
-    mesh.ssbo = chunk.ssbo_vert;
+    when !shared.HEADLESS {
+        chunk.ssbo_vert = gpu.gen_shaderbuffer_storage();
+        chunk.ssbo_count = gpu.gen_shaderbuffer_storage();
 
-    gpu.bind_shaderbuffer(chunk.ssbo_vert);
-    gpu.buffer_shader_storage(u32(15 * x * y * z * size_of(Terrain_Vertex)));
-    gpu.bind_shader_storage_buffer_base(0, chunk.ssbo_vert);
+        mesh_idx := add_mesh_to_model(&terrain.model, []Terrain_Vertex{}, {}, {});
+        mesh := &model.meshes[mesh_idx];
+        mesh.ssbo = chunk.ssbo_vert;
 
-    gpu.bind_shaderbuffer(chunk.ssbo_count);
-    gpu.buffer_shader_storage(32, false);
-    gpu.bind_shader_storage_buffer_base(1, chunk.ssbo_count);
+        gpu.bind_shaderbuffer(chunk.ssbo_vert);
+        gpu.buffer_shader_storage(u32(15 * x * y * z * size_of(Terrain_Vertex)));
+        gpu.bind_shader_storage_buffer_base(0, chunk.ssbo_vert);
+
+        gpu.bind_shaderbuffer(chunk.ssbo_count);
+        gpu.buffer_shader_storage(32, false);
+        gpu.bind_shader_storage_buffer_base(1, chunk.ssbo_count);
+    }
 
     append(&chunks, chunk);
-    update_mesh(&model, index, []Terrain_Vertex{}, {});
-    refresh_terrain_chunk_density(terrain, _density_map, index);
+
+    when !shared.HEADLESS {
+        update_mesh(&model, index, []Terrain_Vertex{}, {});
+        refresh_terrain_chunk_density(terrain, _density_map, index);
+    }
 }
 
 refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][][]f32, index: int) {
+    chunk := chunks[index];
+    
     x := len(_density_map);
     y := len(_density_map[0]);
     z := len(_density_map[0][0]);
+    
     dm := make([]f32, (x+2) * (y+2) * (z+2));
     defer delete(dm);
-
-    chunk := chunks[index];
 
     i := 0;
     for ix in 0..<x { for iz in 0..<z { for iy in 0..<y { 
@@ -143,6 +153,7 @@ refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][
     gpu.uniform_float(shader, "iso_level", iso_level);
     gpu.uniform_float(shader, "step", step);
     gpu.uniform_vec3(shader, "chunk_size", chunk_size);
+    gpu.uniform_int(shader, "poly_shade", poly_shaded ? 1 : 0);
 
     gpu.bind_shaderbuffer(chunk.ssbo_count);
     gpu.buffer_shader_storage_sub_data(4, &chunk.vertex_count);
@@ -160,8 +171,8 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
 
     // edit mode
     if editing_active {
-        mouse_world := get_mouse_world_position(main_camera, plat.mouse_unit_position);
-        mouse_direction := get_mouse_direction_from_camera(main_camera, plat.mouse_unit_position);
+        mouse_world := get_mouse_world_position(main_camera, plat.main_window.mouse_position_unit);
+        mouse_direction := get_mouse_direction_from_camera(main_camera, plat.main_window.mouse_position_unit);
         hit_pos, chunk_index, hit := raycast_into_terrain(terrain^, terrain_offset, mouse_world, mouse_direction);
 
         if hit {
@@ -234,6 +245,7 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
         dirty := false;
         dirty |= imgui.slider_float("iso", &iso_level, -50, 50);
         dirty |= imgui.slider_float("Step", &step, 0.1, 2);
+        dirty |= imgui.checkbox("Poly Shade", &poly_shaded);
         imgui_struct(&material, "Material", false);
 
         imgui.spacing();imgui.spacing();imgui.spacing();

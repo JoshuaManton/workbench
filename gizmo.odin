@@ -97,8 +97,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
     #partial
     switch operation {
         case .Translate: {
-            mouse_world := get_mouse_world_position(main_camera, platform.mouse_unit_position);
-            mouse_direction := get_mouse_direction_from_camera(main_camera, platform.mouse_unit_position);
+            mouse_world := get_mouse_world_position(main_camera, platform.main_window.mouse_position_unit);
+            mouse_direction := get_mouse_direction_from_camera(main_camera, platform.main_window.mouse_position_unit);
 
             was_active := move_type != .NONE;
             // arrows
@@ -108,8 +108,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
                     center_on_screen := world_to_unit(origin, main_camera);
                     tip_on_screen := world_to_unit(origin + rotated_direction(rotation^, direction_unary[i]) * size, main_camera);
 
-                    p := coll.closest_point_on_line(to_vec3(platform.mouse_unit_position), center_on_screen, tip_on_screen);
-                    dist := length(p - to_vec3(platform.mouse_unit_position));
+                    p := coll.closest_point_on_line(to_vec3(platform.main_window.mouse_position_unit), center_on_screen, tip_on_screen);
+                    dist := length(p - to_vec3(platform.main_window.mouse_position_unit));
                     if dist < 0.005 && dist < current_closest {
                         current_closest = dist;
                         hovered_type = Move_Type.MOVE_X + Move_Type(i);
@@ -209,8 +209,8 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
             break;
         }
         case .Rotate: {
-            mouse_world := get_mouse_world_position(main_camera, platform.mouse_unit_position);
-            mouse_direction := get_mouse_direction_from_camera(main_camera, platform.mouse_unit_position);
+            mouse_world := get_mouse_world_position(main_camera, platform.main_window.mouse_position_unit);
+            mouse_direction := get_mouse_direction_from_camera(main_camera, platform.main_window.mouse_position_unit);
 
 
             closest_plane_distance := max(f32);
@@ -234,7 +234,7 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
             if closest_index >= 0 {
                 hovered_type = .ROTATE_X + Move_Type(closest_index);
                 if platform.get_input_down(.Mouse_Left, true) {
-                    mouse_pixel_position_on_rotate_clicked = platform.mouse_screen_position;
+                    mouse_pixel_position_on_rotate_clicked = platform.main_window.mouse_position_pixel;
                     rotation_on_rotate_clicked = rotation^;
                     move_type = hovered_type;
                 }
@@ -244,9 +244,9 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
 
             if move_type != .NONE {
                 sensitivity : f32 = 0.01;
-                if platform.get_input(.Left_Alt) do sensitivity *= 0.5;
-                else if platform.get_input(.Left_Shift) do sensitivity *= 2;
-                rads := (platform.mouse_screen_position.x - mouse_pixel_position_on_rotate_clicked.x) * sensitivity;
+                if platform.get_input(.Alt) do sensitivity *= 0.5;
+                else if platform.get_input(.Shift) do sensitivity *= 2;
+                rads := (platform.main_window.mouse_position_pixel.x - mouse_pixel_position_on_rotate_clicked.x) * sensitivity;
 
                 dir_idx := -1;
                 #partial

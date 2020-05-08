@@ -19,7 +19,6 @@ import "platform"
 import "logging"
 import "shared"
 
-import    "external/glfw"
 import    "external/stb"
 import    "external/imgui"
 import gl "external/gl"
@@ -276,52 +275,47 @@ init_dear_imgui :: proc() {
 }
 
 imgui_begin_new_frame :: proc(dt: f32) {
-    when shared.HEADLESS do return;
-        else {
-        io := imgui.get_io();
-        io.display_size.x = platform.current_window_width;
-        io.display_size.y = platform.current_window_height;
+    io := imgui.get_io();
+    io.display_size.x = platform.main_window.width;
+    io.display_size.y = platform.main_window.height;
 
-        if platform.window_is_focused {
-        	posx, posy := glfw.GetCursorPos(main_window);
-            io.mouse_pos.x = cast(f32)posx;
-            io.mouse_pos.y = cast(f32)posy;
-            io.mouse_down[0] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Left) == glfw.Action.Press;
-            io.mouse_down[1] = glfw.GetMouseButton(main_window, cast(glfw.Mouse)platform.Input.Mouse_Right) == glfw.Action.Press;
-            io.mouse_wheel   = platform.mouse_scroll;
-            if io.want_capture_mouse {
-                platform.mouse_scroll = 0;
-            }
-
-            io.key_ctrl  = platform.get_input_imgui(.Left_Control) || platform.get_input_imgui(.Right_Control);
-            io.key_shift = platform.get_input_imgui(.Left_Shift)   || platform.get_input_imgui(.Right_Shift);
-            io.key_alt   = platform.get_input_imgui(.Left_Alt)    || platform.get_input_imgui(.Right_Alt);
-            io.key_super = platform.get_input_imgui(.Left_Super)     || platform.get_input_imgui(.Right_Super);
-
-            for i in 0..511 {
-                io.keys_down[i] = platform.get_input_imgui(cast(platform.Input)i);
-            }
-
-        } else {
-            io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
-
-            io.mouse_down[0] = false;
-            io.mouse_down[1] = false;
-            io.mouse_wheel   = 0;
-            io.key_ctrl  = false;
-            io.key_shift = false;
-            io.key_alt   = false;
-            io.key_super = false;
-
-            for i in 0..511 {
-                io.keys_down[i] = false;
-            }
+    if platform.main_window.is_focused {
+        io.mouse_pos = transmute(imgui.Vec2)platform.main_window.mouse_position_pixel;
+        io.mouse_down[0] = platform._get_global_input(.Mouse_Left);
+        io.mouse_down[1] = platform._get_global_input(.Mouse_Right);
+        io.mouse_wheel   = platform.main_window.mouse_scroll;
+        if io.want_capture_mouse {
+            platform.main_window.mouse_scroll = 0;
         }
 
-        // ctx.imgui_state.mouse_wheel_delta = 0;
-        io.delta_time = dt;
-        imgui.new_frame();
+        io.key_ctrl  = platform._get_global_input(.Control);
+        io.key_shift = platform._get_global_input(.Shift);
+        io.key_alt   = platform._get_global_input(.Alt);
+        io.key_super = platform._get_global_input(.Left_Windows) || platform._get_global_input(.Right_Windows);
+
+        // todo(josh): do we care about this?
+        for input, idx in platform.Input {
+            io.keys_down[idx] = platform._get_global_input(input);
+        }
+    } else {
+        io.mouse_pos = imgui.Vec2{-math.F32_MAX, -math.F32_MAX};
+
+        io.mouse_down[0] = false;
+        io.mouse_down[1] = false;
+        io.mouse_wheel   = 0;
+        io.key_ctrl  = false;
+        io.key_shift = false;
+        io.key_alt   = false;
+        io.key_super = false;
+
+        for i in 0..511 {
+            io.keys_down[i] = false;
+        }
     }
+
+    // ctx.imgui_state.mouse_wheel_delta = 0;
+    io.delta_time = dt;
+    imgui.new_frame();
 }
 
 imgui_render :: proc(render_to_screen : bool) {
@@ -510,9 +504,9 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         range_str := tags[range_idx:];
         range_lexer := laas.make_lexer(range_str);
         laas.get_next_token(&range_lexer, nil);
-        laas.expect_symbol(&range_lexer, '=');
+        laas.expect_symbol(&range_lexer, "=");
         range_min_str := laas.expect_string(&range_lexer);
-        laas.expect_symbol(&range_lexer, ':');
+        laas.expect_symbol(&range_lexer, ":");
         range_max_str := laas.expect_string(&range_lexer);
 
         range_min = strconv.parse_f32(range_min_str);

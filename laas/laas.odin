@@ -47,43 +47,18 @@ Lexer :: struct {
     userdata: any,
 }
 
-Identifier :: struct {
-    value: string,
-}
-
-Number :: struct {
-    int_value: i64,
-    unsigned_int_value: u64,
-    float_value: f64,
-    has_a_dot: bool,
-}
-
-String :: struct {
-    value: string,
-}
-
-Symbol :: struct {
-    value: rune,
-}
-
-New_Line :: struct {
-}
-
-EOF :: struct {
-
-}
-
 Token :: struct {
-    slice_of_text: string,
+    text: string,
+    kind: Token_Kind,
+}
 
-    kind: union {
-        Identifier,
-        Number,
-        String,
-        Symbol,
-        New_Line,
-        EOF,
-    },
+Token_Kind :: enum {
+	Identifier,
+    Number,
+    String,
+    Symbol,
+    New_Line,
+    EOF,
 }
 
 make_lexer :: inline proc(text: string) -> Lexer {
@@ -98,12 +73,12 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 	}
 
 	if lex_idx >= len(lexer_text) {
-		token^ = Token{"", EOF{}};
+		token^ = Token{"", .EOF};
 		return false;
 	}
 	for _is_whitespace(lexer_text[lex_idx]) {
 		if !_inc(lexer) {
-			token^ = Token{"", EOF{}};
+			token^ = Token{"", .EOF};
 			return false;
 		}
 	}
@@ -131,15 +106,15 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 			}
 
 			token_text := lexer_text[start:lex_idx];
-			token^ = Token{token_text, String{token_text}};
+			token^ = Token{token_text, .String};
 		}
 
 		case '!'..'/', ':'..'@', '['..'`', '{'..'~': {
-			token^ = Token{lexer_text[lex_idx:lex_idx+1], Symbol{r}};
+			token^ = Token{lexer_text[lex_idx:lex_idx+1], .Symbol};
 		}
 
 		case '\n': {
-			token^ = Token{lexer_text[lex_idx:lex_idx], New_Line{}};
+			token^ = Token{lexer_text[lex_idx:lex_idx], .New_Line};
 		}
 
 		case 'A'..'Z', 'a'..'z', '_': {
@@ -159,7 +134,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 			}
 			token_text := lexer_text[start:lex_idx];
 			_dec(lexer);
-			token^ = Token{token_text, Identifier{token_text}};
+			token^ = Token{token_text, .Identifier};
 		}
 
 		case '0'..'9', '.': {
@@ -203,7 +178,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 			}
 
 			_dec(lexer);
-			token^ = Token{token_text, Number{int_val, unsigned_int_val, float_val, found_a_dot}};
+			token^ = Token{token_text, .Number};
 		}
 
 		case: {
@@ -215,7 +190,7 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 	_inc(lexer);
 
 	for ignore_newline {
-		if _, is_newline := token.kind.(New_Line); !is_newline {
+		if token.kind == .New_Line {
 			break;
 		}
 		ok := get_next_token(lexer, token, ignore_newline);
@@ -225,22 +200,21 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 		}
 	}
 
-	assert(token.kind != nil);
 	return true;
 }
 
-is_token :: proc(lexer: ^Lexer, $T: typeid) -> bool {
+is_token :: proc(lexer: ^Lexer, kind: Token_Kind) -> bool {
 	t: Token;
 	ok := peek(lexer, &t);
 	if !ok do return false;
-	_, ok2 := t.kind.(T);
-	return ok2;
+
+	return t.kind == kind;
 }
 
 peek :: proc(lexer: ^Lexer, out_token: ^Token, ignore_newline := false) -> bool {
 	lexer_copy := lexer^;
 	get_next_token(&lexer_copy, out_token, ignore_newline);
-	_, is_end := out_token.kind.(EOF);
+	is_end := out_token.kind == .EOF;
 	return !is_end;
 }
 
@@ -250,25 +224,26 @@ eat :: proc(lexer: ^Lexer) -> bool {
 	return ok;
 }
 
-expect :: proc(lexer: ^Lexer, $T: typeid) -> (T, bool) {
+expect :: proc(lexer: ^Lexer, kind: Token_Kind) -> (Token, bool) {
 	t: Token;
 	ok := get_next_token(lexer, &t);
 	if !ok do return {}, false;
+	if t.kind != kind do return t, false;
 
-	return t.kind.(T);
+	return t, true;
 }
 
-expect_symbol :: proc(lexer: ^Lexer, r: rune) {
+expect_symbol :: proc(lexer: ^Lexer, r: string) {
 	t: Token;
 	ok := get_next_token(lexer, &t);
 	if !ok {
 		assert(false, tprint("EOF"));
 	}
-	if s, ok := t.kind.(Symbol); ok {
-		if s.value == r {
+	if t.kind == .Symbol {
+		if t.text == r {
 			return;
 		}
-		assert(false, tprint("Expected ", r, ", got ", s.value));
+		assert(false, tprint("Expected ", r, ", got ", t.text));
 	}
 	else {
 		assert(false, tprint("Expected symbol, got ", t));
@@ -281,8 +256,9 @@ expect_f32 :: proc(lexer: ^Lexer) -> f32 {
 	if !ok {
 		assert(false, tprint("EOF"));
 	}
-	if n, ok := t.kind.(Number); ok {
-		return cast(f32)n.float_value;
+	if t.kind == .Number {
+		float_value := strconv.parse_f32(t.text);
+		return float_value;
 	}
 	assert(false, tprint("Expected f32, got ", t));
 	return 0;
@@ -294,8 +270,8 @@ expect_string :: proc(lexer: ^Lexer) -> string {
 	if !ok {
 		assert(false, tprint("EOF"));
 	}
-	if n, ok := t.kind.(String); ok {
-		return n.value;
+	if t.kind == .String {
+		return t.text;
 	}
 	assert(false, tprint("Expected string, got ", t));
 	return "";

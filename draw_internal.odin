@@ -14,8 +14,6 @@ import "shared"
 import "external/stb"
 import "external/imgui"
 
-import "external/glfw"
-
 
 //
 // Internal
@@ -35,6 +33,7 @@ debug_lines: [dynamic]Debug_Line;
 debug_cubes: [dynamic]Debug_Cube;
 debug_line_model: Model;
 
+render_wireframes: bool;
 visualize_bloom_texture: bool;
 visualize_shadow_texture: bool;
 visualize_shadow_cascades: bool;
@@ -43,9 +42,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 when shared.HEADLESS do return;
 else 
 {
-	gpu.init(proc(p: rawptr, name: cstring) {
-			(cast(^rawptr)p)^ = rawptr(glfw.GetProcAddress(name));
-		});
+	profiler.TIMED_SECTION();
 
 	init_camera(&_screen_camera, false, 10, screen_width, screen_height);
 	_screen_camera.clear_color = {1, 0, 1, 1};
@@ -87,6 +84,7 @@ else
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
 		imgui_struct(&render_settings, "Render Settings");
+		imgui.checkbox("render_wireframes",  &render_wireframes);
 		imgui.checkbox("visualize_bloom_texture",  &visualize_bloom_texture);
 		imgui.checkbox("visualize_shadow_texture", &visualize_shadow_texture);
 		imgui.checkbox("visualize_shadow_cascades", &visualize_shadow_cascades);
@@ -173,7 +171,7 @@ else
 	// gpu.delete_shader(shader_framebuffer_gamma_corrected);
 
 	delete_model(debug_line_model);
-	gpu.deinit();
+	// gpu.deinit();
 
 	delete(debug_lines);
 	delete(debug_cubes);

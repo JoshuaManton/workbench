@@ -22,14 +22,14 @@ void main() {
     vec3 result = texture(texture_handle, tex_coord.xy).rgb; // current fragment's contribution
     if (horizontal) {
         for (int i = 1; i < bloom_range; ++i) {
-            result += texture(texture_handle, tex_coord.xy + vec2(tex_offset.x * i, 0.0)).rgb * (bloom_weight/pow(i, 2));
-            result += texture(texture_handle, tex_coord.xy - vec2(tex_offset.x * i, 0.0)).rgb * (bloom_weight/pow(i, 2));
+            result += texture(texture_handle, tex_coord.xy + vec2(tex_offset.x * i, 0.0)).rgb * (bloom_weight/pow(i, 4));
+            result += texture(texture_handle, tex_coord.xy - vec2(tex_offset.x * i, 0.0)).rgb * (bloom_weight/pow(i, 4));
         }
     }
     else {
         for (int i = 1; i < bloom_range; ++i) {
-            result += texture(texture_handle, tex_coord.xy + vec2(0.0, tex_offset.y * i)).rgb * (bloom_weight/pow(i, 2));
-            result += texture(texture_handle, tex_coord.xy - vec2(0.0, tex_offset.y * i)).rgb * (bloom_weight/pow(i, 2));
+            result += texture(texture_handle, tex_coord.xy + vec2(0.0, tex_offset.y * i)).rgb * (bloom_weight/pow(i, 4));
+            result += texture(texture_handle, tex_coord.xy - vec2(0.0, tex_offset.y * i)).rgb * (bloom_weight/pow(i, 4));
         }
     }
     out_color = vec4(result, 1.0);

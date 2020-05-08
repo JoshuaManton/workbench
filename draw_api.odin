@@ -305,14 +305,15 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
             return construct_projection_matrix(camera);
         }
         case .Unit: {
-            unit := mat4_scale(identity(Mat4), Vec3{2, 2, 0});
-            unit = translate(unit, Vec3{-1, -1, 0});
+            unit := mat4_scale(identity(Mat4), Vec3{2, -2, 0});
+            unit = translate(unit, Vec3{-1, 1, 0});
             return unit;
         }
         case .Pixel: {
             pixel := mat4_scale(identity(Mat4), Vec3{1.0 / camera.pixel_width, 1.0 / camera.pixel_height, 0});
-            pixel = mat4_scale(pixel, 2);
+            pixel = mat4_scale(pixel, Vec3{2, -2, 2});
             pixel = translate(pixel, Vec3{-1, -1, 0});
+            pixel = translate(pixel, Vec3{0, 2, 0});
             return pixel;
         }
         case .Aspect: {
@@ -351,6 +352,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	PUSH_CAMERA(camera);
 
 	set_sun_data(Quat{0, 0, 0, 1}, Colorf{0, 0, 0, 0}, 0);
+    camera.skybox = {};
 
 	if user_render_proc != nil {
 		user_render_proc(lossy_delta_time);
@@ -498,10 +500,21 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			if skybox_texture, ok := getval(&camera.skybox); ok {
 				add_texture_binding(cmd, "skybox_texture", skybox_texture^);
 			}
+            else {
+                add_texture_binding(cmd, "skybox_texture", {});
+            }
 
 			// issue draw call
 			if on_render_object != nil do on_render_object(cmd.userdata);
 			execute_draw_command(cmd^);
+
+            if render_wireframes {
+                PUSH_POLYGON_MODE(.Line);
+                cmd := cmd^;
+                cmd.depth_test = false;
+                cmd.color = {0, 1, 0, 1};
+                execute_draw_command(cmd);
+            }
 		}
 	}
 
@@ -551,7 +564,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 
 			if visualize_bloom_texture {
 				gpu.use_program(get_shader("default"));
-				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.current_window_size, {512, 256} / platform.current_window_size);
+				draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.main_window.size, {512, 256} / platform.main_window.size);
 			}
 		}
 	}
@@ -567,7 +580,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			if length(camera.sun_direction) > 0 {
 				gpu.use_program(get_shader("depth"));
 				for shadow_map, map_idx in shadow_maps {
-					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.current_window_size, {256 * (cast(f32)map_idx+1), 256} / platform.current_window_size);
+					draw_texture(shadow_map.framebuffer.depth_texture, {256 * cast(f32)map_idx, 0} / platform.main_window.size, {256 * (cast(f32)map_idx+1), 256} / platform.main_window.size);
 				}
 			}
 		}
@@ -611,10 +624,10 @@ flush_lights :: proc(camera: ^Camera, shader: gpu.Shader_Program) {
 do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_speed: f32, slow_speed: f32) {
 	speed := normal_speed;
 
-	if platform.get_input(.Left_Shift) {
+	if platform.get_input(.Shift) {
 		speed = fast_speed;
 	}
-	else if platform.get_input(.Left_Alt) {
+	else if platform.get_input(.Alt) {
 		speed = slow_speed;
 	}
 
@@ -636,11 +649,11 @@ do_camera_movement :: proc(camera: ^Camera, dt: f32, normal_speed: f32, fast_spe
 	rotate_vector: Vec3;
 	if platform.get_input(.Mouse_Right) {
 		MOUSE_ROTATE_SENSITIVITY :: 0.1;
-		delta := platform.mouse_screen_position_delta;
+		delta := platform.main_window.mouse_position_pixel_delta;
 		delta *= MOUSE_ROTATE_SENSITIVITY;
-		rotate_vector = Vec3{delta.y, -delta.x, 0};
+		rotate_vector = Vec3{-delta.y, -delta.x, 0};
 
-		camera.size -= platform.mouse_scroll * camera.size * 0.05;
+		camera.size -= platform.main_window.mouse_scroll * camera.size * 0.05;
 	}
 	else {
 		KEY_ROTATE_SENSITIVITY :: 1;
@@ -919,7 +932,7 @@ PUSH_FRAMEBUFFER :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: boo
 
 push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_framebuffer: bool) -> Framebuffer {
 	if auto_resize_framebuffer {
-	    if framebuffer.width != cast(int)platform.current_window_width || framebuffer.height != cast(int)platform.current_window_height {
+	    if framebuffer.width != cast(int)platform.main_window.width || framebuffer.height != cast(int)platform.main_window.height {
 	        logln("Rebuilding framebuffer...");
 
 		    if framebuffer.fbo != 0 {
@@ -928,11 +941,11 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 				data_element_format := framebuffer.data_element_format;
 				num_color_buffers := len(framebuffer.attachments);
 		        delete_framebuffer(framebuffer^);
-		        framebuffer^ = create_framebuffer(cast(int)(platform.current_window_width+0.5), cast(int)(platform.current_window_height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
+		        framebuffer^ = create_framebuffer(cast(int)(platform.main_window.width+0.5), cast(int)(platform.main_window.height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
 		    }
 		    else {
-	    	    framebuffer.width  = cast(int)(platform.current_window_width+0.5);
-		        framebuffer.height = cast(int)(platform.current_window_height+0.5);
+	    	    framebuffer.width  = cast(int)(platform.main_window.width+0.5);
+		        framebuffer.height = cast(int)(platform.main_window.height+0.5);
 		    }
 	    }
 	}
@@ -1161,7 +1174,7 @@ draw_model :: proc(model: Model,
 	gpu.uniform_vec3(program, "position", position);
 	gpu.uniform_vec3(program, "scale", scale);
 
-	gpu.uniform_float(program, "time", time);
+	gpu.uniform_float(program, "time", time_since_startup);
 
 	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
 	gpu.log_errors(#procedure);
@@ -1197,6 +1210,7 @@ draw_model :: proc(model: Model,
 		gpu.set_vertex_format(mesh.vertex_type);
 		gpu.log_errors(#procedure);
 
+        TIMED_SECTION("draw call");
 		if mesh.index_count > 0 {
 			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 		}
@@ -1304,75 +1318,88 @@ return_draw_command_to_pool :: proc(cmd: Draw_Command_3D) {
 }
 
 execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location) {
+	TIMED_SECTION();
+
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 	// note(josh): DO NOT TOUCH cmd.shader in this procedure because it could be shadows or the proper shader. use `bound_shader` defined below
 
 	bound_shader := gpu.get_current_shader();
 
-	for binding, idx in texture_bindings {
-		bind_texture_to_shader(binding.name, binding.texture, idx, bound_shader);
-	}
-	for _, bidx in uniform_bindings {
-		binding := &uniform_bindings[bidx];
-		switch value in &binding.value {
-			case f32:      gpu.uniform_float(bound_shader, binding.name, value);
-			case i32:      gpu.uniform_int  (bound_shader, binding.name, value);
-			case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value);
-			case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value);
-			case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value);
-			case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, &value);
-			case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value);
-
-			case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value);
-			case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value);
-			case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value);
-			case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value);
-			case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value);
-			case []Mat4:   gpu.uniform_mat4_array (bound_shader, binding.name, value[:]);
-			case []Colorf: gpu.uniform_vec4_array (bound_shader, binding.name, transmute([]Vec4)value[:]);
-			case: panic(tprint(binding.value));
+	{
+		TIMED_SECTION("texture bindings");
+		for binding, idx in texture_bindings {
+			bind_texture_to_shader(binding.name, binding.texture, idx, bound_shader);
 		}
 	}
 
-	flush_material(cmd.material, bound_shader);
+	{
+		TIMED_SECTION("uniform bindings");
+		for _, bidx in uniform_bindings {
+			binding := &uniform_bindings[bidx];
+			switch value in &binding.value {
+				case f32:      gpu.uniform_float(bound_shader, binding.name, value);
+				case i32:      gpu.uniform_int  (bound_shader, binding.name, value);
+				case Vec2:     gpu.uniform_vec2 (bound_shader, binding.name, value);
+				case Vec3:     gpu.uniform_vec3 (bound_shader, binding.name, value);
+				case Vec4:     gpu.uniform_vec4 (bound_shader, binding.name, value);
+				case Mat4:     gpu.uniform_mat4 (bound_shader, binding.name, &value);
+				case Colorf:   gpu.uniform_vec4 (bound_shader, binding.name, transmute(Vec4)value);
 
-	// model_matrix
-	model_p := translate(identity(Mat4), position);
-	model_s := mat4_scale(identity(Mat4), scale);
-	model_r := quat_to_mat4(rotation);
-	model_matrix := mul(mul(model_p, model_r), model_s);
+				case []f32:    gpu.uniform_float_array(bound_shader, binding.name, value);
+				case []i32:    gpu.uniform_int_array  (bound_shader, binding.name, value);
+				case []Vec2:   gpu.uniform_vec2_array (bound_shader, binding.name, value);
+				case []Vec3:   gpu.uniform_vec3_array (bound_shader, binding.name, value);
+				case []Vec4:   gpu.uniform_vec4_array (bound_shader, binding.name, value);
+				case []Mat4:   gpu.uniform_mat4_array (bound_shader, binding.name, value[:]);
+				case []Colorf: gpu.uniform_vec4_array (bound_shader, binding.name, transmute([]Vec4)value[:]);
+				case: panic(tprint(binding.value));
+			}
+		}
 
-	gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
+		flush_material(cmd.material, bound_shader);
+	}
 
-	gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
+	{
+		TIMED_SECTION("matrices");
+		// model_matrix
+		model_p := translate(identity(Mat4), position);
+		model_s := mat4_scale(identity(Mat4), scale);
+		model_r := quat_to_mat4(rotation);
+		model_matrix := mul(mul(model_p, model_r), model_s);
 
-	gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
-	gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
+		gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
 
-	rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
-	gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
+		gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
 
-	gpu.uniform_vec3(bound_shader, "position", position);
-	gpu.uniform_vec3(bound_shader, "scale", scale);
-	gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
+		gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
+		gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
 
-	gpu.uniform_float(bound_shader, "time", time);
+		rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
+		gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
+
+		gpu.uniform_vec3(bound_shader, "position", position);
+		gpu.uniform_vec3(bound_shader, "scale", scale);
+		gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
+
+		gpu.uniform_float(bound_shader, "time", time_since_startup);
+	}
 
 	PUSH_GPU_ENABLED(.Depth_Test, depth_test);
 	gpu.polygon_mode(.Front_And_Back, main_camera.polygon_mode);
 	gpu.log_errors(#procedure);
 
+	
+	TIMED_SECTION("draw meshes");
 	for mesh, i in model.meshes {
 		gpu.bind_vao(mesh.vao);
 		gpu.bind_vbo(mesh.vbo);
 		gpu.bind_ibo(mesh.ibo);
+		gpu.log_errors(#procedure);
 
 		if mesh.ssbo != 0 {
 			gpu.bind_ssbo(mesh.ssbo);
 		}
-
-		gpu.log_errors(#procedure);
 
 		if len(anim_state.mesh_states) > i {
 			gpu.uniform_int(bound_shader, "do_animation", 1);
@@ -1391,11 +1418,12 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 		gpu.set_vertex_format(mesh.vertex_type);
 		gpu.log_errors(#procedure);
 
+        TIMED_SECTION("draw call");
 		if mesh.index_count > 0 {
-			gpu.draw_elephants(cmd.draw_mode, mesh.index_count, .Unsigned_Int, nil);
+			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
 		}
 		else {
-			gpu.draw_arrays(cmd.draw_mode, 0, mesh.vertex_count);
+			gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
 		}
 	}
 }
@@ -1487,7 +1515,7 @@ debug_geo_flush :: proc() {
 //
 
 get_mouse_world_position :: proc(camera: ^Camera, cursor_unit_position: Vec2) -> Vec3 {
-	cursor_viewport_position := to_vec4((cursor_unit_position * 2) - Vec2{1, 1});
+    cursor_viewport_position := to_vec4(unit_to_viewport(to_vec3(cursor_unit_position)));
 	cursor_viewport_position.w = 1;
 
 	cursor_viewport_position.z = 0.1; // just some way down the frustum, will behave differently for opengl and directx
@@ -1539,19 +1567,25 @@ unit_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	return result;
 }
 unit_to_viewport :: proc(a: Vec3) -> Vec3 {
-	result := (a * 2) - Vec3{1, 1, 0};
+	result := (a * 2);
+    result.y = 2 - result.y;
+    result -= Vec3{1, 1, 0};
 	return result;
 }
-unit_to_aspect :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
+unit_to_aspect :: proc(a: Vec3, aspect: f32) -> Vec3 {
 	result := (a * 2) - Vec3{1, 1, 0};
-	result.x *= camera.aspect;
+	result.x *= aspect;
+    result.y = 1 - result.y;
 	return result;
 }
 
 pixel_to_viewport :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	a := a;
-	a /= Vec3{pixel_width/2, pixel_height/2, 1};
+	a /= Vec3{pixel_width, pixel_height, 1};
+    a *= 2;
+    a.y = 2 - a.y; // y is down for pixels
 	a -= Vec3{1, 1, 0};
+
 	return a;
 }
 pixel_to_unit :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
@@ -1560,8 +1594,8 @@ pixel_to_unit :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 {
 	return a;
 }
 
-viewport_to_world :: proc(camera: ^Camera, viewport_position: Vec3) -> Vec3 {
-	viewport_position4 := to_vec4(viewport_position);
+viewport_to_world :: proc(a: Vec3, camera: ^Camera) -> Vec3 {
+	viewport_position4 := to_vec4(a);
 
 	inv := mat4_inverse(mul(construct_projection_matrix(camera), construct_view_matrix(camera)));
 
@@ -1575,6 +1609,7 @@ viewport_to_pixel :: proc(a: Vec3, pixel_width: f32, pixel_height: f32) -> Vec3 
 	a := a;
 	a += Vec3{1, 1, 0};
 	a *= Vec3{pixel_width/2, pixel_height/2, 0};
+    a.y = main_camera.pixel_height - a.y; // y is down for pixels
 	a.z = 0;
 	return a;
 }
@@ -1582,6 +1617,7 @@ viewport_to_unit :: proc(a: Vec3) -> Vec3 {
 	a := a;
 	a += Vec3{1, 1, 0};
 	a /= 2;
+    a.y = 1 - a.y;
 	a.z = 0;
 	return a;
 }

@@ -78,7 +78,7 @@ tween :: proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_
 }
 
 tween_make :: inline proc(ptr: ^$T, target: T, duration: f32, ease: proc(f32) -> f32 = ease_out_quart, delay : f32 = 0) -> ^Tweener {
-	new_tweener := new_clone(Tweener{ptr, ptr, ptr^, target, 0, duration, ease, time + delay, false, false, nil, nil, nil}); // @Alloc
+	new_tweener := new_clone(Tweener{ptr, ptr, ptr^, target, 0, duration, ease, time_since_startup + delay, false, false, nil, nil, nil}); // @Alloc
 	append(&tweeners, new_tweener);
 	return new_tweener;
 }
@@ -104,7 +104,7 @@ update_tween :: proc(dt: f32) {
 		assert(tweener.duration != 0);
 
 		if !tweener.active do continue;
-		if time < tweener.start_time do continue;
+		if time_since_startup < tweener.start_time do continue;
 
 		switch kind in tweener.ptr {
 			case ^f32:  kind^ = _update_one_tweener(f32,  tweener, dt);

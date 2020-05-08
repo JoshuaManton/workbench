@@ -5,6 +5,7 @@ DEVELOPER :: true;
 import "core:fmt"
 import rt "core:runtime"
 import "core:mem"
+import "core:strconv"
 import "core:strings"
 import "core:os"
 
@@ -686,17 +687,19 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
 
     // eat entity id
     lexer := laas.make_lexer(cast(string)data);
-    eid_token, ok2 := laas.expect(&lexer, laas.Number);
-    eid := transmute(Entity)eid_token.int_value;
+    eid_token, ok2 := laas.expect(&lexer, .Number);
+    assert(ok2);
+    int_value := strconv.parse_int(eid_token.text);
+    eid := transmute(Entity)int_value;
 
     // eat entity name
-    name_token, name_ok := laas.expect(&lexer, laas.Identifier);
+    name_token, name_ok := laas.expect(&lexer, .Identifier);
     entity_name := "Entity";
     if !name_ok {
         logln("Entity ", eid, " didn't have a name in the file.");
     }
     else {
-        entity_name = strings.clone(name_token.value);
+        entity_name = strings.clone(name_token.text);
     }
 
     // make it
@@ -704,14 +707,14 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
 
     // load the component data
     for {
-        for laas.is_token(&lexer, laas.New_Line) do laas.eat(&lexer);
-        component_name_ident, ok := laas.expect(&lexer, laas.Identifier);
+        for laas.is_token(&lexer, .New_Line) do laas.eat(&lexer);
+        component_name_ident, ok := laas.expect(&lexer, .Identifier);
         if !ok do break;
 
-        nl, ok2 := laas.expect(&lexer, laas.New_Line);
+        nl, ok2 := laas.expect(&lexer, .New_Line);
         assert(ok2);
 
-		ti := get_component_ti_from_name(component_name_ident.value);
+		ti := get_component_ti_from_name(component_name_ident.text);
 		comp, found := _get_component_internal(eid, ti.id);
 		if !found do comp = _add_component_internal(eid, ti.id);
 

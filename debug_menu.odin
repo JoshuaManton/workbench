@@ -45,8 +45,8 @@ update_debug_menu :: proc(dt: f32) {
 
 	if debug_window_open {
 		HEIGHT :: 35;
-		imgui.set_next_window_pos(imgui.Vec2{0, platform.current_window_height - HEIGHT});
-		imgui.set_next_window_size(imgui.Vec2{platform.current_window_width, HEIGHT});
+		imgui.set_next_window_pos(imgui.Vec2{0, platform.main_window.height - HEIGHT});
+		imgui.set_next_window_size(imgui.Vec2{platform.main_window.width, HEIGHT});
 		if imgui.begin("Debug", nil, imgui.Window_Flags.NoResize |
 	                                 imgui.Window_Flags.NoMove |
 	                                 imgui.Window_Flags.NoTitleBar |
