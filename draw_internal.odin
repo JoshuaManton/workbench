@@ -6,13 +6,14 @@ import "core:strings"
 import "core:mem"
 import "core:os"
 
-import "platform"
 import "gpu"
 import "profiler"
 import "logging"
+import "shared"
 
 import "external/stb"
 import "external/imgui"
+
 
 //
 // Internal
@@ -24,6 +25,7 @@ main_camera: ^Camera;
 
 wb_cube_model: Model;
 wb_quad_model: Model;
+wb_sphere_model: Model;
 
 wb_skybox_model: Model;
 
@@ -37,6 +39,9 @@ visualize_shadow_texture: bool;
 visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
+when shared.HEADLESS do return;
+else 
+{
 	profiler.TIMED_SECTION();
 
 	init_camera(&_screen_camera, false, 10, screen_width, screen_height);
@@ -54,6 +59,7 @@ init_draw :: proc(screen_width, screen_height: int) {
 
 	wb_cube_model = create_cube_model();
 	wb_quad_model = create_quad_model();
+	wb_sphere_model = create_sphere_model();
 	wb_skybox_model = create_cube_model(2);
 	add_mesh_to_model(&debug_line_model, []Vertex3D{}, []u32{}, {});
 
@@ -73,7 +79,11 @@ init_draw :: proc(screen_width, screen_height: int) {
 	register_debug_program("Rendering", rendering_debug_program, nil);
 	register_debug_program("Scene View", scene_view_debug_program, nil);
 }
+}
 rendering_debug_program :: proc(_: rawptr) {
+when shared.HEADLESS do return;
+else 
+{
 	if imgui.begin("Rendering") {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
 		imgui_struct(&main_camera.polygon_mode, "Polygon Mode");
@@ -85,7 +95,11 @@ rendering_debug_program :: proc(_: rawptr) {
 	}
 	imgui.end();
 }
+}
 scene_view_debug_program :: proc(_: rawptr) {
+when shared.HEADLESS do return;
+else 
+{
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
 
@@ -96,10 +110,15 @@ scene_view_debug_program :: proc(_: rawptr) {
 	}
 	imgui.end();
 }
+}
 
 update_draw :: proc() {
+when shared.HEADLESS do return;
+else 
+{
 	clear(&debug_lines);
 	clear(&debug_cubes);
+}
 }
 
 // todo(josh): maybe put this in the Workspace?
@@ -108,6 +127,10 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
+when shared.HEADLESS do return;
+else 
+{
+	check_for_file_updates();
 	TIMED_SECTION();
 
 	PUSH_GPU_ENABLED(.Cull_Face, true);
@@ -128,8 +151,12 @@ render_workspace :: proc(workspace: Workspace) {
 
 	imgui_render(true);
 }
+}
 
 deinit_draw :: proc() {
+when shared.HEADLESS do return;
+else 
+{
 	delete_camera(&_default_camera);
 
 	// todo(josh): figure out why deleting shaders was causing errors
@@ -155,4 +182,5 @@ deinit_draw :: proc() {
 
 	unregister_debug_program("Rendering");
 	unregister_debug_program("Scene View");
+}
 }

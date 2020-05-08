@@ -6,8 +6,8 @@ import "core:strings"
 import "core:mem"
 import "core:time"
 import "core:os"
-import "core:sys/win32"
 import "core:runtime"
+import core_time "core:time"
 
 import "math"
 import "gpu"
@@ -17,10 +17,10 @@ import "types"
 import "basic"
 
 import "external/imgui"
-
 import "external/stb"
 
 import "allocators"
+import "shared"
 
 DEVELOPER :: true;
 
@@ -59,10 +59,8 @@ make_simple_window :: proc(window_width, window_height: int,
 	allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024));
     defer delete(frame_allocator_raw.memory);
 
-    default_temp_allocator := context.temp_allocator;
 	frame_allocator = allocators.arena_allocator(&frame_allocator_raw);
-    context.temp_allocator = frame_allocator;
-    defer context.temp_allocator = default_temp_allocator;
+    frame_allocator_raw.panic_on_oom = true;
 
     // init allocation tracker
     default_allocator := context.allocator;
@@ -72,36 +70,49 @@ make_simple_window :: proc(window_width, window_height: int,
     defer context.allocator = default_allocator;
 
     register_debug_program("Profiler", proc(_: rawptr) {
-    		profiler.draw_profiler_window();
-    	}, nil);
+		profiler.draw_profiler_window();
+	}, nil);
 
-	// init platform and graphics
-	platformok := platform.init_platform(workspace.name, window_width, window_height);
-	assert(platformok);
-	init_draw(window_width, window_height);
-	defer deinit_draw();
-
+	
 	init_random(cast(u64)time.now()._nsec);
-	init_dear_imgui();
 
-	init_asset_system();
-	init_builtin_assets();
+	when !shared.HEADLESS { 
+		// init platform and graphics
+		platformok := platform.init_platform(workspace.name, window_width, window_height);
+		assert(platformok);
 
-	init_gizmo();
+		init_draw(window_width, window_height);
+		defer deinit_draw();
+		
+		init_dear_imgui();
+
+		// init catalog
+		init_asset_system();
+		init_builtin_assets();
+		init_gizmo();
+	}
 
 	register_debug_program("WB Info", wb_info_program, nil);
+	register_debug_program("Allocation Profiler", proc(ptr: rawptr) {
+		// context.temp_allocator = default_temp_allocator;
+		profiler.draw_allocation_profiler(ptr);
+	}, &allocation_tracker);
 
 	init_workspace(workspace);
 
 	startup_end_time := time.now();
 	logln("Startup time: ", time.duration_seconds(time.diff(startup_start_time, startup_end_time)));
 
-	profiler.end_timed_section(init_section);
-
 	acc: f32;
 	last_frame_start_time: time.Time;
+	window_should_close := false;
 	game_loop:
-	for !platform.main_window.should_close && !wb_should_close {
+	for !wb_should_close && !window_should_close {
+
+		when !shared.HEADLESS {
+			window_should_close = platform.main_window.should_close;
+		}
+
 		frame_start_time := time.now();
 		delta_time_seconds := time.duration_seconds(time.diff(last_frame_start_time, frame_start_time));
 		if last_frame_start_time._nsec == 0 {
@@ -127,10 +138,10 @@ make_simple_window :: proc(window_width, window_height: int,
 
 				acc -= fixed_delta_time;
 
-			    if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
-			        logln("Frame allocator over half capacity: ", frame_allocator_raw.cur_offset, " / ", len(frame_allocator_raw.memory));
-			    }
-			    mem.free_all(frame_allocator);
+			    // if frame_allocator_raw.cur_offset > len(frame_allocator_raw.memory)/2 {
+			    //     logln("Frame allocator over half capacity: ", frame_allocator_raw.cur_offset, " / ", len(frame_allocator_raw.memory));
+			    // }
+			    // mem.free_all(frame_allocator);
 
 				if do_log_frame_boundaries {
 					logln("[WB] FRAME #", frame_count);
@@ -141,38 +152,39 @@ make_simple_window :: proc(window_width, window_height: int,
 				frame_count += 1;
 
 				//
-				platform.update_platform();
-				imgui_begin_new_frame(fixed_delta_time);
-	    		imgui.push_font(imgui_font_default); // :ImguiPopFont
+				when !shared.HEADLESS {
+					platform.update_platform();
+					imgui_begin_new_frame(fixed_delta_time);
+		    		imgui.push_font(imgui_font_default); // :ImguiPopFont
 
-	    		io := imgui.get_io();
-	    		platform.block_keys = io.want_capture_keyboard;
-	    		platform.block_mouse = io.want_capture_mouse;
+		    		io := imgui.get_io();
+		    		platform.block_keys = io.want_capture_keyboard;
+		    		platform.block_mouse = io.want_capture_mouse;
 
-	    		//
-	    		gizmo_new_frame();
-	    		update_draw();
+		    		//
+		    		gizmo_new_frame();
+		    		update_draw();
+		    	}
+
 				update_tween(fixed_delta_time);
-				update_ui(fixed_delta_time);
-				update_debug_menu(fixed_delta_time);
+
+				when !shared.HEADLESS {
+					update_ui(fixed_delta_time);
+					update_debug_menu(fixed_delta_time);
+				}
 
 				update_workspace(workspace, fixed_delta_time); // calls client updates
 
-				update_message_popups(fixed_delta_time);
-
-				if platform.get_input_down(.F8, true) {
-					context.temp_allocator = default_temp_allocator;
-					for ptr, info in allocation_tracker.allocations {
-						fmt.println(ptr, info.size, info.location.file_path == "" ? tprint("BROKEN FILE PATH: proc = ", info.location.procedure) : basic.pretty_location(info.location));
+				when !shared.HEADLESS {
+					update_message_popups(fixed_delta_time);
+					// late_update_ui(); @Cleanup
+		    		imgui.pop_font(); // :ImguiPopFont
+		    		if acc >= fixed_delta_time {
+						imgui_render(false);
 					}
-				}
-
-				// late_update_ui(); @Cleanup
-
-	    		imgui.pop_font(); // :ImguiPopFont
+		    	}
 
 				if acc >= fixed_delta_time {
-					imgui_render(false);
 					continue;
 				}
 				else {
@@ -180,11 +192,10 @@ make_simple_window :: proc(window_width, window_height: int,
 				}
 			}
 
-			render_workspace(workspace);
-
-			platform.platform_render();
-
-			gpu.log_errors("after SwapBuffers()");
+			when !shared.HEADLESS {
+				render_workspace(workspace);
+				platform.platform_render();
+			}
 		}
 	}
 

@@ -167,7 +167,7 @@ render_settings: Render_Settings;
 
 MAX_LIGHTS :: 100;
 NUM_SHADOW_MAPS :: 4;
-SHADOW_MAP_DIM :: 2048;
+SHADOW_MAP_DIM :: 4096;
 
 init_camera :: proc(camera: ^Camera, is_perspective: bool, size: f32, pixel_width, pixel_height: int, framebuffer := Framebuffer{}) {
 	framebuffer := framebuffer;
@@ -761,13 +761,16 @@ Texture :: struct {
     element_type: gpu.Texture2D_Data_Type,
 }
 
-create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil) -> Texture {
+create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, initial_data_format := gpu.Pixel_Data_Format.RGBA, initial_data_element_type := gpu.Texture2D_Data_Type.Unsigned_Byte, initial_data: ^u8 = nil, loc := #caller_location) -> Texture {
 	texture := gpu.gen_texture();
 	gpu.bind_texture_2d(texture);
 
 	gpu.tex_image_2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
 	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+	// gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Edge);
+	// gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Edge);
+	// gpu.tex_parameteri(.Texture2D, .Wrap_R, .Clamp_To_Edge);
 
 	return Texture{texture, ww, hh, 1, .Texture2D, initial_data_format, initial_data_element_type};
 }
@@ -777,10 +780,10 @@ create_texture_3d :: proc(ww, hh, dd: int, gpu_format: gpu.Internal_Color_Format
 	gpu.bind_texture_3d(texture);
 	gpu.tex_image_3d(.Texture3D, 0, gpu_format, cast(i32)ww, cast(i32)hh, cast(i32)dd, 0, initial_data_format, initial_data_element_type, initial_data);
 	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
-	gpu.tex_parameteri(.Texture3D, .Min_Filter, .Linear);
-	gpu.tex_parameteri(.Texture3D, .Wrap_S, .Repeat);
-	gpu.tex_parameteri(.Texture3D, .Wrap_T, .Repeat);
-	gpu.tex_parameteri(.Texture3D, .Wrap_R, .Repeat);
+	gpu.tex_parameteri(.Texture3D, .Mag_Filter, .Linear);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_S, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_T, .Clamp_To_Edge);
+	gpu.tex_parameteri(.Texture_Cube_Map, .Wrap_R, .Clamp_To_Edge);
 	return Texture{texture, ww, hh, dd, .Texture3D, initial_data_format, initial_data_element_type};
 }
 
@@ -992,10 +995,12 @@ Model :: struct {
     has_bones: bool,
 }
 
+
 Mesh :: struct {
     vao: gpu.VAO,
     vbo: gpu.VBO,
     ibo: gpu.EBO,
+    ssbo: gpu.SSBO,
     vertex_type: ^rt.Type_Info,
 
     index_count:  int,
@@ -1009,7 +1014,7 @@ Mesh :: struct {
 }
 
 Skinned_Mesh :: struct {
-	bones: []Mesh_Bone,
+    offsets: []Mat4,
     nodes: [dynamic]Mesh_Node, // todo(josh): pretty sure we @Leak these and any data inside them, pls fix!
 	name_mapping: map[string]int,
 	global_inverse: Mat4,
@@ -1017,15 +1022,9 @@ Skinned_Mesh :: struct {
     parent_node: ^Mesh_Node, // points into array above
 }
 
-Mesh_Bone :: struct {
-	offset: Mat4,
-	name: string,
-}
-
 Mesh_Node :: struct {
-    name: string,
+    index: int,
     local_transform: Mat4,
-
     parent: ^Mesh_Node,
     children: [dynamic]^Mesh_Node,
 }
@@ -1071,7 +1070,7 @@ add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u3
 	}
 
 	idx := len(model.meshes);
-	mesh := Mesh{vao, vbo, ibo, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin};
+	mesh := Mesh{vao, vbo, ibo, 0, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin};
 	append(&model.meshes, mesh, loc);
 
 	update_mesh(model, idx, vertices, indices);
@@ -1105,6 +1104,8 @@ update_mesh :: proc(model: ^Model, idx: int, vertices: []$Vertex_Type, indices: 
 	mesh.vertex_type  = type_info_of(Vertex_Type);
 	mesh.index_count  = len(indices);
 	mesh.vertex_count = len(vertices);
+
+	update_model(model);
 }
 
 update_model :: proc(model: ^Model) {
@@ -1140,10 +1141,6 @@ _internal_delete_mesh :: proc(mesh: Mesh, loc := #caller_location) {
 	gpu.delete_buffer(mesh.ibo);
 	gpu.log_errors(#procedure, loc);
 
-	for b in mesh.skin.bones {
-		delete(b.name);
-	}
-	delete(mesh.skin.bones);
 	for name in mesh.skin.name_mapping {
 		delete(name);
 	}
@@ -1258,6 +1255,8 @@ Draw_Command_3D :: struct {
 	uniform_bindings: [dynamic]Uniform_Binding,
 	anim_state: Model_Animation_State,
 
+	draw_mode: gpu.Draw_Mode,
+
 	userdata: rawptr,
 }
 Texture_Binding :: struct {
@@ -1315,6 +1314,7 @@ create_draw_command :: proc(model: Model, shader: gpu.Shader_Program, position, 
     cmd.scale = scale;
     cmd.rotation = rotation;
     cmd.color = color;
+    cmd.draw_mode = main_camera.draw_mode;
     return cmd;
 }
 
@@ -1404,39 +1404,41 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 	gpu.polygon_mode(.Front_And_Back, main_camera.polygon_mode);
 	gpu.log_errors(#procedure);
 
-	{
-		TIMED_SECTION("draw meshes");
+	
+	TIMED_SECTION("draw meshes");
+	for mesh, i in model.meshes {
+		gpu.bind_vao(mesh.vao);
+		gpu.bind_vbo(mesh.vbo);
+		gpu.bind_ibo(mesh.ibo);
+		gpu.log_errors(#procedure);
 
-		for mesh, i in model.meshes {
-			gpu.bind_vao(mesh.vao);
-			gpu.bind_vbo(mesh.vbo);
-			gpu.bind_ibo(mesh.ibo);
-			gpu.log_errors(#procedure);
+		if mesh.ssbo != 0 {
+			gpu.bind_ssbo(mesh.ssbo);
+		}
 
-			if len(anim_state.mesh_states) > i {
-				gpu.uniform_int(bound_shader, "do_animation", 1);
-				mesh_state := anim_state.mesh_states[i];
-				for _, i in mesh_state.state {
-					s := mesh_state.state[i];
-					bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
-					gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
-				}
+		if len(anim_state.mesh_states) > i {
+			gpu.uniform_int(bound_shader, "do_animation", 1);
+			mesh_state := anim_state.mesh_states[i];
+			for _, i in mesh_state.state {
+				s := mesh_state.state[i];
+				bone := strings.unsafe_string_to_cstring(tprint("bones[", i, "]\x00"));
+				gpu.uniform_matrix4fv(bound_shader, bone, 1, false, &s[0][0]);
 			}
-			else {
-				gpu.uniform_int(bound_shader, "do_animation", 0);
-			}
+		}
+		else {
+			gpu.uniform_int(bound_shader, "do_animation", 0);
+		}
 
-			// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
-			gpu.set_vertex_format(mesh.vertex_type);
-			gpu.log_errors(#procedure);
+		// todo(josh): I don't think we need this since VAOs store the VertexAttribPointer calls
+		gpu.set_vertex_format(mesh.vertex_type);
+		gpu.log_errors(#procedure);
 
-            TIMED_SECTION("draw call");
-			if mesh.index_count > 0 {
-				gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
-			}
-			else {
-				gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
-			}
+        TIMED_SECTION("draw call");
+		if mesh.index_count > 0 {
+			gpu.draw_elephants(main_camera.draw_mode, mesh.index_count, .Unsigned_Int, nil);
+		}
+		else {
+			gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
 		}
 	}
 }
