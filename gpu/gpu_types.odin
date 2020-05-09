@@ -111,6 +111,12 @@ Framebuffer_Options :: enum u32 {
     Unsupported                      = odingl.FRAMEBUFFER_UNSUPPORTED,
 }
 
+Framebuffer_Target :: enum u32 {
+    Framebuffer      = odingl.FRAMEBUFFER,
+    Read_Framebuffer = odingl.READ_FRAMEBUFFER,
+    Draw_Framebuffer = odingl.DRAW_FRAMEBUFFER,
+}
+
 Framebuffer_Attachment :: enum u32 {
     Depth_Stencil = odingl.DEPTH_STENCIL_ATTACHMENT,
     Depth         = odingl.DEPTH_ATTACHMENT,
@@ -289,6 +295,7 @@ Texture2D_Data_Type :: enum i32 {
     Unsigned_Short              = odingl.UNSIGNED_SHORT,
     Short                       = odingl.SHORT,
     Unsigned_Int                = odingl.UNSIGNED_INT,
+    Unsigned_Int_24_8           = odingl.UNSIGNED_INT_24_8,
     Int                         = odingl.INT,
     Float                       = odingl.FLOAT,
     Unsigned_Byte_3_3_2         = odingl.UNSIGNED_BYTE_3_3_2,

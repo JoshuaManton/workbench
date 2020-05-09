@@ -11,18 +11,8 @@ import "../gpu"
 import "../logging"
 import "../math"
 import "../external/imgui"
+import "../external/gl"
 import "../external/stb"
-
-foreign import "system:kernel32.lib"
-foreign kernel32 {
-    @(link_name="SetLastError") set_last_error :: proc(error: i32) ---;
-}
-
-foreign import "system:user32.lib"
-foreign user32 {
-    @(link_name="SetCapture")     set_capture     :: proc(h: win32.Hwnd) -> win32.Hwnd ---;
-    @(link_name="ReleaseCapture") release_capture :: proc() -> win32.Bool ---;
-}
 
 Window_Platform_Data :: struct {
     window_handle:  win32.Hwnd,
@@ -58,7 +48,7 @@ create_window :: proc(name: string, width, height: int) -> (Window, bool) {
     //
     window_class: win32.Wnd_Class_Ex_A;
     window_class.size = size_of(win32.Wnd_Class_Ex_A);
-    window_class.style = win32.CS_OWNDC | win32.CS_HREDRAW | win32.CS_VREDRAW;
+    window_class.style = win32.CS_OWNDC | win32.CS_HREDRAW | win32.CS_VREDRAW; // todo(josh): maybe remove HREDRAW and VREDRAW since we dont use WM_PAINT
     window_class.wnd_proc = wnd_proc;
     window_class.instance = instance;
     window_class.cursor = win32.load_cursor_a(nil, win32.IDC_ARROW);
@@ -77,7 +67,7 @@ create_window :: proc(name: string, width, height: int) -> (Window, bool) {
 
     rect := win32.Rect{0, 0, cast(i32)width, cast(i32)height};
     win32.adjust_window_rect(&rect, win32.WS_OVERLAPPEDWINDOW, false);
-    win32.create_window_ex_a(0,
+    modern_window: win32.Hwnd = win32.create_window_ex_a(0,
                              window_class.class_name,
                              strings.clone_to_cstring(name, context.temp_allocator),
                              win32.WS_OVERLAPPEDWINDOW | win32.WS_VISIBLE,
@@ -90,14 +80,113 @@ create_window :: proc(name: string, width, height: int) -> (Window, bool) {
                              window_class.instance,
                              nil);
 
-    assert(window.platform_data.window_handle != nil);
+    assert(modern_window != nil);
+    dc := win32.get_dc(modern_window);
+
+    // todo(josh): look into what this stuff means
+    if !setup_pixel_format(dc) {
+        win32.post_quit_message(0);
+    }
+
+    // bind a context
+    premodern_context := win32.create_context(dc);
+    assert(premodern_context != nil);
+    win32.make_current(dc, premodern_context);
+
+    wgl_choose_pixel_format_arb    = cast(win32.Choose_Pixel_Format_ARB_Type   )win32.get_gl_proc_address("wglChoosePixelFormatARB");    assert(wgl_choose_pixel_format_arb != nil);
+    wgl_create_context_attribs_arb = cast(win32.Create_Context_Attribs_ARB_Type)win32.get_gl_proc_address("wglCreateContextAttribsARB"); assert(wgl_create_context_attribs_arb != nil);
+    wgl_swap_interval_ext          = cast(win32.Swap_Interval_EXT_Type         )win32.get_gl_proc_address("wglSwapIntervalEXT");         assert(wgl_swap_interval_ext != nil);
+    wgl_get_extensions_string_arb  = cast(win32.Get_Extensions_String_ARB_Type )win32.get_gl_proc_address("wglGetExtensionsStringARB");  assert(wgl_get_extensions_string_arb != nil);
+
+    // Create_Context_Attribs_ARB_Type :: #type proc "c" (hdc: Hdc, h_share_context: rawptr, attribList: ^i32) -> Hglrc;
+    attribs := []i32 {
+        WGL_CONTEXT_PROFILE_MASK_ARB,      WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        WGL_CONTEXT_MAJOR_VERSION_ARB,     4,
+        WGL_CONTEXT_MINOR_VERSION_ARB,     3,
+        0,
+    };
+
+    modern_context := wgl_create_context_attribs_arb(dc, nil, &attribs[0]);
+    assert(modern_context != nil);
+
+    win32.make_current(dc, modern_context); // todo(josh): use wglMakeContextCurrentARB???
+    win32.delete_context(premodern_context);
+
+    assert(opengl_module == nil);
+    opengl_module = win32.load_library_a("opengl32.dll");
+    defer {
+        win32.free_library(opengl_module);
+        opengl_module = nil;
+    }
+
+    gpu.init(proc(p: rawptr, name: cstring) {
+        LOG_WINDOWS_ERROR();
+
+        proc_ptr := win32.get_gl_proc_address(name);
+
+        // Sometimes get_gl_proc_address doesn't work so we fallback to using win32.get_proc_address. Sigh.
+        switch transmute(int)cast(uintptr)proc_ptr {
+            case -1, 0, 1, 2, 3: { // holy fuck windows what are you doing to me here
+                proc_ptr = win32.get_proc_address(opengl_module, name);
+
+                err := get_and_clear_last_win32_error();
+                if err != 0 {
+                    if proc_ptr != nil {
+                        // if we got it in the fallback, the first one will have set an error. ignore it
+                    }
+                    else if proc_ptr == nil {
+                        logf("failed to load proc %. windows error: %", name, err);
+                        panic(fmt.tprint(name));
+                    }
+                }
+            }
+        }
+
+        assert(proc_ptr != nil);
+
+        LOG_WINDOWS_ERROR();
+
+        (cast(^rawptr)p)^ = proc_ptr;
+     });
+
+    window.platform_data.window_handle = modern_window;
+    window.platform_data.device_context = dc;
+    window.platform_data.render_context = modern_context;
+
+    assert(window.platform_data.window_handle  != nil);
+    assert(window.platform_data.device_context != nil);
+    assert(window.platform_data.render_context != nil);
 
     return window, true;
 }
 
 opengl_module: win32.Hmodule; // amazing
 
-wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> win32.Lresult {
+// keys
+WGL_CONTEXT_PROFILE_MASK_ARB  :: 0x9126;
+WGL_CONTEXT_MAJOR_VERSION_ARB :: 0x2091;
+WGL_CONTEXT_MINOR_VERSION_ARB :: 0x2092;
+
+WGL_DRAW_TO_WINDOW_ARB :: 0x2001;
+WGL_ACCELERATION_ARB   :: 0x2003;
+WGL_SUPPORT_OPENGL_ARB :: 0x2010;
+WGL_DOUBLE_BUFFER_ARB  :: 0x2011;
+WGL_PIXEL_TYPE_ARB     :: 0x2013;
+WGL_SAMPLE_BUFFERS_ARB :: 0x2041;
+WGL_SAMPLES_ARB        :: 0x2042;
+
+// values
+WGL_CONTEXT_CORE_PROFILE_BIT_ARB :: 0x00000001;
+
+WGL_FULL_ACCELERATION_ARB :: 0x2027;
+WGL_TYPE_RGBA_ARB         :: 0x202B;
+
+wgl_choose_pixel_format_arb:    win32.Choose_Pixel_Format_ARB_Type;
+wgl_create_context_attribs_arb: win32.Create_Context_Attribs_ARB_Type;
+wgl_swap_interval_ext:          win32.Swap_Interval_EXT_Type;
+wgl_get_extensions_string_arb:  win32.Get_Extensions_String_ARB_Type;
+
+wnd_proc :: proc "c" (hwnd: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> win32.Lresult {
     assert(currently_updating_window != nil);
 
     result: win32.Lresult;
@@ -105,68 +194,6 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
     @static mouse_capture_sum: int;
 
     switch (message) {
-        case win32.WM_CREATE: {
-            defer LOG_WINDOWS_ERROR();
-            assert(currently_updating_window.platform_data.window_handle == nil);
-            currently_updating_window.platform_data.window_handle = window_handle;
-
-            assert(currently_updating_window.platform_data.device_context == nil);
-            dc := win32.get_dc(window_handle);
-            currently_updating_window.platform_data.device_context = dc;
-
-            // todo(josh): look into what this stuff means
-            if !setup_pixel_format(dc) {
-                win32.post_quit_message(0);
-            }
-
-            rc := win32.create_context(dc);
-            currently_updating_window.platform_data.render_context = rc;
-
-            win32.make_current(dc, rc);
-            rect: win32.Rect;
-            win32.get_client_rect(window_handle, &rect);
-
-            assert(opengl_module == nil);
-            opengl_module = win32.load_library_a("opengl32.dll");
-            defer {
-                win32.free_library(opengl_module);
-                opengl_module = nil;
-            }
-
-            // todo(josh): fancier context
-            // create_context_attribs_arb := cast(win32.Create_Context_Attribs_ARB_Type)win32.get_gl_proc_address("wglChoosePixelFormatARB");
-            // logln(create_context_attribs_arb);
-
-            gpu.init(proc(p: rawptr, name: cstring) {
-                LOG_WINDOWS_ERROR();
-
-                proc_ptr := win32.get_gl_proc_address(name);
-
-                // Sometimes get_gl_proc_address doesn't work so we fallback to using win32.get_proc_address. Sigh.
-                switch transmute(int)cast(uintptr)proc_ptr {
-                    case -1, 0, 1, 2, 3: { // holy fuck windows what are you doing to me here
-                        proc_ptr = win32.get_proc_address(opengl_module, name);
-
-                        err := get_and_clear_last_win32_error();
-                        if err != 0 {
-                            if proc_ptr != nil {
-                                // if we got it in the fallback, the first one will have set an error. ignore it
-                            }
-                            else if proc_ptr == nil {
-                                logf("failed to load proc %. windows error: %", name, err);
-                                panic(fmt.tprint(name));
-                            }
-                        }
-                    }
-                }
-
-                assert(proc_ptr != nil);
-
-                LOG_WINDOWS_ERROR();
-
-                (cast(^rawptr)p)^ = proc_ptr;
-             });
-        }
         case win32.WM_SIZE: {
             defer LOG_WINDOWS_ERROR();
             // todo(josh): figure out what to do with wparam
@@ -280,7 +307,7 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
         case: {
             LOG_WINDOWS_ERROR();
             defer LOG_WINDOWS_ERROR();
-            result = win32.def_window_proc_a(window_handle, message, wparam, lparam);
+            result = win32.def_window_proc_a(hwnd, message, wparam, lparam);
         }
     }
 
@@ -291,29 +318,57 @@ wnd_proc :: proc "c" (window_handle: win32.Hwnd, message: u32, wparam: win32.Wpa
 
 setup_pixel_format :: proc(device_context: win32.Hdc) -> bool {
     defer LOG_WINDOWS_ERROR();
-    pfd: win32.Pixel_Format_Descriptor;
-    pfd.size = size_of(win32.Pixel_Format_Descriptor);
-    pfd.version = 1;
-    pfd.flags = win32.PFD_DRAW_TO_WINDOW | win32.PFD_SUPPORT_OPENGL | win32.PFD_DOUBLEBUFFER;
-    pfd.layer_mask = win32.PFD_MAIN_PLANE;
-    pfd.pixel_type = win32.PFD_TYPE_COLORINDEX;
-    pfd.color_bits = 8;
-    pfd.depth_bits = 16;
-    pfd.accum_bits = 0;
-    pfd.stencil_bits = 0;
 
-    pixelformat := win32.choose_pixel_format(device_context, &pfd);
+    if wgl_choose_pixel_format_arb == nil {
+        pfd: win32.Pixel_Format_Descriptor;
+        pfd.size = size_of(win32.Pixel_Format_Descriptor);
+        pfd.version = 1;
+        pfd.flags = win32.PFD_DRAW_TO_WINDOW | win32.PFD_SUPPORT_OPENGL | win32.PFD_DOUBLEBUFFER;
+        pfd.layer_mask = win32.PFD_MAIN_PLANE;
+        pfd.pixel_type = win32.PFD_TYPE_RGBA; // todo(josh): zak has PFD_TYPE_RGBA
+        pfd.color_bits = 32;
+        pfd.alpha_bits = 8;
+        pfd.depth_bits = 24;
+        pfd.accum_bits = 0;
+        pfd.stencil_bits = 8;
 
-    if pixelformat == 0 {
-        LOG_WINDOWS_ERROR();
-        assert(false, "choose_pixel_format failed");
-        return false;
+        pixelformat := win32.choose_pixel_format(device_context, &pfd);
+
+        if pixelformat == 0 {
+            LOG_WINDOWS_ERROR();
+            assert(false, "choose_pixel_format failed");
+            return false;
+        }
+
+        if win32.set_pixel_format(device_context, pixelformat, &pfd) == false {
+            LOG_WINDOWS_ERROR();
+            assert(false, "set_pixel_format failed");
+            return false;
+        }
     }
+    else {
+        attrib_list := []i32 {
+            WGL_DRAW_TO_WINDOW_ARB,         gl.TRUE,
+            WGL_ACCELERATION_ARB,           WGL_FULL_ACCELERATION_ARB,
+            WGL_SUPPORT_OPENGL_ARB,         gl.TRUE,
+            WGL_DOUBLE_BUFFER_ARB,          gl.TRUE,
+            WGL_PIXEL_TYPE_ARB,             WGL_TYPE_RGBA_ARB,
+            WGL_SAMPLE_BUFFERS_ARB,         gl.TRUE,
+            WGL_SAMPLES_ARB,                8,
+            0,
+        };
 
-    if win32.set_pixel_format(device_context, pixelformat, &pfd) == false {
-        LOG_WINDOWS_ERROR();
-        assert(false, "set_pixel_format failed");
-        return false;
+        suggested_pixel_format: i32;
+        extended_pick:          u32;
+        wgl_choose_pixel_format_arb(device_context, &attrib_list[0], nil, 1, &suggested_pixel_format, &extended_pick);
+        pfd: win32.Pixel_Format_Descriptor;
+        win32.describe_pixel_format(device_context, suggested_pixel_format, size_of(win32.Pixel_Format_Descriptor), &pfd);
+
+        if win32.set_pixel_format(device_context, suggested_pixel_format, &pfd) == false {
+            LOG_WINDOWS_ERROR();
+            assert(false, "set_pixel_format failed");
+            return false;
+        }
     }
 
     return true;
@@ -338,6 +393,23 @@ LOG_WINDOWS_ERROR :: proc(loc := #caller_location) -> bool {
     }
     return false;
 }
+
+// noisy bindings
+
+// todo(josh): calling conventions???
+foreign import "system:kernel32.lib"
+foreign kernel32 {
+    @(link_name="SetLastError") set_last_error :: proc(error: i32) ---;
+}
+
+// todo(josh): calling conventions???
+foreign import "system:user32.lib"
+foreign user32 {
+    @(link_name="SetCapture")     set_capture     :: proc(h: win32.Hwnd) -> win32.Hwnd ---;
+    @(link_name="ReleaseCapture") release_capture :: proc() -> win32.Bool ---;
+}
+
+
 
 windows_key_mapping := [?]Input{
     0x01 = .Mouse_Left,

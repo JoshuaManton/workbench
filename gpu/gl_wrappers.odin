@@ -89,12 +89,18 @@ when GPU_BACKEND == "OPENGL" {
         odingl.BindBuffer(odingl.ELEMENT_ARRAY_BUFFER, cast(u32)ebo);
         log_errors(#procedure, loc);
     }
-    bind_fbo :: inline proc(frame_buffer: FBO, loc := #caller_location) {
-        odingl.BindFramebuffer(odingl.FRAMEBUFFER, u32(frame_buffer));
+    bind_fbo :: inline proc(target: Framebuffer_Target, frame_buffer: FBO, loc := #caller_location) {
+        odingl.BindFramebuffer(cast(u32)target, u32(frame_buffer));
         log_errors(#procedure, loc);
     }
     bind_rbo :: inline proc(render_buffer: RBO, loc := #caller_location) {
         odingl.BindRenderbuffer(odingl.RENDERBUFFER, u32(render_buffer));
+        log_errors(#procedure, loc);
+    }
+
+
+    blit_framebuffer :: inline proc(srcX0: i32, srcY0: i32, srcX1: i32, srcY1: i32, dstX0: i32, dstY0: i32, dstX1: i32, dstY1: i32, mask: Clear_Flags, filter: Texture_Parameter_Value, loc := #caller_location) {
+        odingl.BlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, cast(u32)mask, cast(u32)filter);
         log_errors(#procedure, loc);
     }
 
@@ -448,6 +454,16 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
 
+    tex_image_2d_multisample :: proc(target: Texture_Target,
+                                     samples: i32,
+                                     internalformat: Internal_Color_Format,
+                                     width: i32,
+                                     height: i32,
+                                     fixedsamplelocations: bool) {
+
+        odingl.TexImage2DMultisample(cast(u32)target, samples, cast(u32)internalformat, width, height, cast(u8)fixedsamplelocations);
+    }
+
     get_tex_image :: proc(target: Texture_Target, format: Pixel_Data_Format, type: Texture2D_Data_Type, data: rawptr, loc := #caller_location) {
         odingl.GetTexImage(cast(u32)target, 0, cast(u32)format, cast(u32)type, data);
         log_errors(#procedure, loc);
@@ -496,8 +512,8 @@ when GPU_BACKEND == "OPENGL" {
         log_errors(#procedure, loc);
     }
 
-    framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, texture: TextureId, loc := #caller_location) {
-        odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, odingl.TEXTURE_2D, cast(u32)texture, 0);
+    framebuffer_texture2d :: proc(attachment: Framebuffer_Attachment, target: Texture_Target, texture: TextureId, loc := #caller_location) {
+        odingl.FramebufferTexture2D(odingl.FRAMEBUFFER, cast(u32)attachment, cast(u32)target, cast(u32)texture, 0);
         log_errors(#procedure, loc);
     }
 
@@ -515,6 +531,11 @@ when GPU_BACKEND == "OPENGL" {
 
     renderbuffer_storage :: proc(storage: Renderbuffer_Storage, width: i32, height: i32, loc := #caller_location) {
         odingl.RenderbufferStorage(odingl.RENDERBUFFER, cast(u32)storage, width, height);
+        log_errors(#procedure, loc);
+    }
+
+    renderbuffer_storage_multisample :: proc(samples: i32, storage: Renderbuffer_Storage, width: i32, height: i32, loc := #caller_location) {
+        odingl.RenderbufferStorageMultisample(odingl.RENDERBUFFER, samples, cast(u32)storage, width, height);
         log_errors(#procedure, loc);
     }
 

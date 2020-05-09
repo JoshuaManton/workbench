@@ -153,13 +153,13 @@ Camera :: struct {
 Render_Settings :: struct {
 	gamma: f32,
 	exposure: f32,
-	
+
 	do_bloom: bool,
 	bloom_threshhold: f32,
 	bloom_blur_passes: i32,
 	bloom_range: i32,
 	bloom_weight: f32,
-	
+
 	do_shadows: bool,
 }
 
@@ -212,7 +212,7 @@ setup_bloom :: proc(camera: ^Camera) {
 	fbos: [2]Framebuffer;
 	for _, idx in fbos {
 		// todo(josh): apparently these should use Linear and Clamp_To_Border, not Nearest and Repeat as is hardcoded in create_framebuffer
-		fbos[idx] = create_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, 1);
+		fbos[idx] = create_framebuffer(cast(int)camera.pixel_width, cast(int)camera.pixel_height, default_fbo_options());
 	}
 	camera.bloom_ping_pong_framebuffers = fbos;
 }
@@ -229,7 +229,9 @@ setup_shadow_maps :: proc(camera: ^Camera) {
 	shadow_maps: [NUM_SHADOW_MAPS]^Camera;
 	for idx in 0..<NUM_SHADOW_MAPS {
 		cascade_camera := new(Camera);
-		init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, 0));
+        options := default_fbo_options();
+        options.num_color_buffers = 0;
+		init_camera(cascade_camera, false, 10, SHADOW_MAP_DIM, SHADOW_MAP_DIM, create_framebuffer(SHADOW_MAP_DIM, SHADOW_MAP_DIM, options));
 		cascade_camera.near_plane = 0.01;
 		cascade_camera.clear_color = {1, 1, 1, 1}; // todo(josh): what the heck should this be?
 		shadow_maps[idx] = cascade_camera;
@@ -365,6 +367,8 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	// pre-render
 	gpu.log_errors(#procedure);
 	PUSH_CAMERA(camera);
+
+    PUSH_GPU_ENABLED(.Multisample, camera.framebuffer.options.do_aa);
 
 	set_sun_data(Quat{0, 0, 0, 1}, Colorf{0, 0, 0, 0}, 0);
     camera.skybox = {};
@@ -540,7 +544,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	}
 
 	// do bloom
-	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok && render_settings.do_bloom {
+	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok && render_settings.do_bloom && false {
 		TIMED_SECTION("camera_render.bloom");
 
 		for fbo in bloom_fbos {
@@ -766,8 +770,8 @@ create_texture_2d :: proc(ww, hh: int, gpu_format: gpu.Internal_Color_Format, in
 	gpu.bind_texture_2d(texture);
 
 	gpu.tex_image_2d(.Texture2D, 0, gpu_format, cast(i32)ww, cast(i32)hh, 0, initial_data_format, initial_data_element_type, initial_data);
-	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
+	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
 
 	return Texture{texture, ww, hh, 1, .Texture2D, initial_data_format, initial_data_element_type};
 }
@@ -858,57 +862,105 @@ write_texture_to_file :: proc(filepath: string, texture: Texture) {
 
 Framebuffer :: struct {
     fbo: gpu.FBO,
+    rbo: gpu.RBO,
     textures: []Texture,
     depth_texture: Texture,
 
     width, height: int,
     attachments: []gpu.Framebuffer_Attachment,
 
-    texture_format: gpu.Internal_Color_Format,
-    data_format: gpu.Pixel_Data_Format,
-    data_element_format: gpu.Texture2D_Data_Type,
+    options: FBO_Options,
 }
 
-create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_format := gpu.Internal_Color_Format.RGBA16F, data_format := gpu.Pixel_Data_Format.RGBA, data_element_format := gpu.Texture2D_Data_Type.Unsigned_Byte, loc := #caller_location) -> Framebuffer {
+FBO_Options :: struct {
+    num_color_buffers:   int,
+    texture_format:      gpu.Internal_Color_Format,
+    data_format:         gpu.Pixel_Data_Format,
+    data_element_format: gpu.Texture2D_Data_Type,
+    do_aa:               bool,
+    use_renderbuffer:    bool,
+}
+
+default_fbo_options :: proc() -> FBO_Options {
+    options: FBO_Options;
+    options.num_color_buffers   = 1;
+    options.texture_format      = gpu.Internal_Color_Format.RGBA16F;
+    options.data_format         = gpu.Pixel_Data_Format.RGBA;
+    options.data_element_format = gpu.Texture2D_Data_Type.Unsigned_Byte;
+    options.do_aa = false;
+    options.use_renderbuffer = false;
+    return options;
+}
+
+create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #caller_location) -> Framebuffer {
 	fbo := gpu.gen_framebuffer();
-	gpu.bind_fbo(fbo);
+	gpu.bind_fbo(.Framebuffer, fbo);
+    defer gpu.bind_fbo(.Framebuffer, 0);
 
 	textures: [dynamic]Texture;
 	attachments: [dynamic]gpu.Framebuffer_Attachment;
-	assert(num_color_buffers <= 32, tprint(num_color_buffers, " is more than ", gpu.Framebuffer_Attachment.Color31));
-	for buf_idx in 0..<num_color_buffers {
+	assert(options.num_color_buffers <= 32, tprint(options.num_color_buffers, " is more than ", gpu.Framebuffer_Attachment.Color31));
+	for buf_idx in 0..<options.num_color_buffers {
 		texture := gpu.gen_texture();
-		append(&textures, Texture{texture, width, height, 1, .Texture2D, data_format, data_element_format});
-		gpu.bind_texture_2d(texture);
 
-		// todo(josh): is 16-bit float enough?
-		gpu.tex_image_2d(.Texture2D, 0, texture_format, cast(i32)width, cast(i32)height, 0, data_format, data_element_format, nil);
-		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
-		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+        target := gpu.Texture_Target.Texture2D;
+        if options.do_aa do target = .Texture2D_Multisample;
+
+        if options.do_aa {
+            gpu.bind_texture(.Texture2D_Multisample, texture);
+            gpu.tex_image_2d_multisample(.Texture2D_Multisample, 8, options.texture_format, cast(i32)width, cast(i32)height, true);
+        }
+        else {
+            gpu.bind_texture(.Texture2D, texture);
+            gpu.tex_image_2d(.Texture2D, 0, options.texture_format, cast(i32)width, cast(i32)height, 0, options.data_format, options.data_element_format, nil);
+        }
+        defer gpu.bind_texture(.Texture2D_Multisample, 0);
+        defer gpu.bind_texture(.Texture2D, 0);
+
+        append(&textures, Texture{texture, width, height, 1, target, options.data_format, options.data_element_format});
+		gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
+		gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
 		gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
 		gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
 
 		attachment := cast(gpu.Framebuffer_Attachment)(cast(u32)gpu.Framebuffer_Attachment.Color0 + cast(u32)buf_idx);
-		gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, texture);
+
+        if options.do_aa {
+            gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, .Texture2D_Multisample, texture);
+        }
+        else {
+            gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, .Texture2D, texture);
+        }
 
 		append(&attachments, attachment);
 	}
 
 	depth_texture_id := gpu.gen_texture();
 	gpu.bind_texture_2d(depth_texture_id);
-	depth_texture := Texture{depth_texture_id, width, height, 1, .Texture2D, .Depth_Component, .Float};
+    defer gpu.bind_texture_2d(0);
+	depth_texture := Texture{depth_texture_id, width, height, 1, .Texture2D, .Depth_Stencil, .Float};
 
-	gpu.tex_image_2d(.Texture2D, 0, .Depth_Component, cast(i32)width, cast(i32)height, 0, .Depth_Component, .Float, nil);
-	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
-	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
+	gpu.tex_image_2d(.Texture2D, 0, .Depth_Stencil, cast(i32)width, cast(i32)height, 0, .Depth_Stencil, .Unsigned_Int_24_8, nil);
+	gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
+	gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
 	gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
 	gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
 	c := Colorf{1, 1, 1, 1};
 	gpu.tex_parameterfv(.Texture2D, .Texture_Border_Color, &c.r);
 
-	gpu.framebuffer_texture2d(.Depth, depth_texture_id);
+	gpu.framebuffer_texture2d(.Depth_Stencil, .Texture2D, depth_texture_id);
 
-	if num_color_buffers > 0 {
+
+
+    rbo: gpu.RBO;
+    if options.do_aa {
+        rbo = gpu.gen_renderbuffer();
+        gpu.bind_rbo(rbo);
+        gpu.renderbuffer_storage_multisample(8, .Depth24_Stencil8, cast(i32)width, cast(i32)height);
+        gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
+    }
+
+	if options.num_color_buffers > 0 {
 		gpu.draw_buffers(attachments[:]);
 	}
 	else {
@@ -921,9 +973,9 @@ create_framebuffer :: proc(width, height: int, num_color_buffers := 1, texture_f
 	gpu.assert_framebuffer_complete();
 	gpu.bind_texture_2d(0);
 	gpu.bind_rbo(0);
-	gpu.bind_fbo(0);
+	gpu.bind_fbo(.Framebuffer, 0);
 
-	framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:], texture_format, data_format, data_element_format};
+	framebuffer := Framebuffer{fbo, rbo, textures[:], depth_texture, width, height, attachments[:], options};
 	return framebuffer;
 }
 
@@ -948,12 +1000,9 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 	        logln("Rebuilding framebuffer...");
 
 		    if framebuffer.fbo != 0 {
-		    	texture_format := framebuffer.texture_format;
-				data_format := framebuffer.data_format;
-				data_element_format := framebuffer.data_element_format;
-				num_color_buffers := len(framebuffer.attachments);
+                options := framebuffer.options;
 		        delete_framebuffer(framebuffer^);
-		        framebuffer^ = create_framebuffer(cast(int)(platform.main_window.width+0.5), cast(int)(platform.main_window.height+0.5), num_color_buffers, texture_format, data_format, data_element_format);
+		        framebuffer^ = create_framebuffer(cast(int)(platform.main_window.width+0.5), cast(int)(platform.main_window.height+0.5), options);
 		    }
 		    else {
 	    	    framebuffer.width  = cast(int)(platform.main_window.width+0.5);
@@ -963,7 +1012,8 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 	}
 
 	old := current_framebuffer;
-	gpu.bind_fbo(framebuffer.fbo); // note(josh): can be 0
+	gpu.bind_fbo(.Framebuffer, framebuffer.fbo); // note(josh): can be 0
+    gpu.bind_rbo(framebuffer.rbo);
 	current_framebuffer = framebuffer^;
 	gpu.viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
 
@@ -971,7 +1021,8 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 }
 
 pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
-	gpu.bind_fbo(old_framebuffer.fbo); // note(josh): can be 0
+	gpu.bind_fbo(.Framebuffer, old_framebuffer.fbo); // note(josh): can be 0
+    gpu.bind_rbo(old_framebuffer.rbo);
 	current_framebuffer = old_framebuffer;
 	gpu.viewport(0, 0, cast(int)old_framebuffer.width, cast(int)old_framebuffer.height);
 }
@@ -1205,11 +1256,12 @@ draw_model :: proc(model: Model,
 		// todo(josh): handle multiple textures per model
 		#partial
 		switch texture.target {
-			case .Texture2D:        gpu.bind_texture(.Texture2D,        texture.gpu_id);
-			case .Texture3D:        gpu.bind_texture(.Texture3D,        texture.gpu_id);
-			case .Texture_Cube_Map: gpu.bind_texture(.Texture_Cube_Map, texture.gpu_id);
+			case .Texture2D:             gpu.bind_texture(.Texture2D,             texture.gpu_id);
+			case .Texture3D:             gpu.bind_texture(.Texture3D,             texture.gpu_id);
+            case .Texture_Cube_Map:      gpu.bind_texture(.Texture_Cube_Map,      texture.gpu_id);
+			case .Texture2D_Multisample: gpu.bind_texture(.Texture2D_Multisample, texture.gpu_id);
 			case cast(gpu.Texture_Target)0:
-			case: panic(tprint(texture.target));
+			case: panic(tprint(texture.target, loc));
 		}
 
 		gpu.log_errors(#procedure);
