@@ -8,7 +8,6 @@ import "core:strings"
 
 import "../external/imgui"
 import "../allocators"
-import "../platform"
 import "../logging"
 import "../basic"
 import "../shared"
@@ -55,22 +54,20 @@ deinit_profiler :: proc() {
 }
 
 profiler_new_frame :: proc() {
-
-	when !shared.HEADLESS { // TODO(jake): support keyboard input for servers?
-		if platform.get_input(.F5) || turn_profiler_on {
-			turn_profiler_on = false;
-			profiler_running = true;
-		}
-		if platform.get_input(.F6) || turn_profiler_off {
-			turn_profiler_off = false;
-			profiler_running = false;
-		}
-		if platform.get_input(.F7) || clear_profiler {
-			clear_profiler = false;
-			free_all(profiler_allocator);
-			current_profiler_frame = 0;
-		}
+	if turn_profiler_on {
+		profiler_running = true;
 	}
+	if turn_profiler_off {
+		profiler_running = false;
+	}
+	if clear_profiler {
+		free_all(profiler_allocator);
+		current_profiler_frame = 0;
+	}
+
+	turn_profiler_on = false;
+	turn_profiler_off = false;
+	clear_profiler = false;
 
 	if profiler_running {
 		last_frame := profiler_frame_data[current_profiler_frame];
@@ -265,7 +262,7 @@ draw_allocation_profiler :: proc(_tracker: rawptr) {
 
 			sort.quick_sort_proc(alloc_profiler.snapshot[:], proc(a,b: Allocation_Info) -> int {
 				return a.total_size <= b.total_size ? 1 : -1;
-				
+
 			});
 		}
 

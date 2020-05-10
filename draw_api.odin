@@ -544,7 +544,7 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 	}
 
 	// do bloom
-	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok && render_settings.do_bloom && false {
+	if bloom_fbos, ok := getval(&camera.bloom_ping_pong_framebuffers); ok && render_settings.do_bloom {
 		TIMED_SECTION("camera_render.bloom");
 
 		for fbo in bloom_fbos {
@@ -564,7 +564,14 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
 			PUSH_FRAMEBUFFER(&bloom_fbos[cast(int)horizontal], true);
 			gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
 			if first {
-				draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
+                gpu.bind_fbo(.Read_Framebuffer, camera.framebuffer.fbo);
+                gpu.bind_fbo(.Draw_Framebuffer, bloom_fbos[cast(int)horizontal].fbo);
+                gpu.read_buffer(.Color1);
+                gpu.blit_framebuffer(0, 0, cast(i32)camera.framebuffer.width, cast(i32)camera.framebuffer.height,
+                                     0, 0, cast(i32)_screen_camera.framebuffer.width,  cast(i32)_screen_camera.framebuffer.height,
+                                     .Color_Buffer, .Linear);
+
+				// draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
 			}
 			else {
 				bloom_fbo := bloom_fbos[cast(int)(!horizontal)];
@@ -961,8 +968,8 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
 		gpu.draw_buffers(attachments[:]);
 	}
 	else {
-		gpu.draw_buffer(0);
-		gpu.read_buffer(0);
+		gpu.draw_buffer(gpu.Framebuffer_Attachment(0));
+		gpu.read_buffer(gpu.Framebuffer_Attachment(0));
 	}
 
 

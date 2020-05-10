@@ -45,6 +45,7 @@ make_simple_window :: proc(window_width, window_height: int,
     // init profiler
     profiler.init_profiler();
     defer profiler.deinit_profiler();
+    profiler.profiler_running = true;
 
 	init_section := profiler.start_timed_section("engine init");
 
@@ -166,6 +167,14 @@ make_simple_window :: proc(window_width, window_height: int,
 		    		io := imgui.get_io();
 		    		platform.block_keys = io.want_capture_keyboard;
 		    		platform.block_mouse = io.want_capture_mouse;
+
+		    		// TODO(jake): support keyboard input for servers?
+					if platform.get_input(.F5) {
+						profiler.profiler_running = true;
+					}
+					if platform.get_input(.F6) {
+						profiler.profiler_running = false;
+					}
 
 		    		//
 		    		gizmo_new_frame();

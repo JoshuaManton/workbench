@@ -2,6 +2,7 @@ package platform
 
 import "../math"
 import "../logging"
+import "../profiler"
 import "../external/imgui"
 
 //
@@ -29,6 +30,8 @@ main_window: Window;
 currently_updating_window: ^Window;
 
 init_platform :: proc(window_name: string, window_width, window_height: int) -> bool {
+    profiler.TIMED_SECTION();
+
     g_inputs = new(Inputs);
 
     window, wok := create_window(window_name, window_width, window_height);
@@ -48,6 +51,8 @@ init_platform :: proc(window_name: string, window_width, window_height: int) -> 
 }
 
 update_platform :: proc() {
+    profiler.TIMED_SECTION();
+
     g_inputs.inputs_down = {};
     g_inputs.inputs_up   = {};
     main_window.mouse_scroll = {};

@@ -541,8 +541,8 @@ when GPU_BACKEND == "OPENGL" {
 
 
     // this is a shitty wrapper
-    draw_buffer :: proc(thing: u32, loc := #caller_location) {
-        odingl.DrawBuffer(thing);
+    draw_buffer :: proc(attachment: Framebuffer_Attachment, loc := #caller_location) {
+        odingl.DrawBuffer(cast(u32)attachment);
         log_errors(#procedure, loc);
     }
     draw_buffers :: proc(bufs: []Framebuffer_Attachment, loc := #caller_location) {
@@ -551,9 +551,8 @@ when GPU_BACKEND == "OPENGL" {
         odingl.DrawBuffers(cast(i32)len(bufs), &bufs_u32[0]);
         log_errors(#procedure, loc);
     }
-    // this is a shitty wrapper
-    read_buffer :: proc(thing: u32, loc := #caller_location) {
-        odingl.ReadBuffer(thing);
+    read_buffer :: proc(attachment: Framebuffer_Attachment, loc := #caller_location) {
+        odingl.ReadBuffer(cast(u32)attachment);
         log_errors(#procedure, loc);
     }
 
