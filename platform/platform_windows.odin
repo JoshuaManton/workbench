@@ -354,7 +354,7 @@ setup_pixel_format :: proc(device_context: win32.Hdc) -> bool {
             WGL_DOUBLE_BUFFER_ARB,          gl.TRUE,
             WGL_PIXEL_TYPE_ARB,             WGL_TYPE_RGBA_ARB,
             WGL_SAMPLE_BUFFERS_ARB,         gl.TRUE,
-            WGL_SAMPLES_ARB,                8,
+            WGL_SAMPLES_ARB,                4,
             0,
         };
 

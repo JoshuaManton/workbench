@@ -151,7 +151,8 @@ else
         PUSH_CAMERA(&_screen_camera);
         PUSH_POLYGON_MODE(.Fill);
 
-        // gpu.read_buffer(cast(u32)gpu.Framebuffer_Attachment.Color0);
+        gpu.read_buffer(.Color0);
+        // defer gpu.read_buffer(0);
         gpu.bind_fbo(.Read_Framebuffer, old_main_camera.framebuffer.fbo);
         gpu.bind_fbo(.Draw_Framebuffer, _screen_camera.framebuffer.fbo);
         gpu.blit_framebuffer(0, 0, cast(i32)old_main_camera.framebuffer.width, cast(i32)old_main_camera.framebuffer.height,
@@ -165,7 +166,7 @@ else
         // gpu.read_buffer(0);
     }
 
-    // // do gamma correction and draw to screen!
+    // do gamma correction and draw to screen!
     gpu.bind_fbo(.Framebuffer, 0);
     shader_gamma := get_shader("gamma");
     gpu.use_program(shader_gamma);
