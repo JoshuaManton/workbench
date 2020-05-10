@@ -44,6 +44,8 @@ init_dear_imgui :: proc() {
 
     // imgui.create_context();
     io := imgui.get_io();
+
+    // todo(josh): why does imgui want the window handle?
     // io.ime_window_handle = platform.main_window.platform_data.window_handle;
 
     io.key_map[imgui.Key.Tab]        = i32(platform.Input.Tab);

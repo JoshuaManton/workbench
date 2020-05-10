@@ -40,7 +40,7 @@ visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
 when shared.HEADLESS do return;
-else 
+else
 {
 	profiler.TIMED_SECTION();
 
@@ -85,7 +85,7 @@ else
 }
 rendering_debug_program :: proc(_: rawptr) {
 when shared.HEADLESS do return;
-else 
+else
 {
 	if imgui.begin("Rendering") {
 		imgui_struct(&main_camera.draw_mode, "Draw Mode");
@@ -101,7 +101,7 @@ else
 }
 scene_view_debug_program :: proc(_: rawptr) {
 when shared.HEADLESS do return;
-else 
+else
 {
 	if imgui.begin("Scene View") {
 	    window_size := imgui.get_window_size();
@@ -117,7 +117,7 @@ else
 
 update_draw :: proc() {
 when shared.HEADLESS do return;
-else 
+else
 {
 	clear(&debug_lines);
 	clear(&debug_cubes);
@@ -131,7 +131,7 @@ on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
 when shared.HEADLESS do return;
-else 
+else
 {
 	check_for_file_updates();
 	TIMED_SECTION();
@@ -175,7 +175,7 @@ else
 
 deinit_draw :: proc() {
 when shared.HEADLESS do return;
-else 
+else
 {
 	delete_camera(&_default_camera);
 
