@@ -1,25 +1,11 @@
-/*
- *  @Name:     file_windows
- *
- *  @Author:   Mikkel Hjortshoej
- *  @Email:    hoej@northwolfprod.com
- *  @Creation: 29-10-2017 20:14:21
- *
- *  @Last By:   Mikkel Hjortshoej
- *  @Last Time: 01-08-2018 23:10:11 UTC+1
- *
- *  @Description:
- *
- */
+package workbench;
 
  // TODO(jake) support multiple platforms
 
-package workbench;
-
 import "core:fmt";
 import "core:strings";
-import "core:sys/win32";
 import "basic";
+import "core:sys/win32";
 
 odin_to_wchar_string :: proc(str : string, loc := #caller_location) -> win32.Wstring {
     cstr := basic.TEMP_CSTRING(str);

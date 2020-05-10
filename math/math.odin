@@ -593,10 +593,25 @@ fmuladd   :: proc{fmuladd_f32, fmuladd_f64};
 sign      :: proc{sign_f32, sign_f64};
 copy_sign :: proc{copy_sign_f32, copy_sign_f64};
 
+// todo(josh): intrinsics?
+round_to_f32 :: proc(x: f32, d: f32) -> f32 {
+	assert(d != 0);
+	rounding := 1 / d;
+	val := cast(int)(x * rounding + 0.5);
+	return f32(val) / rounding;
+}
+
+// todo(josh): intrinsics?
+round_to_f64 :: proc(x: f64, d: f64) -> f64 {
+	assert(d != 0);
+	rounding := 1 / d;
+	val := cast(int)(x * rounding + 0.5);
+	return f64(val) / rounding;
+}
 
 round_f32 :: proc(x: f32) -> f32 { return x >= 0 ? floor(x + 0.5) : ceil(x - 0.5); }
 round_f64 :: proc(x: f64) -> f64 { return x >= 0 ? floor(x + 0.5) : ceil(x - 0.5); }
-round :: proc{round_f32, round_f64};
+round :: proc{round_f32, round_f64, round_to_f32, round_to_f64};
 
 floor_f32 :: proc(x: f32) -> f32 {
 	if x == 0 || is_nan(x) || is_inf(x) {

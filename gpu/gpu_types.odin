@@ -78,6 +78,11 @@ Capabilities :: enum u32 {
     Stencil_Test                = odingl.STENCIL_TEST,
     Texture_Cube_Map_Seamless   = odingl.TEXTURE_CUBE_MAP_SEAMLESS,
     Program_Point_Size          = odingl.PROGRAM_POINT_SIZE,
+
+    // todo(josh): do we need these? we have these defined in Texture_Target
+    Texture1D = odingl.TEXTURE_1D,
+    Texture2D = odingl.TEXTURE_2D,
+    Texture3D = odingl.TEXTURE_3D,
 }
 
 Blend_Factors :: enum u32 {

@@ -86,7 +86,7 @@ deinit :: proc() {
 //
 
 load_scene :: proc(folder_path: string) {
-    assert(scene == nil);
+    assert(scene == nil); 
 
     scene = new(Scene);
     scene.folder_path = strings.clone(folder_path);
@@ -208,7 +208,6 @@ update :: proc(dt: f32) {
                     entity, ok := scene.entity_datas[comp.e];
                     assert(ok);
                     if !entity.enabled do continue;
-
                     data.update_proc(ptr, dt);
                 }
             }
@@ -324,7 +323,6 @@ draw_scene_window :: proc(userdata: rawptr) {
                                 logln("Already have scene with the name ", scene_name);
                             }
                             else {
-                                assert(err == os.ERROR_FILE_NOT_FOUND);
                                 ok := wb.create_directory(scene_folder);
                                 assert(ok, tprint("Couldn't create directory ", scene_folder));
                                 load_scene(scene_folder);
@@ -479,7 +477,7 @@ draw_scene_window :: proc(userdata: rawptr) {
 Entity :: int;
 
 Component_Base :: struct {
-    e: Entity "wbml_noserialize",
+    e: Entity "wbml_noserialize,imgui_allow64bit",
     enabled: bool,
 }
 
@@ -530,9 +528,14 @@ make_entity :: proc(name := "Entity", requested_id: Entity = 0) -> Entity {
         eid = _last_entity_id;
     }
 
-    when DEVELOPER {
+    // when DEVELOPER 
+    {
         for e in scene.active_entities {
-            assert(e != eid, tprint("Duplicate entity ID!!!: ", e));
+            if e != eid do continue;
+            
+            _last_entity_id += 1;
+            eid = _last_entity_id;
+            break;
         }
         _, ok := scene.entity_datas[eid];
         assert(!ok, tprint("Duplicate entity ID that the previous check should have caught!!!: ", eid));
@@ -632,6 +635,26 @@ get_component :: proc(eid: Entity, $T: typeid, loc := #caller_location) -> (^T, 
     return cast(^T)ptr, ok;
 }
 
+get_component_ptr :: proc(eid: Entity, tid: typeid, loc := #caller_location) -> (rawptr, bool) {
+    ptr, ok := _get_component_internal(eid, tid);
+    return ptr, ok;
+}
+
+has_component :: proc(eid: Entity, tid: typeid, loc := #caller_location) -> bool {
+    if eid == 0 do return false;
+
+    ti := type_info_of(tid);
+    data, ok := component_types[tid];
+
+    for i in 0..<data.storage.len {
+        ptr := cast(^Component_Base)mem.ptr_offset(cast(^u8)data.storage.data, i * ti.size);
+        if ptr.e == eid {
+            return true;
+        }
+    }
+    return false;
+}
+
 remove_component :: proc(eid: Entity, $T: typeid) -> bool {
     unimplemented();
     return {};
@@ -644,10 +667,22 @@ get_component_storage :: proc($T: typeid) -> []T {
     return da[:];
 }
 
+get_active_component_storage :: proc($T: typeid, out: ^[dynamic]T) {
+    data, ok := component_types[typeid_of(T)];
+    assert(ok, tprint("Couldn't find component type: ", type_info_of(T)));
+
+    outer: for c, i in transmute([dynamic]T)data.storage {
+        for ind in data.reusable_indices {
+            if ind == i do continue outer;
+        }
+        append(out, c);
+    }
+}
+
 load_entity_from_file :: proc(filepath: string) -> Entity {
     // load file
     data, ok := os.read_entire_file(filepath);
-    assert(ok);
+    assert(ok, fmt.tprint("Couldn't find file: ", filepath));
     defer delete(data);
 
     // eat entity id
@@ -668,7 +703,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
     }
 
     // make it
-    make_entity(entity_name, eid);
+    eid = make_entity(entity_name, eid);
 
     // load the component data
     for {
@@ -816,7 +851,7 @@ _add_component_internal :: proc(eid: Entity, tid: typeid, loc := #caller_locatio
     ti := type_info_of(tid);
 
     if _, already_exists := _get_component_internal(eid, tid); already_exists {
-        logln("Error: Cannot add more than one of the same component: ", ti, loc);
+        logln("Error: Cannot add more than one of the same component: ", eid, ti, loc);
         return nil;
     }
 

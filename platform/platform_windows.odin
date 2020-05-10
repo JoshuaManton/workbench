@@ -387,6 +387,11 @@ LOG_WINDOWS_ERROR :: proc(loc := #caller_location) -> bool {
         return false;
     }
 
+    if err == 10035 {
+        // note(jake): resource temporarily unavailable. non-fatal, and caused when trying to connect to a socket
+        return false;
+    }
+
     if err != 0 {
         logf("win32 error % at %:%", err, loc.file_path, loc.line);
         return true;

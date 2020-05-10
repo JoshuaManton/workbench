@@ -1,6 +1,5 @@
 package workbench
 
-import "core:sys/win32"
 import "core:strings"
 import "core:os"
 import rt "core:runtime"
@@ -443,8 +442,8 @@ catalog_delete_font :: proc(font: ^Font) {
 
 
 catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, Asset_Load_Result, bool) {
-    model := load_model_from_memory(data, ctx.file_name);
-    return new_clone(model), .Ok, true;
+	model := load_model_from_memory(data, ctx.file_name, ctx.extension);
+	return new_clone(model), .Ok, true;
 }
 catalog_delete_model :: proc(model: ^Model) {
     delete_model(model^);

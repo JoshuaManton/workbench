@@ -215,6 +215,8 @@ void main() {
 
 
     vec3 ambient = vec3(0.03) * albedo * material.ao;
+    // todo(josh): ask jake why he changed this
+    // vec3 color = albedo + ambient + Lo;
     vec3 color = ambient + Lo;
 
     out_color = vec4(color.rgb, frag_alpha);

@@ -27,6 +27,7 @@ when GPU_BACKEND == "OPENGL" {
     VAO :: distinct u32;
     VBO :: distinct u32;
     EBO :: distinct u32;
+    SSBO :: distinct u32;
     TextureId :: distinct u32;
     RBO :: distinct u32;
     Location :: distinct i32;
@@ -79,6 +80,33 @@ when GPU_BACKEND == "OPENGL" {
         return cast(RBO)buffer;
     }
 
+    gen_shaderbuffer_storage :: inline proc(loc := #caller_location) -> SSBO {
+        buffer: u32;
+        odingl.GenBuffers(1, &buffer);
+        log_errors(#procedure, loc);
+        return cast(SSBO)buffer;
+    }
+
+    bind_shaderbuffer :: inline proc(ssbo: SSBO, loc := #caller_location) {
+        odingl.BindBuffer(odingl.SHADER_STORAGE_BUFFER, u32(ssbo));
+        log_errors(#procedure, loc);
+    }
+
+    bind_shader_storage_buffer_base :: inline proc(index: u32, buffer: SSBO, loc := #caller_location) {
+        odingl.BindBufferBase(odingl.SHADER_STORAGE_BUFFER, index, u32(buffer));
+        log_errors(#procedure, loc);
+    }
+
+    buffer_shader_storage_sub_data :: inline proc(size: int, data: rawptr, loc := #caller_location) {
+        odingl.BufferSubData(odingl.SHADER_STORAGE_BUFFER, 0, size, data);
+        log_errors(#procedure, loc);
+    }
+
+    get_shader_storage_sub_data :: inline proc(size: int, data: rawptr, loc := #caller_location) {
+        odingl.GetBufferSubData(odingl.SHADER_STORAGE_BUFFER, 0, size, data);
+        log_errors(#procedure, loc);
+    }
+
     // bind_buffer :: proc{bind_vbo, bind_ebo, bind_fbo, bind_rbo};
     bind_vbo :: inline proc(vbo: VBO, loc := #caller_location) {
         odingl.BindBuffer(odingl.ARRAY_BUFFER, cast(u32)vbo);
@@ -95,6 +123,10 @@ when GPU_BACKEND == "OPENGL" {
     }
     bind_rbo :: inline proc(render_buffer: RBO, loc := #caller_location) {
         odingl.BindRenderbuffer(odingl.RENDERBUFFER, u32(render_buffer));
+        log_errors(#procedure, loc);
+    }
+    bind_ssbo :: inline proc(ssbo: SSBO, loc := #caller_location) {
+        odingl.BindBuffer(odingl.ARRAY_BUFFER, cast(u32)ssbo);
         log_errors(#procedure, loc);
     }
 
@@ -123,6 +155,9 @@ when GPU_BACKEND == "OPENGL" {
     buffer_elements :: inline proc(elements: []u32, loc := #caller_location) {
         odingl.BufferData(odingl.ELEMENT_ARRAY_BUFFER, size_of(u32) * len(elements), mem.raw_data(elements), odingl.STATIC_DRAW);
         log_errors(#procedure, loc);
+    }
+    buffer_shader_storage :: inline proc(size: u32, static := true) {
+        odingl.BufferData(odingl.SHADER_STORAGE_BUFFER, int(size), nil, static ? odingl.STATIC_DRAW : odingl.DYNAMIC_DRAW);
     }
 
 
@@ -208,6 +243,16 @@ when GPU_BACKEND == "OPENGL" {
 
     polygon_mode :: proc(face: Polygon_Face, mode: Polygon_Mode, loc := #caller_location) {
         odingl.PolygonMode(cast(u32)face, cast(u32)mode);
+        log_errors(#procedure, loc);
+    }
+
+    dispatch_compute :: proc(x,y,z: u32, loc := #caller_location) {
+        odingl.DispatchCompute(x,y,z);
+        log_errors(#procedure, loc);
+    }
+
+    memory_barrier :: proc(loc := #caller_location) {
+        odingl.MemoryBarrier(odingl.SHADER_IMAGE_ACCESS_BARRIER_BIT);
         log_errors(#procedure, loc);
     }
 
