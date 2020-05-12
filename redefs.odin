@@ -27,6 +27,7 @@ Vec4 :: math.Vec4;
 Mat4 :: math.Mat4;
 Quat :: math.Quat;
 
+pow :: math.pow;
 ortho3d :: math.ortho3d;
 perspective :: math.perspective;
 translate :: math.translate;

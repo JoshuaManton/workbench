@@ -377,9 +377,3 @@ ease_in_out_bounce :: proc(_t: f32) -> f32 {
         return 1 - 8 * pow(2, -8 * t) * abs(sin(t * PI * 7));
     }
 }
-
-
-
-
-
-pow :: math.pow;

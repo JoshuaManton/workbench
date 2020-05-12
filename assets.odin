@@ -53,7 +53,7 @@ init_asset_system :: proc() {
 
     add_asset_handler(Texture,        {"png"},                       catalog_load_texture,    catalog_delete_texture);
     add_asset_handler(Font,           {"ttf"},                       catalog_load_font,       catalog_delete_font);
-    add_asset_handler(Model,          {"fbx"},                       catalog_load_model,      catalog_delete_model);
+    add_asset_handler(Model,          {"fbx", "obj"},                catalog_load_model,      catalog_delete_model);
     add_asset_handler(Shader_Asset,   {"shader", "compute", "glsl"}, catalog_load_shader,     catalog_delete_shader);
     add_asset_handler(WBML_Asset,     {"wbml"},                      catalog_load_wbml_asset, catalog_delete_wbml_asset);
     add_asset_handler(Cubemap_Asset,  {"wbcubemap"},                 catalog_load_cubemap,    catalog_delete_cubemap);
@@ -442,8 +442,19 @@ catalog_delete_font :: proc(font: ^Font) {
 
 
 catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, Asset_Load_Result, bool) {
-	model := load_model_from_memory(data, ctx.file_name, ctx.extension);
-	return new_clone(model), .Ok, true;
+    switch ctx.extension {
+        case "fbx": {
+            model := load_model_from_memory(data, ctx.file_name, ctx.extension);
+            return new_clone(model), .Ok, true;
+        }
+        case "obj": {
+            model := load_model_from_memory(data, ctx.file_name, ctx.extension);
+            return new_clone(model), .Ok, true;
+        }
+        case: panic(ctx.extension);
+    }
+    unreachable();
+    return nil, .Error, true;
 }
 catalog_delete_model :: proc(model: ^Model) {
     delete_model(model^);
