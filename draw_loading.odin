@@ -59,6 +59,7 @@ create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
 	ops.gpu_format = gpu_format;
 	ops.initial_data_format = data_format;
 	ops.initial_data_element_type = .Unsigned_Byte;
+	ops.filtering = .Linear;
 
 	tex := create_texture_2d(cast(int)width, cast(int)height, ops, pixel_data);
 	return tex;
@@ -526,6 +527,7 @@ load_font :: proc(data: []byte, pixel_height: f32) -> Font {
 	}
 
 	ops := default_texture_options();
+	ops.filtering = .Linear; // todo(josh): do we want this?
 	ops.initial_data_format = .Red;
 	texture := create_texture_2d(dim, dim, ops, &pixels[0]);
 

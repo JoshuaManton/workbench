@@ -59,7 +59,7 @@ float calculate_shadow(int shadow_map_idx) {
     }
 
     float dot_to_sun = clamp(dot(vert_normal, -sun_direction), 0, 1);
-    float bias = min(0.05 * (1.0 - dot_to_sun), 0.005);
+    float bias = max(0.005 * (1.0 - dot_to_sun), 0.005);
     // float bias = 0.005;
 
 #if 0

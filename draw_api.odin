@@ -953,8 +953,8 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
         defer gpu.bind_texture(.Texture2D, 0);
 
         append(&textures, Texture{texture, width, height, 1, target, options.data_format, options.data_element_format});
-        gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
-        gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
+        gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+        gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
         gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
         gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
 
@@ -976,8 +976,8 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
     depth_texture := Texture{depth_texture_id, width, height, 1, .Texture2D, .Depth_Stencil, .Float};
 
     gpu.tex_image_2d(.Texture2D, 0, .Depth_Stencil, cast(i32)width, cast(i32)height, 0, .Depth_Stencil, .Unsigned_Int_24_8, nil);
-    gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Linear);
-    gpu.tex_parameteri(.Texture2D, .Min_Filter, .Linear);
+    gpu.tex_parameteri(.Texture2D, .Mag_Filter, .Nearest);
+    gpu.tex_parameteri(.Texture2D, .Min_Filter, .Nearest);
     gpu.tex_parameteri(.Texture2D, .Wrap_S, .Clamp_To_Border);
     gpu.tex_parameteri(.Texture2D, .Wrap_T, .Clamp_To_Border);
     c := Colorf{1, 1, 1, 1};
