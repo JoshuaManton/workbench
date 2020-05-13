@@ -55,7 +55,12 @@ create_texture_from_png_data :: proc(png_data: []byte) -> Texture {
 
 	// assert(mem.is_power_of_two(cast(uintptr)cast(int)width), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
 	// assert(mem.is_power_of_two(cast(uintptr)cast(int)height), "Non-power-of-two textures were crashing opengl"); // todo(josh): fix
-	tex := create_texture_2d(cast(int)width, cast(int)height, gpu_format, data_format, .Unsigned_Byte, pixel_data);
+	ops := default_texture_options();
+	ops.gpu_format = gpu_format;
+	ops.initial_data_format = data_format;
+	ops.initial_data_element_type = .Unsigned_Byte;
+
+	tex := create_texture_2d(cast(int)width, cast(int)height, ops, pixel_data);
 	return tex;
 }
 
@@ -367,7 +372,7 @@ Slice_Info :: struct {
 
 create_atlas :: proc(width, height: int) -> Texture_Atlas {
 	// panic("I dont know if this works. I changed the create_texture API so if it breaks you'll have to fix it, sorry :^)");
-	texture := create_texture_2d(width, height, .RGBA);
+	texture := create_texture_2d(width, height);
 	data := Texture_Atlas{texture, cast(i32)width, cast(i32)height, 0, 0, 0};
 	return data;
 }
@@ -520,7 +525,9 @@ load_font :: proc(data: []byte, pixel_height: f32) -> Font {
 		}
 	}
 
-	texture := create_texture_2d(dim, dim, .RGBA, .Red, .Unsigned_Byte, &pixels[0]);
+	ops := default_texture_options();
+	ops.initial_data_format = .Red;
+	texture := create_texture_2d(dim, dim, ops, &pixels[0]);
 
 	font := Font{dim, pixel_height, chars, texture};
 	return font;

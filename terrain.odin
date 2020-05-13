@@ -49,8 +49,12 @@ Terrain_Vertex :: struct {
 }
 
 init_terrain :: proc() {
-    edge_tex = create_texture_2d(256, 1, .R32I, .Red_Integer, .Int, transmute(^u8)&edgeTable[0]);
-    tri_tex = create_texture_2d(16, 256, .R32I, .Red_Integer, .Int, transmute(^u8)&triTable[0]);
+    ops := default_texture_options();
+    ops.gpu_format = .R32I;
+    ops.initial_data_format = .Red_Integer;
+    ops.initial_data_element_type = .Int;
+    edge_tex = create_texture_2d(256, 1, ops, transmute(^u8)&edgeTable[0]);
+    tri_tex = create_texture_2d(16, 256, ops, transmute(^u8)&triTable[0]);
 }
 
 create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
@@ -65,12 +69,12 @@ create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
             }
             hm1[z] = hm2;
         }
-    
+
         density_map[x] = hm1;
     }
 
     terrain := Terrain {
-        Model { "terrain", make([dynamic]Mesh, 0, 1), {}, {}, false, }, 
+        Model { "terrain", make([dynamic]Mesh, 0, 1), {}, {}, false, },
         make([dynamic]Terrain_Chunk, 0, 1),
         {},
         chunk_size,
@@ -121,16 +125,16 @@ add_terrain_chunk :: proc(using terrain: ^Terrain, _density_map: [][][]f32, inde
 
 refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][][]f32, index: int) {
     chunk := chunks[index];
-    
+
     x := len(_density_map);
     y := len(_density_map[0]);
     z := len(_density_map[0][0]);
-    
+
     dm := make([]f32, (x+2) * (y+2) * (z+2));
     defer delete(dm);
 
     i := 0;
-    for ix in 0..<x { for iz in 0..<z { for iy in 0..<y { 
+    for ix in 0..<x { for iz in 0..<z { for iy in 0..<y {
         dm[i] = _density_map[ix][iz][iy];
         i += 1;
     } } }
@@ -138,7 +142,11 @@ refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][
     chunk.density_map = _density_map;
     chunk.vertex_count = 0;
     delete_texture(chunk.data_tex);
-    chunk.data_tex = create_texture_3d(x, y, z, .R32F, .Red, .Float, transmute(^u8)&dm[0]);
+    ops := default_texture_options();
+    ops.gpu_format = .R32F;
+    ops.initial_data_format = .Red;
+    ops.initial_data_element_type = .Float;
+    chunk.data_tex = create_texture_3d(x, y, z, ops, transmute(^u8)&dm[0]);
 
     mesh := &model.meshes[chunk.chunk_idx];
 
@@ -158,7 +166,7 @@ refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][
     gpu.bind_shaderbuffer(chunk.ssbo_count);
     gpu.buffer_shader_storage_sub_data(4, &chunk.vertex_count);
 
-    gpu.dispatch_compute(cast(u32)chunk_size.x, cast(u32)chunk_size.y, cast(u32)chunk_size.z); 
+    gpu.dispatch_compute(cast(u32)chunk_size.x, cast(u32)chunk_size.y, cast(u32)chunk_size.z);
     gpu.memory_barrier();
 
     gpu.get_shader_storage_sub_data(4, &chunk.vertex_count);
@@ -177,7 +185,7 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
 
         if hit {
             chunk := chunks[chunk_index];
-            
+
             // TODO(jake): add chunks to the terrain as the user edits near the edge
 
             if plat.get_input(.Mouse_Left) {
@@ -249,12 +257,12 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
         imgui_struct(&material, "Material", false);
 
         imgui.spacing();imgui.spacing();imgui.spacing();
-        imgui.text("Brush"); 
+        imgui.text("Brush");
         imgui.same_line();
         if imgui.button(editing_active ? "Disable Editing" : "Enable Editing") {
             editing_active = !editing_active;
         }
-        
+
         @static brush_names : []string = { "Raise", "Lower", "Paint", "Delete" };
 
         imgui.same_line();
@@ -305,7 +313,7 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
         //             }
         //             hm1[z] = hm2;
         //         }
-            
+
         //         new_density_map[x] = hm1;
         //     }
 
@@ -360,7 +368,7 @@ get_height_at_position :: proc(terrain: Terrain, terrain_origin: Vec3, _x, _z, y
                 else {
                     return terrain_origin.y+f32(y), true;
                 }
-            } 
+            }
         }
     }
     return 0, false;
@@ -378,19 +386,19 @@ raycast_into_terrain :: proc(using terrain: Terrain, terrain_origin, ray_origin,
             current_grid_pos := (current_pos - terrain_origin)/step;
             next_grid_pos := (next_pos - terrain_origin)/step;
 
-            if  current_grid_pos.x < 0 || 
-                current_grid_pos.z < 0 || 
-                current_grid_pos.y < 0 || 
-                next_grid_pos.x < 0 || 
-                next_grid_pos.z < 0 || 
+            if  current_grid_pos.x < 0 ||
+                current_grid_pos.z < 0 ||
+                current_grid_pos.y < 0 ||
+                next_grid_pos.x < 0 ||
+                next_grid_pos.z < 0 ||
                 next_grid_pos.y < 0 {
                 continue;
             }
-            if  current_grid_pos.x >= chunk_size.x || 
-                current_grid_pos.z >= chunk_size.z || 
-                current_grid_pos.y >= chunk_size.y || 
-                next_grid_pos.x >= chunk_size.x || 
-                next_grid_pos.z >= chunk_size.z || 
+            if  current_grid_pos.x >= chunk_size.x ||
+                current_grid_pos.z >= chunk_size.z ||
+                current_grid_pos.y >= chunk_size.y ||
+                next_grid_pos.x >= chunk_size.x ||
+                next_grid_pos.z >= chunk_size.z ||
                 next_grid_pos.y >= chunk_size.y {
                 continue;
             }
@@ -449,7 +457,7 @@ edgeTable := [256]i32 {
     0xe90, 0xf99, 0xc93, 0xd9a, 0xa96, 0xb9f, 0x895, 0x99c,
     0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99 , 0x190,
     0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
-    0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0   
+    0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0
 };
 
 triTable := [256][16]i32 {
