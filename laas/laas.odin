@@ -166,14 +166,15 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 			int_val: i64;
 			unsigned_int_val: u64;
 			float_val: f64;
+			parseok: bool;
 			if found_a_dot {
-				float_val = strconv.parse_f64(token_text);
+				float_val, parseok = strconv.parse_f64(token_text); assert(parseok);
 				int_val = cast(i64)float_val;
 				unsigned_int_val = cast(u64)float_val;
 			}
 			else {
-				unsigned_int_val = strconv.parse_u64(token_text);
-				int_val = strconv.parse_i64(token_text);
+				unsigned_int_val, parseok = strconv.parse_u64(token_text); assert(parseok);
+				int_val, parseok = strconv.parse_i64(token_text); assert(parseok);
 				float_val = cast(f64)int_val;
 			}
 
@@ -257,7 +258,7 @@ expect_f32 :: proc(lexer: ^Lexer) -> f32 {
 		assert(false, tprint("EOF"));
 	}
 	if t.kind == .Number {
-		float_value := strconv.parse_f32(t.text);
+		float_value, ok := strconv.parse_f32(t.text); assert(ok);
 		return float_value;
 	}
 	assert(false, tprint("Expected f32, got ", t));

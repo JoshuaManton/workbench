@@ -508,8 +508,9 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         laas.expect_symbol(&range_lexer, ":");
         range_max_str := laas.expect_string(&range_lexer);
 
-        range_min = strconv.parse_f32(range_min_str);
-        range_max = strconv.parse_f32(range_max_str);
+        ok: bool;
+        range_min, ok = strconv.parse_f32(range_min_str); assert(ok);
+        range_max, ok = strconv.parse_f32(range_max_str); assert(ok);
     }
 
     #partial

@@ -493,9 +493,9 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 
 		case .Number: {
 			sign : i64 = is_negative_number ? -1 : 1;
-			i64_value := strconv.parse_i64(root_token.text);
-			u64_value := strconv.parse_u64(root_token.text);
-			f64_value := strconv.parse_f64(root_token.text);
+			i64_value, ok1 := strconv.parse_i64(root_token.text); assert(ok1);
+			u64_value, ok2 := strconv.parse_u64(root_token.text); assert(ok2);
+			f64_value, ok3 := strconv.parse_f64(root_token.text); assert(ok3);
 			return new_clone(Node{Node_Number{i64_value * sign, u64_value, f64_value * cast(f64)sign}}, _node_allocator);
 		}
 

@@ -173,6 +173,12 @@ pretty_sbprint :: proc(sb: ^strings.Builder, thing: any) {
                 // todo(josh): do we want to recurse maybe just once?
                 sbprint(sb, (cast(^rawptr)data)^);
             }
+            case rt.Type_Info_Relative_Pointer: {
+                sbprint(sb, (cast(^rawptr)data)^);
+            }
+            case rt.Type_Info_Relative_Slice: {
+                unimplemented();
+            }
             case rt.Type_Info_Procedure: sbprint(sb, (cast(^rawptr)data)^);
             case rt.Type_Info_Type_Id: sbprint(sb, (cast(^typeid)data)^);
             case rt.Type_Info_Array: {

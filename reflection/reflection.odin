@@ -84,7 +84,8 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
 
         case rt.Type_Info_Integer: {
             if ti_kind.signed {
-                i64_value := strconv.parse_i64(value_string);
+                i64_value, ok := strconv.parse_i64(value_string);
+                assert(ok);
                 switch ti_kind.endianness {
                     case .Platform: {
                         switch ti.size {
@@ -115,7 +116,8 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
                 }
             }
             else {
-                u64_value := strconv.parse_u64(value_string);
+                u64_value, ok := strconv.parse_u64(value_string);
+                assert(ok);
                 switch ti_kind.endianness {
                     case .Platform: {
                         switch ti.size {
@@ -149,8 +151,8 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
 
         case rt.Type_Info_Float: {
             switch ti.size {
-                case 4: (cast(^f32)ptr)^ = strconv.parse_f32(value_string);
-                case 8: (cast(^f64)ptr)^ = strconv.parse_f64(value_string);
+                case 4: val, ok := strconv.parse_f32(value_string); assert(ok); (cast(^f32)ptr)^ = val;
+                case 8: val, ok := strconv.parse_f64(value_string); assert(ok); (cast(^f64)ptr)^ = val;
                 case: panic(tprint(ti.size));
             }
         }

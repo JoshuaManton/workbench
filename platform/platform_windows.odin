@@ -5,6 +5,7 @@ import "core:sort"
 import "core:strings"
 import "core:mem"
 import "core:os"
+import rt "core:runtime"
 import "core:sys/win32"
 
 import "../gpu"
@@ -20,7 +21,10 @@ Window_Platform_Data :: struct {
     render_context: win32.Hglrc,
 }
 
+windows_context: rt.Context;
+
 update_platform_os :: proc() {
+    windows_context = context;
     message: win32.Msg;
     for win32.peek_message_a(&message, nil, 0, 0, win32.PM_REMOVE) {
         win32.translate_message(&message);
@@ -67,6 +71,8 @@ create_window :: proc(name: string, width, height: int) -> (Window, bool) {
 
     rect := win32.Rect{0, 0, cast(i32)width, cast(i32)height};
     win32.adjust_window_rect(&rect, win32.WS_OVERLAPPEDWINDOW, false);
+
+    windows_context = context;
     modern_window: win32.Hwnd = win32.create_window_ex_a(0,
                              window_class.class_name,
                              strings.clone_to_cstring(name, context.temp_allocator),
@@ -186,7 +192,9 @@ wgl_create_context_attribs_arb: win32.Create_Context_Attribs_ARB_Type;
 wgl_swap_interval_ext:          win32.Swap_Interval_EXT_Type;
 wgl_get_extensions_string_arb:  win32.Get_Extensions_String_ARB_Type;
 
-wnd_proc :: proc "c" (hwnd: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> win32.Lresult {
+wnd_proc :: proc "std" (hwnd: win32.Hwnd, message: u32, wparam: win32.Wparam, lparam: win32.Lparam) -> win32.Lresult {
+    context = windows_context;
+    assert(windows_context.allocator.procedure != nil);
     assert(currently_updating_window != nil);
 
     result: win32.Lresult;
