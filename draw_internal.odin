@@ -44,13 +44,12 @@ else
 {
     profiler.TIMED_SECTION();
 
-    init_camera(&_screen_camera, false, 10, screen_width, screen_height, create_framebuffer(screen_width, screen_height, default_fbo_options()));
+    init_camera(&_screen_camera, false, 10, screen_width, screen_height);
     _screen_camera.clear_color = {1, 0, 1, 1};
     _screen_camera.auto_resize_framebuffer = true;
 
     options := default_fbo_options();
     options.num_color_buffers = 2;
-    options.do_aa = true;
     init_camera(&_default_camera, true, 85, screen_width, screen_height, create_framebuffer(screen_width, screen_height, options));
     setup_bloom(&_default_camera);
     setup_shadow_maps(&_default_camera);
@@ -137,45 +136,20 @@ else
     TIMED_SECTION();
 
     PUSH_GPU_ENABLED(.Cull_Face, true);
-    PUSH_GPU_ENABLED(.Multisample, true);
 
     camera_render(main_camera, workspace.render);
 
     old_main_camera := main_camera;
 
-    // gpu.bind_fbo(.Read_Framebuffer, _screen_camera.framebuffer.fbo);
-    // gpu.bind_fbo(.Draw_Framebuffer, 0);
-    // gpu.blit_framebuffer(0, 0, 1920, 1080, 0, 0, 1920, 1080, .Color_Buffer, .Nearest);
-
-    {
-        PUSH_CAMERA(&_screen_camera);
-        PUSH_POLYGON_MODE(.Fill);
-
-        gpu.read_buffer(.Color0);
-        // defer gpu.read_buffer(0);
-        gpu.bind_fbo(.Read_Framebuffer, old_main_camera.framebuffer.fbo);
-        gpu.bind_fbo(.Draw_Framebuffer, _screen_camera.framebuffer.fbo);
-        gpu.blit_framebuffer(0, 0, cast(i32)old_main_camera.framebuffer.width, cast(i32)old_main_camera.framebuffer.height,
-                             0, 0, cast(i32)_screen_camera.framebuffer.width,  cast(i32)_screen_camera.framebuffer.height,
-                             .Color_Buffer, .Linear);
-
-        // gpu.read_buffer(cast(u32)gpu.Framebuffer_Attachment.Color1);
-        // gpu.blit_framebuffer(0, 0, cast(i32)old_main_camera.framebuffer.width, cast(i32)old_main_camera.framebuffer.height,
-        //                      0, 0, cast(i32)_screen_camera.framebuffer.width,  cast(i32)_screen_camera.framebuffer.height,
-        //                      .Color_Buffer, .Linear);
-        // gpu.read_buffer(0);
-    }
+    PUSH_CAMERA(&_screen_camera);
+    PUSH_POLYGON_MODE(.Fill);
 
     // do gamma correction and draw to screen!
-    gpu.bind_fbo(.Framebuffer, 0);
     shader_gamma := get_shader("gamma");
     gpu.use_program(shader_gamma);
     gpu.uniform_float(shader_gamma, "gamma", render_settings.gamma);
     gpu.uniform_float(shader_gamma, "exposure", render_settings.exposure);
-    draw_texture(_screen_camera.framebuffer.textures[0], {0, 0}, {1, 1});
-
-    // // gpu.use_program(get_shader("default"));
-    // draw_texture(_screen_camera.framebuffer.textures[0], {0, 0}, {1, 1});
+    draw_texture(old_main_camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
     imgui_render(true);
 }

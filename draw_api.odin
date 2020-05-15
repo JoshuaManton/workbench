@@ -368,8 +368,6 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
     gpu.log_errors(#procedure);
     PUSH_CAMERA(camera);
 
-    PUSH_GPU_ENABLED(.Multisample, camera.framebuffer.options.do_aa);
-
     set_sun_data(Quat{0, 0, 0, 1}, Colorf{0, 0, 0, 0}, 0);
     camera.skybox = {};
 
@@ -562,38 +560,16 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
         gpu.uniform_float(shader_blur, "bloom_weight", render_settings.bloom_weight);
 
         for i in 0..<render_settings.bloom_blur_passes {
-            target := &bloom_fbos[cast(int)horizontal];
-            source := &bloom_fbos[cast(int)(!horizontal)];
-
-            PUSH_FRAMEBUFFER(target, true);
+            PUSH_FRAMEBUFFER(&bloom_fbos[cast(int)horizontal], true);
             gpu.uniform_int(shader_blur, "horizontal", cast(i32)horizontal);
             if first {
-                @static intermediate_bloom_fbo: Framebuffer;
-                if intermediate_bloom_fbo.fbo == 0 {
-                    intermediate_bloom_fbo = create_framebuffer(camera.framebuffer.width, camera.framebuffer.height, default_fbo_options());
-                }
-
-                gpu.bind_fbo(.Read_Framebuffer, camera.framebuffer.fbo);
-                gpu.bind_fbo(.Draw_Framebuffer, intermediate_bloom_fbo.fbo);
-                defer gpu.bind_fbo(.Framebuffer, target.fbo);
-
-                gpu.read_buffer(.Color1);
-                defer {
-                    gpu.read_buffer(gpu.Framebuffer_Attachment(0));
-                }
-
-                gpu.blit_framebuffer(0, 0, cast(i32)camera.framebuffer.width, cast(i32)camera.framebuffer.height,
-                                     0, 0, cast(i32)intermediate_bloom_fbo.width,  cast(i32)intermediate_bloom_fbo.height,
-                                     .Color_Buffer, .Linear);
-
-                PUSH_FRAMEBUFFER(source, true);
-
-                draw_texture(intermediate_bloom_fbo.textures[0], {0, 0}, {1, 1});
+                draw_texture(camera.framebuffer.textures[1], {0, 0}, {1, 1});
             }
-
-            draw_texture(source.textures[0], {0, 0}, {1, 1});
-            last_bloom_fbo = target^;
-
+            else {
+                bloom_fbo := bloom_fbos[cast(int)(!horizontal)];
+                draw_texture(bloom_fbo.textures[0], {0, 0}, {1, 1});
+                last_bloom_fbo = bloom_fbo;
+            }
             horizontal = !horizontal;
             first = false;
         }
@@ -601,13 +577,11 @@ camera_render :: proc(camera: ^Camera, user_render_proc: proc(f32)) {
         if last_bloom_fbo, ok := getval(&last_bloom_fbo); ok {
             shader_bloom := get_shader("bloom");
             gpu.use_program(shader_bloom);
-            defer gpu.use_program(0);
             bind_texture_to_shader("bloom_texture", last_bloom_fbo.textures[0], 1, shader_bloom);
-            draw_texture(last_bloom_fbo.textures[0], {0, 0}, {1, 1});
+            draw_texture(camera.framebuffer.textures[0], {0, 0}, {1, 1});
 
             if visualize_bloom_texture {
                 gpu.use_program(get_shader("default"));
-                defer gpu.use_program(0);
                 draw_texture(last_bloom_fbo.textures[0], {256, 0} / platform.main_window.size, {512, 256} / platform.main_window.size);
             }
         }
@@ -897,7 +871,6 @@ write_texture_to_file :: proc(filepath: string, texture: Texture) {
 
 Framebuffer :: struct {
     fbo: gpu.FBO,
-    rbo: gpu.RBO,
     textures: []Texture,
     depth_texture: Texture,
 
@@ -912,8 +885,6 @@ FBO_Options :: struct {
     texture_format:      gpu.Internal_Color_Format,
     data_format:         gpu.Pixel_Data_Format,
     data_element_format: gpu.Texture2D_Data_Type,
-    do_aa:               bool,
-    use_renderbuffer:    bool,
 }
 
 default_fbo_options :: proc() -> FBO_Options {
@@ -922,8 +893,6 @@ default_fbo_options :: proc() -> FBO_Options {
     options.texture_format      = gpu.Internal_Color_Format.RGBA16F;
     options.data_format         = gpu.Pixel_Data_Format.RGBA;
     options.data_element_format = gpu.Texture2D_Data_Type.Unsigned_Byte;
-    options.do_aa = false;
-    options.use_renderbuffer = false;
     return options;
 }
 
@@ -939,17 +908,8 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
         texture := gpu.gen_texture();
 
         target := gpu.Texture_Target.Texture2D;
-        if options.do_aa do target = .Texture2D_Multisample;
-
-        if options.do_aa {
-            gpu.bind_texture(.Texture2D_Multisample, texture);
-            gpu.tex_image_2d_multisample(.Texture2D_Multisample, 4, options.texture_format, cast(i32)width, cast(i32)height, true);
-        }
-        else {
-            gpu.bind_texture(.Texture2D, texture);
-            gpu.tex_image_2d(.Texture2D, 0, options.texture_format, cast(i32)width, cast(i32)height, 0, options.data_format, options.data_element_format, nil);
-        }
-        defer gpu.bind_texture(.Texture2D_Multisample, 0);
+        gpu.bind_texture(.Texture2D, texture);
+        gpu.tex_image_2d(.Texture2D, 0, options.texture_format, cast(i32)width, cast(i32)height, 0, options.data_format, options.data_element_format, nil);
         defer gpu.bind_texture(.Texture2D, 0);
 
         append(&textures, Texture{texture, width, height, 1, target, options.data_format, options.data_element_format});
@@ -960,12 +920,7 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
 
         attachment := cast(gpu.Framebuffer_Attachment)(cast(u32)gpu.Framebuffer_Attachment.Color0 + cast(u32)buf_idx);
 
-        if options.do_aa {
-            gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, .Texture2D_Multisample, texture);
-        }
-        else {
-            gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, .Texture2D, texture);
-        }
+        gpu.framebuffer_texture2d(cast(gpu.Framebuffer_Attachment)attachment, .Texture2D, texture);
 
         append(&attachments, attachment);
     }
@@ -987,14 +942,6 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
 
 
 
-    rbo: gpu.RBO;
-    if options.do_aa {
-        rbo = gpu.gen_renderbuffer();
-        gpu.bind_rbo(rbo);
-        gpu.renderbuffer_storage_multisample(8, .Depth24_Stencil8, cast(i32)width, cast(i32)height);
-        gpu.framebuffer_renderbuffer(.Depth_Stencil, rbo);
-    }
-
     if options.num_color_buffers > 0 {
         gpu.draw_buffers(attachments[:]);
     }
@@ -1010,7 +957,7 @@ create_framebuffer :: proc(width, height: int, options: FBO_Options, loc := #cal
     gpu.bind_rbo(0);
     gpu.bind_fbo(.Framebuffer, 0);
 
-    framebuffer := Framebuffer{fbo, rbo, textures[:], depth_texture, width, height, attachments[:], options};
+    framebuffer := Framebuffer{fbo, textures[:], depth_texture, width, height, attachments[:], options};
     return framebuffer;
 }
 
@@ -1048,7 +995,6 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 
     old := current_framebuffer;
     gpu.bind_fbo(.Framebuffer, framebuffer.fbo); // note(josh): can be 0
-    gpu.bind_rbo(framebuffer.rbo);
     current_framebuffer = framebuffer^;
     gpu.viewport(0, 0, cast(int)framebuffer.width, cast(int)framebuffer.height);
 
@@ -1057,7 +1003,6 @@ push_framebuffer_non_deferred :: proc(framebuffer: ^Framebuffer, auto_resize_fra
 
 pop_framebuffer :: proc(old_framebuffer: Framebuffer) {
     gpu.bind_fbo(.Framebuffer, old_framebuffer.fbo); // note(josh): can be 0
-    gpu.bind_rbo(old_framebuffer.rbo);
     current_framebuffer = old_framebuffer;
     gpu.viewport(0, 0, cast(int)old_framebuffer.width, cast(int)old_framebuffer.height);
 }
@@ -1288,7 +1233,6 @@ draw_model :: proc(model: Model,
             case .Texture2D:             gpu.bind_texture(.Texture2D,             texture.gpu_id);
             case .Texture3D:             gpu.bind_texture(.Texture3D,             texture.gpu_id);
             case .Texture_Cube_Map:      gpu.bind_texture(.Texture_Cube_Map,      texture.gpu_id);
-            case .Texture2D_Multisample: gpu.bind_texture(.Texture2D_Multisample, texture.gpu_id);
             case cast(gpu.Texture_Target)0:
             case: panic(tprint(texture.target, loc));
         }
