@@ -57,7 +57,7 @@ init_terrain :: proc() {
     tri_tex = create_texture_2d(16, 256, ops, transmute(^u8)&triTable[0]);
 }
 
-create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
+create_terrain :: proc(chunk_size: Vec3, step : f32 = 1, iso_max : f32 = 5) -> Terrain {
 
     density_map := make([][][]f32, int(chunk_size.x));
     for x in 0..<int(chunk_size.x) {
@@ -65,7 +65,9 @@ create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
         for z in 0..<int(chunk_size.z) {
             hm2 := make([]f32, int(chunk_size.y));
             for y in 0..<int(chunk_size.y) {
-                hm2[y] = -(f32(y-2));
+                // val := f32(y-2);
+                // hm2[y] = abs(val) > iso_max ? math.sign(val) * iso_max : val;
+                hm2[y] = -f32(y-2);
             }
             hm1[z] = hm2;
         }
@@ -83,16 +85,18 @@ create_terrain :: proc(chunk_size: Vec3, step : f32 = 1) -> Terrain {
         false, false, -1, 1, 0.25,
     };
 
-    add_terrain_chunk(&terrain, density_map, 0);
+    add_terrain_chunk(&terrain, density_map);
 
     return terrain;
 }
 
-add_terrain_chunk :: proc(using terrain: ^Terrain, _density_map: [][][]f32, index: int) {
+add_terrain_chunk :: proc(using terrain: ^Terrain, _density_map: [][][]f32) {
     x := len(_density_map);
     z := len(_density_map[0]);
     y := len(_density_map[0][0]);
     chunk_size = {f32(x),f32(y),f32(z)};
+
+    index := len(model.meshes);
 
     chunk := Terrain_Chunk {};
     chunk.chunk_idx = index;
@@ -127,8 +131,8 @@ refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][
     chunk := chunks[index];
 
     x := len(_density_map);
-    y := len(_density_map[0]);
-    z := len(_density_map[0][0]);
+    z := len(_density_map[0]);
+    y := len(_density_map[0][0]);
 
     dm := make([]f32, (x+2) * (y+2) * (z+2));
     defer delete(dm);
@@ -146,7 +150,7 @@ refresh_terrain_chunk_density :: proc(using terrain: ^Terrain, _density_map: [][
     ops.gpu_format = .R32F;
     ops.initial_data_format = .Red;
     ops.initial_data_element_type = .Float;
-    chunk.data_tex = create_texture_3d(x, y, z, ops, transmute(^u8)&dm[0]);
+    chunk.data_tex = create_texture_3d(y, z, x, ops, transmute(^u8)&dm[0]);
 
     mesh := &model.meshes[chunk.chunk_idx];
 
@@ -189,9 +193,9 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
             // TODO(jake): add chunks to the terrain as the user edits near the edge
 
             if plat.get_input(.Mouse_Left) {
-                for xo:=-brush_size; xo<=brush_size; xo+=1 {
-                    for yo:=-brush_size; yo<=brush_size; yo+=1 {
-                        for zo:=-brush_size; zo<=brush_size; zo+=1 {
+                for xo:=-brush_size-step/2; xo<=brush_size+step/2; xo+=1 {
+                    for yo:=-brush_size-step/2; yo<=brush_size+step/2; yo+=1 {
+                        for zo:=-brush_size-step/2; zo<=brush_size+step/2; zo+=1 {
 
                             // grid_pos := Vec3{x,y,z} + brush_grid_center;
                             brush_pos := hit_pos + Vec3{xo,yo,zo}*step;
@@ -231,7 +235,7 @@ render_terrain :: proc(using terrain: ^Terrain, terrain_offset, scale: Vec3) {
             }
 
             // Draw the brush
-            cmd := create_draw_command(wb_sphere_model, get_shader("lit"), hit_pos, {1,1,1}*brush_size/4, {0,0,0,1}, {0, 0.3, 0.7, 0.3}, {0.5,0.5,0.5}, {});
+            cmd := create_draw_command(wb_sphere_model, get_shader("lit"), hit_pos, {1,1,1}*brush_size/8, {0,0,0,1}, {0, 0.3, 0.7, 0.3}, {0.5,0.5,0.5}, {});
             submit_draw_command(cmd);
         }
     }
@@ -284,6 +288,7 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
         }
 
         imgui.slider_float("Brush Strength", &brush_strength, 0, 1);
+        imgui.slider_float("Brush Size", &brush_size, 1, 10);
 
         if dirty {
             for chunk, i in chunks {
@@ -332,7 +337,7 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
     }
 }
 
-lerp_y_pos :: proc(iso: f32, p1, p2: $T, v1, v2: f32) -> T {
+vertex_interp :: proc(iso: f32, p1, p2: $T, v1, v2: f32) -> T {
     if abs(v1-v2) >0.0001 {
         return p1 + (p2 - p1)/(v2 - v1)*(iso - v1);
     } else {
@@ -362,7 +367,7 @@ get_height_at_position :: proc(terrain: Terrain, terrain_origin: Vec3, _x, _z, y
 
             if next_val < terrain.iso_level && val >= terrain.iso_level {
                 if abs(next_val - val) > 0.00001 {
-                    ypos := lerp_y_pos(terrain.iso_level, f32(y), f32(y+1), val, next_val);
+                    ypos := vertex_interp(terrain.iso_level, f32(y), f32(y+1), val, next_val);
                     return ypos+terrain_origin.y, true;
                 }
                 else {
@@ -378,40 +383,85 @@ MAX_DISTANCE : f32 : 1000;
 raycast_into_terrain :: proc(using terrain: Terrain, terrain_origin, ray_origin, ray_direction: Vec3, max : f32 = MAX_DISTANCE, narrow_phase_min : f32 = 0.5) -> (Vec3, int, bool) {
 
     // TODO(jake): broadphase terrain physics
-    for chunk, i in chunks {
+    for chunk, chunk_index in chunks {
         for dist : f32 = 0; dist < max; dist += step {
+            
             current_pos := ray_origin + (ray_direction * dist);
-            next_pos := ray_origin + (ray_direction * (dist + step));
-
-            current_grid_pos := (current_pos - terrain_origin)/step;
-            next_grid_pos := (next_pos - terrain_origin)/step;
+            current_grid_pos := (current_pos - terrain_origin) / step;
 
             if  current_grid_pos.x < 0 ||
                 current_grid_pos.z < 0 ||
-                current_grid_pos.y < 0 ||
-                next_grid_pos.x < 0 ||
-                next_grid_pos.z < 0 ||
-                next_grid_pos.y < 0 {
+                current_grid_pos.y < 0  {
                 continue;
             }
             if  current_grid_pos.x >= chunk_size.x ||
                 current_grid_pos.z >= chunk_size.z ||
-                current_grid_pos.y >= chunk_size.y ||
-                next_grid_pos.x >= chunk_size.x ||
-                next_grid_pos.z >= chunk_size.z ||
-                next_grid_pos.y >= chunk_size.y {
+                current_grid_pos.y >= chunk_size.y  {
                 continue;
             }
 
-            v1 := chunk.density_map[int(current_grid_pos.x)][int(current_grid_pos.z)][int(current_grid_pos.y)];
-            v2 := chunk.density_map[int(next_grid_pos.x)][int(next_grid_pos.z)][int(next_grid_pos.y)];
+            val0 := cube_val(chunk.density_map, 0, current_grid_pos);
+            val1 := cube_val(chunk.density_map, 1, current_grid_pos);
+            val2 := cube_val(chunk.density_map, 2, current_grid_pos);
+            val3 := cube_val(chunk.density_map, 3, current_grid_pos);
+            val4 := cube_val(chunk.density_map, 4, current_grid_pos);
+            val5 := cube_val(chunk.density_map, 5, current_grid_pos);
+            val6 := cube_val(chunk.density_map, 6, current_grid_pos);
+            val7 := cube_val(chunk.density_map, 7, current_grid_pos);
 
-            if (v1 > iso_level && v2 > iso_level) || (v1 < iso_level && v2 < iso_level) do continue;
+            cube_index := 0;
+            if val0 < iso_level do cube_index |= 1;
+            if val1 < iso_level do cube_index |= 2;
+            if val2 < iso_level do cube_index |= 4;
+            if val3 < iso_level do cube_index |= 8;
+            if val4 < iso_level do cube_index |= 16;
+            if val5 < iso_level do cube_index |= 32;
+            if val6 < iso_level do cube_index |= 64;
+            if val7 < iso_level do cube_index |= 128;
 
-            // draw_debug_box(Vec3{current_pos.x, y + terrain_origin.y, current_pos.z}, {0.1,0.1,0.1}, {0,1,0,1});
+            if cube_index == 0 || cube_index == 255 do continue;
 
-            // logln(lerp_y_pos(iso_level, current_pos, next_pos, v1, v2));
-            return lerp_y_pos(iso_level, current_pos, next_pos, v1, v2), i, true;
+            edge_val := edgeTable[cube_index];
+            if edge_val == 0 do continue;
+
+            pos0 := cube_pos(0, current_grid_pos)*step + terrain_origin;
+            pos1 := cube_pos(1, current_grid_pos)*step + terrain_origin;
+            pos2 := cube_pos(2, current_grid_pos)*step + terrain_origin;
+            pos3 := cube_pos(3, current_grid_pos)*step + terrain_origin;
+            pos4 := cube_pos(4, current_grid_pos)*step + terrain_origin;
+            pos5 := cube_pos(5, current_grid_pos)*step + terrain_origin;
+            pos6 := cube_pos(6, current_grid_pos)*step + terrain_origin;
+            pos7 := cube_pos(7, current_grid_pos)*step + terrain_origin;
+
+            vert_list := [12]Vec3{};
+            vert_list[0] = vertex_interp(iso_level, pos0, pos1, val0, val1);
+            vert_list[1] = vertex_interp(iso_level, pos1, pos2, val1, val2);
+            vert_list[2] = vertex_interp(iso_level, pos2, pos3, val2, val3);
+            vert_list[3] = vertex_interp(iso_level, pos3, pos0, val3, val0);
+            vert_list[4] = vertex_interp(iso_level, pos4, pos5, val4, val5);
+            vert_list[5] = vertex_interp(iso_level, pos5, pos6, val5, val6);
+            vert_list[6] = vertex_interp(iso_level, pos6, pos7, val6, val7);
+            vert_list[7] = vertex_interp(iso_level, pos7, pos4, val7, val4);
+            vert_list[8] = vertex_interp(iso_level, pos0, pos4, val0, val4);
+            vert_list[9] = vertex_interp(iso_level, pos1, pos5, val1, val5);
+            vert_list[10] = vertex_interp(iso_level, pos2, pos6, val2, val6);
+            vert_list[11] = vertex_interp(iso_level, pos3, pos7, val3, val7);
+
+            for i:=0; triTable[cube_index][i] != -1; i += 3 {
+                pos1 := vert_list[triTable[cube_index][i+0]];
+                pos2 := vert_list[triTable[cube_index][i+1]];
+                pos3 := vert_list[triTable[cube_index][i+2]];
+
+                pt, intersects := intersect_triangle(ray_origin, ray_direction, pos1, pos2, pos3);
+
+                draw_debug_box(pos1, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
+                draw_debug_box(pos2, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
+                draw_debug_box(pos3, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
+
+                if intersects {
+                    return pt, chunk_index, true;
+                }
+            }
         }
     }
 
@@ -419,10 +469,50 @@ raycast_into_terrain :: proc(using terrain: Terrain, terrain_origin, ray_origin,
 }
 
 
+cube_val :: proc(dm: [][][]f32, i: int, pos: Vec3) -> f32 {
+    // // The data texture is streamed in y > z > x
+    corner := pos + vert_decals[i];
 
+    x := int(math.round(corner.x));
+    z := int(math.round(corner.z));
+    y := int(math.round(corner.y));
 
+    x = math.minv(x, len(dm)-1);
+    z = math.minv(z, len(dm[x])-1);
+    y = math.minv(y, len(dm[x][z])-1);
 
+    return dm[x][z][y];
+}
 
+cube_pos :: proc(i: int, pos: Vec3) -> Vec3 { 
+    p := pos + vert_decals[i];
+    return Vec3{math.floor(p.x), math.floor(p.y), math.floor(p.z)};
+}
+
+intersect_triangle :: proc(origin, direction: Vec3, A, B, C: Vec3) -> (Vec3, bool) { 
+   E1 := B-A;
+   E2 := C-A;
+   N := math.cross(E1,E2);
+   det := -math.dot(direction, N);
+   invdet := 1.0/det;
+   AO := origin - A;
+   DAO := math.cross(AO, direction);
+   u :=  math.dot(E2,DAO) * invdet;
+   v := -math.dot(E1,DAO) * invdet;
+   t :=  math.dot(AO,N)  * invdet; 
+   return origin + direction*t, (det >= 1e-6 && t >= 0.0 && u >= 0.0 && v >= 0.0 && (u+v) <= 1.0);
+}
+
+vert_decals := [8]Vec3 {
+    {0, 0, 1},
+    {1, 0, 1},
+    {1, 0, 0},
+    {0, 0, 0},
+    {0, 1, 1},
+    {1, 1, 1},
+    {1, 1, 0},
+    {0, 1, 0},
+};
 
 // CUBE MARCHING TABLES
 edgeTable := [256]i32 {
