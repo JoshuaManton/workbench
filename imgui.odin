@@ -474,7 +474,6 @@ _imgui_struct_block_field_end :: proc(name: string) {
     // }
 }
 
-_readonly: bool;
 imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: string = "", do_header := true, type_name: string = "") {
     imgui.push_id(name);
     defer imgui.pop_id();
