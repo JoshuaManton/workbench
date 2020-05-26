@@ -19,7 +19,6 @@ import "external/imgui"
 import "external/stb"
 
 import "allocators"
-import "shared"
 
 DEVELOPER :: true;
 
@@ -79,7 +78,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
     init_random(cast(u64)time.now()._nsec);
 
-    when !shared.HEADLESS {
+    when !#config(HEADLESS, false) {
         // init platform and graphics
         platformok := platform.init_platform(workspace.name, window_width, window_height);
         assert(platformok);
@@ -116,7 +115,7 @@ make_simple_window :: proc(window_width, window_height: int,
     game_loop:
     for !wb_should_close && !window_should_close {
 
-        when !shared.HEADLESS {
+        when !#config(HEADLESS, false) {
             window_should_close = platform.main_window.should_close;
         }
 
@@ -159,7 +158,7 @@ make_simple_window :: proc(window_width, window_height: int,
                 frame_count += 1;
 
                 //
-                when !shared.HEADLESS {
+                when !#config(HEADLESS, false) {
                     platform.update_platform();
                     imgui_begin_new_frame(fixed_delta_time);
                     imgui.push_font(imgui_font_default); // :ImguiPopFont
@@ -183,14 +182,14 @@ make_simple_window :: proc(window_width, window_height: int,
 
                 update_tween(fixed_delta_time);
 
-                when !shared.HEADLESS {
+                when !#config(HEADLESS, false) {
                     update_ui(fixed_delta_time);
                     update_debug_menu(fixed_delta_time);
                 }
 
                 update_workspace(workspace, fixed_delta_time); // calls client updates
 
-                when !shared.HEADLESS {
+                when !#config(HEADLESS, false) {
                     update_message_popups(fixed_delta_time);
                     // late_update_ui(); @Cleanup
                     imgui.pop_font(); // :ImguiPopFont
@@ -207,7 +206,7 @@ make_simple_window :: proc(window_width, window_height: int,
                 }
             }
 
-            when !shared.HEADLESS {
+            when !#config(HEADLESS, false) {
                 render_workspace(workspace);
                 platform.platform_render();
             }

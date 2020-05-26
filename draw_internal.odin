@@ -9,7 +9,6 @@ import "core:os"
 import "gpu"
 import "profiler"
 import "logging"
-import "shared"
 
 import "external/stb"
 import "external/imgui"
@@ -39,7 +38,7 @@ visualize_shadow_texture: bool;
 visualize_shadow_cascades: bool;
 
 init_draw :: proc(screen_width, screen_height: int) {
-when shared.HEADLESS do return;
+when #config(HEADLESS, false) do return;
 else
 {
     profiler.TIMED_SECTION();
@@ -83,7 +82,7 @@ else
 }
 }
 rendering_debug_program :: proc(_: rawptr) {
-when shared.HEADLESS do return;
+when #config(HEADLESS, false) do return;
 else
 {
     if imgui.begin("Rendering") {
@@ -99,7 +98,7 @@ else
 }
 }
 scene_view_debug_program :: proc(_: rawptr) {
-when shared.HEADLESS do return;
+when #config(HEADLESS, false) do return;
 else
 {
     if imgui.begin("Scene View") {
@@ -115,7 +114,7 @@ else
 }
 
 update_draw :: proc() {
-when shared.HEADLESS do return;
+when #config(HEADLESS, false) do return;
 else
 {
     clear(&debug_lines);
@@ -129,7 +128,7 @@ done_postprocessing_proc: proc();
 on_render_object: proc(rawptr);
 
 render_workspace :: proc(workspace: Workspace) {
-when shared.HEADLESS do return;
+when #config(HEADLESS, false) do return;
 else
 {
     check_for_file_updates();
@@ -156,7 +155,7 @@ else
 }
 
 deinit_draw :: proc() {
-when shared.HEADLESS do return;
+when #config(HEADLESS, false) do return;
 else
 {
     delete_camera(&_default_camera);

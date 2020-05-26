@@ -82,12 +82,12 @@ vec3 calc_triangle_normal(vec3 p1, vec3 p2, vec3 p3){
 
 void main()
 {
-	if (!(gl_GlobalInvocationID.x > 0 && 
-		  gl_GlobalInvocationID.y > 0 && 
-		  gl_GlobalInvocationID.z > 0 &&
-	      gl_GlobalInvocationID.x < chunk_size.x-1 && 
-	      gl_GlobalInvocationID.y < chunk_size.y-1 && 
-	      gl_GlobalInvocationID.z < chunk_size.z-1)) {
+	if   (gl_GlobalInvocationID.x <= 1 ||
+		  gl_GlobalInvocationID.y <= 1 || 
+		  gl_GlobalInvocationID.z <= 1 ||
+	      gl_GlobalInvocationID.x >= chunk_size.x-2 || 
+	      gl_GlobalInvocationID.y >= chunk_size.y-2 || 
+	      gl_GlobalInvocationID.z >= chunk_size.z-2) {
 		return;
 	}
 
@@ -139,9 +139,22 @@ void main()
             norm3 = cube_normal(pos3/step);
         }
 
+        // TODO(jake): better texturing
+        float u1 = dot(norm1, vec3(0,1,0));
+        u1 = 1 - ((u1 + 1)/2 - 1);
+        float v1 = pos1.y / gl_GlobalInvocationID.y;
+
+        float u2 = dot(norm2, vec3(0,1,0));
+        u2 = 1 - ((u2 + 1)/2 - 1);
+        float v2 = pos2.y / gl_GlobalInvocationID.y;
+
+        float u3 = dot(norm3, vec3(0,1,0));
+        u3 = 1 - ((u3 + 1)/2 - 1);
+        float v3 = pos3.y / gl_GlobalInvocationID.y;
+
         uint start_idx = atomicAdd(total_vertices, 3);
-        vertices[start_idx+0] = vertex(float[3](pos1.x,pos1.y,pos1.z), float[3](0,0,0), float[4](0.2,0.7,0.4,1), float[3](norm1.x, norm1.y, norm1.z));
-        vertices[start_idx+1] = vertex(float[3](pos2.x,pos2.y,pos2.z), float[3](0,0,0), float[4](0.2,0.7,0.4,1), float[3](norm2.x, norm2.y, norm2.z));
-        vertices[start_idx+2] = vertex(float[3](pos3.x,pos3.y,pos3.z), float[3](0,0,0), float[4](0.2,0.7,0.4,1), float[3](norm3.x, norm3.y, norm3.z));
+        vertices[start_idx+0] = vertex(float[3](pos1.x,pos1.y,pos1.z), float[3](u1,v1,0), float[4](1,1,1,1), float[3](norm1.x, norm1.y, norm1.z));
+        vertices[start_idx+1] = vertex(float[3](pos2.x,pos2.y,pos2.z), float[3](u2,v2,0), float[4](1,1,1,1), float[3](norm2.x, norm2.y, norm2.z));
+        vertices[start_idx+2] = vertex(float[3](pos3.x,pos3.y,pos3.z), float[3](u3,v3,0), float[4](1,1,1,1), float[3](norm3.x, norm3.y, norm3.z));
     }
 }
