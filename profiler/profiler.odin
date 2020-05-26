@@ -10,7 +10,6 @@ import "../external/imgui"
 import "../allocators"
 import "../logging"
 import "../basic"
-import "../shared"
 
 Frame_Info :: struct {
 	root_section: ^Section_Info,

@@ -9,16 +9,16 @@ import "core:strconv"
 import "core:strings"
 import "core:os"
 
-import wb "shared:workbench"
-import    "shared:workbench/math"
-import    "shared:workbench/wbml"
-import    "shared:workbench/laas"
-import    "shared:workbench/types"
-import    "shared:workbench/basic"
-import    "shared:workbench/logging"
-import    "shared:workbench/gpu"
-import    "shared:workbench/reflection"
-import    "shared:workbench/external/imgui"
+import "shared:wb"
+import "shared:wb/math"
+import "shared:wb/wbml"
+import "shared:wb/laas"
+import "shared:wb/types"
+import "shared:wb/basic"
+import "shared:wb/logging"
+import "shared:wb/gpu"
+import "shared:wb/reflection"
+import "shared:wb/external/imgui"
 
 /*
 
@@ -689,7 +689,7 @@ load_entity_from_file :: proc(filepath: string) -> Entity {
     lexer := laas.make_lexer(cast(string)data);
     eid_token, ok2 := laas.expect(&lexer, .Number);
     assert(ok2);
-    int_value := strconv.parse_int(eid_token.text);
+    int_value,_ := strconv.parse_int(eid_token.text);
     eid := transmute(Entity)int_value;
 
     // eat entity name

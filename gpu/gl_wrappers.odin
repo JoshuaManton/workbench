@@ -252,7 +252,7 @@ when GPU_BACKEND == "OPENGL" {
     }
 
     memory_barrier :: proc(loc := #caller_location) {
-        odingl.MemoryBarrier(odingl.SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        odingl.MemoryBarrier(odingl.SHADER_IMAGE_ACCESS_BARRIER_BIT | odingl.ATOMIC_COUNTER_BARRIER_BIT | odingl.SHADER_STORAGE_BARRIER_BIT);
         log_errors(#procedure, loc);
     }
 

@@ -1039,6 +1039,8 @@ Mesh :: struct {
     vmax: Vec3,
 
     skin: Skinned_Mesh,
+
+    position_offset: Vec3,
 }
 
 Skinned_Mesh :: struct {
@@ -1073,7 +1075,7 @@ Vertex3D :: struct {
     bone_weights: [BONES_PER_VERTEX]f32,
 }
 
-add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32 = {}, skin: Skinned_Mesh = {}, loc := #caller_location) -> int {
+add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u32 = {}, skin: Skinned_Mesh = {}, offset: Vec3 = {}, loc := #caller_location) -> int {
     vao := gpu.gen_vao();
     vbo := gpu.gen_vbo();
     ibo := gpu.gen_ebo();
@@ -1098,7 +1100,7 @@ add_mesh_to_model :: proc(model: ^Model, vertices: []$Vertex_Type, indices: []u3
     }
 
     idx := len(model.meshes);
-    mesh := Mesh{vao, vbo, ibo, 0, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin};
+    mesh := Mesh{vao, vbo, ibo, 0, type_info_of(Vertex_Type), len(indices), len(vertices), center, vmin, vmax, skin, offset};
     append(&model.meshes, mesh, loc);
 
     update_mesh(model, idx, vertices, indices);
@@ -1405,23 +1407,17 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 
     {
         TIMED_SECTION("matrices");
-        // model_matrix
-        model_p := translate(identity(Mat4), position);
-        model_s := mat4_scale(identity(Mat4), scale);
-        model_r := quat_to_mat4(rotation);
-        model_matrix := mul(mul(model_p, model_r), model_s);
-
+        
         gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
 
         gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
 
-        gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
         gpu.uniform_mat4(bound_shader, "view_matrix",       &main_camera.view_matrix);
 
         rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
         gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
 
-        gpu.uniform_vec3(bound_shader, "position", position);
+        
         gpu.uniform_vec3(bound_shader, "scale", scale);
         gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
 
@@ -1435,13 +1431,26 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 
     TIMED_SECTION("draw meshes");
     for mesh, i in model.meshes {
+
+        // model_matrix
+        model_p := translate(identity(Mat4), position + mesh.position_offset);
+        model_s := mat4_scale(identity(Mat4), scale);
+        model_r := quat_to_mat4(rotation);
+        model_matrix := mul(mul(model_p, model_r), model_s);
+
+        gpu.uniform_mat4(bound_shader, "model_matrix",      &model_matrix);
+        gpu.uniform_vec3(bound_shader, "position", position + mesh.position_offset);
+
         gpu.bind_vao(mesh.vao);
         gpu.bind_vbo(mesh.vbo);
         gpu.bind_ibo(mesh.ibo);
         gpu.log_errors(#procedure);
 
-        // todo(josh): test!!!
-        // gpu.bind_ssbo(mesh.ssbo); // note(josh): may be 0 and thats fine
+        if mesh.ssbo != 0 {
+            // note(josh): may be 0 and thats fine
+            // note(jake): apparently this is not ok
+			gpu.bind_ssbo(mesh.ssbo);
+		}
 
         if len(anim_state.mesh_states) > i {
             gpu.uniform_int(bound_shader, "do_animation", 1);
@@ -1466,6 +1475,10 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
         }
         else {
             gpu.draw_arrays(main_camera.draw_mode, 0, mesh.vertex_count);
+        }
+
+        if mesh.ssbo != 0 {
+            gpu.bind_ssbo(0);
         }
     }
 }
