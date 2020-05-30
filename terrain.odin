@@ -329,6 +329,19 @@ render_terrain_editor :: proc(using terrain: ^Terrain) {
     }
 }
 
+destroy_terrain :: proc(using terrain: ^Terrain) {
+    for chunk in &chunks {
+        for xarr, x in &chunk.density_map {
+            for y in &chunk.density_map[x] {
+                delete(y);
+            }
+            delete(xarr);
+        }
+    }
+
+    delete_model(model);
+}
+
 vertex_interp :: proc(iso: f32, p1, p2: $T, v1, v2: f32) -> T {
     if abs(v1-v2) >0.0001 {
         return p1 + (p2 - p1)/(v2 - v1)*(iso - v1);
@@ -384,14 +397,14 @@ raycast_into_terrain :: proc(using terrain: Terrain, _terrain_origin, ray_origin
             edge_val := edgeTable[cube_index];
             if edge_val == 0 do continue;
 
-            pos0 := cube_pos(0, current_grid_pos)*step + terrain_origin; draw_debug_box(pos0, {0.05, 0.05, 0.05}, {0,0,1,1});
-            pos1 := cube_pos(1, current_grid_pos)*step + terrain_origin; draw_debug_box(pos1, {0.055, 0.055, 0.055}, {0,0,1,1});
-            pos2 := cube_pos(2, current_grid_pos)*step + terrain_origin; draw_debug_box(pos2, {0.06, 0.06, 0.06}, {0,0,1,1});
-            pos3 := cube_pos(3, current_grid_pos)*step + terrain_origin; draw_debug_box(pos3, {0.065, 0.065, 0.065}, {0,0,1,1});
-            pos4 := cube_pos(4, current_grid_pos)*step + terrain_origin; draw_debug_box(pos4, {0.07, 0.07, 0.07}, {0,0,1,1});
-            pos5 := cube_pos(5, current_grid_pos)*step + terrain_origin; draw_debug_box(pos5, {0.075, 0.075, 0.075}, {0,0,1,1});
-            pos6 := cube_pos(6, current_grid_pos)*step + terrain_origin; draw_debug_box(pos6, {0.08, 0.08, 0.08}, {0,0,1,1});
-            pos7 := cube_pos(7, current_grid_pos)*step + terrain_origin; draw_debug_box(pos7, {0.085, 0.085, 0.085}, {0,0,1,1});
+            pos0 := cube_pos(0, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos0, {0.05, 0.05, 0.05}, {0,0,1,1});
+            pos1 := cube_pos(1, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos1, {0.055, 0.055, 0.055}, {0,0,1,1});
+            pos2 := cube_pos(2, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos2, {0.06, 0.06, 0.06}, {0,0,1,1});
+            pos3 := cube_pos(3, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos3, {0.065, 0.065, 0.065}, {0,0,1,1});
+            pos4 := cube_pos(4, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos4, {0.07, 0.07, 0.07}, {0,0,1,1});
+            pos5 := cube_pos(5, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos5, {0.075, 0.075, 0.075}, {0,0,1,1});
+            pos6 := cube_pos(6, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos6, {0.08, 0.08, 0.08}, {0,0,1,1});
+            pos7 := cube_pos(7, current_grid_pos)*step + terrain_origin; //draw_debug_box(pos7, {0.085, 0.085, 0.085}, {0,0,1,1});
 
             vert_list := [12]Vec3{};
             vert_list[0] = vertex_interp(iso_level, pos0, pos1, val0, val1);
@@ -414,9 +427,9 @@ raycast_into_terrain :: proc(using terrain: Terrain, _terrain_origin, ray_origin
 
                 pt, intersects := intersect_triangle(ray_origin, ray_direction, pos1, pos2, pos3);
 
-                draw_debug_box(pos1, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
-                draw_debug_box(pos2, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
-                draw_debug_box(pos3, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
+                //draw_debug_box(pos1, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
+                //draw_debug_box(pos2, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
+                //draw_debug_box(pos3, {0.05,0.05, 0.05}, intersects ? {0,1,0,1} : {1,0,0,1});
 
                 if intersects {
                     return pt, chunk_index, true;
