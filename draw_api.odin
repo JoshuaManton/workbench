@@ -1407,7 +1407,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
 
     {
         TIMED_SECTION("matrices");
-        
+
         gpu.uniform_vec3(bound_shader, "camera_position", main_camera.position);
 
         gpu.uniform_float(bound_shader, "bloom_threshhold", render_settings.bloom_threshhold);
@@ -1417,7 +1417,7 @@ execute_draw_command :: proc(using cmd: Draw_Command_3D, loc := #caller_location
         rendermode_matrix := construct_rendermode_projection_matrix(main_camera);
         gpu.uniform_mat4(bound_shader, "projection_matrix", &rendermode_matrix);
 
-        
+
         gpu.uniform_vec3(bound_shader, "scale", scale);
         gpu.uniform_vec4(bound_shader, "mesh_color", transmute(Vec4)color);
 

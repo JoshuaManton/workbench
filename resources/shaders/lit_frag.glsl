@@ -214,6 +214,7 @@ void main() {
 
 
 
+    // todo(josh): why the 0.03? is that just a hardcoded ambient that we should remove?
     vec3 ambient = vec3(0.03) * albedo * material.ao;
     // todo(josh): ask jake why he changed this
     // vec3 color = albedo + ambient + Lo;
