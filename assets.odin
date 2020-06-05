@@ -151,7 +151,7 @@ try_add_tracked_filepath :: proc(filepath: string, load_by_default: bool) -> boo
 
 // note(josh): use this procedure sparingly, it doesn't work for hotloading, it is meant for manually jamming assets into the asset system
 force_add_asset :: proc($Type: typeid, name: string, asset: ^Type) {
-    assert(name notin tracked_files);
+    assert(name not_in tracked_files);
     tracked_files[strings.clone(name)] = Tracked_File{"", 0, 1, any{asset, typeid_of(Type)}, nil};
 }
 

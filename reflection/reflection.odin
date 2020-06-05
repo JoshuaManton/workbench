@@ -180,18 +180,18 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
 
             a := any{ptr, rt.type_info_base(ti_kind.base).id};
             switch v in a {
-            case rune:    val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^rune)   ptr)^, ok = val.(rune);    assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case i8:      val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i8)     ptr)^, ok = val.(i8);      assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case i16:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i16)    ptr)^, ok = val.(i16);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case i32:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i32)    ptr)^, ok = val.(i32);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case i64:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i64)    ptr)^, ok = val.(i64);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case int:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^int)    ptr)^, ok = val.(int);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case u8:      val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u8)     ptr)^, ok = val.(u8);      assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case u16:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u16)    ptr)^, ok = val.(u16);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case u32:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u32)    ptr)^, ok = val.(u32);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case u64:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u64)    ptr)^, ok = val.(u64);     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case uint:    val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^uint)   ptr)^, ok = val.(uint);    assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
-            case uintptr: val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^uintptr)ptr)^, ok = val.(uintptr); assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case rune:    val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^rune)   ptr)^ = cast(rune   )val;    assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i8:      val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i8)     ptr)^ = cast(i8     )val;      assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i16:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i16)    ptr)^ = cast(i16    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i32:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i32)    ptr)^ = cast(i32    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case i64:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^i64)    ptr)^ = cast(i64    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case int:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^int)    ptr)^ = cast(int    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u8:      val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u8)     ptr)^ = cast(u8     )val;      assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u16:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u16)    ptr)^ = cast(u16    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u32:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u32)    ptr)^ = cast(u32    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case u64:     val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^u64)    ptr)^ = cast(u64    )val;     assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case uint:    val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^uint)   ptr)^ = cast(uint   )val;    assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
+            case uintptr: val := get_val_for_name(value_string, ti_kind); ok: bool; (cast(^uintptr)ptr)^ = cast(uintptr)val; assert(ok); // todo(josh): remove the `, ok` -- https://github.com/odin-lang/Odin/issues/619
             }
         }
 

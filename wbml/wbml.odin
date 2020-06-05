@@ -186,7 +186,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 			get_str :: proc(i: $T, e: rt.Type_Info_Enum) -> (string, bool) {
 				if reflect.is_string(e.base) {
 					for val, idx in e.values {
-						if v, ok := val.(T); ok && v == i {
+						if cast(T)val == i {
 							return e.names[idx], true;
 						}
 					}
@@ -194,7 +194,7 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 					return "", true;
 				} else {
 					for val, idx in e.values {
-						if v, ok := val.(T); ok && v == i {
+						if cast(T)val == i {
 							return e.names[idx], true;
 						}
 					}
@@ -782,7 +782,7 @@ write_value_ti :: proc(node: ^Node, ptr: rawptr, ti: ^rt.Type_Info) {
 			get_val_for_name :: proc(name: string, $Type: typeid, e: rt.Type_Info_Enum) -> (Type, bool) {
 				for enum_member_name, idx in e.names {
 					if enum_member_name == name {
-						return e.values[idx].(Type), true;
+						return cast(Type)e.values[idx], true;
 					}
 				}
 				return Type{}, false;
