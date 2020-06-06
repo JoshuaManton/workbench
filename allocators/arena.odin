@@ -11,15 +11,36 @@ Arena :: struct {
 
 init_arena :: proc(arena: ^Arena, backing: []byte) {
     assert(arena.memory == nil);
+    assert(len(backing) > 0);
     arena^ = {};
     arena.memory = backing;
 }
 
-arena_allocator :: proc(arena: ^Arena) -> mem.Allocator {
-    return mem.Allocator{arena_allocator_proc, arena};
+make_arena :: proc(backing: []byte, panic_on_oom: bool) -> Arena {
+    arena: Arena;
+    arena.memory = backing;
+    arena.panic_on_oom = panic_on_oom;
+    return arena;
+}
+
+delete_arena_memory :: proc(arena: ^Arena) {
+    delete(arena.memory);
+    arena.memory = {};
+}
+
+@(deferred_out=pop_temp_region)
+ARENA_TEMP_REGION :: proc(arena: ^Arena) -> (^Arena, int) {
+    return arena, arena.cur_offset;
+}
+pop_temp_region :: proc(arena: ^Arena, temp_start: int) {
+    arena.cur_offset = temp_start;
 }
 
 
+
+arena_allocator :: proc(arena: ^Arena) -> mem.Allocator {
+    return mem.Allocator{arena_allocator_proc, arena};
+}
 
 arena_alloc :: proc(arena: ^Arena, size: int, alignment: int) -> rawptr {
     // Don't allow allocations of zero size. This would likely return a
