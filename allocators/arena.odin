@@ -49,21 +49,21 @@ arena_alloc :: proc(arena: ^Arena, size: int, alignment: int) -> rawptr {
         return nil;
     }
 
-    // todo(josh): The `align_forward()` call and the `new_offset + size` below
+    // todo(josh): The `align_forward()` call and the `start + size` below
     // that could overflow if the `size` or `align` parameters are super huge
 
-    new_offset := mem.align_forward_int(arena.cur_offset, alignment);
+    start := mem.align_forward_int(arena.cur_offset, alignment);
 
     // Don't allow allocations that would extend past the end of the arena.
-    if (new_offset + size) > len(arena.memory) {
+    if (start + size) > len(arena.memory) {
         if arena.panic_on_oom {
             panic("Arena out of memory");
         }
         return nil;
     }
 
-    arena.cur_offset = new_offset + size;
-    ptr := &arena.memory[new_offset];
+    arena.cur_offset = start + size;
+    ptr := &arena.memory[start];
     mem.zero(ptr, size);
     return ptr;
 }
