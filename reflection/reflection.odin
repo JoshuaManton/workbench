@@ -175,7 +175,6 @@ set_ptr_value_from_string :: proc(ptr: rawptr, ti: ^rt.Type_Info, value_string: 
                     }
                 }
                 panic(tprint("Couldn't find enum member '", name, "' in enum '", e, "'."));
-                return {};
             }
 
             a := any{ptr, rt.type_info_base(ti_kind.base).id};

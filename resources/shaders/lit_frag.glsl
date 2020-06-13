@@ -238,9 +238,9 @@ void main() {
     }
 
     // bloom color
-    float brightness = dot(out_color.rgb, vec3(1, 1, 1)); // todo(josh): make configurable?
-    if (brightness > bloom_threshhold) {
-        bloom_color = vec4(out_color.rgb * ((brightness / bloom_threshhold) - 1), 1.0);
+    float luminance = dot(out_color.rgb, vec3(0.2989, 0.5866, 0.1145)); // todo(josh): investigate real luminance
+    if (luminance > bloom_threshhold) {
+        bloom_color = vec4(out_color.rgb * ((luminance / bloom_threshhold) - 1), 1.0);
     }
     else {
         bloom_color = vec4(0.0, 0.0, 0.0, 1.0);

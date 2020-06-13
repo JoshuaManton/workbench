@@ -13,5 +13,4 @@ panic_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
                              flags: u64 = 0, loc := #caller_location) -> rawptr {
 
 	panic(fmt.tprint("No allocations allowed: ", loc));
-	return nil;
 }

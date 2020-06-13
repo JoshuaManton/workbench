@@ -92,7 +92,6 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 		case '"': {
 			if !_inc(lexer) {
 				panic(fmt.tprint("End of text from within string"));
-				return false;
 			}
 			start := lex_idx;
 			escaped := false;
@@ -101,7 +100,6 @@ get_next_token :: proc(using lexer: ^Lexer, token: ^Token, ignore_newline := fal
 
 				if !_inc(lexer) {
 					panic(fmt.tprint("End of text from within string"));
-					return false;
 				}
 			}
 

@@ -70,5 +70,4 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
         }
     }
     unreachable();
-    return nil;
 }

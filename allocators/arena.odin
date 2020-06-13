@@ -98,5 +98,4 @@ arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
         case: panic(fmt.tprint(mode));
     }
     unreachable();
-    return nil;
 }

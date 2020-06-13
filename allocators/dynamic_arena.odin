@@ -91,5 +91,4 @@ dynamic_arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator
         case: panic(fmt.tprint(mode));
     }
     unreachable();
-    return nil;
 }
