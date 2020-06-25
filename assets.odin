@@ -134,7 +134,6 @@ try_add_tracked_filepath :: proc(filepath: string, load_by_default: bool) -> boo
             if handler_ext == ext {
                 if name in tracked_files {
                     panic(tprint("Name collision: ", name));
-                    return false;
                 }
 
                 // now that we know there's a handler for this asset type, add it to the list of tracked files
@@ -337,7 +336,6 @@ load_tracked_file :: proc(tracked_file: ^Tracked_File) -> Asset_Load_Result {
     }
 
     panic(tprint("No handler for extension: ", ext));
-    return {};
 }
 
 unload_tracked_file :: proc(tracked_file: ^Tracked_File) {
@@ -454,7 +452,6 @@ catalog_load_model :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Model, As
         case: panic(ctx.extension);
     }
     unreachable();
-    return nil, .Error, true;
 }
 catalog_delete_model :: proc(model: ^Model) {
     delete_model(model^);
@@ -558,7 +555,6 @@ catalog_load_shader :: proc(data: []byte, ctx: Asset_Load_Context) -> (^Shader_A
         }
     }
     unreachable();
-    return {}, .Error, true;
 }
 catalog_delete_shader :: proc(shader: ^Shader_Asset) {
     // todo(josh): figure out why deleting shaders was causing errors

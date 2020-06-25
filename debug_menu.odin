@@ -2,7 +2,6 @@ package workbench
 
 import "platform"
 import "external/imgui"
-import "gpu"
 import "profiler"
 
 //

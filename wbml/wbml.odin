@@ -504,7 +504,6 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 		}
 	}
 	unreachable();
-	return nil;
 }
 
 unescape_string :: proc(str: string, allocator := context.allocator) -> (string, int) {

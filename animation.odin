@@ -8,7 +8,6 @@ import        "core:strings"
 import        "core:mem"
 
 import ai     "external/assimp"
-import "gpu"
 
 //
 // Loading
@@ -106,7 +105,7 @@ load_animations_from_ai_scene :: proc(scene: ^ai.Scene, model_name: string, bone
             }
 
             append(&animation.channels, Anim_Channel{
-                node_name, 
+                node_name,
                 node_name in bone_mapping ? bone_mapping[node_name] : -1,
                 pos_frames[:],
                 scale_frames[:],

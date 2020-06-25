@@ -305,7 +305,6 @@ construct_rendermode_view_matrix :: proc(camera: ^Camera) -> Mat4 {
     }
 
     unreachable();
-    return {};
 }
 
 construct_view_matrix :: proc(camera: ^Camera) -> Mat4 {
@@ -344,7 +343,6 @@ construct_rendermode_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
     }
 
     unreachable();
-    return {};
 }
 
 construct_projection_matrix :: proc(camera: ^Camera) -> Mat4 {
