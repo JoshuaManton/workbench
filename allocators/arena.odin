@@ -5,15 +5,17 @@ import "core:mem"
 
 Arena :: struct {
     memory: []byte,
+    initial_offset: int, // note(josh): this will only be non-zero if the arena is bootstrapped from its own backing memory. see `arena_allocator_bootstrap`
     cur_offset: int,
     panic_on_oom: bool,
 }
 
-init_arena :: proc(arena: ^Arena, backing: []byte) {
+init_arena :: proc(arena: ^Arena, backing: []byte, panic_on_oom: bool) {
     assert(arena.memory == nil);
     assert(len(backing) > 0);
     arena^ = {};
     arena.memory = backing;
+    arena.panic_on_oom = panic_on_oom;
 }
 
 make_arena :: proc(backing: []byte, panic_on_oom: bool) -> Arena {
@@ -42,34 +44,23 @@ arena_allocator :: proc(arena: ^Arena) -> mem.Allocator {
     return mem.Allocator{arena_allocator_proc, arena};
 }
 
+arena_allocator_bootstrap :: proc(memory: []byte, panic_on_oom: bool) -> mem.Allocator {
+    offset: int;
+    arena := buffer_allocate(memory, &offset, Arena, true);
+    assert(arena != nil);
+    init_arena(arena, memory, panic_on_oom);
+    arena.cur_offset = offset;
+    arena.initial_offset = arena.cur_offset;
+    return mem.Allocator{arena_allocator_proc, arena};
+}
+
 arena_alloc :: proc(arena: ^Arena, size: int, alignment: int) -> rawptr {
-    // Don't allow allocations of zero size. This would likely return a
-    // pointer to a different allocation, causing many problems.
-    if size == 0 {
-        return nil;
-    }
-
-    // todo(josh): The `align_forward()` call and the `start + size` below
-    // that could overflow if the `size` or `align` parameters are super huge
-
-    start := mem.align_forward_int(arena.cur_offset, alignment);
-
-    // Don't allow allocations that would extend past the end of the arena.
-    if (start + size) > len(arena.memory) {
-        if arena.panic_on_oom {
-            panic("Arena out of memory");
-        }
-        return nil;
-    }
-
-    arena.cur_offset = start + size;
-    ptr := &arena.memory[start];
-    mem.zero(ptr, size);
+    ptr := buffer_allocate_size(arena.memory, &arena.cur_offset, size, alignment);
     return ptr;
 }
 
 arena_free_all :: proc(arena: ^Arena) {
-    arena.cur_offset = 0;
+    arena.cur_offset = arena.initial_offset;
 }
 
 arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,

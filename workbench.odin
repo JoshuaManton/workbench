@@ -55,7 +55,7 @@ make_simple_window :: proc(window_width, window_height: int,
 
     // init frame allocator
     @static frame_allocator_raw: allocators.Arena;
-    allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024));
+    allocators.init_arena(&frame_allocator_raw, make([]byte, 4 * 1024 * 1024), true);
     defer delete(frame_allocator_raw.memory);
 
     default_temp_allocator := context.temp_allocator;

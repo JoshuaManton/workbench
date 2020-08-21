@@ -15,7 +15,7 @@ init_dynamic_arena :: proc(dynamic_arena: ^Dynamic_Arena, arena_size: int) {
     dynamic_arena^ = {};
     dynamic_arena.arenas = make([dynamic]Arena, 4);
     dynamic_arena.arena_size = arena_size;
-    init_arena(&dynamic_arena.arenas[0], make([]byte, arena_size));
+    init_arena(&dynamic_arena.arenas[0], make([]byte, arena_size), false);
 }
 
 destroy_dynamic_arena :: proc(dynamic_arena: ^Dynamic_Arena) {
@@ -43,7 +43,7 @@ dynamic_arena_alloc :: proc(dynamic_arena: ^Dynamic_Arena, size: int, alignment:
     result := arena_alloc(arena, size, alignment);
     if result == nil {
         new_arena: Arena;
-        init_arena(&new_arena, make([]byte, dynamic_arena.arena_size));
+        init_arena(&new_arena, make([]byte, dynamic_arena.arena_size), false);
         append(&dynamic_arena.arenas, new_arena);
         dynamic_arena.current_arena += 1;
 
