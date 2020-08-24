@@ -73,7 +73,7 @@ create_default_density_map :: proc(size: Vec3) -> [][][]f32 {
             for y in 0..<int(size.y) {
                 // val := f32(y-2);
                 // hm2[y] = abs(val) > iso_max ? math.sign(val) * iso_max : val;
-                hm2[y] = -f32(y-2);
+                hm2[y] = -min(f32(y-2), 5);
             }
             hm1[z] = hm2;
         }
@@ -266,8 +266,8 @@ render_terrain :: proc(using terrain: ^Terrain, render_pos, scale: Vec3) {
             }
 
             // Draw the brush
-            cmd := create_draw_command(wb_sphere_model, get_shader("lit"), hit_pos, {1,1,1}*brush_size/2, {0,0,0,1}, {0, 0.3, 0.7, 0.3}, {0.5,0.5,0.5}, {});
-            submit_draw_command(cmd);
+            // cmd := create_draw_command(wb_sphere_model, get_shader("lit"), hit_pos, {1,1,1}*brush_size/2, {0,0,0,1}, {0, 0.3, 0.7, 0.3}, {0.5,0.5,0.5}, {});
+            // submit_draw_command(cmd);
         }
     }
 

@@ -66,9 +66,9 @@ make_simple_window :: proc(window_width, window_height: int,
 
     // init allocation tracker
     default_allocator := context.allocator;
-    @static allocation_tracker: allocators.Allocation_Tracker;
-    defer allocators.destroy_allocation_tracker(&allocation_tracker);
-    context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
+    // @static allocation_tracker: allocators.Allocation_Tracker;
+    // defer allocators.destroy_allocation_tracker(&allocation_tracker);
+    // context.allocator = allocators.init_allocation_tracker(&allocation_tracker);
     defer context.allocator = default_allocator;
 
     register_debug_program("Profiler", proc(_: rawptr) {
@@ -95,10 +95,10 @@ make_simple_window :: proc(window_width, window_height: int,
     }
 
     register_debug_program("WB Info", wb_info_program, nil);
-    register_debug_program("Allocation Profiler", proc(ptr: rawptr) {
-        // context.temp_allocator = default_temp_allocator;
-        profiler.draw_allocation_profiler(ptr);
-    }, &allocation_tracker);
+    // register_debug_program("Allocation Profiler", proc(ptr: rawptr) {
+    //     // context.temp_allocator = default_temp_allocator;
+    //     profiler.draw_allocation_profiler(ptr);
+    // }, &allocation_tracker);
 
     init_workspace(workspace);
 

@@ -281,6 +281,7 @@ imgui_begin_new_frame :: proc(dt: f32) {
         io.mouse_pos = transmute(imgui.Vec2)platform.main_window.mouse_position_pixel;
         io.mouse_down[0] = platform._get_global_input(.Mouse_Left);
         io.mouse_down[1] = platform._get_global_input(.Mouse_Right);
+        // io.mouse_down[2] = platform._get_global_input(.Mouse_Middle);
         io.mouse_wheel   = platform.main_window.mouse_scroll;
         if io.want_capture_mouse {
             platform.main_window.mouse_scroll = 0;
