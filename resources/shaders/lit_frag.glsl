@@ -214,6 +214,7 @@ void main() {
 
 
 
+    // todo(josh): why the 0.03? is that just a hardcoded ambient that we should remove?
     vec3 ambient = vec3(0.03) * albedo * material.ao;
     // todo(josh): ask jake why he changed this
     // vec3 color = albedo + ambient + Lo;
@@ -237,9 +238,9 @@ void main() {
     }
 
     // bloom color
-    float brightness = dot(out_color.rgb, vec3(1, 1, 1)); // todo(josh): make configurable?
-    if (brightness > bloom_threshhold) {
-        bloom_color = vec4(out_color.rgb * ((brightness / bloom_threshhold) - 1), 1.0);
+    float luminance = dot(out_color.rgb, vec3(0.2989, 0.5866, 0.1145)); // todo(josh): investigate real luminance
+    if (luminance > bloom_threshhold) {
+        bloom_color = vec4(out_color.rgb * ((luminance / bloom_threshhold) - 1), 1.0);
     }
     else {
         bloom_color = vec4(0.0, 0.0, 0.0, 1.0);

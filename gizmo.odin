@@ -280,7 +280,6 @@ gizmo_manipulate :: proc(position: ^Vec3, scale: ^Vec3, rotation: ^Quat, using g
         return nil;
     }
     unreachable();
-    return nil;
 }
 
 rotated_direction :: proc(entity_rotation: Quat, direction: Vec3) -> Vec3 {

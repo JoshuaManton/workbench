@@ -629,39 +629,39 @@ imgui_struct_ti :: proc(name: string, data: rawptr, ti: ^rt.Type_Info, tags: str
         case rt.Type_Info_Enum: {
             if len(kind.values) > 0 {
                 current_item_index : i32 = -1;
-                switch _ in kind.values[0] {
-                    case u8:        for v, idx in kind.values { if (cast(^u8     )data)^ == v.(u8)      { current_item_index = cast(i32)idx; break; } }
-                    case u16:       for v, idx in kind.values { if (cast(^u16    )data)^ == v.(u16)     { current_item_index = cast(i32)idx; break; } }
-                    case u32:       for v, idx in kind.values { if (cast(^u32    )data)^ == v.(u32)     { current_item_index = cast(i32)idx; break; } }
-                    case u64:       for v, idx in kind.values { if (cast(^u64    )data)^ == v.(u64)     { current_item_index = cast(i32)idx; break; } }
-                    case uint:      for v, idx in kind.values { if (cast(^uint   )data)^ == v.(uint)    { current_item_index = cast(i32)idx; break; } }
-                    case i8:        for v, idx in kind.values { if (cast(^i8     )data)^ == v.(i8)      { current_item_index = cast(i32)idx; break; } }
-                    case i16:       for v, idx in kind.values { if (cast(^i16    )data)^ == v.(i16)     { current_item_index = cast(i32)idx; break; } }
-                    case i32:       for v, idx in kind.values { if (cast(^i32    )data)^ == v.(i32)     { current_item_index = cast(i32)idx; break; } }
-                    case i64:       for v, idx in kind.values { if (cast(^i64    )data)^ == v.(i64)     { current_item_index = cast(i32)idx; break; } }
-                    case int:       for v, idx in kind.values { if (cast(^int    )data)^ == v.(int)     { current_item_index = cast(i32)idx; break; } }
-                    case rune:      for v, idx in kind.values { if (cast(^rune   )data)^ == v.(rune)    { current_item_index = cast(i32)idx; break; } }
-                    case uintptr:   for v, idx in kind.values { if (cast(^uintptr)data)^ == v.(uintptr) { current_item_index = cast(i32)idx; break; } }
+                switch kind.base.id {
+                    case u8:        for v, idx in kind.values { if (cast(^u8     )data)^ == cast(u8     )v { current_item_index = cast(i32)idx; break; } }
+                    case u16:       for v, idx in kind.values { if (cast(^u16    )data)^ == cast(u16    )v { current_item_index = cast(i32)idx; break; } }
+                    case u32:       for v, idx in kind.values { if (cast(^u32    )data)^ == cast(u32    )v { current_item_index = cast(i32)idx; break; } }
+                    case u64:       for v, idx in kind.values { if (cast(^u64    )data)^ == cast(u64    )v { current_item_index = cast(i32)idx; break; } }
+                    case uint:      for v, idx in kind.values { if (cast(^uint   )data)^ == cast(uint   )v { current_item_index = cast(i32)idx; break; } }
+                    case i8:        for v, idx in kind.values { if (cast(^i8     )data)^ == cast(i8     )v { current_item_index = cast(i32)idx; break; } }
+                    case i16:       for v, idx in kind.values { if (cast(^i16    )data)^ == cast(i16    )v { current_item_index = cast(i32)idx; break; } }
+                    case i32:       for v, idx in kind.values { if (cast(^i32    )data)^ == cast(i32    )v { current_item_index = cast(i32)idx; break; } }
+                    case i64:       for v, idx in kind.values { if (cast(^i64    )data)^ == cast(i64    )v { current_item_index = cast(i32)idx; break; } }
+                    case int:       for v, idx in kind.values { if (cast(^int    )data)^ == cast(int    )v { current_item_index = cast(i32)idx; break; } }
+                    case rune:      for v, idx in kind.values { if (cast(^rune   )data)^ == cast(rune   )v { current_item_index = cast(i32)idx; break; } }
+                    case uintptr:   for v, idx in kind.values { if (cast(^uintptr)data)^ == cast(uintptr)v { current_item_index = cast(i32)idx; break; } }
                     case: panic(tprint(kind.values[0]));
                 }
 
                 item := current_item_index;
                 imgui.combo(name, &item, kind.names, cast(i32)min(5, len(kind.names)));
                 if item != current_item_index {
-                    switch value in kind.values[item] {
-                        case u8:        (cast(^u8     )data)^ = value;
-                        case u16:       (cast(^u16    )data)^ = value;
-                        case u32:       (cast(^u32    )data)^ = value;
-                        case u64:       (cast(^u64    )data)^ = value;
-                        case uint:      (cast(^uint   )data)^ = value;
-                        case i8:        (cast(^i8     )data)^ = value;
-                        case i16:       (cast(^i16    )data)^ = value;
-                        case i32:       (cast(^i32    )data)^ = value;
-                        case i64:       (cast(^i64    )data)^ = value;
-                        case int:       (cast(^int    )data)^ = value;
-                        case rune:      (cast(^rune   )data)^ = value;
-                        case uintptr:   (cast(^uintptr)data)^ = value;
-                        case: panic(tprint(value));
+                    switch kind.base.id {
+                        case u8:        (cast(^u8     )data)^ = cast(u8     )kind.values[item];
+                        case u16:       (cast(^u16    )data)^ = cast(u16    )kind.values[item];
+                        case u32:       (cast(^u32    )data)^ = cast(u32    )kind.values[item];
+                        case u64:       (cast(^u64    )data)^ = cast(u64    )kind.values[item];
+                        case uint:      (cast(^uint   )data)^ = cast(uint   )kind.values[item];
+                        case i8:        (cast(^i8     )data)^ = cast(i8     )kind.values[item];
+                        case i16:       (cast(^i16    )data)^ = cast(i16    )kind.values[item];
+                        case i32:       (cast(^i32    )data)^ = cast(i32    )kind.values[item];
+                        case i64:       (cast(^i64    )data)^ = cast(i64    )kind.values[item];
+                        case int:       (cast(^int    )data)^ = cast(int    )kind.values[item];
+                        case rune:      (cast(^rune   )data)^ = cast(rune   )kind.values[item];
+                        case uintptr:   (cast(^uintptr)data)^ = cast(uintptr)kind.values[item];
+                        case: panic(tprint(kind));
                     }
                 }
             }

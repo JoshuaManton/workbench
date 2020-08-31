@@ -42,12 +42,12 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
             num_allocs += 1;
             // os.write(os.stdout, transmute([]byte)fmt.tprintf("alloc #%d: %s:%d\n", num_allocs, loc.file_path, loc.line));
             ptr := tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
-            assert(ptr notin tracker.allocations);
+            assert(ptr not_in tracker.allocations);
             tracker.allocations[ptr] = Allocation_Info{loc, size};
             return ptr;
         }
         case .Free: {
-            if old_memory notin tracker.allocations {
+            if old_memory not_in tracker.allocations {
                 panic(fmt.tprint(loc));
             }
             delete_key(&tracker.allocations, old_memory);
@@ -58,7 +58,7 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
         }
         case .Resize: {
             if old_memory != nil {
-                if old_memory notin tracker.allocations && old_memory != nil {
+                if old_memory not_in tracker.allocations && old_memory != nil {
                     panic(fmt.tprint(loc));
                 }
                 delete_key(&tracker.allocations, old_memory);
@@ -70,5 +70,4 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
         }
     }
     unreachable();
-    return nil;
 }

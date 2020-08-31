@@ -500,7 +500,7 @@ add_component_type :: proc($Type: typeid, update_proc: proc(^Type, f32), render_
         component_types = make(map[typeid]^Component_Type, 1);
     }
     id := typeid_of(Type);
-    assert(id notin component_types);
+    assert(id not_in component_types);
 
     component_types[id] = new_clone(Component_Type{
         type_info_of(Type),
