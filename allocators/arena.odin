@@ -44,14 +44,14 @@ arena_allocator :: proc(arena: ^Arena) -> mem.Allocator {
     return mem.Allocator{arena_allocator_proc, arena};
 }
 
-arena_allocator_bootstrap :: proc(memory: []byte, panic_on_oom: bool) -> mem.Allocator {
+arena_allocator_bootstrap :: proc(memory: []byte, panic_on_oom: bool) -> (^Arena, mem.Allocator) {
     offset: int;
     arena := buffer_allocate(memory, &offset, Arena, true);
     assert(arena != nil);
     init_arena(arena, memory, panic_on_oom);
     arena.cur_offset = offset;
     arena.initial_offset = arena.cur_offset;
-    return mem.Allocator{arena_allocator_proc, arena};
+    return arena, mem.Allocator{arena_allocator_proc, arena};
 }
 
 arena_alloc :: proc(arena: ^Arena, size: int, alignment: int) -> rawptr {
