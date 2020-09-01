@@ -11,7 +11,11 @@ workbench is a collection of libraries for games handling rendering, serializati
 * Bloom
 * Gamma correction
 
+#### Sample scene
 ![Renderer](https://i.imgur.com/BAEvzkQ.png)
+
+#### Game jam puzzle game
+![Game Jam Game](https://i.imgur.com/CFvo7b2.png)
 
 // todo: more pictures and gifs
 
