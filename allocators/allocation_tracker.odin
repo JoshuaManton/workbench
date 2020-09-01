@@ -37,7 +37,7 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
 
     @static num_allocs: int;
 
-    switch mode {
+    #partial switch mode {
         case .Alloc: {
             num_allocs += 1;
             // os.write(os.stdout, transmute([]byte)fmt.tprintf("alloc #%d: %s:%d\n", num_allocs, loc.file_path, loc.line));

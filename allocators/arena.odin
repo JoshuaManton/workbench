@@ -70,7 +70,7 @@ arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 
     arena := cast(^Arena)allocator_data;
 
-    switch mode {
+    #partial switch mode {
         case .Alloc: {
             return arena_alloc(arena, size, alignment);
         }

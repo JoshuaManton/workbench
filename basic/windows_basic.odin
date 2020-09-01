@@ -19,7 +19,7 @@ when os.OS == "windows" {
 		recurse(path_c, &results);
 
 		recurse :: proc(path: cstring, results: ^[dynamic]string) {
-			query_path := strings.clone_to_cstring(fmt.tprint(path, "/*.*"));
+			query_path := strings.clone_to_cstring(fmt.tprint(args={path, "/*.*"}, sep=""));
 			defer delete(query_path);
 
 			ffd: win32.Find_Data_A;
@@ -36,12 +36,12 @@ when os.OS == "windows" {
 
 				if file_name != "." && file_name != ".." {
 					if (ffd.file_attributes & win32.FILE_ATTRIBUTE_DIRECTORY) > 0 {
-						nested_path := strings.clone_to_cstring(fmt.tprint(path, "/", cast(cstring)&ffd.file_name[0]));
+						nested_path := strings.clone_to_cstring(fmt.tprint(args={path, "/", cast(cstring)&ffd.file_name[0]}, sep=""));
 						defer delete(nested_path);
 						recurse(nested_path, results);
 					}
 					else {
-						str := strings.clone(fmt.tprint(path, "/", file_name));
+						str := strings.clone(fmt.tprint(args={path, "/", file_name}, sep=""));
 						append(results, str);
 					}
 				}

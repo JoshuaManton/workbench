@@ -72,7 +72,7 @@ dynamic_arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator
 
     dynamic_arena := cast(^Dynamic_Arena)allocator_data;
 
-    switch mode {
+    #partial switch mode {
         case .Alloc: {
             return dynamic_arena_alloc(dynamic_arena, size, alignment);
         }

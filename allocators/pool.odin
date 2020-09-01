@@ -35,7 +35,7 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 
 	using pool := cast(^Pool_Allocator)allocator_data;
 
-	switch mode {
+	#partial switch mode {
 		case .Alloc: {
 			assert(memory != nil);
 			index := -1;
