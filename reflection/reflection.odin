@@ -19,7 +19,9 @@ get_union_type_info :: proc(v : any) -> ^rt.Type_Info {
 
 get_union_tag :: proc(v : any) -> i64 {
     info, ok := rt.type_info_base(type_info_of(v.id)).variant.(rt.Type_Info_Union);
-    assert(ok, tprint(v));
+    if !ok {
+        panic(tprint(v));
+    }
     tag_ptr := uintptr(v.data) + info.tag_offset;
     tag_any := any{rawptr(tag_ptr), info.tag_type.id};
 
