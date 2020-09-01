@@ -216,7 +216,7 @@ wnd_proc :: proc "std" (hwnd: win32.Hwnd, message: u32, wparam: win32.Wparam, lp
             width  := win32.LOWORD_L(lparam);
             height := win32.HIWORD_L(lparam);
 
-            logln("New window size: ", width, height);
+            logf("New window size: %x%", width, height);
             currently_updating_window.width  = cast(f32)width;
             currently_updating_window.height = cast(f32)height;
             currently_updating_window.aspect = currently_updating_window.width / currently_updating_window.height;
