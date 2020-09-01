@@ -9,8 +9,11 @@ import rt "core:runtime" // todo(josh): remove after pretty_print
 import "../basic"
 
 logln :: proc(args: ..any, location := #caller_location) {
-    fmt.print(basic.pretty_location(location), ' ');
-    fmt.print(..args);
+    fmt.print(basic.pretty_location(location));
+    fmt.print(' ');
+    for arg in args {
+        fmt.print(arg);
+    }
     fmt.print('\n');
 }
 
