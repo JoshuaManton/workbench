@@ -1,5 +1,6 @@
 package allocators
 
+import "core:fmt"
 import "core:mem"
 
 Pool_Allocator :: struct {
@@ -72,6 +73,13 @@ pool_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
 		case .Resize: {
 			unimplemented();
 		}
+        case .Query_Features: {
+            unimplemented();
+        }
+        case .Query_Info: {
+            unimplemented();
+        }
+        case: panic(fmt.tprint(mode));
 	}
 	unreachable();
 }

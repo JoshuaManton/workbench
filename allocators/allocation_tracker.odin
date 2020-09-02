@@ -68,6 +68,12 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
             tracker.allocations[ptr] = Allocation_Info{loc, size};
             return ptr;
         }
+        case .Query_Features: {
+            unimplemented();
+        }
+        case .Query_Info: {
+            unimplemented();
+        }
     }
     unreachable();
 }

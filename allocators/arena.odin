@@ -83,8 +83,17 @@ arena_allocator_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode,
         }
         case .Resize: {
             new_memory := arena_allocator_proc(allocator_data, .Alloc, size, alignment, old_memory, old_size, flags, loc);
+            if new_memory == nil {
+                return nil;
+            }
             mem.copy(new_memory, old_memory, min(old_size, size));
             return new_memory;
+        }
+        case .Query_Features: {
+            unimplemented();
+        }
+        case .Query_Info: {
+            unimplemented();
         }
         case: panic(fmt.tprint(mode));
     }
