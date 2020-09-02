@@ -8,6 +8,7 @@ import "core:os"
 Allocation_Tracker :: struct {
     backing: mem.Allocator,
     allocations: map[rawptr]Allocation_Info,
+    print_allocations: bool,
 }
 
 Allocation_Info :: struct {
@@ -15,8 +16,10 @@ Allocation_Info :: struct {
     size: int,
 }
 
-init_allocation_tracker :: proc(tracker: ^Allocation_Tracker) -> mem.Allocator {
-    tracker^ = Allocation_Tracker{context.allocator, {}};
+
+
+init_allocation_tracker :: proc(tracker: ^Allocation_Tracker, print_allocations: bool) -> mem.Allocator {
+    tracker^ = Allocation_Tracker{context.allocator, make(map[rawptr]Allocation_Info, 10000), print_allocations};
     return mem.Allocator{allocation_tracker_proc, tracker};
 }
 
@@ -33,14 +36,16 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
     tracker := cast(^Allocation_Tracker)allocator_data;
     assert(tracker.backing.procedure != nil);
     context.allocator = tracker.backing;
-    context.temp_allocator = {};
+    // context.temp_allocator = {}; // note(josh): I don't remember why we needed to clear the temp allocator. maybe it was stack overflowing? not sure
 
     @static num_allocs: int;
 
     switch mode {
         case .Alloc: {
             num_allocs += 1;
-            // os.write(os.stdout, transmute([]byte)fmt.tprintf("alloc #%d: %s:%d\n", num_allocs, loc.file_path, loc.line));
+            if tracker.print_allocations {
+                os.write(os.stdout, transmute([]byte)fmt.tprintf("alloc #%d: %s:%d\n", num_allocs, loc.file_path, loc.line));
+            }
             ptr := tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
             assert(ptr not_in tracker.allocations);
             tracker.allocations[ptr] = Allocation_Info{loc, size};
@@ -54,6 +59,7 @@ allocation_tracker_proc :: proc(allocator_data: rawptr, mode: mem.Allocator_Mode
             return tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
         }
         case .Free_All: {
+            clear(&tracker.allocations);
             return tracker.backing.procedure(allocator_data, mode, size, alignment, old_memory, old_size, flags, loc);
         }
         case .Resize: {
