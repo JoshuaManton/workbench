@@ -98,8 +98,8 @@ serialize_with_type_info :: proc(name: string, value: rawptr, ti: ^rt.Type_Info,
 		}
 	}
 
-	print_to_buf :: inline proc(sb: ^strings.Builder, args: ..any) {
-		sbprint(sb, ..args);
+	print_to_buf :: inline proc(sb: ^strings.Builder, rgs: ..any) {
+		sbprint(buf=sb, args=rgs, sep="");
 	}
 
 	if name != "" {
@@ -446,7 +446,7 @@ parse_value :: proc(lexer: ^laas.Lexer, is_negative_number := false, loc := #cal
 							}
 						}
 
-						element := parse_value(lexer);
+						element := parse_value(lexer, false, loc);
 						append(&elements, element);
 					}
 					return new_clone(Node{Node_Array{elements[:]}}, _node_allocator);
