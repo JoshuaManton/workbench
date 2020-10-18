@@ -1,5 +1,7 @@
 # workbench
 
+## **NOTE: This project is no longer being worked on. My focus is on a new private version of this engine.**
+
 workbench is a collection of libraries for games handling rendering, serialization, collision, and more.
 
 ### Renderer
